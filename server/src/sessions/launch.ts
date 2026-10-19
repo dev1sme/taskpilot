@@ -27,15 +27,17 @@ export const claudeLauncher: Launcher = (sessionId, opts) => ({
 /**
  * Environment for the child. Inherited CLAUDE* variables (set when TaskPilot itself is started
  * from inside a Claude Code session) make claude run as a child session that never writes its
- * transcript; see docs/SPEC.md §7. TASKPILOT_TOKEN is the UI token and must not reach sessions.
+ * transcript; see docs/SPEC.md §7. The UI token and login must not reach sessions.
  */
+const UI_SECRETS = new Set(["TASKPILOT_TOKEN", "TASKPILOT_AUTH_USER", "TASKPILOT_AUTH_PASSWORD"]);
+
 export function childEnv(
   base: NodeJS.ProcessEnv = process.env,
   extra: Record<string, string> = {},
 ): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(base)) {
-    if (value !== undefined && !key.startsWith("CLAUDE") && key !== "TASKPILOT_TOKEN") env[key] = value;
+    if (value !== undefined && !key.startsWith("CLAUDE") && !UI_SECRETS.has(key)) env[key] = value;
   }
   env.COLORTERM = "truecolor";
   return { ...env, ...extra };

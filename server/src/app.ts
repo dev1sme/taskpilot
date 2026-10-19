@@ -12,7 +12,7 @@ import { registerConfigRoutes } from "./config/routes.js";
 import { EnvStore } from "./sessions/envStore.js";
 import { readInventory } from "./repo/inventory.js";
 import { TasksWatcher } from "./repo/watcher.js";
-import { registerSecurity } from "./security.js";
+import { registerSecurity, type BasicAuth } from "./security.js";
 import { isHookEvent } from "./sessions/hooks.js";
 import type { Launcher } from "./sessions/launch.js";
 import { claudeVersion } from "./sessions/version.js";
@@ -31,6 +31,8 @@ export interface AppOptions {
   logger?: boolean;
   /** Hostnames accepted in Host/Origin besides loopback, e.g. the listen address or a proxy's domain. */
   allowedHosts?: string[];
+  /** HTTP basic auth required on every request except hook callbacks. */
+  auth?: BasicAuth;
   /** Overrides the claude command (tests). */
   launcher?: Launcher;
   /** Overrides workflow loading (tests). */
@@ -107,7 +109,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     }
   }
 
-  registerSecurity(app, opts.token, opts.allowedHosts);
+  registerSecurity(app, opts.token, opts.allowedHosts, opts.auth);
   await app.register(fastifyWebsocket);
 
   app.setErrorHandler((err, _req, reply) => {

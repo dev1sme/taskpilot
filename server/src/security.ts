@@ -1,4 +1,4 @@
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 export const TOKEN_HEADER = "x-taskpilot-token";
@@ -49,6 +49,29 @@ export function tokenMatches(expected: string, given: string | undefined): boole
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+export interface BasicAuth {
+  user: string;
+  password: string;
+}
+
+/** Hashing first makes the comparison constant-time regardless of the lengths involved. */
+function sameSecret(expected: string, given: string): boolean {
+  const digest = (v: string) => createHash("sha256").update(v).digest();
+  return timingSafeEqual(digest(expected), digest(given));
+}
+
+export function basicAuthMatches(auth: BasicAuth, header: string | undefined): boolean {
+  const match = /^Basic\s+(\S+)$/i.exec(header ?? "");
+  if (!match) return false;
+  const decoded = Buffer.from(match[1], "base64").toString("utf8");
+  const colon = decoded.indexOf(":");
+  if (colon < 0) return false;
+  // Evaluate both so a wrong user takes as long as a wrong password.
+  const userOk = sameSecret(auth.user, decoded.slice(0, colon));
+  const passwordOk = sameSecret(auth.password, decoded.slice(colon + 1));
+  return userOk && passwordOk;
+}
+
 function requestToken(req: FastifyRequest): string | undefined {
   const header = req.headers[TOKEN_HEADER];
   if (typeof header === "string") return header;
@@ -57,7 +80,12 @@ function requestToken(req: FastifyRequest): string | undefined {
   return typeof query?.token === "string" ? query.token : undefined;
 }
 
-export function registerSecurity(app: FastifyInstance, token: string, extraHosts: readonly string[] = []): void {
+export function registerSecurity(
+  app: FastifyInstance,
+  token: string,
+  extraHosts: readonly string[] = [],
+  auth?: BasicAuth,
+): void {
   const allowed = allowedHostnames(extraHosts);
   app.addHook("onRequest", async (req, reply) => {
     if (!isAllowedHost(req.headers.host, allowed)) {
@@ -66,6 +94,13 @@ export function registerSecurity(app: FastifyInstance, token: string, extraHosts
     // Browsers do not apply CORS to WebSockets; refuse any cross-site page outright.
     if (req.headers.origin !== undefined && !isAllowedOrigin(req.headers.origin, allowed)) {
       return reply.code(403).send({ error: "Origin not allowed" });
+    }
+    // Hook callbacks come from the sessions' curl, which has its own per-session token.
+    if (auth && !req.url.startsWith("/hook/") && !basicAuthMatches(auth, req.headers.authorization)) {
+      return reply
+        .code(401)
+        .header("www-authenticate", 'Basic realm="TaskPilot", charset="UTF-8"')
+        .send({ error: "Authentication required" });
     }
     if (req.url.startsWith("/api/") && !tokenMatches(token, requestToken(req))) {
       return reply.code(401).send({ error: "Missing or invalid token" });

@@ -25,7 +25,8 @@ const USAGE = `Usage: taskpilot [--repo <path>] [--host <addr>] [--port <n>] [--
 
 Environment: TASKPILOT_HOME (state dir, default ~/.taskpilot), TASKPILOT_TOKEN (fixed UI token),
 TASKPILOT_ALLOWED_HOSTS (comma-separated hostnames accepted besides loopback, e.g. a reverse
-proxy's domain), TASKPILOT_CLAUDE (claude command, default "claude").
+proxy's domain), TASKPILOT_AUTH_USER + TASKPILOT_AUTH_PASSWORD (HTTP basic auth, both or neither),
+TASKPILOT_CLAUDE (claude command, default "claude").
 Variables not set in the environment are read from the .env next to package.json.`;
 
 let values;
@@ -59,10 +60,17 @@ const repo = values.repo ?? (existsSync(tasksRoot(process.cwd())) ? process.cwd(
 // dist/server/index.js -> dist/client ; server/src/index.ts (tsx) -> dist/client
 const clientDir = [path.resolve(here, "../client"), path.resolve(here, "../../dist/client")].find((d) => existsSync(d));
 
+const { TASKPILOT_AUTH_USER: authUser, TASKPILOT_AUTH_PASSWORD: authPassword } = process.env;
+if (Boolean(authUser) !== Boolean(authPassword)) {
+  console.error("Set both TASKPILOT_AUTH_USER and TASKPILOT_AUTH_PASSWORD, or neither.");
+  process.exit(2);
+}
+const auth = authUser && authPassword ? { user: authUser, password: authPassword } : undefined;
+
 const host = values.host;
 const allowedHosts = [host, ...(process.env.TASKPILOT_ALLOWED_HOSTS ?? "").split(",")];
 const token = process.env.TASKPILOT_TOKEN ?? newToken();
-const app = await buildApp({ token, state: new StateStore(), repo, clientDir, logger: true, allowedHosts });
+const app = await buildApp({ token, state: new StateStore(), repo, clientDir, logger: true, allowedHosts, auth });
 
 try {
   await app.listen({ host, port });

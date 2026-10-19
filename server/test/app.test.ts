@@ -5,7 +5,7 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadDotEnv } from "../src/dotenv.js";
 import { childEnv } from "../src/sessions/launch.js";
-import { hostnameOf, isLoopbackHost } from "../src/security.js";
+import { hostnameOf, isLoopbackHost, type BasicAuth } from "../src/security.js";
 import { StateStore } from "../src/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
 
@@ -16,9 +16,9 @@ let app: FastifyInstance | undefined;
 afterEach(async () => app?.close());
 afterAll(cleanupTempDirs);
 
-async function start(repo?: string, allowedHosts?: string[]) {
+async function start(repo?: string, allowedHosts?: string[], auth?: BasicAuth) {
   const state = new StateStore(await tempDir("taskpilot-state-"));
-  app = await buildApp({ token: TOKEN, state, repo, allowedHosts });
+  app = await buildApp({ token: TOKEN, state, repo, allowedHosts, auth });
   return { app, state };
 }
 
@@ -55,9 +55,32 @@ describe("security", () => {
     expect((await get({ host: "evil.example" })).statusCode).toBe(403);
   });
 
-  it("does not pass the UI token to sessions", () => {
-    expect(childEnv({ TASKPILOT_TOKEN: "secret", TASKPILOT_HOME: "/x" })).toMatchObject({ TASKPILOT_HOME: "/x" });
-    expect(childEnv({ TASKPILOT_TOKEN: "secret" })).not.toHaveProperty("TASKPILOT_TOKEN");
+  it("does not pass the UI token or login to sessions", () => {
+    const env = childEnv({ TASKPILOT_TOKEN: "t", TASKPILOT_AUTH_USER: "u", TASKPILOT_AUTH_PASSWORD: "p", TASKPILOT_HOME: "/x" });
+    expect(env).toMatchObject({ TASKPILOT_HOME: "/x" });
+    expect(Object.keys(env).filter((k) => k.startsWith("TASKPILOT_AUTH") || k === "TASKPILOT_TOKEN")).toEqual([]);
+  });
+
+  it("requires basic auth when configured, except for hook callbacks", async () => {
+    const { app } = await start(undefined, [], { user: "thomson", password: "p:ss wörd" });
+    const basic = (cred: string) => `Basic ${Buffer.from(cred).toString("base64")}`;
+    const get = (authorization?: string) =>
+      app.inject({ url: "/api/repo", headers: { ...ok, ...(authorization ? { authorization } : {}) } });
+
+    const missing = await get();
+    expect(missing.statusCode).toBe(401);
+    expect(missing.headers["www-authenticate"]).toMatch(/^Basic realm="TaskPilot"/);
+    expect((await get(basic("thomson:wrong"))).statusCode).toBe(401);
+    expect((await get(basic("other:p:ss wörd"))).statusCode).toBe(401);
+    expect((await get("Bearer x")).statusCode).toBe(401);
+    expect((await get(basic("thomson:p:ss wörd"))).statusCode).toBe(200);
+    // Basic auth does not replace the UI token.
+    const noToken = await app.inject({ url: "/api/repo", headers: { host: ok.host, authorization: basic("thomson:p:ss wörd") } });
+    expect(noToken.statusCode).toBe(401);
+    expect(noToken.headers["www-authenticate"]).toBeUndefined();
+
+    const hook = await app.inject({ method: "POST", url: "/hook/Stop", headers: { host: ok.host }, payload: {} });
+    expect(hook.statusCode).toBe(403);
   });
 
   it("requires the token on /api", async () => {

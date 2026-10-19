@@ -43,6 +43,7 @@ The server prints a URL with a one-time token (`http://127.0.0.1:8790/?token=…
 |---|---|
 | `TASKPILOT_HOME` | state directory, default `~/.taskpilot` |
 | `TASKPILOT_TOKEN` | fixed UI token instead of a random one per start; never passed to sessions |
+| `TASKPILOT_AUTH_USER` / `TASKPILOT_AUTH_PASSWORD` | HTTP basic auth on every request except hook callbacks; set both or neither; never passed to sessions |
 | `TASKPILOT_ALLOWED_HOSTS` | comma-separated hostnames accepted in `Host` / `Origin` besides loopback and `--host`, e.g. a reverse proxy's domain |
 | `TASKPILOT_CLAUDE` | claude command, default `claude` |
 | `TASKPILOT_CLAUDE_HOME` / `TASKPILOT_CLAUDE_JSON` | where user-scope config is read from, default `~/.claude` / `~/.claude.json` |
@@ -68,8 +69,8 @@ Node version. It only runs while you are logged in unless lingering is on
 Behind a reverse proxy in Docker, listen on the docker0 address (`TASKPILOT_HOST=172.17.0.1`),
 proxy to `http://host.docker.internal:8790` with WebSocket upgrade headers, and list the proxy's
 domain in `TASKPILOT_ALLOWED_HOSTS`. Hook callbacks go straight to the listen address, so the proxy
-can refuse `/hook/`. Put authentication in front of it (the token alone guards a shell) and keep
-the proxy's access log off for it: the token travels in query strings.
+can refuse `/hook/`. Set `TASKPILOT_AUTH_USER` / `TASKPILOT_AUTH_PASSWORD` (the token alone
+guards a shell) and keep the proxy's access log off for it: the token travels in query strings.
 
 ## Claude configuration
 
@@ -147,7 +148,8 @@ The embedded terminal is a shell on your machine, so TaskPilot:
 
 - listens on `127.0.0.1` by default and rejects `Host` / `Origin` headers other than loopback, the
   listen address and `TASKPILOT_ALLOWED_HOSTS` (DNS rebinding, cross-site WebSockets);
-- requires the per-start token on every API call and WebSocket;
+- requires the per-start token on every API call and WebSocket, and HTTP basic auth on every
+  request when `TASKPILOT_AUTH_USER` / `TASKPILOT_AUTH_PASSWORD` are set;
 - authenticates hook callbacks with a token per session process.
 
 ## Develop

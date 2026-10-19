@@ -24,7 +24,7 @@ const EVENT_HINT: Record<string, string> = {
 
 /** Hook commands from all settings files, grouped by the event that triggers them. */
 export function HooksPage() {
-  const { data, error, loading, reload } = useConfig(api.hooks);
+  const { data, error, loading, reload } = useConfig(["hooks"], api.hooks);
   useDrafts();
   const draft = getDraft<HooksDraft>(HOOKS_DRAFT);
   const [opening, setOpening] = useState<Scope | null>(null);

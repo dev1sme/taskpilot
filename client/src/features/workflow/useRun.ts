@@ -1,28 +1,19 @@
-import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api/client";
-import { onTaskEvent } from "../../api/events";
-import type { RunPhase, RunView } from "../../api/types";
+import { useInvalidateOnTaskEvent } from "../../api/useInvalidateOnEvent";
+import type { RunPhase } from "../../api/types";
 
 export const ACTIVE_PHASES: RunPhase[] = ["starting", "running", "waiting", "gate", "interrupted"];
 
 /** The task's workflow and latest run, kept live through "run" events. */
 export function useRun(taskKey: string) {
-  const [view, setView] = useState<RunView | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const queryKey = ["run", taskKey];
+  const query = useQuery({ queryKey, queryFn: () => api.run(taskKey) });
+  useInvalidateOnTaskEvent("run", taskKey, queryKey);
 
-  const reload = useCallback(async () => {
-    try {
-      setView(await api.run(taskKey));
-      setError(null);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }, [taskKey]);
-
-  useEffect(() => {
-    void reload();
-    return onTaskEvent("run", taskKey, () => void reload());
-  }, [reload, taskKey]);
-
-  return { view, error, reload };
+  return {
+    view: query.data ?? null,
+    error: query.error ? (query.error as Error).message : null,
+    reload: async () => void (await query.refetch()),
+  };
 }

@@ -19,7 +19,7 @@ const MODE_LABEL: Record<string, string> = {
 
 /** Permission rules and env of each settings scope. Deny beats ask beats allow in Claude Code. */
 export function SettingsPage() {
-  const { data, error, loading, reload } = useConfig(api.settings);
+  const { data, error, loading, reload } = useConfig(["settings"], api.settings);
   const files = data ?? [];
   const totals = files.reduce((t, f) => ({ allow: t.allow + f.allow.length, ask: t.ask + f.ask.length, deny: t.deny + f.deny.length }), { allow: 0, ask: 0, deny: 0 });
 

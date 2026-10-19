@@ -32,7 +32,7 @@ const draftKey = (scope: Scope) => `memory:${scope}`;
 
 /** CLAUDE.md files as Claude loads them; editable with diff review, backups and conflict checks. */
 export function MemoryPage() {
-  const { data, error, loading, reload } = useConfig(api.memory);
+  const { data, error, loading, reload } = useConfig(["memory"], api.memory);
   const [scope, setScope] = useState<Scope>("project");
   const [opening, setOpening] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);

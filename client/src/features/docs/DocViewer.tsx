@@ -1,6 +1,7 @@
 import { X } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { api } from "../../api/client";
 import { Markdown } from "../../components/Markdown";
 import "./docs.css";
@@ -8,21 +9,14 @@ import "./docs.css";
 /** Full document in a panel sliding in from the right. Esc or the backdrop closes it. */
 export function DocViewer(props: { taskKey: string; path: string | null; version: number; onClose: () => void }) {
   const { taskKey, path, onClose } = props;
-  const [content, setContent] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const query = useQuery({
+    queryKey: ["doc", taskKey, path, props.version],
+    queryFn: () => api.file(taskKey, path!),
+    enabled: !!path,
+  });
+  const content = query.data?.content ?? null;
+  const error = query.error ? (query.error as Error).message : null;
   const closeRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!path) return;
-    setContent(null);
-    api
-      .file(taskKey, path)
-      .then((r) => {
-        setContent(r.content);
-        setError(null);
-      })
-      .catch((e: Error) => setError(e.message));
-  }, [taskKey, path, props.version]);
 
   useEffect(() => {
     if (!path) return;

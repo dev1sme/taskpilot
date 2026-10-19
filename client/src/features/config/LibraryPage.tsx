@@ -68,7 +68,7 @@ const draftKey = (kind: LibraryKind) => `library:${kind}`;
 
 /** Agents, commands or skills: list + detail, with create, edit (diff review) and delete (backed up). */
 export function LibraryPage({ kind }: { kind: LibraryKind }) {
-  const { data, error, loading, reload } = useConfig(() => api.library(kind));
+  const { data, error, loading, reload } = useConfig(["library", kind], () => api.library(kind));
   const { reloadInventory } = useWorkspace();
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<string | null>(null);

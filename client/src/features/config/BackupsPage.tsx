@@ -12,7 +12,7 @@ import "../tasks/tasks.css";
 
 /** Every backup TaskPilot took before writing a config file; any of them can be restored. */
 export function BackupsPage() {
-  const { data, error, loading, reload } = useConfig(api.backups);
+  const { data, error, loading, reload } = useConfig(["backups"], api.backups);
   const { reloadInventory } = useWorkspace();
   const [picked, setPicked] = useState<BackupEntry | null>(null);
   const [diff, setDiff] = useState<string | null>(null);

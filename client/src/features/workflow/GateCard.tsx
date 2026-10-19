@@ -1,6 +1,7 @@
 import { ArrowsOut, ChatText, Check, Diamond } from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { api } from "../../api/client";
 import type { RunState, WorkflowStep } from "../../api/types";
 import { Button } from "../../components/Button";
@@ -20,19 +21,16 @@ export function GateCard(props: {
   onChanged: () => void;
 }) {
   const { taskKey, step } = props;
-  const [doc, setDoc] = useState<string | null>(null);
+  const docQuery = useQuery({
+    queryKey: ["doc", taskKey, step.doneFile, props.docVersion],
+    queryFn: () => api.file(taskKey, step.doneFile!),
+    enabled: !!step.doneFile,
+  });
+  const doc = docQuery.data?.content ?? null;
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState<"approve" | "feedback" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const feedbackId = useId();
-
-  useEffect(() => {
-    if (!step.doneFile) return;
-    api
-      .file(taskKey, step.doneFile)
-      .then((r) => setDoc(r.content))
-      .catch(() => setDoc(null));
-  }, [taskKey, step.doneFile, props.docVersion]);
 
   const act = async (name: "approve" | "feedback", action: () => Promise<unknown>) => {
     setBusy(name);

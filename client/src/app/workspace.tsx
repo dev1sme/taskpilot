@@ -1,6 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { createContext, useCallback, useContext, type ReactNode } from "react";
 import { api } from "../api/client";
-import { onServerEvent } from "../api/events";
+import { queryClient } from "../api/queryClient";
+import { useInvalidateOnEvent } from "../api/useInvalidateOnEvent";
 import type { Info, Inventory, RepoInfo, TaskSummary } from "../api/types";
 
 interface Workspace {
@@ -17,59 +19,59 @@ const Ctx = createContext<Workspace | null>(null);
 
 /** Repo-wide state shared by every page: the repo, its tasks (live), config inventory, claude version. */
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const [repo, setRepo] = useState<RepoInfo | null>(null);
-  const [tasks, setTasks] = useState<TaskSummary[]>([]);
-  const [inventory, setInventory] = useState<Inventory | null>(null);
-  const [info, setInfo] = useState<Info | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const infoQuery = useQuery({ queryKey: ["info"], queryFn: api.info });
+  const repoQuery = useQuery({ queryKey: ["repo"], queryFn: api.repo });
+  const repo = repoQuery.data ?? null;
 
-  const loadTasks = useCallback(async () => {
-    try {
-      setTasks(await api.tasks());
-      setError(null);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }, []);
+  const tasksQuery = useQuery({
+    queryKey: ["tasks"],
+    queryFn: api.tasks,
+    enabled: !!repo?.path,
+  });
+  const inventoryQuery = useQuery({
+    queryKey: ["inventory"],
+    queryFn: api.inventory,
+    enabled: !!repo?.path,
+  });
+
+  // Run phase, sessions and permission prompts all change what the task list shows.
+  useInvalidateOnEvent("tasks", ["tasks"]);
+  useInvalidateOnEvent("repo", ["tasks"]);
+  useInvalidateOnEvent("run", ["tasks"]);
+  useInvalidateOnEvent("sessions", ["tasks"]);
 
   const reloadInventory = useCallback(async () => {
-    try {
-      setInventory(await api.inventory());
-    } catch {
-      setInventory(null);
-    }
+    await queryClient.invalidateQueries({ queryKey: ["inventory"] });
   }, []);
 
-  useEffect(() => {
-    void api.info().then(setInfo).catch(() => setInfo(null));
-    api
-      .repo()
-      .then((r) => {
-        setRepo(r);
-        if (r.path) {
-          void loadTasks();
-          void reloadInventory();
-        }
-      })
-      .catch((e: Error) => setError(e.message));
-  }, [loadTasks, reloadInventory]);
+  const openRepo = useCallback(async (path: string) => {
+    queryClient.setQueryData(["repo"], await api.setRepo(path));
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+      queryClient.invalidateQueries({ queryKey: ["inventory"] }),
+    ]);
+  }, []);
 
-  useEffect(() => {
-    // Run phase, sessions and permission prompts all change what the task list shows.
-    const offs = ["tasks", "repo", "run", "sessions"].map((e) => onServerEvent(e, () => void loadTasks()));
-    return () => offs.forEach((off) => off());
-  }, [loadTasks]);
-
-  const openRepo = useCallback(
-    async (path: string) => {
-      setRepo(await api.setRepo(path));
-      await Promise.all([loadTasks(), reloadInventory()]);
-    },
-    [loadTasks, reloadInventory],
-  );
+  const error = repoQuery.error
+    ? (repoQuery.error as Error).message
+    : tasksQuery.error
+      ? (tasksQuery.error as Error).message
+      : null;
 
   return (
-    <Ctx.Provider value={{ repo, tasks, inventory, info, error, openRepo, reloadInventory }}>{children}</Ctx.Provider>
+    <Ctx.Provider
+      value={{
+        repo,
+        tasks: tasksQuery.data ?? [],
+        inventory: inventoryQuery.data ?? null,
+        info: infoQuery.data ?? null,
+        error,
+        openRepo,
+        reloadInventory,
+      }}
+    >
+      {children}
+    </Ctx.Provider>
   );
 }
 

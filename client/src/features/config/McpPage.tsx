@@ -13,7 +13,7 @@ type Editing = { scope: Scope; base: McpEntryForm | null; baseHash: string } | n
 
 /** MCP servers Claude sees for this repo, from every scope; add, edit, delete and check them. */
 export function McpPage() {
-  const { data, error, loading, reload } = useConfig(api.mcp);
+  const { data, error, loading, reload } = useConfig(["mcp"], api.mcp);
   const { reloadInventory } = useWorkspace();
   const [picked, setPicked] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing>(null);

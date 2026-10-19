@@ -113,6 +113,7 @@ The embedded terminal is shell-equivalent access to the machine.
 | Transcript JSONL | Written only when the child env has no `CLAUDE*` vars. With inherited `CLAUDECODE=1` / `CLAUDE_CODE_CHILD_SESSION=1` the transcript is never persisted. |
 | Hook timing (M3 spike) | `SessionStart` ~1 s after spawn; a prompt pasted right after it is accepted. `PermissionRequest` fires as the prompt appears; `Notification` ~6 s later; `PostToolUse` after approval. |
 | Tool hooks (UI pass) | `PreToolUse`/`PostToolUse` carry `tool_use_id` and `tool_input`; `PostToolUse` has `duration_ms`. A failing tool (non-zero exit) fires **`PostToolUseFailure`** (with `error`), not `PostToolUse`. |
+| MCP `${VAR}` source (C2 spike) | Expanded from the claude **process** environment only. `env` in `.claude/settings.local.json` does **not** reach MCP servers (`claude mcp get`: failed with settings env, connected with process env). Project `.mcp.json` servers stay "Pending approval" until approved in claude; `enabledMcpjsonServers` in settings.local.json did not approve them. |
 | First run in a new folder | Trust dialog appears; default choice is **"No, exit"**. Leave it to the user in the terminal; never auto-answer. |
 
 ## 8. Open items
@@ -144,8 +145,16 @@ The embedded terminal is shell-equivalent access to the machine.
   write keeping the file mode, symlinks refused, target re-checked against an allow-list of Claude
   config paths. "Lịch sử thay đổi" lists backups, shows the diff and restores (backing up first).
   `bypassPermissions` is not offered as a default mode.
-- **Phase C2** hooks, agents/commands/skills and MCP editing; MCP connection check via
-  `claude mcp get` (keeps Claude's own approval of project servers).
+- **Phase C2** — done: command hooks per settings file (other hook types kept), create/edit/delete
+  agents, commands and skills (delete = backup then remove; skills: SKILL.md only), MCP servers:
+  - project (`.mcp.json`): written by TaskPilot with backups; values marked secret become `${VAR}`
+    and the value goes to TaskPilot's env store (`~/.taskpilot/env.json`, 0600), which is added to
+    the environment of every claude session TaskPilot starts;
+  - local/user (`~/.claude.json`): changed only through `claude mcp add-json` / `remove`, the
+    previous entry kept as a backup and restorable the same way (TaskPilot never writes that file);
+    secret values travel in `add-json`'s argv for that short call;
+  - connection check: `claude mcp get <name>` with the env store; only the Status line is used
+    because that command prints environment values in clear.
 - **UI** mission control — done: workflow is the main view (stepper, "what Claude is doing now",
   live activity feed, gate card with doc preview and Claude's closing message); the terminal is a
   drawer that opens on demand or on a permission prompt. Client split into `api/`, `components/`,

@@ -142,6 +142,7 @@ export interface LibraryItem {
   scope: "project" | "user";
   name: string;
   path: string;
+  rel: string;
   description: string;
   fields: Array<{ key: string; value: string }>;
   body: string;
@@ -160,6 +161,7 @@ export interface McpServer {
   env: MaskedValue[];
   headers: MaskedValue[];
   missingEnv: string[];
+  fromTaskPilot: string[];
 }
 
 export interface McpConfig {
@@ -210,4 +212,57 @@ export interface BackupEntry {
 export interface SaveResult {
   hash: string;
   backup: BackupEntry;
+}
+
+export interface HookInput {
+  event: string;
+  matcher: string;
+  command: string;
+  timeout?: number;
+}
+
+export interface HooksFile {
+  path: string;
+  exists: boolean;
+  hash: string;
+  hooks: HookInput[];
+}
+
+export interface ValueRow {
+  key: string;
+  /** null = keep the configured value. */
+  value: string | null;
+  secret?: boolean;
+}
+
+export interface McpEntryInput {
+  name: string;
+  originalName?: string;
+  type: "stdio" | "http" | "sse";
+  command?: string;
+  args: string[];
+  url?: string;
+  env: ValueRow[];
+  headers: ValueRow[];
+}
+
+export interface McpEntryForm {
+  name: string;
+  scope: Scope;
+  type: "stdio" | "http" | "sse";
+  command?: string;
+  args: string[];
+  url?: string;
+  env: MaskedValue[];
+  headers: MaskedValue[];
+  hash: string;
+}
+
+export interface McpPreview extends Preview {
+  secrets: string[];
+}
+
+export interface McpCheck {
+  status: "connected" | "failed" | "pending" | "auth" | "unknown";
+  label: string;
 }

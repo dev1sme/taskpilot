@@ -1,0 +1,76 @@
+import { FitAddon } from "@xterm/addon-fit";
+import { Terminal as XTerm } from "@xterm/xterm";
+import "@xterm/xterm/css/xterm.css";
+import { useEffect, useRef } from "react";
+import { api } from "./api";
+
+type ServerFrame = { t: "o"; d: string } | { t: "x"; code: number | null };
+
+/**
+ * xterm.js bound to a session's PTY over WebSocket. The server replays scrollback after the
+ * first resize frame, so remounting (tab switch, page reload) restores the screen.
+ */
+export function Terminal({ sessionId, onExit }: { sessionId: string; onExit: (code: number | null) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const onExitRef = useRef(onExit);
+  onExitRef.current = onExit;
+
+  useEffect(() => {
+    const el = ref.current!;
+    const term = new XTerm({
+      cursorBlink: true,
+      fontFamily: 'ui-monospace, "JetBrains Mono", Menlo, monospace',
+      fontSize: 13,
+      scrollback: 10_000,
+      theme: { background: "#0d1117", foreground: "#e6edf3" },
+    });
+    const fit = new FitAddon();
+    term.loadAddon(fit);
+    term.open(el);
+    fit.fit();
+
+    const ws = new WebSocket(api.ptyUrl(sessionId));
+    const send = (frame: object) => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(frame));
+    };
+    const sendSize = () => send({ t: "r", cols: term.cols, rows: term.rows });
+
+    ws.onopen = () => {
+      sendSize();
+      term.focus();
+    };
+    let sawOutput = false;
+    ws.onmessage = (e: MessageEvent<string>) => {
+      const frame = JSON.parse(e.data) as ServerFrame;
+      if (frame.t === "o") {
+        sawOutput = true;
+        term.write(frame.d);
+        return;
+      }
+      // No scrollback: the session ran under an earlier server process.
+      if (!sawOutput) term.write("\x1b[2m[Session không chạy. Bấm Resume để tiếp tục hội thoại này.]\x1b[0m\r\n");
+      onExitRef.current(frame.code);
+    };
+    ws.onclose = (e) => {
+      if (e.code !== 1000) term.write(`\r\n\x1b[2m[mất kết nối tới server: ${e.code}]\x1b[0m\r\n`);
+    };
+
+    const input = term.onData((d) => send({ t: "i", d }));
+    const resized = term.onResize(sendSize);
+    const observer = new ResizeObserver(() => {
+      if (el.clientWidth > 0 && el.clientHeight > 0) fit.fit();
+    });
+    observer.observe(el);
+
+    return () => {
+      observer.disconnect();
+      input.dispose();
+      resized.dispose();
+      ws.onclose = null;
+      ws.close(1000);
+      term.dispose();
+    };
+  }, [sessionId]);
+
+  return <div className="terminal" ref={ref} />;
+}

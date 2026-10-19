@@ -15,6 +15,15 @@ export interface TaskSummary {
   updatedAt: number;
 }
 
+export interface SessionView {
+  id: string;
+  taskKey: string;
+  title: string;
+  createdAt: number;
+  status: "running" | "exited";
+  exitCode: number | null;
+}
+
 export interface RepoInfo {
   path: string | null;
   tasksDir: string | null;
@@ -66,5 +75,33 @@ export const api = {
       "GET",
       `/api/tasks/${encodeURIComponent(key)}/file?path=${encodeURIComponent(path)}`,
     ),
-  events: () => new EventSource(`/api/events?token=${encodeURIComponent(token)}`),
+  sessions: (key: string) => call<SessionView[]>("GET", `/api/tasks/${encodeURIComponent(key)}/sessions`),
+  createSession: (key: string) => call<SessionView>("POST", `/api/tasks/${encodeURIComponent(key)}/sessions`),
+  resumeSession: (id: string) => call<SessionView>("POST", `/api/sessions/${id}/resume`),
+  stopSession: (id: string) => call<{ ok: true }>("POST", `/api/sessions/${id}/stop`),
+  forgetSession: (id: string) => call<{ ok: true }>("DELETE", `/api/sessions/${id}`),
+  ptyUrl: (id: string) => {
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${location.host}/api/sessions/${id}/pty?token=${encodeURIComponent(token)}`;
+  },
 };
+
+type Listener = (data: unknown) => void;
+const listeners = new Map<string, Set<Listener>>();
+let source: EventSource | null = null;
+
+/** One shared EventSource for the page; returns an unsubscribe function. */
+export function onServerEvent(event: string, fn: Listener): () => void {
+  if (!source) source = new EventSource(`/api/events?token=${encodeURIComponent(token)}`);
+  let set = listeners.get(event);
+  if (!set) {
+    set = new Set();
+    listeners.set(event, set);
+    source.addEventListener(event, (e) => {
+      const data: unknown = JSON.parse((e as MessageEvent<string>).data);
+      for (const l of listeners.get(event) ?? []) l(data);
+    });
+  }
+  set.add(fn);
+  return () => set.delete(fn);
+}

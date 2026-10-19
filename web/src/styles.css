@@ -155,9 +155,115 @@ aside {
   border-color: var(--accent);
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .detail {
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
   padding: 16px 24px;
+}
+
+.task-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+}
+
+.tabs button[aria-selected="true"] {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.tabs .new-session {
+  margin-left: auto;
+  color: var(--accent);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.dot.running {
+  background: #2da44e;
+}
+
+.tab-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.session-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 8px;
+}
+
+.session-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.session-bar code {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.session-bar .status {
+  margin-right: auto;
+  color: var(--muted);
+}
+
+.session-bar button {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+.session-bar .danger {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.terminal {
+  flex: 1;
+  min-height: 240px;
+  padding: 6px;
+  border-radius: 6px;
+  background: #0d1117;
+  overflow: hidden;
 }
 
 .detail h2 {

@@ -24,6 +24,15 @@ export function isLoopbackHost(host: string | undefined): boolean {
   return host !== undefined && LOOPBACK_HOSTNAMES.has(hostnameOf(host));
 }
 
+export function isLoopbackOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    return (url.protocol === "http:" || url.protocol === "https:") && isLoopbackHost(url.host);
+  } catch {
+    return false;
+  }
+}
+
 export function tokenMatches(expected: string, given: string | undefined): boolean {
   if (!given) return false;
   const a = Buffer.from(expected);
@@ -43,6 +52,10 @@ export function registerSecurity(app: FastifyInstance, token: string): void {
   app.addHook("onRequest", async (req, reply) => {
     if (!isLoopbackHost(req.headers.host)) {
       return reply.code(403).send({ error: "Host not allowed" });
+    }
+    // Browsers do not apply CORS to WebSockets; refuse any cross-site page outright.
+    if (req.headers.origin !== undefined && !isLoopbackOrigin(req.headers.origin)) {
+      return reply.code(403).send({ error: "Origin not allowed" });
     }
     if (req.url.startsWith("/api/") && !tokenMatches(token, requestToken(req))) {
       return reply.code(401).send({ error: "Missing or invalid token" });

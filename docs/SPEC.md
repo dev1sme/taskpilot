@@ -87,13 +87,14 @@ The embedded terminal is shell-equivalent access to the machine.
 - Random token per app start, printed in the URL; required on the API and WebSocket.
 - Hook endpoint: loopback only, plus a per-session token.
 
-## 7. M0 spike results (2026-10-19, claude 2.1.303, script: `docs/spike/pty-spike.js`)
+## 7. M0 spike results (2026-10-19, claude 2.1.303)
 
 | Question | Result |
 |---|---|
 | `--session-id <uuid>` | Honoured; hook payload `session_id` matches. |
 | `--settings` hooks merge with global settings? | **Merge.** Global `SessionStart`, `UserPromptSubmit`, `PostToolUse` hooks ran alongside the injected `Stop` hook. |
 | Stop hook payload | JSON on stdin: `session_id`, `transcript_path`, `cwd`, `permission_mode`, `last_assistant_message`, … |
+| `--resume <id>` | Keeps the same session id (a new id only with `--fork-session`); history is restored. |
 | Bracketed paste, multi-line prompt | Arrives as **one** user message with newlines intact. |
 | Writing into `.claude/tasks/` | `permission_mode: auto` → no prompt. `default` → prompt *"Do you want to create 02-plan.md?"* with option 2 *"allow Claude to edit files in this project's .claude folder for this session"*. |
 | Transcript JSONL | Written only when the child env has no `CLAUDE*` vars. With inherited `CLAUDECODE=1` / `CLAUDE_CODE_CHILD_SESSION=1` the transcript is never persisted. |
@@ -108,8 +109,8 @@ The embedded terminal is shell-equivalent access to the machine.
 ## 9. Milestones
 
 - **M0** spike — done (§7).
-- **M1** repo scan, task list, view `spec/` and output files.
-- **M2** session manager: multiple tabs per task, resume, scrollback across page reloads.
+- **M1** repo scan, task list, view `spec/` and output files — done.
+- **M2** session manager: multiple tabs per task, resume, scrollback across page reloads — done.
 - **M3** workflow engine, approve/feedback gates, hook badges.
 - **M4** polish: README, launcher script, tests for engine and scanner.
 

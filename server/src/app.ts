@@ -1,4 +1,5 @@
 import fastifyStatic from "@fastify/static";
+import fastifyWebsocket from "@fastify/websocket";
 import Fastify, { LogController, type FastifyInstance } from "fastify";
 import { existsSync } from "node:fs";
 import { HttpError } from "./errors.js";
@@ -6,6 +7,8 @@ import { EventHub } from "./events.js";
 import { getTask, listTasks, readTaskFile, resolveRepo, tasksRoot } from "./repo/tasks.js";
 import { TasksWatcher } from "./repo/watcher.js";
 import { registerSecurity } from "./security.js";
+import type { Launcher } from "./sessions/launch.js";
+import { SessionManager } from "./sessions/manager.js";
 import type { StateStore } from "./state.js";
 
 export interface AppOptions {
@@ -16,23 +19,33 @@ export interface AppOptions {
   /** Built web assets; omitted in tests and when running the Vite dev server. */
   webDir?: string;
   logger?: boolean;
+  /** Overrides the claude command (tests). */
+  launcher?: Launcher;
 }
 
+const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
-  // Request logging is off: the SSE URL carries the token in its query string.
+  // Request logging is off: SSE and WebSocket URLs carry the token in their query string.
   const app = Fastify({
     logger: opts.logger ?? false,
     logController: new LogController({ disableRequestLogging: true }),
   });
   const hub = new EventHub();
   const watcher = new TasksWatcher(() => hub.publish("tasks", { at: Date.now() }));
+  const sessions = new SessionManager(opts.state, {
+    launcher: opts.launcher,
+    onChange: (meta) => hub.publish("sessions", { taskKey: meta.taskKey }),
+  });
   let repo: string | null = null;
 
   async function setRepo(input: string): Promise<string> {
     const resolved = await resolveRepo(input);
     repo = resolved;
     await watcher.watch(resolved);
-    await opts.state.save({ ...(await opts.state.load()), lastRepo: resolved });
+    await opts.state.update((s) => {
+      s.lastRepo = resolved;
+    });
     hub.publish("repo", { path: resolved });
     return resolved;
   }
@@ -40,6 +53,11 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   function requireRepo(): string {
     if (!repo) throw new HttpError(409, "No repo selected");
     return repo;
+  }
+
+  function sessionId(id: string): string {
+    if (!SESSION_ID.test(id)) throw new HttpError(400, "Invalid session id");
+    return id;
   }
 
   const initial = opts.repo ?? (await opts.state.load()).lastRepo;
@@ -52,6 +70,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   }
 
   registerSecurity(app, opts.token);
+  await app.register(fastifyWebsocket);
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof HttpError) return reply.code(err.status).send({ error: err.message });
@@ -80,6 +99,38 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     return { path: rel, content: await readTaskFile(requireRepo(), req.params.key, rel) };
   });
 
+  app.get<{ Params: { key: string } }>("/api/tasks/:key/sessions", async (req) => {
+    const task = await getTask(requireRepo(), req.params.key);
+    return sessions.list(requireRepo(), task.key);
+  });
+
+  app.post<{ Params: { key: string } }>("/api/tasks/:key/sessions", async (req) => {
+    const task = await getTask(requireRepo(), req.params.key);
+    return sessions.create(requireRepo(), task.key);
+  });
+
+  app.post<{ Params: { id: string } }>("/api/sessions/:id/resume", async (req) =>
+    sessions.resume(sessionId(req.params.id)),
+  );
+
+  app.post<{ Params: { id: string } }>("/api/sessions/:id/stop", async (req) => {
+    await sessions.stop(sessionId(req.params.id));
+    return { ok: true };
+  });
+
+  app.delete<{ Params: { id: string } }>("/api/sessions/:id", async (req) => {
+    await sessions.forget(sessionId(req.params.id));
+    return { ok: true };
+  });
+
+  app.get<{ Params: { id: string } }>("/api/sessions/:id/pty", { websocket: true }, (socket, req) => {
+    if (!SESSION_ID.test(req.params.id)) {
+      socket.close(4400, "Invalid session id");
+      return;
+    }
+    void sessions.attach(req.params.id, socket);
+  });
+
   app.get("/api/events", async (_req, reply) => hub.serve(reply));
 
   if (opts.webDir && existsSync(opts.webDir)) {
@@ -87,6 +138,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   }
 
   app.addHook("onClose", async () => {
+    sessions.closeAll();
     hub.close();
     await watcher.close();
   });

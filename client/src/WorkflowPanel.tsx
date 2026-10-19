@@ -57,26 +57,14 @@ export function WorkflowPanel(props: {
   const active = run !== null && ACTIVE.includes(run.phase);
   const step = run ? workflow.steps[run.stepIndex] : undefined;
 
-  const stepState = (i: number) => {
-    if (!run || run.phase === "cancelled") return "pending";
-    if (run.phase === "done" || i < run.stepIndex) return "done";
-    return i === run.stepIndex ? "current" : "pending";
-  };
 
   return (
     <section className={`workflow ${run?.phase ?? "idle"}`} aria-label="Quy trình">
-      <ol className="steps">
-        {workflow.steps.map((s, i) => (
-          <li key={s.id} className={stepState(i)}>
-            {s.title}
-            {s.gate === "approve" && <span className="gate-mark"> · duyệt</span>}
-          </li>
-        ))}
-      </ol>
+      <Route steps={workflow.steps} run={run} />
 
       {run && (
         <p className="run-status">
-          <strong>{PHASE_LABEL[run.phase]}</strong> {run.message}
+          <strong>{PHASE_LABEL[run.phase]}.</strong> {run.message}
         </p>
       )}
       {error && <p className="error">{error}</p>}
@@ -158,5 +146,54 @@ export function WorkflowPanel(props: {
         Quy trình: {workflow.source.endsWith(".claude/workflow.yml") ? ".claude/workflow.yml" : "mặc định"}
       </p>
     </section>
+  );
+}
+
+type NodeState = "done" | "current" | "pending";
+interface RouteNode {
+  key: string;
+  kind: "step" | "gate";
+  label: string;
+  state: NodeState;
+}
+
+/**
+ * The workflow as a route: each step is a waypoint, each approval gate a hold point after it.
+ * Shows where the run is and, at a gate, that it is waiting on the user.
+ */
+function Route({ steps, run }: { steps: RunView["workflow"]["steps"]; run: RunView["run"] }) {
+  const live = run !== null && run.phase !== "cancelled";
+  const at = run?.stepIndex ?? -1;
+  const finished = run?.phase === "done";
+  const nodes: RouteNode[] = [];
+  steps.forEach((step, i) => {
+    const stepDone = live && (finished || i < at || (i === at && run!.phase === "gate"));
+    nodes.push({
+      key: step.id,
+      kind: "step",
+      label: step.title,
+      state: stepDone ? "done" : live && i === at ? "current" : "pending",
+    });
+    if (step.gate === "approve") {
+      const gateDone = live && (finished || i < at);
+      nodes.push({
+        key: `${step.id}-gate`,
+        kind: "gate",
+        label: "Ba duyệt",
+        state: gateDone ? "done" : live && i === at && run!.phase === "gate" ? "current" : "pending",
+      });
+    }
+  });
+  const running = run?.phase === "running" || run?.phase === "starting";
+
+  return (
+    <ol className={`route${running ? " is-running" : ""}`} aria-label="Các bước của quy trình">
+      {nodes.map((n) => (
+        <li key={n.key} className={`node ${n.kind} ${n.state}`} aria-current={n.state === "current" ? "step" : undefined}>
+          <span className="marker" aria-hidden="true" />
+          <span className="node-label">{n.label}</span>
+        </li>
+      ))}
+    </ol>
   );
 }

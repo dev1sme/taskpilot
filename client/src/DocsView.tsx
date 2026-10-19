@@ -30,7 +30,7 @@ export function DocsView({ task, focus }: { task: TaskSummary; focus?: { path: s
     <div className="docs">
       <nav className="files">
         <FileGroup label="Spec" files={task.specFiles.map((f) => f.path)} open={open} onOpen={setOpen} />
-        <FileGroup label="Tài liệu" files={task.outputFiles.map((f) => f.path)} open={open} onOpen={setOpen} />
+        <FileGroup label="Claude viết" files={task.outputFiles.map((f) => f.path)} open={open} onOpen={setOpen} />
       </nav>
       {error ? <p className="error">{error}</p> : content !== null && <Markdown source={content} />}
     </div>

@@ -122,6 +122,11 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState] }> {
     });
   }
 
+  /** True when an active run drives this session; such a session must not be removed. */
+  async usesSession(sessionId: string): Promise<boolean> {
+    return (await this.bySession(sessionId)) !== undefined;
+  }
+
   /** After a server restart no session is running; active runs cannot continue on their own. */
   recover(): Promise<void> {
     return this.serial(async () => {

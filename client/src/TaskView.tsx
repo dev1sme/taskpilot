@@ -41,7 +41,10 @@ export function TaskView({ task }: { task: TaskSummary }) {
 
   return (
     <div className="task-view">
-      <h2>{task.title === task.key ? task.key : `${task.key}: ${task.title}`}</h2>
+      <h2 className="task-heading">
+        <span className="task-key">{task.key}</span>
+        {task.title !== task.key && <span className="task-title">{task.title}</span>}
+      </h2>
       <WorkflowPanel
         taskKey={task.key}
         onShowSession={(id) => {
@@ -61,7 +64,7 @@ export function TaskView({ task }: { task: TaskSummary }) {
           <button key={s.id} type="button" role="tab" aria-selected={tab === s.id} onClick={() => setTab(s.id)}>
             <span className={`dot ${s.status}`} aria-label={s.status === "running" ? "đang chạy" : "đã dừng"} />
             {s.title}
-            {s.activity === "permission" && <span className="badge warn">chờ quyền</span>}
+            {s.activity === "permission" && <span className="tab-flag">chờ quyền</span>}
           </button>
         ))}
         <button

@@ -65,6 +65,21 @@ describe("workflow run end to end", () => {
     });
   });
 
+  it("keeps a session that an active run depends on", async () => {
+    const app = await start();
+    const run = (await app.inject({ method: "POST", url: "/api/tasks/DEMO-1/run", headers: ok })).json();
+    await app.inject({ method: "POST", url: `/api/sessions/${run.sessionId}/stop`, headers: ok });
+    await waitFor(
+      async () => (await app.inject({ url: "/api/tasks/DEMO-1/run", headers: ok })).json(),
+      (v) => v.run?.phase === "interrupted",
+    );
+    const del = await app.inject({ method: "DELETE", url: `/api/sessions/${run.sessionId}`, headers: ok });
+    expect(del.statusCode).toBe(409);
+    await app.inject({ method: "DELETE", url: "/api/tasks/DEMO-1/run", headers: ok });
+    const after = await app.inject({ method: "DELETE", url: `/api/sessions/${run.sessionId}`, headers: ok });
+    expect(after.statusCode).toBe(200);
+  });
+
   it("rejects hook calls without a valid session token", async () => {
     const app = await start();
     const bad = await app.inject({

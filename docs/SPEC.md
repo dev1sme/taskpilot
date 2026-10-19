@@ -73,9 +73,9 @@ steps:
 ## 5. Architecture
 
 ```
-Browser (Vite + React + xterm.js)
+client/ — browser UI (Vite + React + xterm.js)
    │  HTTP (REST) + WebSocket (PTY I/O, events)
-Server (Node 24 + TypeScript + Fastify + @fastify/websocket)
+server/ — Node 24 + TypeScript + Fastify + @fastify/websocket
    ├─ RepoScanner      scan/watch .claude/tasks (chokidar)
    ├─ SessionManager   node-pty spawn/resume claude, many sessions per task, scrollback buffer
    ├─ /hook/:event     SessionStart, UserPromptSubmit, PermissionRequest, PostToolUse, Stop ← curl
@@ -123,6 +123,7 @@ The embedded terminal is shell-equivalent access to the machine.
 - **M1** repo scan, task list, view `spec/` and output files — done.
 - **M2** session manager: multiple tabs per task, resume, scrollback across page reloads — done.
 - **M3** workflow engine, approve/feedback gates, hook badges — done.
-- **M4** polish: README, launcher script, tests for engine and scanner.
+- **M4** polish — done: `web/` renamed `client/`, `taskpilot` CLI (cwd as repo, `--open`, port errors),
+  flight-strip UI (state bands, workflow drawn as a route), README, review fixes.
 
 The legacy Java/Backlog implementation was removed from this branch; it remains in git history (`995f4e0`).

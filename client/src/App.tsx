@@ -51,11 +51,13 @@ export function App() {
   }
 
   const current = tasks.find((t) => t.key === selected) ?? null;
+  // Tasks that need the user come first, then the most recently touched.
+  const ordered = [...tasks].sort((a, b) => urgency(b) - urgency(a) || b.updatedAt - a.updatedAt);
 
   return (
     <div className="layout">
       <header>
-        <h1>TaskPilot</h1>
+        <h1 className="brand">TaskPilot</h1>
         <RepoPicker
           repo={repo}
           onChange={async (path) => {
@@ -68,30 +70,45 @@ export function App() {
       </header>
       {error && <p className="error">{error}</p>}
       <aside>
+        {!repo?.path && <p className="hint">Nhập đường dẫn repo ở trên để xem task.</p>}
         {repo?.path && !repo.tasksDirExists && (
           <p className="hint">
-            Repo chưa có <code>.claude/tasks/</code>.
+            Repo này chưa có <code>.claude/tasks/</code>. Tạo <code>.claude/tasks/&lt;key&gt;/spec/</code> và
+            viết yêu cầu vào đó.
           </p>
         )}
         {repo?.path && repo.tasksDirExists && tasks.length === 0 && (
           <p className="hint">
-            Chưa có task nào. Mỗi task cần <code>.claude/tasks/&lt;key&gt;/spec/*.md</code>.
+            Chưa có task nào. Mỗi task là một thư mục <code>.claude/tasks/&lt;key&gt;/spec/</code> chứa file
+            <code>.md</code>.
           </p>
         )}
-        <ul className="task-list">
-          {tasks.map((t) => (
-            <li key={t.key}>
-              <button type="button" aria-pressed={t.key === selected} onClick={() => setSelected(t.key)}>
-                <span className="key">{t.key}</span>
-                <TaskBadge task={t} />
-                {t.title !== t.key && <span className="title">{t.title}</span>}
-              </button>
-            </li>
-          ))}
+        <ul className="strips" aria-label="Task">
+          {ordered.map((t) => {
+            const status = statusOf(t);
+            return (
+              <li key={t.key}>
+                <button
+                  type="button"
+                  className={`strip ${status.tone}`}
+                  aria-pressed={t.key === selected}
+                  onClick={() => setSelected(t.key)}
+                >
+                  <span className="strip-key">{t.key}</span>
+                  <span className="strip-status">{status.label}</span>
+                  {t.title !== t.key && <span className="strip-title">{t.title}</span>}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       </aside>
       <section className="detail">
-        {current ? <TaskView key={current.key} task={current} /> : <p className="hint">Chọn một task để xem.</p>}
+        {current ? (
+          <TaskView key={current.key} task={current} />
+        ) : (
+          tasks.length > 0 && <p className="hint">Chọn một task bên trái để xem spec và chạy quy trình.</p>
+        )}
       </section>
     </div>
   );
@@ -135,10 +152,20 @@ function RepoPicker({ repo, onChange }: { repo: RepoInfo | null; onChange: (path
   );
 }
 
-/** What needs the user's attention first, else the stage derived from files. */
-function TaskBadge({ task }: { task: TaskSummary }) {
-  if (task.waitingPermission) return <span className="stage badge warn">Chờ quyền</span>;
-  if (task.run?.phase === "gate") return <span className="stage badge warn">Chờ duyệt</span>;
-  if (task.run && ["starting", "running"].includes(task.run.phase)) return <span className="stage stage-active">Đang chạy</span>;
-  return <span className={`stage stage-${task.stage}`}>{STAGE_LABEL[task.stage]}</span>;
+type Tone = "attention" | "active" | "done" | "idle";
+
+/** What the strip shows: what needs the user first, else the run, else the stage derived from files. */
+function statusOf(task: TaskSummary): { tone: Tone; label: string } {
+  if (task.waitingPermission) return { tone: "attention", label: "Chờ quyền" };
+  const phase = task.run?.phase;
+  if (phase === "gate") return { tone: "attention", label: "Chờ duyệt" };
+  if (phase === "waiting") return { tone: "attention", label: "Chờ trả lời" };
+  if (phase === "interrupted") return { tone: "attention", label: "Bị gián đoạn" };
+  if (phase === "starting" || phase === "running") return { tone: "active", label: "Đang chạy" };
+  if (phase === "done") return { tone: "done", label: "Hoàn tất" };
+  return { tone: task.stage === "summarized" ? "done" : "idle", label: STAGE_LABEL[task.stage] };
+}
+
+function urgency(task: TaskSummary): number {
+  return { attention: 2, active: 1, done: 0, idle: 0 }[statusOf(task).tone];
 }

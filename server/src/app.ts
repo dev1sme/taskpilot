@@ -19,8 +19,8 @@ export interface AppOptions {
   state: StateStore;
   /** Repo given on the command line; falls back to the last repo stored in state. */
   repo?: string;
-  /** Built web assets; omitted in tests and when running the Vite dev server. */
-  webDir?: string;
+  /** Built client assets; omitted in tests and when running the Vite dev server. */
+  clientDir?: string;
   logger?: boolean;
   /** Overrides the claude command (tests). */
   launcher?: Launcher;
@@ -33,7 +33,8 @@ const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   // Request logging is off: SSE and WebSocket URLs carry the token in their query string.
   const app = Fastify({
-    logger: opts.logger ?? false,
+    // Warnings and errors only; the CLI prints its own startup line.
+    logger: opts.logger ? { level: "warn" } : false,
     logController: new LogController({ disableRequestLogging: true }),
   });
   const hub = new EventHub();
@@ -144,7 +145,9 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   });
 
   app.delete<{ Params: { id: string } }>("/api/sessions/:id", async (req) => {
-    await sessions.forget(sessionId(req.params.id));
+    const id = sessionId(req.params.id);
+    if (await engine.usesSession(id)) throw new HttpError(409, "Session belongs to an active workflow run; cancel the run first");
+    await sessions.forget(id);
     return { ok: true };
   });
 
@@ -199,8 +202,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
 
   app.get("/api/events", async (_req, reply) => hub.serve(reply));
 
-  if (opts.webDir && existsSync(opts.webDir)) {
-    await app.register(fastifyStatic, { root: opts.webDir });
+  if (opts.clientDir && existsSync(opts.clientDir)) {
+    await app.register(fastifyStatic, { root: opts.clientDir });
   }
 
   app.addHook("onClose", async () => {

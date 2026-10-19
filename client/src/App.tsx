@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { CheckCircle, CircleNotch, FolderOpen, HandPalm } from "@phosphor-icons/react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { api, onServerEvent, token, type RepoInfo, type Stage, type TaskSummary } from "./api";
 import { TaskView } from "./TaskView";
+import { Button } from "./ui";
 
 const STAGE_LABEL: Record<Stage, string> = {
   new: "Mới",
@@ -69,7 +71,7 @@ export function App() {
         />
       </header>
       {error && <p className="error">{error}</p>}
-      <aside>
+      <aside aria-label="Danh sách task">
         {!repo?.path && <p className="hint">Nhập đường dẫn repo ở trên để xem task.</p>}
         {repo?.path && !repo.tasksDirExists && (
           <p className="hint">
@@ -95,7 +97,10 @@ export function App() {
                   onClick={() => setSelected(t.key)}
                 >
                   <span className="strip-key">{t.key}</span>
-                  <span className="strip-status">{status.label}</span>
+                  <span className="strip-status">
+                    <StatusIcon tone={status.tone} />
+                    {status.label}
+                  </span>
                   {t.title !== t.key && <span className="strip-title">{t.title}</span>}
                 </button>
               </li>
@@ -103,13 +108,13 @@ export function App() {
           })}
         </ul>
       </aside>
-      <section className="detail">
+      <main className="detail">
         {current ? (
           <TaskView key={current.key} task={current} />
         ) : (
           tasks.length > 0 && <p className="hint">Chọn một task bên trái để xem spec và chạy quy trình.</p>
         )}
-      </section>
+      </main>
     </div>
   );
 }
@@ -118,6 +123,7 @@ function RepoPicker({ repo, onChange }: { repo: RepoInfo | null; onChange: (path
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inputId = useId();
 
   useEffect(() => setValue(repo?.path ?? ""), [repo?.path]);
 
@@ -137,17 +143,24 @@ function RepoPicker({ repo, onChange }: { repo: RepoInfo | null; onChange: (path
         }
       }}
     >
+      <label htmlFor={inputId}>Repo</label>
       <input
+        id={inputId}
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="/đường/dẫn/tới/repo"
-        aria-label="Đường dẫn repo"
+        placeholder="/home/ban/projects/my-app"
         spellCheck={false}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${inputId}-error` : undefined}
       />
-      <button type="submit" disabled={busy || !value.trim()}>
+      <Button type="submit" icon={FolderOpen} busy={busy} disabled={!value.trim()}>
         Mở repo
-      </button>
-      {error && <span className="error">{error}</span>}
+      </Button>
+      {error && (
+        <span className="error" id={`${inputId}-error`} role="alert">
+          {error}
+        </span>
+      )}
     </form>
   );
 }
@@ -168,4 +181,12 @@ function statusOf(task: TaskSummary): { tone: Tone; label: string } {
 
 function urgency(task: TaskSummary): number {
   return { attention: 2, active: 1, done: 0, idle: 0 }[statusOf(task).tone];
+}
+
+/** Shape cue next to the status text, so the strip does not rely on the band color alone. */
+function StatusIcon({ tone }: { tone: Tone }) {
+  if (tone === "attention") return <HandPalm className="status-icon" aria-hidden="true" />;
+  if (tone === "active") return <CircleNotch className="status-icon spin-slow" aria-hidden="true" />;
+  if (tone === "done") return <CheckCircle className="status-icon" aria-hidden="true" />;
+  return null;
 }

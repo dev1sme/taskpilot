@@ -19,7 +19,7 @@ export function Terminal({ sessionId, onExit }: { sessionId: string; onExit: (co
     const el = ref.current!;
     const term = new XTerm({
       cursorBlink: true,
-      fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
+      fontFamily: '"JetBrains Mono", ui-monospace, monospace',
       fontSize: 13,
       scrollback: 10_000,
       // Matches --terminal in styles.css; the terminal stays dark in both themes.
@@ -36,10 +36,8 @@ export function Terminal({ sessionId, onExit }: { sessionId: string; onExit: (co
     };
     const sendSize = () => send({ t: "r", cols: term.cols, rows: term.rows });
 
-    ws.onopen = () => {
-      sendSize();
-      term.focus();
-    };
+    // No auto-focus: opening a tab (also by arrow keys) must not pull focus into the terminal.
+    ws.onopen = sendSize;
     let sawOutput = false;
     ws.onmessage = (e: MessageEvent<string>) => {
       const frame = JSON.parse(e.data) as ServerFrame;

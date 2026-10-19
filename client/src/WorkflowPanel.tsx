@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { ArrowClockwise, ChatText, Check, Eye, Play, TerminalWindow, X } from "@phosphor-icons/react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { api, onServerEvent, type RunPhase, type RunView } from "./api";
+import { Button, SrOnly } from "./ui";
 
 const ACTIVE: RunPhase[] = ["starting", "running", "waiting", "gate", "interrupted"];
 
@@ -13,6 +15,8 @@ const PHASE_LABEL: Record<RunPhase, string> = {
   cancelled: "Đã huỷ",
 };
 
+type Action = "start" | "approve" | "feedback" | "retry" | "cancel";
+
 export function WorkflowPanel(props: {
   taskKey: string;
   onShowSession: (id: string) => void;
@@ -21,8 +25,9 @@ export function WorkflowPanel(props: {
   const { taskKey } = props;
   const [view, setView] = useState<RunView | null>(null);
   const [feedback, setFeedback] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<Action | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const feedbackId = useId();
 
   const load = useCallback(async () => {
     try {
@@ -39,80 +44,113 @@ export function WorkflowPanel(props: {
     });
   }, [load, taskKey]);
 
-  const act = async (action: () => Promise<unknown>) => {
-    setBusy(true);
+  const act = async (name: Action, action: () => Promise<unknown>) => {
+    setBusy(name);
     try {
       await action();
       setError(null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setBusy(false);
+      setBusy(null);
       await load();
     }
   };
 
-  if (!view) return error ? <p className="error">{error}</p> : null;
+  if (!view) {
+    return error ? (
+      <p className="error" role="alert">
+        {error}
+      </p>
+    ) : null;
+  }
   const { workflow, run } = view;
   const active = run !== null && ACTIVE.includes(run.phase);
   const step = run ? workflow.steps[run.stepIndex] : undefined;
-
+  const anyBusy = busy !== null;
 
   return (
-    <section className={`workflow ${run?.phase ?? "idle"}`} aria-label="Quy trình">
+    <section className={`workflow phase-${run?.phase ?? "idle"}`} aria-label="Quy trình">
       <Route steps={workflow.steps} run={run} />
 
-      {run && (
-        <p className="run-status">
-          <strong>{PHASE_LABEL[run.phase]}.</strong> {run.message}
+      <p className="run-status" role="status" aria-atomic="true">
+        {run ? (
+          <>
+            <strong>{PHASE_LABEL[run.phase]}.</strong> {run.message}
+          </>
+        ) : (
+          "Chưa chạy. Quy trình sẽ mở một session Claude mới và gửi từng bước vào đó."
+        )}
+      </p>
+      {error && (
+        <p className="error" role="alert">
+          {error}
         </p>
       )}
-      {error && <p className="error">{error}</p>}
 
       <div className="run-actions">
         {!active && (
-          <button
-            type="button"
-            className="primary"
-            disabled={busy}
+          <Button
+            icon={Play}
+            variant="primary"
+            busy={busy === "start"}
+            disabled={anyBusy}
             onClick={() =>
-              void act(async () => {
+              void act("start", async () => {
                 const started = await api.startRun(taskKey);
                 props.onShowSession(started.sessionId);
               })
             }
           >
-            {run ? "Chạy quy trình lại từ đầu" : "Bắt đầu quy trình"}
-          </button>
+            {run ? "Chạy lại từ đầu" : "Bắt đầu quy trình"}
+          </Button>
         )}
 
         {run?.phase === "gate" && (
           <>
-            {step?.doneFile && (
-              <button type="button" onClick={() => props.onShowFile(step.doneFile!)}>
-                Xem {step.doneFile}
-              </button>
-            )}
-            <button type="button" className="primary" disabled={busy} onClick={() => void act(() => api.approve(taskKey))}>
+            <Button
+              icon={Check}
+              variant="attention"
+              busy={busy === "approve"}
+              disabled={anyBusy}
+              onClick={() => void act("approve", () => api.approve(taskKey))}
+            >
               Duyệt
-            </button>
+            </Button>
+            {step?.doneFile && (
+              <Button icon={Eye} onClick={() => props.onShowFile(step.doneFile!)}>
+                Xem {step.doneFile}
+              </Button>
+            )}
           </>
         )}
 
         {run && ["starting", "waiting", "interrupted"].includes(run.phase) && (
-          <button type="button" disabled={busy} onClick={() => void act(() => api.retry(taskKey))}>
+          <Button
+            icon={ArrowClockwise}
+            variant={run.phase === "starting" ? "default" : "attention"}
+            busy={busy === "retry"}
+            disabled={anyBusy}
+            onClick={() => void act("retry", () => api.retry(taskKey))}
+          >
             Gửi lại bước
-          </button>
+          </Button>
         )}
 
         {run && active && (
           <>
-            <button type="button" onClick={() => props.onShowSession(run.sessionId)}>
+            <Button icon={TerminalWindow} onClick={() => props.onShowSession(run.sessionId)}>
               Mở session
-            </button>
-            <button type="button" className="quiet" disabled={busy} onClick={() => void act(() => api.cancelRun(taskKey))}>
+            </Button>
+            <Button
+              icon={X}
+              variant="quiet"
+              busy={busy === "cancel"}
+              disabled={anyBusy}
+              onClick={() => void act("cancel", () => api.cancelRun(taskKey))}
+            >
               Huỷ quy trình
-            </button>
+            </Button>
           </>
         )}
       </div>
@@ -122,28 +160,35 @@ export function WorkflowPanel(props: {
           className="feedback"
           onSubmit={(e) => {
             e.preventDefault();
-            void act(async () => {
+            void act("feedback", async () => {
               await api.feedback(taskKey, feedback);
               setFeedback("");
               props.onShowSession(run.sessionId);
             });
           }}
         >
-          <textarea
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
-            placeholder="Góp ý để Claude sửa lại bước này…"
-            aria-label="Góp ý"
-            rows={3}
-          />
-          <button type="submit" disabled={busy || !feedback.trim()}>
-            Gửi góp ý
-          </button>
+          <label htmlFor={feedbackId}>Góp ý cho bước "{step?.title}"</label>
+          <p className="field-help" id={`${feedbackId}-help`}>
+            Claude sửa lại trong cùng session rồi dừng chờ duyệt lần nữa.
+          </p>
+          <div className="feedback-row">
+            <textarea
+              id={feedbackId}
+              aria-describedby={`${feedbackId}-help`}
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder="Ví dụ: thêm test cho trường hợp danh sách rỗng"
+              rows={3}
+            />
+            <Button type="submit" icon={ChatText} busy={busy === "feedback"} disabled={anyBusy || !feedback.trim()}>
+              Gửi góp ý
+            </Button>
+          </div>
         </form>
       )}
 
       <p className="workflow-source" title={workflow.source}>
-        Quy trình: {workflow.source.endsWith(".claude/workflow.yml") ? ".claude/workflow.yml" : "mặc định"}
+        Quy trình: {workflow.source.endsWith(".claude/workflow.yml") ? ".claude/workflow.yml của repo" : "mặc định"}
       </p>
     </section>
   );
@@ -157,9 +202,14 @@ interface RouteNode {
   state: NodeState;
 }
 
+const STATE_TEXT: Record<RouteNode["kind"], Record<NodeState, string>> = {
+  step: { done: "đã xong", current: "đang làm", pending: "chưa tới" },
+  gate: { done: "đã duyệt", current: "đang chờ ba duyệt", pending: "chưa tới" },
+};
+
 /**
  * The workflow as a route: each step is a waypoint, each approval gate a hold point after it.
- * Shows where the run is and, at a gate, that it is waiting on the user.
+ * Shape and a check mark carry the state as well as color.
  */
 function Route({ steps, run }: { steps: RunView["workflow"]["steps"]; run: RunView["run"] }) {
   const live = run !== null && run.phase !== "cancelled";
@@ -190,8 +240,13 @@ function Route({ steps, run }: { steps: RunView["workflow"]["steps"]; run: RunVi
     <ol className={`route${running ? " is-running" : ""}`} aria-label="Các bước của quy trình">
       {nodes.map((n) => (
         <li key={n.key} className={`node ${n.kind} ${n.state}`} aria-current={n.state === "current" ? "step" : undefined}>
-          <span className="marker" aria-hidden="true" />
-          <span className="node-label">{n.label}</span>
+          <span className="marker" aria-hidden="true">
+            {n.state === "done" && <Check weight="bold" className="marker-check" />}
+          </span>
+          <span className="node-label">
+            {n.label}
+            <SrOnly>: {STATE_TEXT[n.kind][n.state]}</SrOnly>
+          </span>
         </li>
       ))}
     </ol>

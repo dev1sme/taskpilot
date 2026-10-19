@@ -13,15 +13,20 @@
   --line: #d3dae2;
   --route: #2563a8;
   --route-soft: #e2ecf7;
-  --attention: #b7791f;
+  --on-route: #ffffff;
+  --attention: #b7791f; /* bands, borders, markers (non-text, 3:1) */
+  --attention-text: #8a5a0b; /* 4.5:1+ on --surface and --bg */
+  --attention-fill: #9a6700;
+  --on-attention: #ffffff;
   --attention-soft: #fbf1df;
   --done: #2f7d4f;
   --danger: #b42318;
   --terminal: #10161d;
 
   --sans: "IBM Plex Sans", system-ui, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
   --radius: 6px;
+  --ease: 150ms ease-out;
 
   color-scheme: light;
   font-family: var(--sans);
@@ -39,7 +44,11 @@
     --line: #2a3644;
     --route: #6ea8e8;
     --route-soft: #1a2a3c;
+    --on-route: #0c1117;
     --attention: #e0a33a;
+    --attention-text: #e0a33a;
+    --attention-fill: #e0a33a;
+    --on-attention: #1b1405;
     --attention-soft: #2b2314;
     --done: #57b07a;
     --danger: #f2756a;
@@ -139,6 +148,11 @@ header {
   min-width: 0;
 }
 
+.repo-picker label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .repo-picker input {
   flex: 1;
   min-width: 0;
@@ -153,39 +167,109 @@ header {
 
 /* ------------------------------------------------------------------ buttons */
 
-.btn,
-.repo-picker button,
-.run-actions button,
-.feedback button,
-.session-bar button {
-  padding: 6px 14px;
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 5px 12px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  white-space: nowrap;
+  transition:
+    background-color var(--ease),
+    border-color var(--ease),
+    color var(--ease);
 }
 
-.run-actions .primary {
+.btn:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.btn-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.btn-primary {
   background: var(--route);
   border-color: var(--route);
-  color: #fff;
+  color: var(--on-route);
   font-weight: 500;
 }
 
-.workflow.gate .run-actions .primary {
-  background: var(--attention);
-  border-color: var(--attention);
-  color: #1b1405;
+.btn-primary:hover:not(:disabled) {
+  border-color: var(--route);
+  filter: brightness(1.08);
 }
 
-.run-actions .quiet {
-  border-color: transparent;
+.btn-attention {
+  background: var(--attention-fill);
+  border-color: var(--attention-fill);
+  color: var(--on-attention);
+  font-weight: 500;
+}
+
+.btn-attention:hover:not(:disabled) {
+  border-color: var(--attention-fill);
+  filter: brightness(1.08);
+}
+
+.btn-quiet {
   background: none;
+  border-color: transparent;
   color: var(--muted);
 }
 
-.session-bar .danger {
+.btn-quiet:hover:not(:disabled) {
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.btn-danger {
   color: var(--danger);
   border-color: var(--danger);
+}
+
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+.spin-slow {
+  animation: spin 2.4s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin,
+  .spin-slow {
+    animation: none;
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.field-help {
+  margin: 2px 0 8px;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 /* ------------------------------------------------------------------ strips */
@@ -206,6 +290,7 @@ aside {
 
 .strip {
   --band: var(--line);
+  transition: border-color var(--ease);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 2px 10px;
@@ -241,15 +326,31 @@ aside {
   font-weight: 500;
 }
 
+.strip:hover {
+  border-color: var(--muted);
+}
+
 .strip-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   align-self: center;
   font-size: 13px;
   color: var(--muted);
 }
 
+.status-icon {
+  width: 15px;
+  height: 15px;
+}
+
 .strip.attention .strip-status {
-  color: var(--attention);
+  color: var(--attention-text);
   font-weight: 500;
+}
+
+.strip.done .strip-status {
+  color: var(--done);
 }
 
 .strip.active .strip-status {
@@ -309,7 +410,9 @@ aside {
   border-radius: var(--radius);
 }
 
-.workflow.gate {
+.workflow.phase-gate,
+.workflow.phase-waiting,
+.workflow.phase-interrupted {
   border-color: var(--attention);
   background: linear-gradient(var(--attention-soft), var(--attention-soft)) top / 100% 3px no-repeat, var(--surface);
 }
@@ -372,8 +475,20 @@ aside {
 }
 
 .node.done .marker {
+  display: grid;
+  place-items: center;
   background: var(--route);
   border-color: var(--route);
+  color: var(--on-route);
+}
+
+.marker-check {
+  width: 11px;
+  height: 11px;
+}
+
+.node.gate.done .marker-check {
+  transform: rotate(-45deg);
 }
 
 .node.current .marker {
@@ -393,7 +508,7 @@ aside {
 }
 
 .node.gate.current .node-label {
-  color: var(--attention);
+  color: var(--attention-text);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -413,8 +528,7 @@ aside {
   max-width: 80ch;
 }
 
-.run-actions,
-.feedback {
+.run-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -422,7 +536,20 @@ aside {
 }
 
 .feedback {
-  margin-top: 10px;
+  display: block;
+  margin-top: 14px;
+}
+
+.feedback label {
+  display: block;
+  font-weight: 500;
+}
+
+.feedback-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .feedback textarea {
@@ -443,19 +570,32 @@ aside {
 
 /* ------------------------------------------------------------------ tabs */
 
+.tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab-bar .new-session {
+  margin: 0 0 4px auto;
+}
+
 .tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
-  margin-bottom: 12px;
-  border-bottom: 1px solid var(--line);
 }
 
 .tabs button {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  min-height: 36px;
   padding: 7px 12px;
+  transition: color var(--ease), border-color var(--ease);
   margin-bottom: -1px;
   background: none;
   border: none;
@@ -463,31 +603,41 @@ aside {
   color: var(--muted);
 }
 
+.tabs button:hover {
+  color: var(--ink);
+}
+
+.tab-icon {
+  width: 16px;
+  height: 16px;
+}
+
 .tabs button[aria-selected="true"] {
   color: var(--ink);
   border-bottom-color: var(--route);
 }
 
-.tabs .new-session {
-  margin-left: auto;
-  color: var(--route);
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
+/* Running: filled; stopped: hollow ring. Shape differs, not only color. */
+.session-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--muted);
   border-radius: 50%;
-  background: var(--line);
 }
 
-.dot.running {
+.session-dot.running {
   background: var(--done);
+  border-color: var(--done);
 }
 
 .tab-flag {
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 13px;
   font-weight: 500;
-  color: var(--attention);
+  color: var(--attention-text);
 }
 
 .tab-body {
@@ -513,15 +663,25 @@ aside {
   gap: 8px;
 }
 
-.session-bar code {
+.session-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.session-id {
+  font-size: 13px;
   color: var(--muted);
   background: none;
   padding: 0;
 }
 
-.session-bar .status {
-  margin-right: auto;
-  color: var(--muted);
+.session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .terminal {
@@ -557,7 +717,9 @@ aside {
 }
 
 .file-group button {
+  min-height: 28px;
   padding: 2px 8px;
+  transition: border-color var(--ease), color var(--ease);
   font-family: var(--mono);
   font-size: 13px;
   background: none;

@@ -21,16 +21,25 @@ export function hostnameOf(host: string): string {
 
 /** Blocks DNS rebinding: a page on evil.example resolving to 127.0.0.1 still sends Host: evil.example. */
 export function isLoopbackHost(host: string | undefined): boolean {
-  return host !== undefined && LOOPBACK_HOSTNAMES.has(hostnameOf(host));
+  return isAllowedHost(host, LOOPBACK_HOSTNAMES);
 }
 
-export function isLoopbackOrigin(origin: string): boolean {
+export function isAllowedHost(host: string | undefined, allowed: ReadonlySet<string>): boolean {
+  return host !== undefined && allowed.has(hostnameOf(host));
+}
+
+export function isAllowedOrigin(origin: string, allowed: ReadonlySet<string>): boolean {
   try {
     const url = new URL(origin);
-    return (url.protocol === "http:" || url.protocol === "https:") && isLoopbackHost(url.host);
+    return (url.protocol === "http:" || url.protocol === "https:") && isAllowedHost(url.host, allowed);
   } catch {
     return false;
   }
+}
+
+/** Loopback names plus `extra` (hostnames without port, e.g. a reverse proxy's server_name). */
+export function allowedHostnames(extra: readonly string[] = []): Set<string> {
+  return new Set([...LOOPBACK_HOSTNAMES, ...extra.map((h) => hostnameOf(h.trim())).filter(Boolean)]);
 }
 
 export function tokenMatches(expected: string, given: string | undefined): boolean {
@@ -48,13 +57,14 @@ function requestToken(req: FastifyRequest): string | undefined {
   return typeof query?.token === "string" ? query.token : undefined;
 }
 
-export function registerSecurity(app: FastifyInstance, token: string): void {
+export function registerSecurity(app: FastifyInstance, token: string, extraHosts: readonly string[] = []): void {
+  const allowed = allowedHostnames(extraHosts);
   app.addHook("onRequest", async (req, reply) => {
-    if (!isLoopbackHost(req.headers.host)) {
+    if (!isAllowedHost(req.headers.host, allowed)) {
       return reply.code(403).send({ error: "Host not allowed" });
     }
     // Browsers do not apply CORS to WebSockets; refuse any cross-site page outright.
-    if (req.headers.origin !== undefined && !isLoopbackOrigin(req.headers.origin)) {
+    if (req.headers.origin !== undefined && !isAllowedOrigin(req.headers.origin, allowed)) {
       return reply.code(403).send({ error: "Origin not allowed" });
     }
     if (req.url.startsWith("/api/") && !tokenMatches(token, requestToken(req))) {

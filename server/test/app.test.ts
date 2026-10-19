@@ -1,6 +1,10 @@
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../src/app.js";
+import { writeFile } from "node:fs/promises";
+import path from "node:path";
+import { loadDotEnv } from "../src/dotenv.js";
+import { childEnv } from "../src/sessions/launch.js";
 import { hostnameOf, isLoopbackHost } from "../src/security.js";
 import { StateStore } from "../src/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
@@ -12,9 +16,9 @@ let app: FastifyInstance | undefined;
 afterEach(async () => app?.close());
 afterAll(cleanupTempDirs);
 
-async function start(repo?: string) {
+async function start(repo?: string, allowedHosts?: string[]) {
   const state = new StateStore(await tempDir("taskpilot-state-"));
-  app = await buildApp({ token: TOKEN, state, repo });
+  app = await buildApp({ token: TOKEN, state, repo, allowedHosts });
   return { app, state };
 }
 
@@ -39,6 +43,21 @@ describe("security", () => {
     const { app } = await start();
     const res = await app.inject({ url: "/api/repo", headers: { ...ok, host: "evil.example:8790" } });
     expect(res.statusCode).toBe(403);
+  });
+
+  it("accepts extra allowed hosts and origins, still rejects others", async () => {
+    const { app } = await start(undefined, ["172.17.0.1", "TaskPilot.example.dev"]);
+    const get = (headers: Record<string, string>) => app.inject({ url: "/api/repo", headers: { ...ok, ...headers } });
+    expect((await get({ host: "taskpilot.example.dev" })).statusCode).toBe(200);
+    expect((await get({ host: "172.17.0.1:8790" })).statusCode).toBe(200);
+    expect((await get({ host: "taskpilot.example.dev", origin: "https://taskpilot.example.dev" })).statusCode).toBe(200);
+    expect((await get({ host: "taskpilot.example.dev", origin: "https://evil.example" })).statusCode).toBe(403);
+    expect((await get({ host: "evil.example" })).statusCode).toBe(403);
+  });
+
+  it("does not pass the UI token to sessions", () => {
+    expect(childEnv({ TASKPILOT_TOKEN: "secret", TASKPILOT_HOME: "/x" })).toMatchObject({ TASKPILOT_HOME: "/x" });
+    expect(childEnv({ TASKPILOT_TOKEN: "secret" })).not.toHaveProperty("TASKPILOT_TOKEN");
   });
 
   it("requires the token on /api", async () => {
@@ -84,5 +103,16 @@ describe("api", () => {
     const repo = await makeRepo();
     const { app } = await start(repo);
     expect((await app.inject({ url: "/api/tasks", headers: ok })).json()).toHaveLength(2);
+  });
+});
+
+describe("dotenv", () => {
+  it("fills unset variables only, skips empty values, ignores a missing file", async () => {
+    const file = path.join(await tempDir("taskpilot-env-"), ".env");
+    await writeFile(file, "A=from-file\nB=from-file\nC=\n# comment\nD=\"quoted value\"\n");
+    const env: NodeJS.ProcessEnv = { B: "from-env" };
+    loadDotEnv(file, env);
+    expect(env).toEqual({ A: "from-file", B: "from-env", D: "quoted value" });
+    expect(() => loadDotEnv(path.join(path.dirname(file), "missing.env"), env)).not.toThrow();
   });
 });

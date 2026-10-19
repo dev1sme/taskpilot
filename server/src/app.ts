@@ -29,10 +29,18 @@ export interface AppOptions {
   /** Built client assets; omitted in tests and when running the Vite dev server. */
   clientDir?: string;
   logger?: boolean;
+  /** Hostnames accepted in Host/Origin besides loopback, e.g. the listen address or a proxy's domain. */
+  allowedHosts?: string[];
   /** Overrides the claude command (tests). */
   launcher?: Launcher;
   /** Overrides workflow loading (tests). */
   loadWorkflow?: (repo: string) => Promise<WorkflowDef>;
+}
+
+/** Address hook callbacks reach the server on: the listen address, or loopback when listening on all. */
+function hookHost(address: string): string {
+  if (address === "0.0.0.0" || address === "::") return "127.0.0.1";
+  return address.includes(":") ? `[${address}]` : address;
 }
 
 const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -52,7 +60,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     extraEnv: (repo) => envStore.forRepo(repo),
     hookUrl: () => {
       const addr = app.server.address();
-      return addr && typeof addr === "object" ? `http://127.0.0.1:${addr.port}/hook` : null;
+      return addr && typeof addr === "object" ? `http://${hookHost(addr.address)}:${addr.port}/hook` : null;
     },
   });
   const engine = new WorkflowEngine(opts.state, sessions, opts.loadWorkflow);
@@ -99,7 +107,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     }
   }
 
-  registerSecurity(app, opts.token);
+  registerSecurity(app, opts.token, opts.allowedHosts);
   await app.register(fastifyWebsocket);
 
   app.setErrorHandler((err, _req, reply) => {

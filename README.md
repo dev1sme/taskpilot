@@ -35,15 +35,41 @@ The server prints a URL with a one-time token (`http://127.0.0.1:8790/?token=…
 | Option | Default |
 |---|---|
 | `--repo <path>` | current directory if it has `.claude/tasks`, else the last repo opened |
+| `--host <addr>` | `127.0.0.1` (`$TASKPILOT_HOST`) |
 | `--port <n>` | `8790` (`$TASKPILOT_PORT`) |
 | `--open` | open the browser |
 
 | Environment | Meaning |
 |---|---|
 | `TASKPILOT_HOME` | state directory, default `~/.taskpilot` |
-| `TASKPILOT_TOKEN` | fixed UI token instead of a random one per start |
+| `TASKPILOT_TOKEN` | fixed UI token instead of a random one per start; never passed to sessions |
+| `TASKPILOT_ALLOWED_HOSTS` | comma-separated hostnames accepted in `Host` / `Origin` besides loopback and `--host`, e.g. a reverse proxy's domain |
 | `TASKPILOT_CLAUDE` | claude command, default `claude` |
 | `TASKPILOT_CLAUDE_HOME` / `TASKPILOT_CLAUDE_JSON` | where user-scope config is read from, default `~/.claude` / `~/.claude.json` |
+
+Variables not set in the environment are read from `.env` in the TaskPilot directory (next to
+`package.json`, not the current directory); see `.env.example`. Precedence: command-line option,
+then environment, then `.env`, then the default.
+
+## Run as a service
+
+```bash
+cp .env.example .env && chmod 600 .env   # set TASKPILOT_TOKEN, and HOST / ALLOWED_HOSTS if proxied
+make service-install                     # build, write ~/.config/systemd/user/taskpilot.service, start
+make service-restart                     # after pulling new code or editing .env
+make service-logs                        # or service-status, service-uninstall
+```
+
+The unit is a systemd *user* service so `claude` runs with your own `~/.claude`. It uses the `node`
+and `claude` on your `PATH` at install time: run `make service-install` again after changing the
+Node version. It only runs while you are logged in unless lingering is on
+(`loginctl enable-linger $USER`). Restarting stops running sessions; resume them from the UI.
+
+Behind a reverse proxy in Docker, listen on the docker0 address (`TASKPILOT_HOST=172.17.0.1`),
+proxy to `http://host.docker.internal:8790` with WebSocket upgrade headers, and list the proxy's
+domain in `TASKPILOT_ALLOWED_HOSTS`. Hook callbacks go straight to the listen address, so the proxy
+can refuse `/hook/`. Put authentication in front of it (the token alone guards a shell) and keep
+the proxy's access log off for it: the token travels in query strings.
 
 ## Claude configuration
 
@@ -119,16 +145,16 @@ step's prompt was sent.
 
 The embedded terminal is a shell on your machine, so TaskPilot:
 
-- listens on `127.0.0.1` only and rejects other `Host` / `Origin` headers (DNS rebinding,
-  cross-site WebSockets);
+- listens on `127.0.0.1` by default and rejects `Host` / `Origin` headers other than loopback, the
+  listen address and `TASKPILOT_ALLOWED_HOSTS` (DNS rebinding, cross-site WebSockets);
 - requires the per-start token on every API call and WebSocket;
 - authenticates hook callbacks with a token per session process.
 
 ## Develop
 
 ```bash
-TASKPILOT_TOKEN=dev npm run dev:server   # API on :8790 (tsx watch)
-npm run dev:client                       # UI on :5173, open http://127.0.0.1:5173/?token=dev
+npm run dev:server   # API on 127.0.0.1:8791, token "dev" (tsx watch); the service keeps :8790
+npm run dev:client   # UI on :5173, open http://127.0.0.1:5173/?token=dev
 npm test
 npm run typecheck
 ```

@@ -7,10 +7,8 @@ import path from "node:path";
 import { ActivityStore } from "./activity/store.js";
 import { EventHub } from "./events.js";
 import { getTask, listTasks, readTaskFile, resolveRepo, tasksRoot } from "./repo/tasks.js";
-import { readLibrary } from "./config/library.js";
-import { readMcp } from "./config/mcp.js";
-import { readMemory } from "./config/memory.js";
-import { readHooks, readSettings } from "./config/settings.js";
+import { BackupStore } from "./config/backups.js";
+import { registerConfigRoutes } from "./config/routes.js";
 import { readInventory } from "./repo/inventory.js";
 import { TasksWatcher } from "./repo/watcher.js";
 import { registerSecurity } from "./security.js";
@@ -123,14 +121,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
 
   app.get("/api/inventory", async () => readInventory(requireRepo()));
 
-  // Claude Code configuration, read-only (phase B). Secret values are masked server-side.
-  app.get("/api/config/memory", async () => readMemory(requireRepo()));
-  app.get("/api/config/settings", async () => readSettings(requireRepo()));
-  app.get("/api/config/hooks", async () => readHooks(requireRepo()));
-  app.get("/api/config/agents", async () => readLibrary(requireRepo(), "agents"));
-  app.get("/api/config/commands", async () => readLibrary(requireRepo(), "commands"));
-  app.get("/api/config/skills", async () => readLibrary(requireRepo(), "skills"));
-  app.get("/api/config/mcp", async () => readMcp(requireRepo()));
+  registerConfigRoutes(app, { requireRepo, backups: new BackupStore(path.join(opts.state.dir, "backups")) });
 
   app.get("/api/tasks", async () => {
     const current = requireRepo();

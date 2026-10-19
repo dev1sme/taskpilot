@@ -38,6 +38,8 @@ export interface SessionManagerOptions {
   scrollbackLimit?: number;
   /** Base URL the hook commands post to, e.g. http://127.0.0.1:8790/hook; null before listen(). */
   hookUrl?: () => string | null;
+  /** Extra environment for sessions of a repo (TaskPilot's env store, e.g. MCP secrets). */
+  extraEnv?: (repo: string) => Promise<Record<string, string>>;
 }
 
 export interface SessionEvents {
@@ -57,6 +59,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
   private readonly launcher: Launcher;
   private readonly scrollbackLimit: number;
   private readonly hookUrl: () => string | null;
+  private readonly extraEnv: (repo: string) => Promise<Record<string, string>>;
 
   constructor(
     private readonly state: StateStore,
@@ -66,6 +69,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     this.launcher = opts.launcher ?? claudeLauncher;
     this.scrollbackLimit = opts.scrollbackLimit ?? 2_000_000;
     this.hookUrl = opts.hookUrl ?? (() => null);
+    this.extraEnv = opts.extraEnv ?? (async () => ({}));
   }
 
   async list(repo: string, taskKey: string): Promise<SessionView[]> {
@@ -91,14 +95,14 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       ...(opts.permissionMode ? { permissionMode: opts.permissionMode } : {}),
     };
     await this.state.update((s) => void s.sessions.push(meta));
-    this.spawn(meta, false);
+    await this.spawn(meta, false);
     return this.view(meta);
   }
 
   async resume(id: string): Promise<SessionView> {
     const meta = await this.find(id);
     if (this.isRunning(id)) throw new HttpError(409, "Session is already running");
-    this.spawn(meta, true);
+    await this.spawn(meta, true);
     return this.view(meta);
   }
 
@@ -195,9 +199,10 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     live.clients.add(ws);
   }
 
-  private spawn(meta: SessionMeta, resume: boolean): void {
+  private async spawn(meta: SessionMeta, resume: boolean): Promise<void> {
     const hookToken = randomBytes(24).toString("base64url");
     const hookUrl = this.hookUrl();
+    const extra = await this.extraEnv(meta.repo);
     const { file, args } = this.launcher(meta.id, {
       resume,
       settings: hookSettings(),
@@ -206,7 +211,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     const proc = pty.spawn(file, args, {
       name: "xterm-256color",
       cwd: meta.repo,
-      env: childEnv(process.env, hookUrl ? { TASKPILOT_HOOK_URL: hookUrl, TASKPILOT_HOOK_TOKEN: hookToken } : {}),
+      env: childEnv(process.env, { ...extra, ...(hookUrl ? { TASKPILOT_HOOK_URL: hookUrl, TASKPILOT_HOOK_TOKEN: hookToken } : {}) }),
       ...DEFAULT_SIZE,
     });
     // On resume, keep the previous run's scrollback and attached clients.

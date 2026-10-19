@@ -9,6 +9,7 @@ import { EventHub } from "./events.js";
 import { getTask, listTasks, readTaskFile, resolveRepo, tasksRoot } from "./repo/tasks.js";
 import { BackupStore } from "./config/backups.js";
 import { registerConfigRoutes } from "./config/routes.js";
+import { EnvStore } from "./sessions/envStore.js";
 import { readInventory } from "./repo/inventory.js";
 import { TasksWatcher } from "./repo/watcher.js";
 import { registerSecurity } from "./security.js";
@@ -45,8 +46,10 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   });
   const hub = new EventHub();
   const watcher = new TasksWatcher(() => hub.publish("tasks", { at: Date.now() }));
+  const envStore = new EnvStore(opts.state.dir);
   const sessions = new SessionManager(opts.state, {
     launcher: opts.launcher,
+    extraEnv: (repo) => envStore.forRepo(repo),
     hookUrl: () => {
       const addr = app.server.address();
       return addr && typeof addr === "object" ? `http://127.0.0.1:${addr.port}/hook` : null;
@@ -121,7 +124,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
 
   app.get("/api/inventory", async () => readInventory(requireRepo()));
 
-  registerConfigRoutes(app, { requireRepo, backups: new BackupStore(path.join(opts.state.dir, "backups")) });
+  registerConfigRoutes(app, { requireRepo, envStore, backups: new BackupStore(path.join(opts.state.dir, "backups")) });
 
   app.get("/api/tasks", async () => {
     const current = requireRepo();

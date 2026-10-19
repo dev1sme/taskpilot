@@ -11,6 +11,8 @@ export interface LibraryItem {
   /** agents: frontmatter name or file stem; commands: path-based (git:pr); skills: directory or name. */
   name: string;
   path: string;
+  /** Path inside the kind's folder (reviewer.md, git/pr.md, deploy/SKILL.md); identifies the item for edits. */
+  rel: string;
   description: string;
   /** Selected frontmatter fields worth showing (tools, model, argument-hint…). */
   fields: Array<{ key: string; value: string }>;
@@ -57,7 +59,7 @@ async function readMarkdownItems(
     if (e.isDirectory() && kind === "commands") out.push(...(await readMarkdownItems(root, file, kind, scope, repo)));
     if (!e.isFile() || !e.name.endsWith(".md")) continue;
     const stem = path.relative(root, file).replace(/\.md$/, "").split(path.sep).join(":");
-    out.push(await toItem(file, kind, scope, repo, stem));
+    out.push(await toItem(file, kind, scope, repo, stem, path.relative(root, file).split(path.sep).join("/")));
   }
   return out;
 }
@@ -75,14 +77,21 @@ async function readSkills(root: string, scope: LibraryScope, repo: string): Prom
     const dir = path.join(root, e.name);
     const skillFile = path.join(dir, "SKILL.md");
     if (!(await fileInfo(skillFile))) continue;
-    const item = await toItem(skillFile, "skills", scope, repo, e.name);
+    const item = await toItem(skillFile, "skills", scope, repo, e.name, `${e.name}/SKILL.md`);
     item.files = (await listFiles(dir, dir)).filter((f) => f !== "SKILL.md").slice(0, 50);
     out.push(item);
   }
   return out;
 }
 
-async function toItem(file: string, kind: LibraryKind, scope: LibraryScope, repo: string, fallback: string): Promise<LibraryItem> {
+async function toItem(
+  file: string,
+  kind: LibraryKind,
+  scope: LibraryScope,
+  repo: string,
+  fallback: string,
+  rel: string,
+): Promise<LibraryItem> {
   const [text, info] = await Promise.all([readText(file), fileInfo(file)]);
   const { meta, body, error } = frontmatter(text ?? "");
   const name = kind === "commands" ? fallback : typeof meta.name === "string" && meta.name ? meta.name : fallback;
@@ -97,6 +106,7 @@ async function toItem(file: string, kind: LibraryKind, scope: LibraryScope, repo
     scope,
     name,
     path: displayPath(file, repo),
+    rel,
     description: typeof meta.description === "string" ? meta.description : firstLine(body),
     fields,
     body,

@@ -12,8 +12,10 @@ export interface McpServer {
   url?: string;
   env: Array<{ key: string; value: string; reference: boolean }>;
   headers: Array<{ key: string; value: string; reference: boolean }>;
-  /** ${VAR} references whose variable is not set in TaskPilot's environment. */
+  /** ${VAR} references set neither in TaskPilot's environment nor in its env store. */
   missingEnv: string[];
+  /** ${VAR} references TaskPilot provides to its sessions from its env store. */
+  fromTaskPilot: string[];
 }
 
 export interface McpConfig {
@@ -25,7 +27,7 @@ export interface McpConfig {
  * MCP servers Claude sees for this repo: project (.mcp.json, shared), local (~/.claude.json
  * projects[repo], private) and user (~/.claude.json top level). Secret values are masked.
  */
-export async function readMcp(repo: string): Promise<McpConfig> {
+export async function readMcp(repo: string, provided: Record<string, string> = {}): Promise<McpConfig> {
   const projectFile = path.join(repo, ".mcp.json");
   const project = await readJsonFile(projectFile);
   const home = await readJsonFile(claudeJson());
@@ -34,7 +36,7 @@ export async function readMcp(repo: string): Promise<McpConfig> {
     { scope: "project", path: ".mcp.json", exists: project.exists, ...("error" in project ? { error: project.error } : {}) },
   ];
   const servers: McpServer[] = [];
-  if ("data" in project && isObject(project.data)) servers.push(...toServers(project.data.mcpServers, "project"));
+  if ("data" in project && isObject(project.data)) servers.push(...toServers(project.data.mcpServers, "project", provided));
 
   const homeData = "data" in home && isObject(home.data) ? home.data : null;
   const projects = homeData && isObject(homeData.projects) ? homeData.projects : null;
@@ -43,12 +45,12 @@ export async function readMcp(repo: string): Promise<McpConfig> {
     { scope: "local", path: `${displayPath(claudeJson(), repo)} › projects`, exists: Boolean(local?.mcpServers) },
     { scope: "user", path: displayPath(claudeJson(), repo), exists: Boolean(homeData?.mcpServers), ...("error" in home ? { error: home.error } : {}) },
   );
-  if (local) servers.push(...toServers(local.mcpServers, "local"));
-  if (homeData) servers.push(...toServers(homeData.mcpServers, "user"));
+  if (local) servers.push(...toServers(local.mcpServers, "local", provided));
+  if (homeData) servers.push(...toServers(homeData.mcpServers, "user", provided));
   return { sources, servers };
 }
 
-function toServers(value: unknown, scope: McpScope): McpServer[] {
+function toServers(value: unknown, scope: McpScope, provided: Record<string, string>): McpServer[] {
   if (!isObject(value)) return [];
   return Object.entries(value).map(([name, raw]) => {
     const cfg = isObject(raw) ? raw : {};
@@ -57,7 +59,9 @@ function toServers(value: unknown, scope: McpScope): McpServer[] {
     const env = isObject(cfg.env) ? Object.entries(cfg.env).map(([key, v]) => ({ key, ...maskValue(v) })) : [];
     const headers = isObject(cfg.headers) ? Object.entries(cfg.headers).map(([key, v]) => ({ key, ...maskValue(v) })) : [];
     const refs = [...env, ...headers].flatMap((e) => (e.reference ? envRefs(e.value) : []));
-    const missingEnv = [...new Set([...refs, ...envRefs(url ?? "")])].filter((v) => process.env[v] === undefined);
+    const vars = [...new Set([...refs, ...envRefs(url ?? "")])];
+    const missingEnv = vars.filter((v) => process.env[v] === undefined && provided[v] === undefined);
+    const fromTaskPilot = vars.filter((v) => provided[v] !== undefined);
     return {
       name,
       scope,
@@ -68,11 +72,26 @@ function toServers(value: unknown, scope: McpScope): McpServer[] {
       env,
       headers,
       missingEnv,
+      fromTaskPilot,
     };
   });
 }
 
 /** "postgresql://user:secret@host/db" → "postgresql://••••@host/db". */
-function hideUrlCredentials(s: string): string {
+export function hideUrlCredentials(s: string): string {
   return s.replace(/(\w+:\/\/)[^/\s@]+@/g, "$1••••@");
+}
+
+/** A local- or user-scope server entry from ~/.claude.json, or null. */
+export async function claudeJsonEntry(scope: "local" | "user", repo: string, name: string): Promise<Record<string, unknown> | null> {
+  const home = await readJsonFile(claudeJson());
+  const data = "data" in home && isObject(home.data) ? home.data : {};
+  let holder: unknown = data;
+  if (scope === "local") {
+    const projects = isObject(data.projects) ? data.projects : {};
+    holder = projects[repo];
+  }
+  const servers = isObject(holder) && isObject(holder.mcpServers) ? holder.mcpServers : {};
+  const entry = servers[name];
+  return isObject(entry) ? entry : null;
 }

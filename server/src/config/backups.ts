@@ -13,6 +13,11 @@ export interface BackupEntry {
   bytes: number;
   /** False when the file did not exist yet (the write created it). */
   existed: boolean;
+  /**
+   * Set for an MCP server entry of ~/.claude.json (local/user scope). `content` is that entry's
+   * JSON, restored through `claude mcp`, never by writing the file.
+   */
+  mcp?: { scope: "local" | "user"; name: string; repo: string };
 }
 
 const ID = /^\d{13}-[0-9a-f]{6}$/;
@@ -24,7 +29,12 @@ const ID = /^\d{13}-[0-9a-f]{6}$/;
 export class BackupStore {
   constructor(private readonly dir: string) {}
 
-  async save(file: { abs: string; display: string }, content: string | null, reason: string): Promise<BackupEntry> {
+  async save(
+    file: { abs: string; display: string },
+    content: string | null,
+    reason: string,
+    mcp?: BackupEntry["mcp"],
+  ): Promise<BackupEntry> {
     const id = `${Date.now()}-${randomBytes(3).toString("hex")}`;
     const entry: BackupEntry = {
       id,
@@ -34,6 +44,7 @@ export class BackupStore {
       reason,
       bytes: content === null ? 0 : Buffer.byteLength(content),
       existed: content !== null,
+      ...(mcp ? { mcp } : {}),
     };
     const folder = path.join(this.dir, id);
     await mkdir(folder, { recursive: true, mode: 0o700 });

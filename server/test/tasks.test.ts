@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { getTask, listTasks, readTaskFile, resolveRepo } from "../src/repo/tasks.js";
-import { makeRepo } from "./fixtures.js";
+import { cleanupTempDirs, makeRepo } from "./fixtures.js";
+
+afterAll(cleanupTempDirs);
 
 describe("listTasks", () => {
   it("lists only directories with markdown under spec/", async () => {

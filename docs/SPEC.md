@@ -113,4 +113,4 @@ The embedded terminal is shell-equivalent access to the machine.
 - **M3** workflow engine, approve/feedback gates, hook badges.
 - **M4** polish: README, launcher script, tests for engine and scanner.
 
-The legacy Java/Backlog implementation stays on `main` until the Node app is usable, then is removed.
+The legacy Java/Backlog implementation was removed from this branch; it remains in git history (`995f4e0`).

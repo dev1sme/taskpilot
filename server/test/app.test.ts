@@ -1,21 +1,19 @@
-import { mkdtemp } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../src/app.js";
 import { hostnameOf, isLoopbackHost } from "../src/security.js";
 import { StateStore } from "../src/state.js";
-import { makeRepo } from "./fixtures.js";
+import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
 
 const TOKEN = "test-token";
 const ok = { host: "127.0.0.1:8790", "x-taskpilot-token": TOKEN };
 
 let app: FastifyInstance | undefined;
 afterEach(async () => app?.close());
+afterAll(cleanupTempDirs);
 
 async function start(repo?: string) {
-  const state = new StateStore(await mkdtemp(path.join(os.tmpdir(), "taskpilot-state-")));
+  const state = new StateStore(await tempDir("taskpilot-state-"));
   app = await buildApp({ token: TOKEN, state, repo });
   return { app, state };
 }

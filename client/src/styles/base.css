@@ -14,9 +14,7 @@ body {
   font-size: 15px;
   line-height: 1.5;
   color: var(--ink);
-  background:
-    radial-gradient(1200px 500px at 70% -10%, var(--bg-glow), transparent 60%),
-    var(--bg);
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
 }
 

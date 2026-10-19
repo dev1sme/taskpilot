@@ -297,6 +297,17 @@
   text-align: left;
 }
 
+/*
+ * direction: rtl above puts the ellipsis on the left, so the end of a path stays visible. The
+ * marks keep the leading "/" (a neutral character) from being moved to the end.
+ */
+.repo-path::before,
+.repo-path::after,
+.path-line::before,
+.path-line::after {
+  content: "\200E";
+}
+
 .page-actions {
   display: flex;
   flex-wrap: wrap;

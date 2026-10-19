@@ -2,9 +2,13 @@ import { useEffect, useState } from "react";
 import { api, type TaskSummary } from "./api";
 import { Markdown } from "./Markdown";
 
-export function DocsView({ task }: { task: TaskSummary }) {
+/** `focus` opens a file from outside (e.g. "Xem 02-plan.md"); the nonce makes repeat clicks count. */
+export function DocsView({ task, focus }: { task: TaskSummary; focus?: { path: string; nonce: number } }) {
   const files = [...task.specFiles, ...task.outputFiles];
   const [picked, setOpen] = useState(files[0]?.path ?? "");
+  useEffect(() => {
+    if (focus) setOpen(focus.path);
+  }, [focus?.nonce]);
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // The picked file may disappear on disk; fall back to the first one.

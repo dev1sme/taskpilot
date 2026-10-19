@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 import { api, onServerEvent, type SessionView, type TaskSummary } from "./api";
 import { DocsView } from "./DocsView";
 import { Terminal } from "./Terminal";
+import { WorkflowPanel } from "./WorkflowPanel";
 
 const DOCS = "docs";
 
 export function TaskView({ task }: { task: TaskSummary }) {
   const [sessions, setSessions] = useState<SessionView[]>([]);
   const [tab, setTab] = useState<string>(DOCS);
+  const [docFocus, setDocFocus] = useState<{ path: string; nonce: number }>();
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -40,6 +42,17 @@ export function TaskView({ task }: { task: TaskSummary }) {
   return (
     <div className="task-view">
       <h2>{task.title === task.key ? task.key : `${task.key}: ${task.title}`}</h2>
+      <WorkflowPanel
+        taskKey={task.key}
+        onShowSession={(id) => {
+          void load();
+          setTab(id);
+        }}
+        onShowFile={(path) => {
+          setDocFocus((f) => ({ path, nonce: (f?.nonce ?? 0) + 1 }));
+          setTab(DOCS);
+        }}
+      />
       <div className="tabs" role="tablist">
         <button type="button" role="tab" aria-selected={tab === DOCS} onClick={() => setTab(DOCS)}>
           Tài liệu
@@ -48,6 +61,7 @@ export function TaskView({ task }: { task: TaskSummary }) {
           <button key={s.id} type="button" role="tab" aria-selected={tab === s.id} onClick={() => setTab(s.id)}>
             <span className={`dot ${s.status}`} aria-label={s.status === "running" ? "đang chạy" : "đã dừng"} />
             {s.title}
+            {s.activity === "permission" && <span className="badge warn">chờ quyền</span>}
           </button>
         ))}
         <button
@@ -65,7 +79,7 @@ export function TaskView({ task }: { task: TaskSummary }) {
       </div>
       {error && <p className="error">{error}</p>}
       <div className="tab-body" hidden={tab !== DOCS}>
-        <DocsView task={task} />
+        <DocsView task={task} focus={docFocus} />
       </div>
       {active && <SessionPanel key={active.id} session={active} run={run} onRemoved={() => setTab(DOCS)} />}
     </div>

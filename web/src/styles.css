@@ -359,3 +359,145 @@ aside {
     border-bottom: 1px solid var(--border);
   }
 }
+
+.badge.warn,
+.stage.warn {
+  color: #9a6700;
+  border-color: #d4a72c;
+  background: #fff8c5;
+}
+
+.stage-active {
+  color: #1a7f37;
+  border-color: #2da44e;
+}
+
+.badge {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.workflow {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.workflow.gate {
+  border-color: #d4a72c;
+}
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  counter-reset: step;
+}
+
+.steps li {
+  counter-increment: step;
+  padding: 2px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.steps li::before {
+  content: counter(step) ". ";
+}
+
+.steps li.current {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.steps li.done {
+  color: #1a7f37;
+  border-color: #2da44e;
+}
+
+.gate-mark {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.run-status {
+  margin: 0 0 8px;
+}
+
+.run-actions,
+.feedback {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.run-actions button,
+.feedback button {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+.run-actions .primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.run-actions .quiet {
+  color: var(--muted);
+}
+
+.run-actions button:disabled,
+.feedback button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.feedback {
+  margin-top: 8px;
+}
+
+.feedback textarea {
+  flex: 1;
+  min-width: 240px;
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.workflow-source {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+@media (prefers-color-scheme: dark) {
+  .badge.warn,
+  .stage.warn {
+    color: #e3b341;
+    border-color: #9e6a03;
+    background: #2e2410;
+  }
+
+  .stage-active,
+  .steps li.done {
+    color: #3fb950;
+    border-color: #238636;
+  }
+}

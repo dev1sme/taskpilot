@@ -36,12 +36,9 @@ export function App() {
   }, [loadTasks]);
 
   useEffect(() => {
-    const offTasks = onServerEvent("tasks", () => void loadTasks());
-    const offRepo = onServerEvent("repo", () => void loadTasks());
-    return () => {
-      offTasks();
-      offRepo();
-    };
+    // Run phase and permission prompts are shown in the list too.
+    const offs = ["tasks", "repo", "run", "sessions"].map((e) => onServerEvent(e, () => void loadTasks()));
+    return () => offs.forEach((off) => off());
   }, [loadTasks]);
 
   if (!token) {
@@ -86,7 +83,7 @@ export function App() {
             <li key={t.key}>
               <button type="button" aria-pressed={t.key === selected} onClick={() => setSelected(t.key)}>
                 <span className="key">{t.key}</span>
-                <span className={`stage stage-${t.stage}`}>{STAGE_LABEL[t.stage]}</span>
+                <TaskBadge task={t} />
                 {t.title !== t.key && <span className="title">{t.title}</span>}
               </button>
             </li>
@@ -136,4 +133,12 @@ function RepoPicker({ repo, onChange }: { repo: RepoInfo | null; onChange: (path
       {error && <span className="error">{error}</span>}
     </form>
   );
+}
+
+/** What needs the user's attention first, else the stage derived from files. */
+function TaskBadge({ task }: { task: TaskSummary }) {
+  if (task.waitingPermission) return <span className="stage badge warn">Chờ quyền</span>;
+  if (task.run?.phase === "gate") return <span className="stage badge warn">Chờ duyệt</span>;
+  if (task.run && ["starting", "running"].includes(task.run.phase)) return <span className="stage stage-active">Đang chạy</span>;
+  return <span className={`stage stage-${task.stage}`}>{STAGE_LABEL[task.stage]}</span>;
 }

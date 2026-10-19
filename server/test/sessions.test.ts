@@ -11,7 +11,7 @@ const TOKEN = "test-token";
 const ok = { host: "127.0.0.1:8790", "x-taskpilot-token": TOKEN };
 
 /** Stands in for claude: prints how it was started, then echoes every input line. */
-const fakeClaude: Launcher = (id, resume) => ({
+const fakeClaude: Launcher = (id, { resume }) => ({
   file: "/bin/sh",
   args: ["-c", 'echo "$1 $2"; while read -r line; do echo "got:$line"; done', "sh", resume ? "resumed" : "new", id],
 });

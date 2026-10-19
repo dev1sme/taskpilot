@@ -13,6 +13,28 @@ export interface TaskSummary {
   specFiles: TaskFile[];
   outputFiles: TaskFile[];
   updatedAt: number;
+  run: { phase: RunPhase; stepIndex: number } | null;
+  waitingPermission: boolean;
+}
+
+export type RunPhase = "starting" | "running" | "waiting" | "gate" | "interrupted" | "done" | "cancelled";
+
+export interface RunState {
+  taskKey: string;
+  sessionId: string;
+  stepIndex: number;
+  phase: RunPhase;
+  message: string;
+  startedAt: number;
+  updatedAt: number;
+}
+
+export interface RunView {
+  workflow: {
+    source: string;
+    steps: Array<{ id: string; title: string; gate: "approve" | "none"; doneFile: string | null }>;
+  };
+  run: RunState | null;
 }
 
 export interface SessionView {
@@ -22,6 +44,7 @@ export interface SessionView {
   createdAt: number;
   status: "running" | "exited";
   exitCode: number | null;
+  activity: "starting" | "idle" | "busy" | "permission" | null;
 }
 
 export interface RepoInfo {
@@ -80,6 +103,13 @@ export const api = {
   resumeSession: (id: string) => call<SessionView>("POST", `/api/sessions/${id}/resume`),
   stopSession: (id: string) => call<{ ok: true }>("POST", `/api/sessions/${id}/stop`),
   forgetSession: (id: string) => call<{ ok: true }>("DELETE", `/api/sessions/${id}`),
+  run: (key: string) => call<RunView>("GET", `/api/tasks/${encodeURIComponent(key)}/run`),
+  startRun: (key: string) => call<RunState>("POST", `/api/tasks/${encodeURIComponent(key)}/run`),
+  cancelRun: (key: string) => call<RunState>("DELETE", `/api/tasks/${encodeURIComponent(key)}/run`),
+  approve: (key: string) => call<RunState>("POST", `/api/tasks/${encodeURIComponent(key)}/run/approve`),
+  feedback: (key: string, text: string) =>
+    call<RunState>("POST", `/api/tasks/${encodeURIComponent(key)}/run/feedback`, { text }),
+  retry: (key: string) => call<RunState>("POST", `/api/tasks/${encodeURIComponent(key)}/run/retry`),
   ptyUrl: (id: string) => {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     return `${proto}//${location.host}/api/sessions/${id}/pty?token=${encodeURIComponent(token)}`;

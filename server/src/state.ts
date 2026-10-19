@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import type { RunState } from "./workflow/types.js";
 
 export interface SessionMeta {
   /** Also the Claude Code session id (`--session-id` / `--resume`). */
@@ -9,11 +10,15 @@ export interface SessionMeta {
   taskKey: string;
   title: string;
   createdAt: number;
+  /** Passed as --permission-mode on spawn and resume; absent = the user's own default. */
+  permissionMode?: string;
 }
 
 export interface AppState {
   lastRepo?: string;
   sessions: SessionMeta[];
+  /** Latest workflow run per (repo, taskKey). */
+  runs: RunState[];
 }
 
 /**
@@ -37,7 +42,7 @@ export class StateStore {
       } catch {
         // Missing or corrupt file: start empty.
       }
-      this.cache = { ...raw, sessions: raw.sessions ?? [] };
+      this.cache = { ...raw, sessions: raw.sessions ?? [], runs: raw.runs ?? [] };
     }
     return this.cache;
   }

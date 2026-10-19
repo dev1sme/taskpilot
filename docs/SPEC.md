@@ -39,26 +39,36 @@ A directory is a task when `<key>/spec/` contains at least one `.md` file.
 - The engine advances only when the Stop hook reports the turn ended **and** `done-when` holds.
 - Stop fired but `done-when` not met (e.g. Claude asked a question): stay on the step and show
   "Claude is waiting for you in the terminal".
-- Permission prompts are answered by the user in the terminal; the UI shows a badge (see §8 open items).
+- Permission prompts are answered by the user in the terminal. `PermissionRequest` sets a "chờ quyền"
+  badge on the session tab and task; `PostToolUse`, `Stop` or `UserPromptSubmit` clear it.
+- The first prompt is held until the session reports `SessionStart` (after any trust dialog).
+- Session exits mid-step, or TaskPilot restarts: the run becomes `interrupted`; "Gửi lại bước" resumes
+  the session and re-sends the step.
 - One task can have many sessions (tabs). The app records task ↔ session ids and can resume
   (`claude --resume <id>`).
 
 ## 4. Workflow definition
 
-Built-in default; a repo may override it with `.claude/workflow.yml`.
+Built-in default in `workflows/default/`; a repo may override it with `.claude/workflow.yml`.
+Prompt files are looked up next to that file first, then in the defaults.
 
 ```yaml
+permission-mode: acceptEdits      # optional: default | acceptEdits | plan | auto; absent = user's own
 steps:
   - id: investigate
-    prompt: investigate.md        # template vars: {{key}} {{taskDir}} {{specDir}}
-    done-when: { file: "02-plan.md" }
-    gate: approve
-    on-reject: revise.md          # var: {{feedback}}
+    title: Điều tra & lên kế hoạch
+    prompt: investigate.md        # vars: {{key}} {{title}} {{taskDir}} {{specDir}}
+    done-when: { file: 02-plan.md }   # must be written after the prompt was sent
+    gate: approve                 # approve | none (none = advance automatically)
+    on-reject: revise-plan.md     # var: {{feedback}}
   - id: implement
     prompt: implement.md
-    done-when: { file: "04-summary.md" }
+    done-when: { file: 04-summary.md }
     gate: approve
+    on-reject: revise-implementation.md
 ```
+
+`bypassPermissions` is not accepted from a repo file.
 
 ## 5. Architecture
 
@@ -68,14 +78,15 @@ Browser (Vite + React + xterm.js)
 Server (Node 24 + TypeScript + Fastify + @fastify/websocket)
    ├─ RepoScanner      scan/watch .claude/tasks (chokidar)
    ├─ SessionManager   node-pty spawn/resume claude, many sessions per task, scrollback buffer
-   ├─ HookReceiver     POST /hook/stop, /hook/notify  ← curl from claude hooks
-   ├─ TranscriptReader ~/.claude/projects/<enc>/<id>.jsonl (turn results, history)
+   ├─ /hook/:event     SessionStart, UserPromptSubmit, PermissionRequest, PostToolUse, Stop ← curl
    ├─ WorkflowEngine   per-run state machine: step → wait-stop → check → gate
-   └─ StateStore       ~/.taskpilot/<repo-hash>/state.json (task ↔ sessions, current step)
+   └─ StateStore       ~/.taskpilot/state.json (sessions, runs, last repo)
 ```
 
 - Prompt injection into the PTY: bracketed paste `ESC[200~ … ESC[201~`, then `\r`.
 - Hooks are passed with `--settings` (inline JSON); the user's `~/.claude/settings.json` is never touched.
+  Each hook command curls `$TASKPILOT_HOOK_URL/<event>` with `$TASKPILOT_HOOK_TOKEN`, both set in the
+  child env per spawn. Hooks need `curl` on `PATH`.
 - The child env must drop every `CLAUDE*` variable (see §7).
 
 ## 6. Security
@@ -98,20 +109,20 @@ The embedded terminal is shell-equivalent access to the machine.
 | Bracketed paste, multi-line prompt | Arrives as **one** user message with newlines intact. |
 | Writing into `.claude/tasks/` | `permission_mode: auto` → no prompt. `default` → prompt *"Do you want to create 02-plan.md?"* with option 2 *"allow Claude to edit files in this project's .claude folder for this session"*. |
 | Transcript JSONL | Written only when the child env has no `CLAUDE*` vars. With inherited `CLAUDECODE=1` / `CLAUDE_CODE_CHILD_SESSION=1` the transcript is never persisted. |
+| Hook timing (M3 spike) | `SessionStart` ~1 s after spawn; a prompt pasted right after it is accepted. `PermissionRequest` fires as the prompt appears; `Notification` ~6 s later; `PostToolUse` after approval. |
 | First run in a new folder | Trust dialog appears; default choice is **"No, exit"**. Leave it to the user in the terminal; never auto-answer. |
 
 ## 8. Open items
 
-- `Notification` hook did not fire for a permission prompt answered within ~0.5 s. Check timing or use
-  a permission-specific hook in M3.
-- Decide the permission mode default per step (inherit user default vs. explicit `--permission-mode`).
+- Trust dialog vs. `SessionStart` order is inferred, not verified: in a never-trusted folder the first
+  prompt waits for `SessionStart`; if it never arrives, "Gửi lại bước" pastes anyway.
 
 ## 9. Milestones
 
 - **M0** spike — done (§7).
 - **M1** repo scan, task list, view `spec/` and output files — done.
 - **M2** session manager: multiple tabs per task, resume, scrollback across page reloads — done.
-- **M3** workflow engine, approve/feedback gates, hook badges.
+- **M3** workflow engine, approve/feedback gates, hook badges — done.
 - **M4** polish: README, launcher script, tests for engine and scanner.
 
 The legacy Java/Backlog implementation was removed from this branch; it remains in git history (`995f4e0`).

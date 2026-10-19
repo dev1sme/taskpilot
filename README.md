@@ -8,7 +8,7 @@ Design and status: [docs/SPEC.md](docs/SPEC.md).
 
 ## Run
 
-Requires Node 22+ and Claude Code (`claude`) on `PATH`.
+Requires Node 22+, Claude Code (`claude`) and `curl` on `PATH` (hooks report back to TaskPilot with curl).
 
 ```bash
 npm install
@@ -17,6 +17,12 @@ node dist/server/index.js --repo /path/to/repo   # open the printed URL (it carr
 ```
 
 The server binds `127.0.0.1` only. App state lives in `~/.taskpilot/` (override with `TASKPILOT_HOME`).
+
+## Workflow
+
+Each task is `.claude/tasks/<key>/spec/*.md`. "Bắt đầu quy trình" opens a Claude session and runs the
+steps in `workflows/default/workflow.yml` (investigate → plan gate → implement → review gate).
+Put a `.claude/workflow.yml` in the repo to change the steps or prompts; see [docs/SPEC.md](docs/SPEC.md) §4.
 
 ## Develop
 

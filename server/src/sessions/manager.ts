@@ -1,8 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
+import { EventEmitter } from "node:events";
 import * as pty from "node-pty";
 import type { WebSocket } from "ws";
 import { HttpError } from "../errors.js";
 import type { SessionMeta, StateStore } from "../state.js";
+import { hookSettings, nextActivity, type Activity, type HookEvent } from "./hooks.js";
 import { childEnv, claudeLauncher, type Launcher } from "./launch.js";
 
 export type SessionStatus = "running" | "exited";
@@ -10,6 +12,8 @@ export type SessionStatus = "running" | "exited";
 export interface SessionView extends SessionMeta {
   status: SessionStatus;
   exitCode: number | null;
+  /** null while the session is not running. */
+  activity: Activity | null;
 }
 
 /** Client → server frames on the PTY WebSocket. */
@@ -20,6 +24,9 @@ type ServerFrame = { t: "o"; d: string } | { t: "x"; code: number | null };
 interface Live {
   proc: pty.IPty | null;
   exitCode: number | null;
+  activity: Activity;
+  /** Authenticates hook callbacks from this process; new for every spawn. */
+  hookToken: string | null;
   /** Raw PTY output replayed to clients that attach later (page reload, second tab). */
   scrollback: string[];
   scrollbackSize: number;
@@ -29,24 +36,36 @@ interface Live {
 export interface SessionManagerOptions {
   launcher?: Launcher;
   scrollbackLimit?: number;
-  onChange?: (meta: SessionMeta) => void;
+  /** Base URL the hook commands post to, e.g. http://127.0.0.1:8790/hook; null before listen(). */
+  hookUrl?: () => string | null;
+}
+
+export interface SessionEvents {
+  /** Status or activity changed; for UI refresh. */
+  change: [meta: SessionMeta];
+  hook: [meta: SessionMeta, event: HookEvent, payload: Record<string, unknown>];
+  exit: [meta: SessionMeta];
 }
 
 const DEFAULT_SIZE = { cols: 120, rows: 32 };
+/** Delay between a bracketed paste and the Enter that submits it (M0 spike used 200–300 ms). */
+const SUBMIT_DELAY_MS = 200;
 
-export class SessionManager {
+export class SessionManager extends EventEmitter<SessionEvents> {
   private readonly live = new Map<string, Live>();
+  private readonly byHookToken = new Map<string, string>();
   private readonly launcher: Launcher;
   private readonly scrollbackLimit: number;
-  private readonly onChange: (meta: SessionMeta) => void;
+  private readonly hookUrl: () => string | null;
 
   constructor(
     private readonly state: StateStore,
     opts: SessionManagerOptions = {},
   ) {
+    super();
     this.launcher = opts.launcher ?? claudeLauncher;
     this.scrollbackLimit = opts.scrollbackLimit ?? 2_000_000;
-    this.onChange = opts.onChange ?? (() => {});
+    this.hookUrl = opts.hookUrl ?? (() => null);
   }
 
   async list(repo: string, taskKey: string): Promise<SessionView[]> {
@@ -57,7 +76,11 @@ export class SessionManager {
       .map((s) => this.view(s));
   }
 
-  async create(repo: string, taskKey: string): Promise<SessionView> {
+  async get(id: string): Promise<SessionView> {
+    return this.view(await this.find(id));
+  }
+
+  async create(repo: string, taskKey: string, opts: { permissionMode?: string } = {}): Promise<SessionView> {
     const count = (await this.list(repo, taskKey)).length;
     const meta: SessionMeta = {
       id: randomUUID(),
@@ -65,6 +88,7 @@ export class SessionManager {
       taskKey,
       title: `Session ${count + 1}`,
       createdAt: Date.now(),
+      ...(opts.permissionMode ? { permissionMode: opts.permissionMode } : {}),
     };
     await this.state.update((s) => void s.sessions.push(meta));
     this.spawn(meta, false);
@@ -92,7 +116,31 @@ export class SessionManager {
     await this.state.update((s) => {
       s.sessions = s.sessions.filter((x) => x.id !== id);
     });
-    this.onChange(meta);
+    this.emit("change", meta);
+  }
+
+  /** Types a prompt into the session as one bracketed paste, then submits it. */
+  paste(id: string, text: string): void {
+    const proc = this.live.get(id)?.proc;
+    if (!proc) throw new HttpError(409, "Session is not running");
+    proc.write(`\x1b[200~${text}\x1b[201~`);
+    setTimeout(() => this.live.get(id)?.proc?.write("\r"), SUBMIT_DELAY_MS);
+  }
+
+  /** Applies a hook callback. Returns false when the token does not belong to a live session. */
+  async handleHook(token: string, event: HookEvent, payload: Record<string, unknown>): Promise<boolean> {
+    const id = this.byHookToken.get(token);
+    const live = id ? this.live.get(id) : undefined;
+    if (!id || !live) return false;
+    if (typeof payload.session_id === "string" && payload.session_id !== id) return false;
+    const meta = await this.find(id);
+    const activity = nextActivity(event);
+    if (activity !== live.activity) {
+      live.activity = activity;
+      this.emit("change", meta);
+    }
+    this.emit("hook", meta, event, payload);
+    return true;
   }
 
   /**
@@ -139,7 +187,7 @@ export class SessionManager {
     // also receives the output of a later resume.
     let live = this.live.get(id);
     if (!live) {
-      live = { proc: null, exitCode: null, scrollback: [], scrollbackSize: 0, clients: new Set() };
+      live = emptyLive();
       this.live.set(id, live);
     }
     if (live.scrollback.length > 0) send(ws, { t: "o", d: live.scrollback.join("") });
@@ -148,23 +196,23 @@ export class SessionManager {
   }
 
   private spawn(meta: SessionMeta, resume: boolean): void {
-    const { file, args } = this.launcher(meta.id, resume);
+    const hookToken = randomBytes(24).toString("base64url");
+    const hookUrl = this.hookUrl();
+    const { file, args } = this.launcher(meta.id, {
+      resume,
+      settings: hookSettings(),
+      permissionMode: meta.permissionMode,
+    });
     const proc = pty.spawn(file, args, {
       name: "xterm-256color",
       cwd: meta.repo,
-      env: childEnv(),
+      env: childEnv(process.env, hookUrl ? { TASKPILOT_HOOK_URL: hookUrl, TASKPILOT_HOOK_TOKEN: hookToken } : {}),
       ...DEFAULT_SIZE,
     });
-    const previous = this.live.get(meta.id);
     // On resume, keep the previous run's scrollback and attached clients.
-    const live: Live = {
-      proc,
-      exitCode: null,
-      scrollback: previous?.scrollback ?? [],
-      scrollbackSize: previous?.scrollbackSize ?? 0,
-      clients: previous?.clients ?? new Set(),
-    };
+    const live: Live = { ...(this.live.get(meta.id) ?? emptyLive()), proc, exitCode: null, activity: "starting", hookToken };
     this.live.set(meta.id, live);
+    this.byHookToken.set(hookToken, meta.id);
 
     proc.onData((data) => {
       live.scrollback.push(data);
@@ -177,10 +225,13 @@ export class SessionManager {
     proc.onExit(({ exitCode }) => {
       live.proc = null;
       live.exitCode = exitCode;
+      this.byHookToken.delete(hookToken);
+      live.hookToken = null;
       for (const ws of live.clients) send(ws, { t: "x", code: exitCode });
-      this.onChange(meta);
+      this.emit("exit", meta);
+      this.emit("change", meta);
     });
-    this.onChange(meta);
+    this.emit("change", meta);
   }
 
   private async find(id: string): Promise<SessionMeta> {
@@ -195,8 +246,25 @@ export class SessionManager {
 
   private view(meta: SessionMeta): SessionView {
     const live = this.live.get(meta.id);
-    return { ...meta, status: live?.proc ? "running" : "exited", exitCode: live?.exitCode ?? null };
+    return {
+      ...meta,
+      status: live?.proc ? "running" : "exited",
+      exitCode: live?.exitCode ?? null,
+      activity: live?.proc ? live.activity : null,
+    };
   }
+}
+
+function emptyLive(): Live {
+  return {
+    proc: null,
+    exitCode: null,
+    activity: "starting",
+    hookToken: null,
+    scrollback: [],
+    scrollbackSize: 0,
+    clients: new Set(),
+  };
 }
 
 function send(ws: WebSocket, frame: ServerFrame): void {

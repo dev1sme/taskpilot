@@ -7,10 +7,12 @@ import path from "node:path";
 import { ActivityStore } from "./activity/store.js";
 import { EventHub } from "./events.js";
 import { getTask, listTasks, readTaskFile, resolveRepo, tasksRoot } from "./repo/tasks.js";
+import { readInventory } from "./repo/inventory.js";
 import { TasksWatcher } from "./repo/watcher.js";
 import { registerSecurity } from "./security.js";
 import { isHookEvent } from "./sessions/hooks.js";
 import type { Launcher } from "./sessions/launch.js";
+import { claudeVersion } from "./sessions/version.js";
 import { SessionManager } from "./sessions/manager.js";
 import type { StateStore } from "./state.js";
 import { WorkflowEngine } from "./workflow/engine.js";
@@ -113,14 +115,23 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     return { path: resolved, tasksDir: tasksRoot(resolved), tasksDirExists: existsSync(tasksRoot(resolved)) };
   });
 
+  app.get("/api/info", async () => ({ claudeVersion: await claudeVersion() }));
+
+  app.get("/api/inventory", async () => readInventory(requireRepo()));
+
   app.get("/api/tasks", async () => {
     const current = requireRepo();
     const { runs } = await opts.state.load();
     return Promise.all(
       (await listTasks(current)).map(async (task) => {
         const run = runs.find((r) => r.repo === current && r.taskKey === task.key);
-        const waitingPermission = (await sessions.list(current, task.key)).some((s) => s.activity === "permission");
-        return { ...task, run: run ? { phase: run.phase, stepIndex: run.stepIndex } : null, waitingPermission };
+        const list = await sessions.list(current, task.key);
+        return {
+          ...task,
+          run: run ? { phase: run.phase, stepIndex: run.stepIndex, stepStartedAt: run.stepStartedAt } : null,
+          waitingPermission: list.some((s) => s.activity === "permission"),
+          sessionsRunning: list.filter((s) => s.status === "running").length,
+        };
       }),
     );
   });

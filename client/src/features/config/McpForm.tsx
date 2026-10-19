@@ -25,12 +25,19 @@ const toRows = (values: McpEntryForm["env"]): Row[] =>
  * value field keeps what is configured. For project servers, values marked secret go to
  * TaskPilot's env store and .mcp.json gets `${VAR}`.
  */
-export function McpForm(props: { scope: Scope; base: McpEntryForm | null; baseHash: string; onDone: (name: string | null) => void }) {
+export function McpForm(props: {
+  scope: Scope;
+  base: McpEntryForm | null;
+  baseHash: string;
+  /** Prefilled values for a new server (ignored once `base` is set, i.e. when editing). */
+  initial?: { name: string; command: string; args: string[] };
+  onDone: (name: string | null) => void;
+}) {
   const { scope, base } = props;
-  const [name, setName] = useState(base?.name ?? "");
+  const [name, setName] = useState(base?.name ?? props.initial?.name ?? "");
   const [type, setType] = useState<McpEntryInput["type"]>(base?.type ?? "stdio");
-  const [command, setCommand] = useState(base?.command ?? "");
-  const [args, setArgs] = useState((base?.args ?? []).join("\n"));
+  const [command, setCommand] = useState(base?.command ?? props.initial?.command ?? "");
+  const [args, setArgs] = useState((base?.args ?? props.initial?.args ?? []).join("\n"));
   const [url, setUrl] = useState(base?.url ?? "");
   const [env, setEnv] = useState<Row[]>(toRows(base?.env ?? []));
   const [headers, setHeaders] = useState<Row[]>(toRows(base?.headers ?? []));

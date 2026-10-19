@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "codegraph": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "-w",
+        "/home/thomson/dev/project/dev1sme/taskpilot",
+        "env-codegraph",
+        "codegraph",
+        "serve",
+        "--mcp"
+      ]
+    }
+  }
+}

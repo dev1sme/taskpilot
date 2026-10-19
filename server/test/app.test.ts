@@ -5,7 +5,8 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadDotEnv } from "../src/dotenv.js";
 import { childEnv } from "../src/sessions/launch.js";
-import { hostnameOf, isLoopbackHost, type BasicAuth } from "../src/security.js";
+import type { Credentials } from "../src/auth.js";
+import { hostnameOf, isLoopbackHost } from "../src/security.js";
 import { StateStore } from "../src/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
 
@@ -16,10 +17,16 @@ let app: FastifyInstance | undefined;
 afterEach(async () => app?.close());
 afterAll(cleanupTempDirs);
 
-async function start(repo?: string, allowedHosts?: string[], auth?: BasicAuth) {
+async function start(repo?: string, allowedHosts?: string[], login?: Credentials) {
   const state = new StateStore(await tempDir("taskpilot-state-"));
-  app = await buildApp({ token: TOKEN, state, repo, allowedHosts, auth });
+  // Password mode without TASKPILOT_TOKEN, as the CLI does it.
+  app = await buildApp({ token: login ? undefined : TOKEN, state, repo, allowedHosts, login });
   return { app, state };
+}
+
+/** The session cookie from a login response, as a Cookie header value. */
+function cookieOf(res: { headers: Record<string, unknown> }): string {
+  return String(res.headers["set-cookie"]).split(";")[0];
 }
 
 describe("security", () => {
@@ -61,33 +68,79 @@ describe("security", () => {
     expect(Object.keys(env).filter((k) => k.startsWith("TASKPILOT_AUTH") || k === "TASKPILOT_TOKEN")).toEqual([]);
   });
 
-  it("requires basic auth when configured, except for hook callbacks", async () => {
-    const { app } = await start(undefined, [], { user: "thomson", password: "p:ss wörd" });
-    const basic = (cred: string) => `Basic ${Buffer.from(cred).toString("base64")}`;
-    const get = (authorization?: string) =>
-      app.inject({ url: "/api/repo", headers: { ...ok, ...(authorization ? { authorization } : {}) } });
+  it("password mode: logs in with user and password, then uses the session cookie", async () => {
+    const login = { user: "thomson", password: "p:ss wörd" };
+    const { state } = await start(undefined, [], login);
+    // `app` is the module-level one here: the test rebuilds it to simulate restarts.
+    const host = { host: ok.host };
+    const post = (payload: object) => app!.inject({ method: "POST", url: "/api/login", headers: host, payload });
 
-    const missing = await get();
-    expect(missing.statusCode).toBe(401);
-    expect(missing.headers["www-authenticate"]).toMatch(/^Basic realm="TaskPilot"/);
-    expect((await get(basic("thomson:wrong"))).statusCode).toBe(401);
-    expect((await get(basic("other:p:ss wörd"))).statusCode).toBe(401);
-    expect((await get("Bearer x")).statusCode).toBe(401);
-    expect((await get(basic("thomson:p:ss wörd"))).statusCode).toBe(200);
-    // Basic auth does not replace the UI token.
-    const noToken = await app.inject({ url: "/api/repo", headers: { host: ok.host, authorization: basic("thomson:p:ss wörd") } });
-    expect(noToken.statusCode).toBe(401);
-    expect(noToken.headers["www-authenticate"]).toBeUndefined();
+    expect((await app!.inject({ url: "/api/auth", headers: host })).json()).toEqual({ mode: "password", authenticated: false });
+    expect((await app!.inject({ url: "/api/repo", headers: host })).statusCode).toBe(401);
+    // No token configured in password mode: the header is not a way in.
+    expect((await app!.inject({ url: "/api/repo", headers: ok })).statusCode).toBe(401);
+    expect((await post({ user: "thomson", password: "wrong" })).statusCode).toBe(401);
+    expect((await post({ token: TOKEN })).statusCode).toBe(401);
 
+    const res = await post(login);
+    expect(res.statusCode).toBe(200);
+    const setCookie = String(res.headers["set-cookie"]);
+    expect(setCookie).toMatch(/^taskpilot_session=[\w-]{40,}; Path=\/; HttpOnly; SameSite=Strict; Max-Age=604800$/);
+    const cookie = cookieOf(res);
+    expect((await app!.inject({ url: "/api/repo", headers: { ...host, cookie } })).statusCode).toBe(200);
+    expect((await app!.inject({ url: "/api/auth", headers: { ...host, cookie } })).json()).toMatchObject({ authenticated: true });
+
+    // Survives a restart with the same password, not with a changed one.
+    await app!.close();
+    app = await buildApp({ state, login });
+    expect((await app!.inject({ url: "/api/repo", headers: { ...host, cookie } })).statusCode).toBe(200);
+    await app!.close();
+    app = await buildApp({ state, login: { ...login, password: "changed" } });
+    expect((await app!.inject({ url: "/api/repo", headers: { ...host, cookie } })).statusCode).toBe(401);
+  });
+
+  it("marks the cookie Secure behind an https proxy, and logout ends the session", async () => {
+    const { app } = await start(undefined, [], { user: "u", password: "p" });
+    const headers = { host: ok.host, "x-forwarded-proto": "https" };
+    const res = await app.inject({ method: "POST", url: "/api/login", headers, payload: { user: "u", password: "p" } });
+    expect(String(res.headers["set-cookie"])).toMatch(/; Secure$/);
+    const cookie = cookieOf(res);
+    const out = await app.inject({ method: "POST", url: "/api/logout", headers: { ...headers, cookie } });
+    expect(String(out.headers["set-cookie"])).toMatch(/^taskpilot_session=; .*Max-Age=0/);
+    expect((await app.inject({ url: "/api/repo", headers: { ...headers, cookie } })).statusCode).toBe(401);
+  });
+
+  it("locks login out after repeated failures", async () => {
+    const { app } = await start(undefined, [], { user: "u", password: "p" });
+    const post = (password: string) =>
+      app.inject({ method: "POST", url: "/api/login", headers: { host: ok.host }, payload: { user: "u", password } });
+    for (let i = 0; i < 5; i++) expect((await post("wrong")).statusCode).toBe(401);
+    const locked = await post("p");
+    expect(locked.statusCode).toBe(429);
+    expect(Number(locked.headers["retry-after"])).toBeGreaterThan(0);
+  });
+
+  it("token mode: exchanges the token for a session, keeps the header for scripts, ignores ?token=", async () => {
+    const { app } = await start();
+    const host = { host: ok.host };
+    expect((await app.inject({ url: "/api/auth", headers: host })).json()).toEqual({ mode: "token", authenticated: false });
+    expect((await app.inject({ url: `/api/repo?token=${TOKEN}`, headers: host })).statusCode).toBe(401);
+    expect((await app.inject({ method: "POST", url: "/api/login", headers: host, payload: { token: "nope" } })).statusCode).toBe(401);
+    const res = await app.inject({ method: "POST", url: "/api/login", headers: host, payload: { token: TOKEN } });
+    expect((await app.inject({ url: "/api/repo", headers: { ...host, cookie: cookieOf(res) } })).statusCode).toBe(200);
+  });
+
+  it("keeps hook callbacks and the client outside the login", async () => {
+    const { app } = await start(undefined, [], { user: "u", password: "p" });
     const hook = await app.inject({ method: "POST", url: "/hook/Stop", headers: { host: ok.host }, payload: {} });
-    expect(hook.statusCode).toBe(403);
+    expect(hook.statusCode).toBe(403); // rejected by the hook token, not by the login
   });
 
   it("requires the token on /api", async () => {
     const { app } = await start();
     expect((await app.inject({ url: "/api/repo", headers: { host: ok.host } })).statusCode).toBe(401);
     expect((await app.inject({ url: "/api/repo", headers: { ...ok, "x-taskpilot-token": "nope" } })).statusCode).toBe(401);
-    expect((await app.inject({ url: `/api/repo?token=${TOKEN}`, headers: { host: ok.host } })).statusCode).toBe(200);
+    expect((await app.inject({ url: "/api/repo", headers: ok })).statusCode).toBe(200);
   });
 });
 

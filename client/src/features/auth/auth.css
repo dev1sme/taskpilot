@@ -1,0 +1,60 @@
+.login {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: 24px 16px;
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 360px;
+  padding: 28px 24px 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.login-brand h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.login-card label {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.login-card input {
+  height: 40px;
+  padding: 0 12px;
+  background: var(--sunken);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+}
+
+.login-card input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.login-card .error {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+
+.login-card .btn {
+  justify-content: center;
+  margin-top: 16px;
+}

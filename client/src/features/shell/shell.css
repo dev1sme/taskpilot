@@ -377,6 +377,22 @@ a.status-item.is-warn {
   margin-left: auto;
 }
 
+.status-logout {
+  padding: 2px 6px;
+  margin: -2px -6px;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+}
+
+.status-logout:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+
 .status-dot {
   width: 8px;
   height: 8px;

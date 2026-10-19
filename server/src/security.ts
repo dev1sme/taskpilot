@@ -1,5 +1,6 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import type { FastifyInstance } from "fastify";
+import { sessionCookie, type AuthSessions } from "./auth.js";
 
 export const TOKEN_HEADER = "x-taskpilot-token";
 
@@ -49,61 +50,34 @@ export function tokenMatches(expected: string, given: string | undefined): boole
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export interface BasicAuth {
-  user: string;
-  password: string;
+/** /api routes reachable without a session: the login screen needs them. */
+const PUBLIC_API = new Set(["GET /api/auth", "POST /api/login"]);
+
+export interface SecurityOptions {
+  /** Hostnames accepted in Host/Origin besides loopback. */
+  extraHosts?: readonly string[];
+  /** Accepted in the x-taskpilot-token header, for scripts; undefined turns the header off. */
+  apiToken?: string;
+  sessions: AuthSessions;
 }
 
-/** Hashing first makes the comparison constant-time regardless of the lengths involved. */
-function sameSecret(expected: string, given: string): boolean {
-  const digest = (v: string) => createHash("sha256").update(v).digest();
-  return timingSafeEqual(digest(expected), digest(given));
-}
-
-export function basicAuthMatches(auth: BasicAuth, header: string | undefined): boolean {
-  const match = /^Basic\s+(\S+)$/i.exec(header ?? "");
-  if (!match) return false;
-  const decoded = Buffer.from(match[1], "base64").toString("utf8");
-  const colon = decoded.indexOf(":");
-  if (colon < 0) return false;
-  // Evaluate both so a wrong user takes as long as a wrong password.
-  const userOk = sameSecret(auth.user, decoded.slice(0, colon));
-  const passwordOk = sameSecret(auth.password, decoded.slice(colon + 1));
-  return userOk && passwordOk;
-}
-
-function requestToken(req: FastifyRequest): string | undefined {
-  const header = req.headers[TOKEN_HEADER];
-  if (typeof header === "string") return header;
-  // EventSource cannot set headers, so the SSE endpoint takes the token from the query string.
-  const query = req.query as Record<string, unknown> | undefined;
-  return typeof query?.token === "string" ? query.token : undefined;
-}
-
-export function registerSecurity(
-  app: FastifyInstance,
-  token: string,
-  extraHosts: readonly string[] = [],
-  auth?: BasicAuth,
-): void {
-  const allowed = allowedHostnames(extraHosts);
+export function registerSecurity(app: FastifyInstance, opts: SecurityOptions): void {
+  const allowed = allowedHostnames(opts.extraHosts);
   app.addHook("onRequest", async (req, reply) => {
     if (!isAllowedHost(req.headers.host, allowed)) {
       return reply.code(403).send({ error: "Host not allowed" });
     }
-    // Browsers do not apply CORS to WebSockets; refuse any cross-site page outright.
+    // Browsers do not apply CORS to WebSockets; refuse any cross-site page outright. With cookie
+    // sessions this is also the CSRF check.
     if (req.headers.origin !== undefined && !isAllowedOrigin(req.headers.origin, allowed)) {
       return reply.code(403).send({ error: "Origin not allowed" });
     }
-    // Hook callbacks come from the sessions' curl, which has its own per-session token.
-    if (auth && !req.url.startsWith("/hook/") && !basicAuthMatches(auth, req.headers.authorization)) {
-      return reply
-        .code(401)
-        .header("www-authenticate", 'Basic realm="TaskPilot", charset="UTF-8"')
-        .send({ error: "Authentication required" });
-    }
-    if (req.url.startsWith("/api/") && !tokenMatches(token, requestToken(req))) {
-      return reply.code(401).send({ error: "Missing or invalid token" });
+    const pathname = req.url.split("?")[0];
+    if (!pathname.startsWith("/api/") || PUBLIC_API.has(`${req.method} ${pathname}`)) return;
+    const header = req.headers[TOKEN_HEADER];
+    const byToken = opts.apiToken !== undefined && typeof header === "string" && tokenMatches(opts.apiToken, header);
+    if (!byToken && !opts.sessions.valid(sessionCookie(req))) {
+      return reply.code(401).send({ error: "Not logged in" });
     }
   });
 }

@@ -1,7 +1,7 @@
 import { MotionConfig } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
-import { token } from "../api/client";
 import { ToastHost } from "../components/Toast";
+import { AuthGate } from "../features/auth/AuthGate";
 import { BackupsPage } from "../features/config/BackupsPage";
 import { ConfigPage } from "../features/config/ConfigPage";
 import { OverviewPage } from "../features/overview/OverviewPage";
@@ -17,19 +17,13 @@ import { useWorkspace, WorkspaceProvider } from "./workspace";
 import "./app.css";
 
 export function App() {
-  if (!token) {
-    return (
-      <main className="empty-state">
-        <h1>TaskPilot</h1>
-        <p>Thiếu token. Mở đúng URL mà server in ra khi khởi động (có ?token=…).</p>
-      </main>
-    );
-  }
   return (
     <MotionConfig reducedMotion="user">
-      <WorkspaceProvider>
-        <Shell />
-      </WorkspaceProvider>
+      <AuthGate>
+        <WorkspaceProvider>
+          <Shell />
+        </WorkspaceProvider>
+      </AuthGate>
     </MotionConfig>
   );
 }

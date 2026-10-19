@@ -1,0 +1,54 @@
+import type { FastifyInstance } from "fastify";
+import {
+  credentialsMatch,
+  LoginLimiter,
+  sessionCookie,
+  setCookieHeader,
+  type AuthMode,
+  type AuthSessions,
+  type Credentials,
+} from "./auth.js";
+import { tokenMatches } from "./security.js";
+
+export interface AuthRoutesOptions {
+  sessions: AuthSessions;
+  /** Password mode when set. */
+  login?: Credentials;
+  /** The CLI's token; token mode logs in with it. */
+  token?: string;
+}
+
+export function registerAuthRoutes(app: FastifyInstance, opts: AuthRoutesOptions): void {
+  const mode: AuthMode = opts.login ? "password" : "token";
+  // Keyed by the peer address: behind a proxy every browser shares it, so the limit is global there.
+  const limiter = new LoginLimiter();
+
+  app.get("/api/auth", async (req) => ({ mode, authenticated: opts.sessions.valid(sessionCookie(req)) }));
+
+  app.post<{ Body: { user?: unknown; password?: unknown; token?: unknown } }>("/api/login", async (req, reply) => {
+    const wait = limiter.retryAfter(req.ip);
+    if (wait > 0) {
+      const minutes = Math.ceil(wait / 60_000);
+      return reply
+        .code(429)
+        .header("retry-after", Math.ceil(wait / 1000))
+        .send({ error: `Sai quá nhiều lần, thử lại sau ${minutes} phút` });
+    }
+    const body = req.body ?? {};
+    const ok = opts.login
+      ? credentialsMatch(opts.login, body.user, body.password)
+      : opts.token !== undefined && typeof body.token === "string" && tokenMatches(opts.token, body.token);
+    if (!ok) {
+      limiter.fail(req.ip);
+      return reply.code(401).send({ error: opts.login ? "Sai tên đăng nhập hoặc mật khẩu" : "Token không đúng" });
+    }
+    limiter.succeed(req.ip);
+    const session = await opts.sessions.create();
+    return reply.header("set-cookie", setCookieHeader(req, session.id, session.maxAgeMs)).send({ ok: true });
+  });
+
+  app.post("/api/logout", async (req, reply) => {
+    await opts.sessions.revoke(sessionCookie(req));
+    return reply.header("set-cookie", setCookieHeader(req, "", 0)).send({ ok: true });
+  });
+}

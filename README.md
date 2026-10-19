@@ -31,6 +31,8 @@ cd /path/to/repo && taskpilot --open
 ```
 
 The server prints a URL with a one-time token (`http://127.0.0.1:8790/?token=…`); open that one.
+With `TASKPILOT_AUTH_USER` / `TASKPILOT_AUTH_PASSWORD` set, it prints the plain URL and the browser
+shows a login screen instead.
 
 | Option | Default |
 |---|---|
@@ -42,8 +44,8 @@ The server prints a URL with a one-time token (`http://127.0.0.1:8790/?token=…
 | Environment | Meaning |
 |---|---|
 | `TASKPILOT_HOME` | state directory, default `~/.taskpilot` |
-| `TASKPILOT_TOKEN` | fixed UI token instead of a random one per start; never passed to sessions |
-| `TASKPILOT_AUTH_USER` / `TASKPILOT_AUTH_PASSWORD` | HTTP basic auth on every request except hook callbacks; set both or neither; never passed to sessions |
+| `TASKPILOT_AUTH_USER` / `TASKPILOT_AUTH_PASSWORD` | log in with these instead of the token; set both or neither; changing them logs every browser out |
+| `TASKPILOT_TOKEN` | without a login: fixed token instead of a random one per start; with a login: optional API token for scripts (`x-taskpilot-token` header) |
 | `TASKPILOT_ALLOWED_HOSTS` | comma-separated hostnames accepted in `Host` / `Origin` besides loopback and `--host`, e.g. a reverse proxy's domain |
 | `TASKPILOT_CLAUDE` | claude command, default `claude` |
 | `TASKPILOT_CLAUDE_HOME` / `TASKPILOT_CLAUDE_JSON` | where user-scope config is read from, default `~/.claude` / `~/.claude.json` |
@@ -55,7 +57,7 @@ then environment, then `.env`, then the default.
 ## Run as a service
 
 ```bash
-cp .env.example .env && chmod 600 .env   # set TASKPILOT_TOKEN, and HOST / ALLOWED_HOSTS if proxied
+cp .env.example .env && chmod 600 .env   # set TASKPILOT_AUTH_*, and HOST / ALLOWED_HOSTS if proxied
 make service-install                     # build, write ~/.config/systemd/user/taskpilot.service, start
 make service-restart                     # after pulling new code or editing .env
 make service-logs                        # or service-status, service-uninstall
@@ -69,8 +71,8 @@ Node version. It only runs while you are logged in unless lingering is on
 Behind a reverse proxy in Docker, listen on the docker0 address (`TASKPILOT_HOST=172.17.0.1`),
 proxy to `http://host.docker.internal:8790` with WebSocket upgrade headers, and list the proxy's
 domain in `TASKPILOT_ALLOWED_HOSTS`. Hook callbacks go straight to the listen address, so the proxy
-can refuse `/hook/`. Set `TASKPILOT_AUTH_USER` / `TASKPILOT_AUTH_PASSWORD` (the token alone
-guards a shell) and keep the proxy's access log off for it: the token travels in query strings.
+can refuse `/hook/`. Set `TASKPILOT_AUTH_USER` / `TASKPILOT_AUTH_PASSWORD`: anyone who logs in
+gets a shell on this machine.
 
 ## Claude configuration
 
@@ -148,8 +150,10 @@ The embedded terminal is a shell on your machine, so TaskPilot:
 
 - listens on `127.0.0.1` by default and rejects `Host` / `Origin` headers other than loopback, the
   listen address and `TASKPILOT_ALLOWED_HOSTS` (DNS rebinding, cross-site WebSockets);
-- requires the per-start token on every API call and WebSocket, and HTTP basic auth on every
-  request when `TASKPILOT_AUTH_USER` / `TASKPILOT_AUTH_PASSWORD` are set;
+- requires a login session on every API call, event stream and WebSocket: an `HttpOnly`,
+  `SameSite=Strict` cookie (`Secure` over https) lasting 7 days, obtained with the user and
+  password or, without them, with the per-start token. Sessions are kept hashed in
+  `~/.taskpilot/auth-sessions.json`. Five failed logins lock the client out for 15 minutes;
 - authenticates hook callbacks with a token per session process.
 
 ## Develop
@@ -157,6 +161,7 @@ The embedded terminal is a shell on your machine, so TaskPilot:
 ```bash
 npm run dev:server   # API on 127.0.0.1:8791, token "dev" (tsx watch); the service keeps :8790
 npm run dev:client   # UI on :5173, open http://127.0.0.1:5173/?token=dev
+                     # (or log in, when .env sets TASKPILOT_AUTH_*)
 npm test
 npm run typecheck
 ```

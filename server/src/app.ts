@@ -12,7 +12,9 @@ import { registerConfigRoutes } from "./config/routes.js";
 import { EnvStore } from "./sessions/envStore.js";
 import { readInventory } from "./repo/inventory.js";
 import { TasksWatcher } from "./repo/watcher.js";
-import { registerSecurity, type BasicAuth } from "./security.js";
+import { AuthSessions, type Credentials } from "./auth.js";
+import { registerAuthRoutes } from "./authRoutes.js";
+import { registerSecurity } from "./security.js";
 import { isHookEvent } from "./sessions/hooks.js";
 import type { Launcher } from "./sessions/launch.js";
 import { claudeVersion } from "./sessions/version.js";
@@ -22,7 +24,11 @@ import { WorkflowEngine } from "./workflow/engine.js";
 import type { WorkflowDef } from "./workflow/types.js";
 
 export interface AppOptions {
-  token: string;
+  /**
+   * Without `login`: the token the browser logs in with (token mode). Either way, also accepted in
+   * the x-taskpilot-token header for scripts.
+   */
+  token?: string;
   state: StateStore;
   /** Repo given on the command line; falls back to the last repo stored in state. */
   repo?: string;
@@ -31,8 +37,8 @@ export interface AppOptions {
   logger?: boolean;
   /** Hostnames accepted in Host/Origin besides loopback, e.g. the listen address or a proxy's domain. */
   allowedHosts?: string[];
-  /** HTTP basic auth required on every request except hook callbacks. */
-  auth?: BasicAuth;
+  /** Log in with a user and password (password mode) instead of the token. */
+  login?: Credentials;
   /** Overrides the claude command (tests). */
   launcher?: Launcher;
   /** Overrides workflow loading (tests). */
@@ -48,6 +54,10 @@ function hookHost(address: string): string {
 const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
+  const loginSecret = opts.login ? `password\0${opts.login.user}\0${opts.login.password}` : opts.token && `token\0${opts.token}`;
+  if (!loginSecret) throw new Error("buildApp needs a token or login credentials");
+  const authSessions = new AuthSessions(path.join(opts.state.dir, "auth-sessions.json"), loginSecret);
+  await authSessions.load();
   // Request logging is off: SSE and WebSocket URLs carry the token in their query string.
   const app = Fastify({
     // Warnings and errors only; the CLI prints its own startup line.
@@ -109,7 +119,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     }
   }
 
-  registerSecurity(app, opts.token, opts.allowedHosts, opts.auth);
+  registerSecurity(app, { extraHosts: opts.allowedHosts, apiToken: opts.token, sessions: authSessions });
   await app.register(fastifyWebsocket);
 
   app.setErrorHandler((err, _req, reply) => {
@@ -117,6 +127,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     app.log.error(err);
     return reply.code(500).send({ error: "Internal error" });
   });
+
+  registerAuthRoutes(app, { sessions: authSessions, login: opts.login, token: opts.token });
 
   app.get("/api/repo", async () => ({
     path: repo,

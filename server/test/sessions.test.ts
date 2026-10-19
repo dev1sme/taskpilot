@@ -52,7 +52,7 @@ function collect(ws: WebSocket) {
 }
 
 async function connect(app: FastifyInstance, id: string) {
-  const ws = await app.injectWS(`/api/sessions/${id}/pty?token=${TOKEN}`, { headers: { host: ok.host } });
+  const ws = await app.injectWS(`/api/sessions/${id}/pty`, { headers: ok });
   const c = collect(ws);
   ws.send(JSON.stringify({ t: "r", cols: 80, rows: 24 }));
   return { ws, ...c };
@@ -138,9 +138,9 @@ describe("sessions", () => {
     // injectWS never emits "close" for a server-initiated close, so use a real socket here.
     await app.listen({ host: "127.0.0.1", port: 0 });
     const { port } = app.server.address() as AddressInfo;
-    const ws = new WebSocket(
-      `ws://127.0.0.1:${port}/api/sessions/00000000-0000-4000-8000-000000000000/pty?token=${TOKEN}`,
-    );
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/api/sessions/00000000-0000-4000-8000-000000000000/pty`, {
+      headers: { "x-taskpilot-token": TOKEN },
+    });
     const code = await new Promise<number>((resolve) => ws.on("close", resolve));
     expect(code).toBe(4404);
   });

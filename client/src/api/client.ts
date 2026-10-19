@@ -1,5 +1,6 @@
 import type {
   ActivityItem,
+  AuthStatus,
   BackupEntry,
   CodegraphStatus,
   HooksFile,
@@ -29,38 +30,28 @@ import type {
   TaskSummary,
 } from "./types";
 
-const TOKEN_KEY = "taskpilot-token";
+/** Fired when the server answers 401: the session ended, show the login again. */
+export const UNAUTHORIZED = "taskpilot:unauthorized";
 
-/** Takes ?token= from the URL once, keeps it for this tab, and removes it from the address bar. */
-function initToken(): string {
+/** Takes ?token= from the URL (token mode) and removes it from the address bar. */
+export function takeUrlToken(): string | null {
   const url = new URL(location.href);
   const fromUrl = url.searchParams.get("token");
-  if (fromUrl) {
-    try {
-      sessionStorage.setItem(TOKEN_KEY, fromUrl);
-    } catch {
-      // Storage blocked: the token still works until the page reloads.
-    }
-    url.searchParams.delete("token");
-    history.replaceState(null, "", url);
-    return fromUrl;
-  }
-  try {
-    return sessionStorage.getItem(TOKEN_KEY) ?? "";
-  } catch {
-    return "";
-  }
+  if (fromUrl === null) return null;
+  url.searchParams.delete("token");
+  history.replaceState(null, "", url);
+  return fromUrl;
 }
 
-export const token = initToken();
-
+// The session cookie travels by itself (same origin), including on EventSource and WebSocket.
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method,
-    headers: { "x-taskpilot-token": token, ...(body ? { "Content-Type": "application/json" } : {}) },
+    headers: body ? { "Content-Type": "application/json" } : {},
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && url !== "/api/login") window.dispatchEvent(new Event(UNAUTHORIZED));
   if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
   return data as T;
 }
@@ -68,6 +59,10 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
 const task = (key: string) => `/api/tasks/${encodeURIComponent(key)}`;
 
 export const api = {
+  auth: () => call<AuthStatus>("GET", "/api/auth"),
+  login: (body: { user: string; password: string } | { token: string }) => call<{ ok: true }>("POST", "/api/login", body),
+  logout: () => call<{ ok: true }>("POST", "/api/logout"),
+
   info: () => call<Info>("GET", "/api/info"),
   inventory: () => call<Inventory>("GET", "/api/inventory"),
   memory: () => call<MemoryFile[]>("GET", "/api/config/memory"),
@@ -140,6 +135,6 @@ export const api = {
 
   ptyUrl: (id: string) => {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    return `${proto}//${location.host}/api/sessions/${id}/pty?token=${encodeURIComponent(token)}`;
+    return `${proto}//${location.host}/api/sessions/${id}/pty`;
   },
 };

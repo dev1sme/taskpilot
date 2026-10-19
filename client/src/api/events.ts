@@ -1,12 +1,10 @@
-import { token } from "./client";
-
 type Listener = (data: unknown) => void;
 const listeners = new Map<string, Set<Listener>>();
 let source: EventSource | null = null;
 
 /** One shared EventSource for the page; returns an unsubscribe function. */
 export function onServerEvent(event: string, fn: Listener): () => void {
-  if (!source) source = new EventSource(`/api/events?token=${encodeURIComponent(token)}`);
+  if (!source) source = new EventSource("/api/events");
   let set = listeners.get(event);
   if (!set) {
     set = new Set();

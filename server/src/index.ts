@@ -25,8 +25,8 @@ const USAGE = `Usage: taskpilot [--repo <path>] [--host <addr>] [--port <n>] [--
 
 Environment: TASKPILOT_HOME (state dir, default ~/.taskpilot), TASKPILOT_TOKEN (fixed UI token),
 TASKPILOT_ALLOWED_HOSTS (comma-separated hostnames accepted besides loopback, e.g. a reverse
-proxy's domain), TASKPILOT_AUTH_USER + TASKPILOT_AUTH_PASSWORD (HTTP basic auth, both or neither),
-TASKPILOT_CLAUDE (claude command, default "claude").
+proxy's domain), TASKPILOT_AUTH_USER + TASKPILOT_AUTH_PASSWORD (log in with these instead of the
+token, both or neither), TASKPILOT_CLAUDE (claude command, default "claude").
 Variables not set in the environment are read from the .env next to package.json.`;
 
 let values;
@@ -65,12 +65,13 @@ if (Boolean(authUser) !== Boolean(authPassword)) {
   console.error("Set both TASKPILOT_AUTH_USER and TASKPILOT_AUTH_PASSWORD, or neither.");
   process.exit(2);
 }
-const auth = authUser && authPassword ? { user: authUser, password: authPassword } : undefined;
+const login = authUser && authPassword ? { user: authUser, password: authPassword } : undefined;
 
 const host = values.host;
 const allowedHosts = [host, ...(process.env.TASKPILOT_ALLOWED_HOSTS ?? "").split(",")];
-const token = process.env.TASKPILOT_TOKEN ?? newToken();
-const app = await buildApp({ token, state: new StateStore(), repo, clientDir, logger: true, allowedHosts, auth });
+// With a login, the token is only for scripts and exists only when set explicitly.
+const token = process.env.TASKPILOT_TOKEN ?? (login ? undefined : newToken());
+const app = await buildApp({ token, state: new StateStore(), repo, clientDir, logger: true, allowedHosts, login });
 
 try {
   await app.listen({ host, port });
@@ -81,8 +82,9 @@ try {
   process.exit(1);
 }
 
-const url = `http://${host.includes(":") ? `[${host}]` : host}:${port}/?token=${token}`;
-console.log(`\nTaskPilot: ${url}\n`);
+const base = `http://${host.includes(":") ? `[${host}]` : host}:${port}/`;
+const url = login ? base : `${base}?token=${token}`;
+console.log(`\nTaskPilot: ${url}${login ? ` (log in as ${login.user})` : ""}\n`);
 if (!clientDir) console.log("Client assets not built; run `npm run dev:client` or `npm run build`.");
 if (values.open) openBrowser(url);
 

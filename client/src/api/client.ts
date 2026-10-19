@@ -1,4 +1,19 @@
-import type { ActivityItem, Info, Inventory, RepoInfo, RunState, RunView, SessionView, TaskSummary } from "./types";
+import type {
+  ActivityItem,
+  HookEntry,
+  Info,
+  Inventory,
+  LibraryItem,
+  LibraryKind,
+  McpConfig,
+  MemoryFile,
+  RepoInfo,
+  RunState,
+  RunView,
+  SessionView,
+  SettingsFile,
+  TaskSummary,
+} from "./types";
 
 const TOKEN_KEY = "taskpilot-token";
 
@@ -41,6 +56,11 @@ const task = (key: string) => `/api/tasks/${encodeURIComponent(key)}`;
 export const api = {
   info: () => call<Info>("GET", "/api/info"),
   inventory: () => call<Inventory>("GET", "/api/inventory"),
+  memory: () => call<MemoryFile[]>("GET", "/api/config/memory"),
+  settings: () => call<SettingsFile[]>("GET", "/api/config/settings"),
+  hooks: () => call<HookEntry[]>("GET", "/api/config/hooks"),
+  library: (kind: LibraryKind) => call<LibraryItem[]>("GET", `/api/config/${kind}`),
+  mcp: () => call<McpConfig>("GET", "/api/config/mcp"),
   repo: () => call<RepoInfo>("GET", "/api/repo"),
   setRepo: (path: string) => call<RepoInfo>("PUT", "/api/repo", { path }),
   tasks: () => call<TaskSummary[]>("GET", "/api/tasks"),

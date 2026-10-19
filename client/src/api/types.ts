@@ -87,3 +87,82 @@ export interface ActivityItem {
   status?: "running" | "done" | "error";
   durationMs?: number;
 }
+
+// ------------------------------------------------------------------ Claude config (read-only)
+
+export type Scope = "project" | "local" | "user";
+
+export interface MemoryFile {
+  scope: Scope;
+  path: string;
+  exists: boolean;
+  content: string;
+  lines: number;
+  bytes: number;
+  mtime: number | null;
+  headings: Array<{ level: number; text: string; line: number }>;
+  imports: Array<{ ref: string; path: string; exists: boolean; bytes: number; depth: number; line: number }>;
+  checks: Array<{ level: "ok" | "warn"; message: string; line?: number }>;
+}
+
+export interface MaskedValue {
+  key: string;
+  value: string;
+  reference: boolean;
+}
+
+export interface SettingsFile {
+  scope: Scope;
+  path: string;
+  exists: boolean;
+  error?: string;
+  allow: string[];
+  ask: string[];
+  deny: string[];
+  defaultMode?: string;
+  additionalDirectories: string[];
+  env: MaskedValue[];
+  otherKeys: string[];
+}
+
+export interface HookEntry {
+  scope: Scope;
+  file: string;
+  event: string;
+  matcher: string;
+  type: string;
+  command: string;
+  timeout?: number;
+}
+
+export type LibraryKind = "agents" | "commands" | "skills";
+
+export interface LibraryItem {
+  kind: LibraryKind;
+  scope: "project" | "user";
+  name: string;
+  path: string;
+  description: string;
+  fields: Array<{ key: string; value: string }>;
+  body: string;
+  mtime: number | null;
+  error?: string;
+  files?: string[];
+}
+
+export interface McpServer {
+  name: string;
+  scope: Scope;
+  type: string;
+  command?: string;
+  args: string[];
+  url?: string;
+  env: MaskedValue[];
+  headers: MaskedValue[];
+  missingEnv: string[];
+}
+
+export interface McpConfig {
+  sources: Array<{ scope: Scope; path: string; exists: boolean; error?: string }>;
+  servers: McpServer[];
+}

@@ -130,8 +130,14 @@ The embedded terminal is shell-equivalent access to the machine.
   Claude config / Integrations groups and nested task list, ⌘K palette, status bar, repo overview
   (needs-you hero, running task pulse, task counts, CLAUDE.md, MCP and .claude inventory via
   `/api/inventory`), task table, config pages as placeholders.
-- **Phase B** read-only config pages (CLAUDE.md, settings & permissions, hooks, agents, commands,
-  skills, MCP). **Phase C** editors with diff preview and safe writes, MCP connection check.
+- **Phase B** read-only config pages — done: `/api/config/{memory,settings,hooks,agents,commands,skills,mcp}`
+  over project, local and user scopes (`~/.claude/`, `~/.claude.json`; override with
+  `TASKPILOT_CLAUDE_HOME` / `TASKPILOT_CLAUDE_JSON`). CLAUDE.md: outline, recursive `@import`s, token
+  estimate, checks (missing imports, unknown `npm run` scripts, token-like secrets). Secrets never
+  leave the server: env/header values are masked unless they are `${VAR}` references (optionally
+  with a short prefix such as `Bearer `), URL credentials in MCP args are hidden; MCP servers report
+  `${VAR}`s that are not set.
+- **Phase C** editors with diff preview and safe writes, MCP connection check.
 - **UI** mission control — done: workflow is the main view (stepper, "what Claude is doing now",
   live activity feed, gate card with doc preview and Claude's closing message); the terminal is a
   drawer that opens on demand or on a permission prompt. Client split into `api/`, `components/`,

@@ -1,6 +1,7 @@
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { useMemo } from "react";
+import "./components.css";
 
 /** Task files are written by people and by Claude; always sanitize before rendering. */
 export function Markdown({ source }: { source: string }) {

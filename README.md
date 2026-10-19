@@ -61,10 +61,12 @@ The first `# Heading` of the first spec file becomes the task title.
 
 1. Pick a task in the left column. Tasks that need you (waiting for review, for a permission
    prompt, or for an answer) are listed first with an amber band.
-2. **Bắt đầu quy trình** opens a new Claude session and sends the investigate prompt.
-   If Claude asks to trust the folder, answer in the terminal.
-3. At a gate, read the file (**Xem 02-plan.md**), then **Duyệt** to move on or **Gửi góp ý** to send
-   feedback; Claude revises in the same session and stops at the gate again.
+2. **Bắt đầu quy trình** opens a new Claude session and sends the investigate prompt. The screen
+   shows the workflow as a stepper, what Claude is doing right now, and a live feed of every file
+   read, command run and document written. The terminal stays folded at the bottom; it opens by
+   itself when Claude asks for a permission. If Claude asks to trust the folder, answer there.
+3. At a gate, the review card shows Claude's closing message and the document it wrote; **Duyệt**
+   moves on, **Gửi góp ý** sends feedback and Claude revises in the same session.
 4. If Claude ends its turn without writing the expected file (for example it asked you a question),
    reply in the terminal. **Gửi lại bước** re-sends the step; if the session has exited it is resumed
    first (`claude --resume`, same session id).
@@ -113,5 +115,12 @@ npm test
 npm run typecheck
 ```
 
-Layout: `server/` (Fastify, node-pty, workflow engine), `client/` (React, xterm.js),
-`workflows/default/` (built-in workflow and prompts). Design notes: [docs/SPEC.md](docs/SPEC.md).
+Layout:
+
+- `server/src/`: `sessions/` (node-pty, hooks), `workflow/` (engine, workflow files),
+  `activity/` (hook events → feed), `repo/` (task scanning)
+- `client/src/`: `api/`, `components/`, `features/{tasks,task,workflow,activity,docs,sessions,repo}/`
+  (each feature keeps its own CSS), `styles/` (tokens, base)
+- `workflows/default/`: built-in workflow and prompts
+
+Design notes: [docs/SPEC.md](docs/SPEC.md).

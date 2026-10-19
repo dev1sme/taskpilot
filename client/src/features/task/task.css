@@ -1,0 +1,117 @@
+.task-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.task-scroll {
+  flex: 1;
+  min-height: 0;
+  padding: 22px 28px 24px;
+  overflow: auto;
+}
+
+/* Title and progress stay in view while the gate card or the log scrolls. */
+.task-top {
+  position: sticky;
+  top: -22px;
+  z-index: 5;
+  margin: -22px -28px 0;
+  padding: 22px 28px 16px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid transparent;
+}
+
+.task-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 20px;
+  margin-bottom: 18px;
+}
+
+.task-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  min-width: 0;
+}
+
+.task-key {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--signal);
+}
+
+.task-title h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.task-head-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.task-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  align-items: start;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.task-main {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.task-main .activity {
+  max-height: 560px;
+}
+
+.workflow-source {
+  margin: 18px 0 0;
+  font-size: 13px;
+  color: var(--faint);
+}
+
+.task-screen > .drawer {
+  margin: 0 16px;
+}
+
+@media (max-width: 1100px) {
+  .task-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .task-scroll {
+    padding: 16px;
+  }
+
+  .task-top {
+    top: -16px;
+    margin: -16px -16px 0;
+    padding: 16px;
+  }
+
+  .task-title h1 {
+    font-size: 21px;
+  }
+
+  .task-screen > .drawer {
+    margin: 0;
+  }
+}

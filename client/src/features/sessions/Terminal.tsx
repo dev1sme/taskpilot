@@ -2,7 +2,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as XTerm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef } from "react";
-import { api } from "./api";
+import { api } from "../../api/client";
 
 type ServerFrame = { t: "o"; d: string } | { t: "x"; code: number | null };
 
@@ -22,8 +22,8 @@ export function Terminal({ sessionId, onExit }: { sessionId: string; onExit: (co
       fontFamily: '"JetBrains Mono", ui-monospace, monospace',
       fontSize: 13,
       scrollback: 10_000,
-      // Matches --terminal in styles.css; the terminal stays dark in both themes.
-      theme: { background: "#10161d", foreground: "#dce3ea", cursor: "#6ea8e8" },
+      // Matches --terminal in styles/tokens.css; the terminal stays dark in both themes.
+      theme: { background: "#0a0f15", foreground: "#e4eaf1", cursor: "#5b9cf2" },
     });
     const fit = new FitAddon();
     term.loadAddon(fit);

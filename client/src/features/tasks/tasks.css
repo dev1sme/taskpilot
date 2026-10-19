@@ -1,0 +1,132 @@
+.task-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 4px 10px;
+}
+
+.task-list-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.task-list ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.strip {
+  --band: var(--line-strong);
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  width: 100%;
+  padding: 10px 12px 10px 16px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  transition:
+    border-color var(--fast) var(--ease-out),
+    background-color var(--fast) var(--ease-out);
+}
+
+/* State band on the left edge. */
+.strip::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--band);
+}
+
+.strip:hover {
+  border-color: var(--line-strong);
+  background: var(--raised);
+}
+
+.strip[aria-current="page"] {
+  border-color: var(--signal);
+  background: var(--raised);
+  box-shadow: 0 0 0 3px var(--signal-soft);
+}
+
+.strip.tone-attention {
+  --band: var(--attention);
+  background: linear-gradient(90deg, var(--attention-soft), transparent 60%), var(--surface);
+}
+
+.strip.tone-active {
+  --band: var(--signal);
+}
+
+.strip.tone-done {
+  --band: var(--done);
+}
+
+.strip-key {
+  font-family: var(--mono);
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.strip-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.tone-attention .strip-status {
+  color: var(--attention);
+  font-weight: 600;
+}
+
+.tone-active .strip-status {
+  color: var(--signal);
+}
+
+.tone-done .strip-status {
+  color: var(--done);
+}
+
+.strip-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.strip-icon.pulse {
+  animation: nudge 1.8s var(--ease-out) infinite;
+}
+
+@keyframes nudge {
+  0%,
+  70%,
+  100% {
+    transform: rotate(0);
+  }
+  80% {
+    transform: rotate(-14deg);
+  }
+  90% {
+    transform: rotate(10deg);
+  }
+}
+
+.strip-title {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  font-size: 14px;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

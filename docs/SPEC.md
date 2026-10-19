@@ -78,7 +78,9 @@ client/ — browser UI (Vite + React + xterm.js)
 server/ — Node 24 + TypeScript + Fastify + @fastify/websocket
    ├─ RepoScanner      scan/watch .claude/tasks (chokidar)
    ├─ SessionManager   node-pty spawn/resume claude, many sessions per task, scrollback buffer
-   ├─ /hook/:event     SessionStart, UserPromptSubmit, PermissionRequest, PostToolUse, Stop ← curl
+   ├─ /hook/:event     SessionStart, UserPromptSubmit, PreToolUse, PermissionRequest,
+   │                   PostToolUse, PostToolUseFailure, Stop ← curl
+   ├─ ActivityStore    hook events → per-session feed (<state>/activity/<id>.jsonl), pushed over SSE
    ├─ WorkflowEngine   per-run state machine: step → wait-stop → check → gate
    └─ StateStore       ~/.taskpilot/state.json (sessions, runs, last repo)
 ```
@@ -110,6 +112,7 @@ The embedded terminal is shell-equivalent access to the machine.
 | Writing into `.claude/tasks/` | `permission_mode: auto` → no prompt. `default` → prompt *"Do you want to create 02-plan.md?"* with option 2 *"allow Claude to edit files in this project's .claude folder for this session"*. |
 | Transcript JSONL | Written only when the child env has no `CLAUDE*` vars. With inherited `CLAUDECODE=1` / `CLAUDE_CODE_CHILD_SESSION=1` the transcript is never persisted. |
 | Hook timing (M3 spike) | `SessionStart` ~1 s after spawn; a prompt pasted right after it is accepted. `PermissionRequest` fires as the prompt appears; `Notification` ~6 s later; `PostToolUse` after approval. |
+| Tool hooks (UI pass) | `PreToolUse`/`PostToolUse` carry `tool_use_id` and `tool_input`; `PostToolUse` has `duration_ms`. A failing tool (non-zero exit) fires **`PostToolUseFailure`** (with `error`), not `PostToolUse`. |
 | First run in a new folder | Trust dialog appears; default choice is **"No, exit"**. Leave it to the user in the terminal; never auto-answer. |
 
 ## 8. Open items
@@ -123,6 +126,10 @@ The embedded terminal is shell-equivalent access to the machine.
 - **M1** repo scan, task list, view `spec/` and output files — done.
 - **M2** session manager: multiple tabs per task, resume, scrollback across page reloads — done.
 - **M3** workflow engine, approve/feedback gates, hook badges — done.
+- **UI** mission control — done: workflow is the main view (stepper, "what Claude is doing now",
+  live activity feed, gate card with doc preview and Claude's closing message); the terminal is a
+  drawer that opens on demand or on a permission prompt. Client split into `api/`, `components/`,
+  `features/*`, `styles/`.
 - **M4** polish — done: `web/` renamed `client/`, `taskpilot` CLI (cwd as repo, `--open`, port errors),
   flight-strip UI (state bands, workflow drawn as a route), README, review fixes.
 

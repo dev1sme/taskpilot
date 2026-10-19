@@ -26,11 +26,13 @@ export interface AppState {
  * Cached in memory; updates are serialized so concurrent requests cannot lose writes.
  */
 export class StateStore {
+  readonly dir: string;
   readonly file: string;
   private cache: AppState | null = null;
   private queue: Promise<unknown> = Promise.resolve();
 
   constructor(dir = process.env.TASKPILOT_HOME ?? path.join(os.homedir(), ".taskpilot")) {
+    this.dir = dir;
     this.file = path.join(dir, "state.json");
   }
 

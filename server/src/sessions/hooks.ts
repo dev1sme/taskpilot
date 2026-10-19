@@ -1,5 +1,14 @@
 /** Claude Code hook events TaskPilot listens to. */
-export const HOOK_EVENTS = ["SessionStart", "UserPromptSubmit", "PermissionRequest", "PostToolUse", "Stop"] as const;
+export const HOOK_EVENTS = [
+  "SessionStart",
+  "UserPromptSubmit",
+  "PreToolUse",
+  "PermissionRequest",
+  "PostToolUse",
+  // A failed tool call (e.g. a command exiting non-zero) fires this instead of PostToolUse.
+  "PostToolUseFailure",
+  "Stop",
+] as const;
 export type HookEvent = (typeof HOOK_EVENTS)[number];
 
 /** What the session is doing, as far as hooks tell. */
@@ -32,7 +41,9 @@ export function nextActivity(event: HookEvent): Activity {
     case "PermissionRequest":
       return "permission";
     case "UserPromptSubmit":
+    case "PreToolUse":
     case "PostToolUse":
+    case "PostToolUseFailure":
       return "busy";
   }
 }

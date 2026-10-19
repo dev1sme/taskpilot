@@ -141,10 +141,13 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState] }> {
     });
   }
 
-  onHook(meta: SessionMeta, event: HookEvent): Promise<void> {
+  onHook(meta: SessionMeta, event: HookEvent, payload: Record<string, unknown> = {}): Promise<void> {
     return this.serial(async () => {
       const run = await this.bySession(meta.id);
       if (!run) return;
+      if (event === "Stop" && typeof payload.last_assistant_message === "string") {
+        run.lastMessage = payload.last_assistant_message;
+      }
       if (event === "SessionStart" && run.phase === "starting" && run.pendingPrompt) {
         await this.send(run, run.pendingPrompt);
       } else if (event === "UserPromptSubmit" && run.phase === "waiting") {

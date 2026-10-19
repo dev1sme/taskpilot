@@ -3,6 +3,8 @@ import fastifyWebsocket from "@fastify/websocket";
 import Fastify, { LogController, type FastifyInstance } from "fastify";
 import { existsSync } from "node:fs";
 import { HttpError } from "./errors.js";
+import path from "node:path";
+import { ActivityStore } from "./activity/store.js";
 import { EventHub } from "./events.js";
 import { getTask, listTasks, readTaskFile, resolveRepo, tasksRoot } from "./repo/tasks.js";
 import { TasksWatcher } from "./repo/watcher.js";
@@ -49,7 +51,12 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   const engine = new WorkflowEngine(opts.state, sessions, opts.loadWorkflow);
   const logError = (e: unknown) => app.log.error(e);
   sessions.on("change", (meta) => hub.publish("sessions", { taskKey: meta.taskKey }));
-  sessions.on("hook", (meta, event) => void engine.onHook(meta, event).catch(logError));
+  const activity = new ActivityStore(path.join(opts.state.dir, "activity"));
+  activity.on("item", (item) => hub.publish("activity", item));
+  sessions.on("hook", (meta, event, payload) => {
+    void activity.record(meta, event, payload).catch(logError);
+    void engine.onHook(meta, event, payload).catch(logError);
+  });
   sessions.on("exit", (meta) => void engine.onExit(meta).catch(logError));
   engine.on("change", (run) => hub.publish("run", { taskKey: run.taskKey }));
   await engine.recover();
@@ -149,6 +156,13 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     if (await engine.usesSession(id)) throw new HttpError(409, "Session belongs to an active workflow run; cancel the run first");
     await sessions.forget(id);
     return { ok: true };
+  });
+
+  app.get<{ Params: { key: string }; Querystring: { limit?: string } }>("/api/tasks/:key/activity", async (req) => {
+    const task = await getTask(requireRepo(), req.params.key);
+    const ids = (await sessions.list(requireRepo(), task.key)).map((s) => s.id);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 200, 1), 400);
+    return activity.list(ids, limit);
   });
 
   app.get<{ Params: { key: string } }>("/api/tasks/:key/run", async (req) =>

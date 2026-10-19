@@ -35,6 +35,8 @@ export interface RunState {
   /** Start of the current prompt; done-when files must be written after it. */
   stepStartedAt: number;
   message: string;
+  /** Claude's last message of the latest turn (Stop hook), shown at gates. */
+  lastMessage?: string;
   /** Prompt to send once the session reports SessionStart. */
   pendingPrompt?: string;
   startedAt: number;

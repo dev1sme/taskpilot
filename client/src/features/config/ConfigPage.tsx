@@ -1,4 +1,5 @@
 import type { ConfigSection } from "../../app/router";
+import { CodegraphPage } from "./CodegraphPage";
 import { HooksPage } from "./HooksPage";
 import { LibraryPage } from "./LibraryPage";
 import { McpPage } from "./McpPage";
@@ -20,5 +21,7 @@ export function ConfigPage({ section }: { section: ConfigSection }) {
       return <LibraryPage kind={section} />;
     case "mcp":
       return <McpPage />;
+    case "codegraph":
+      return <CodegraphPage />;
   }
 }

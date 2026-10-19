@@ -1,6 +1,7 @@
 import type {
   ActivityItem,
   BackupEntry,
+  CodegraphStatus,
   HooksFile,
   HookInput,
   McpCheck,
@@ -74,6 +75,8 @@ export const api = {
   hooks: () => call<HookEntry[]>("GET", "/api/config/hooks"),
   library: (kind: LibraryKind) => call<LibraryItem[]>("GET", `/api/config/${kind}`),
   mcp: () => call<McpConfig>("GET", "/api/config/mcp"),
+  codegraph: () => call<CodegraphStatus>("GET", "/api/config/codegraph"),
+  codegraphIndex: () => call<{ ok: true; output: string }>("POST", "/api/config/codegraph/index", {}),
 
   memoryRaw: (scope: Scope) => call<RawFile>("GET", `/api/config/memory/${scope}/raw`),
   memoryPreview: (scope: Scope, content: string, baseHash: string) =>

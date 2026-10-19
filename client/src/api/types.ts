@@ -214,6 +214,13 @@ export interface SaveResult {
   backup: BackupEntry;
 }
 
+export interface CodegraphStatus {
+  supported: boolean;
+  indexed: boolean;
+  detail: string | null;
+  error: string | null;
+}
+
 export interface HookInput {
   event: string;
   matcher: string;

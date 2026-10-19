@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { HttpError } from "../errors.js";
 import type { EnvStore } from "../sessions/envStore.js";
 import { BackupStore } from "./backups.js";
+import { getCodegraphStatus, runCodegraphIndex } from "./codegraph.js";
 import { applyHooks, readHookInputs, validateHooks } from "./hooksEdit.js";
 import { readLibrary, type LibraryKind, type LibraryScope } from "./library.js";
 import { registerMcpRoutes, restoreMcpEntry } from "./mcpRoutes.js";
@@ -41,6 +42,8 @@ export function registerConfigRoutes(
   app.get("/api/config/agents", async () => readLibrary(requireRepo(), "agents"));
   app.get("/api/config/commands", async () => readLibrary(requireRepo(), "commands"));
   app.get("/api/config/skills", async () => readLibrary(requireRepo(), "skills"));
+  app.get("/api/config/codegraph", async () => getCodegraphStatus(requireRepo()));
+  app.post("/api/config/codegraph/index", async () => runCodegraphIndex(requireRepo()));
 
   // ---------------------------------------------------------------- CLAUDE.md
 

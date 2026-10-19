@@ -10,6 +10,7 @@ import {
   Plugs,
   Robot,
   Sparkle,
+  TreeStructure,
   type Icon,
 } from "@phosphor-icons/react";
 import { motion } from "motion/react";
@@ -68,6 +69,7 @@ export function Sidebar({ route, onSwitchRepo }: { route: Route; onSwitchRepo: (
           badge: inventory?.mcp.servers.length || undefined,
           warn: Boolean(inventory?.mcp.error),
         },
+        { label: "Codegraph", icon: TreeStructure, route: { page: "config", section: "codegraph" } },
       ],
     },
   ];

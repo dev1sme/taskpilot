@@ -7,9 +7,9 @@ export type Route =
   | { page: "config"; section: ConfigSection }
   | { page: "backups" };
 
-export type ConfigSection = "memory" | "settings" | "hooks" | "agents" | "commands" | "skills" | "mcp";
+export type ConfigSection = "memory" | "settings" | "hooks" | "agents" | "commands" | "skills" | "mcp" | "codegraph";
 
-const CONFIG: ConfigSection[] = ["memory", "settings", "hooks", "agents", "commands", "skills", "mcp"];
+const CONFIG: ConfigSection[] = ["memory", "settings", "hooks", "agents", "commands", "skills", "mcp", "codegraph"];
 
 /** Hash routes keep the server a plain static host: #/, #/tasks, #/tasks/PROJ-1, #/mcp … */
 export function parseRoute(hash: string): Route {

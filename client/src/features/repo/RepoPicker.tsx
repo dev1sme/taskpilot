@@ -4,7 +4,15 @@ import type { RepoInfo } from "../../api/types";
 import { Button } from "../../components/Button";
 import "./repo.css";
 
-export function RepoPicker({ repo, onChange }: { repo: RepoInfo | null; onChange: (path: string) => Promise<void> }) {
+export function RepoPicker({
+  repo,
+  onChange,
+  autoFocus = false,
+}: {
+  repo: RepoInfo | null;
+  onChange: (path: string) => Promise<void>;
+  autoFocus?: boolean;
+}) {
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,18 +36,19 @@ export function RepoPicker({ repo, onChange }: { repo: RepoInfo | null; onChange
         }
       }}
     >
-      <label htmlFor={inputId}>Repo</label>
+      <label htmlFor={inputId}>Đường dẫn repo</label>
       <input
         id={inputId}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="/home/ban/projects/my-app"
         spellCheck={false}
+        autoFocus={autoFocus}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${inputId}-error` : undefined}
       />
       <Button type="submit" icon={FolderOpen} busy={busy} disabled={!value.trim() || value === repo?.path}>
-        Mở
+        Mở repo
       </Button>
       {error && (
         <span className="error" id={`${inputId}-error`} role="alert">

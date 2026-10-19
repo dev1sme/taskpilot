@@ -1,45 +1,20 @@
-import { Compass } from "@phosphor-icons/react";
 import { MotionConfig } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
-import { api, token } from "../api/client";
-import { onServerEvent } from "../api/events";
-import type { RepoInfo, TaskSummary } from "../api/types";
-import { RepoPicker } from "../features/repo/RepoPicker";
+import { token } from "../api/client";
+import { ConfigPage } from "../features/config/ConfigPage";
+import { OverviewPage } from "../features/overview/OverviewPage";
+import { RepoDialog } from "../features/repo/RepoDialog";
+import { CommandPalette } from "../features/shell/CommandPalette";
+import { OPEN_PALETTE } from "../features/shell/PageHeader";
+import { Sidebar } from "../features/shell/Sidebar";
+import { StatusBar } from "../features/shell/StatusBar";
 import { TaskScreen } from "../features/task/TaskScreen";
-import { TaskList } from "../features/tasks/TaskList";
+import { TasksPage } from "../features/tasks/TasksPage";
+import { useRoute } from "./router";
+import { useWorkspace, WorkspaceProvider } from "./workspace";
 import "./app.css";
 
 export function App() {
-  const [repo, setRepo] = useState<RepoInfo | null>(null);
-  const [tasks, setTasks] = useState<TaskSummary[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadTasks = useCallback(async () => {
-    try {
-      setTasks(await api.tasks());
-      setError(null);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }, []);
-
-  useEffect(() => {
-    api
-      .repo()
-      .then((r) => {
-        setRepo(r);
-        if (r.path) void loadTasks();
-      })
-      .catch((e: Error) => setError(e.message));
-  }, [loadTasks]);
-
-  useEffect(() => {
-    // Run phase and permission prompts change the list too.
-    const offs = ["tasks", "repo", "run", "sessions"].map((e) => onServerEvent(e, () => void loadTasks()));
-    return () => offs.forEach((off) => off());
-  }, [loadTasks]);
-
   if (!token) {
     return (
       <main className="empty-state">
@@ -48,61 +23,69 @@ export function App() {
       </main>
     );
   }
-
-  const current = tasks.find((t) => t.key === selected) ?? null;
-
   return (
     <MotionConfig reducedMotion="user">
-      <div className="shell">
-        <header className="topbar">
-          <div className="brand">
-            <Compass weight="duotone" aria-hidden="true" />
-            TaskPilot
-          </div>
-          <RepoPicker
-            repo={repo}
-            onChange={async (path) => {
-              setRepo(await api.setRepo(path));
-              setSelected(null);
-              await loadTasks();
-            }}
-          />
-        </header>
-
-        <aside className="sidebar">
-          {error && (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          )}
-          {!repo?.path && <p className="hint">Nhập đường dẫn repo ở trên để xem task.</p>}
-          {repo?.path && !repo.tasksDirExists && (
-            <p className="hint">
-              Repo này chưa có <code>.claude/tasks/</code>. Tạo <code>.claude/tasks/&lt;key&gt;/spec/</code> rồi viết yêu
-              cầu vào đó.
-            </p>
-          )}
-          {repo?.path && repo.tasksDirExists && tasks.length === 0 && (
-            <p className="hint">
-              Chưa có task. Mỗi task là một thư mục <code>.claude/tasks/&lt;key&gt;/spec/</code> chứa file <code>.md</code>.
-            </p>
-          )}
-          {tasks.length > 0 && <TaskList tasks={tasks} selected={selected} onSelect={setSelected} />}
-        </aside>
-
-        <main className="main">
-          {current ? (
-            <TaskScreen key={current.key} task={current} />
-          ) : (
-            tasks.length > 0 && (
-              <div className="main-empty">
-                <Compass weight="duotone" aria-hidden="true" />
-                <p>Chọn một task bên trái để theo dõi quy trình.</p>
-              </div>
-            )
-          )}
-        </main>
-      </div>
+      <WorkspaceProvider>
+        <Shell />
+      </WorkspaceProvider>
     </MotionConfig>
+  );
+}
+
+function Shell() {
+  const route = useRoute();
+  const { repo, tasks } = useWorkspace();
+  const [palette, setPalette] = useState(false);
+  const [repoDialog, setRepoDialog] = useState(false);
+  const closePalette = useCallback(() => setPalette(false), []);
+  const closeRepo = useCallback(() => setRepoDialog(false), []);
+
+  useEffect(() => {
+    const open = () => setPalette(true);
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPalette((p) => !p);
+      }
+    };
+    window.addEventListener(OPEN_PALETTE, open);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener(OPEN_PALETTE, open);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  // No repo yet: ask for one right away.
+  useEffect(() => {
+    if (repo && !repo.path) setRepoDialog(true);
+  }, [repo]);
+
+  const task = route.page === "task" ? tasks.find((t) => t.key === route.key) : undefined;
+
+  return (
+    <div className="shell">
+      <a className="skip-link" href="#main">
+        Bỏ qua điều hướng
+      </a>
+      <Sidebar route={route} onSwitchRepo={() => setRepoDialog(true)} />
+      <main id="main" className="main">
+        {route.page === "overview" && <OverviewPage />}
+        {route.page === "tasks" && <TasksPage />}
+        {route.page === "config" && <ConfigPage key={route.section} section={route.section} />}
+        {route.page === "task" &&
+          (task ? (
+            <TaskScreen key={task.key} task={task} />
+          ) : (
+            <div className="empty-state">
+              <h1>Không thấy task {route.key}</h1>
+              <p>Task có thể đã bị xoá hoặc đổi tên trong .claude/tasks.</p>
+            </div>
+          ))}
+      </main>
+      <StatusBar />
+      <CommandPalette open={palette} onClose={closePalette} />
+      <RepoDialog open={repoDialog} onClose={closeRepo} />
+    </div>
   );
 }

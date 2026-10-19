@@ -126,6 +126,12 @@ The embedded terminal is shell-equivalent access to the machine.
 - **M1** repo scan, task list, view `spec/` and output files — done.
 - **M2** session manager: multiple tabs per task, resume, scrollback across page reloads — done.
 - **M3** workflow engine, approve/feedback gates, hook badges — done.
+- **Phase A** app shell — done: "Instrument panel" design (canvas mockups), sidebar with Workspace /
+  Claude config / Integrations groups and nested task list, ⌘K palette, status bar, repo overview
+  (needs-you hero, running task pulse, task counts, CLAUDE.md, MCP and .claude inventory via
+  `/api/inventory`), task table, config pages as placeholders.
+- **Phase B** read-only config pages (CLAUDE.md, settings & permissions, hooks, agents, commands,
+  skills, MCP). **Phase C** editors with diff preview and safe writes, MCP connection check.
 - **UI** mission control — done: workflow is the main view (stepper, "what Claude is doing now",
   live activity feed, gate card with doc preview and Claude's closing message); the terminal is a
   drawer that opens on demand or on a permission prompt. Client split into `api/`, `components/`,

@@ -2,6 +2,7 @@ import { CheckCircle, ChatCircleDots, CircleNotch, Diamond, PlugsConnected, X } 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api/client";
 import type { RunPhase, TaskSummary } from "../../api/types";
+import { href } from "../../app/router";
 import { Button } from "../../components/Button";
 import { ActivityFeed } from "../activity/ActivityFeed";
 import { useActivity } from "../activity/useActivity";
@@ -9,6 +10,7 @@ import { DocsPanel } from "../docs/DocsPanel";
 import { DocViewer } from "../docs/DocViewer";
 import { TerminalDrawer } from "../sessions/TerminalDrawer";
 import { useSessions } from "../sessions/useSessions";
+import { PageHeader } from "../shell/PageHeader";
 import { GateCard } from "../workflow/GateCard";
 import { NowCard } from "../workflow/NowCard";
 import { Stepper } from "../workflow/Stepper";
@@ -25,7 +27,7 @@ const PHASE_PILL: Partial<Record<RunPhase, { tone: string; label: string; icon: 
   done: { tone: "done", label: "Hoàn tất", icon: CheckCircle },
 };
 
-/** Mission control for one task: progress, what is happening now, the log, the docs; terminal on demand. */
+/** One task: progress, what is happening now (or the review), docs and activity; terminal on demand. */
 export function TaskScreen({ task }: { task: TaskSummary }) {
   const { view, error, reload } = useRun(task.key);
   const { sessions, reload: reloadSessions } = useSessions(task.key);
@@ -65,53 +67,61 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
 
   const pill = run ? PHASE_PILL[run.phase] : undefined;
   const PillIcon = pill?.icon;
+  const working = run?.phase === "running" || run?.phase === "starting";
 
   return (
     <div className="task-screen">
       <div className="task-scroll">
-        <div className="task-top">
-        <header className="task-head">
-          <div className="task-title">
-            <span className="task-key">{task.key}</span>
-            {task.title !== task.key && <h1>{task.title}</h1>}
-          </div>
-          <div className="task-head-side">
-            {pill && PillIcon && (
-              <span className={`pill ${pill.tone}`}>
-                <PillIcon weight="bold" className={run?.phase === "running" || run?.phase === "starting" ? "spin" : undefined} aria-hidden="true" />
-                {pill.label}
-              </span>
-            )}
-            {active && (
-              <Button
-                icon={X}
-                variant="quiet"
-                busy={cancelling}
-                onClick={() => {
-                  setCancelling(true);
-                  void api
-                    .cancelRun(task.key)
-                    .then(changed)
-                    .finally(() => setCancelling(false));
-                }}
-              >
-                Huỷ quy trình
-              </Button>
-            )}
-          </div>
-        </header>
+        <PageHeader
+          crumbs={
+            <>
+              <a href={href({ page: "overview" })}>Tổng quan</a> / <a href={href({ page: "tasks" })}>Task</a> /{" "}
+              <span aria-current="page">{task.key}</span>
+            </>
+          }
+          title={
+            <>
+              <span className="title-key">{task.key}</span>
+              {task.title !== task.key && task.title}
+            </>
+          }
+          actions={
+            <>
+              {pill && PillIcon && (
+                <span className={`pill ${pill.tone}`}>
+                  <PillIcon weight="bold" className={working ? "spin" : undefined} aria-hidden="true" />
+                  {pill.label}
+                </span>
+              )}
+              {active && (
+                <Button
+                  icon={X}
+                  variant="quiet"
+                  busy={cancelling}
+                  onClick={() => {
+                    setCancelling(true);
+                    void api
+                      .cancelRun(task.key)
+                      .then(changed)
+                      .finally(() => setCancelling(false));
+                  }}
+                >
+                  Huỷ quy trình
+                </Button>
+              )}
+            </>
+          }
+        />
 
         {error && (
-          <p className="error" role="alert">
+          <p className="error task-error" role="alert">
             {error}
           </p>
         )}
 
-        {view && <Stepper steps={steps} run={run} />}
-        </div>
-
         {view && (
-          <>
+          <div className="task-content">
+            <Stepper steps={steps} run={run} />
             <div className="task-body">
               <div className="task-main">
                 {run?.phase === "gate" ? (
@@ -136,14 +146,16 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                     onChanged={changed}
                   />
                 )}
+              </div>
+              <div className="task-side">
+                <DocsPanel task={task} steps={steps} onOpen={setDoc} />
                 <ActivityFeed items={activity} />
               </div>
-              <DocsPanel task={task} steps={steps} onOpen={setDoc} />
             </div>
             <p className="workflow-source" title={view.workflow.source}>
               Quy trình: {view.workflow.source.endsWith(".claude/workflow.yml") ? ".claude/workflow.yml của repo" : "mặc định của TaskPilot"}
             </p>
-          </>
+          </div>
         )}
       </div>
 

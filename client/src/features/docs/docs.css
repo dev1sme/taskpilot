@@ -3,7 +3,6 @@
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow);
 }
 
 .docs-panel h3 {

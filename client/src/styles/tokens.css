@@ -1,53 +1,56 @@
 /*
- * Design tokens. Dark is the primary theme (a console watched for hours); light is supported.
- * Every text/background pair used is at least 4.5:1; bands and markers at least 3:1.
+ * "Instrument panel" tokens. Dark (graphite) is the primary theme; light is supported.
+ * One brand accent (indigo) for interaction, amber only for "needs you", green for done.
+ * Every text/background pair used is at least 4.5:1; markers and bands at least 3:1.
  */
 :root {
   color-scheme: dark;
 
-  /* surfaces, back to front */
-  --bg: #0e141c;
-  --bg-glow: rgba(91, 156, 242, 0.08);
-  --surface: #151d28;
-  --raised: #1b2533;
-  --sunken: #0a0f15;
-  --line: #263243;
-  --line-strong: #364559;
+  --bg: #111316;
+  --sidebar: #15171b;
+  --surface: #17191d;
+  --raised: #1b1e23;
+  --hover: #22252b;
+  --sunken: #0f1114;
+  --line: #262a31;
+  --line-strong: #3a3f48;
 
-  --ink: #e4eaf1;
-  --muted: #8e9cad;
-  --faint: #5d6b7c;
+  --ink: #eceef1;
+  --muted: #9ba1ab;
+  --faint: #7d848f;
 
-  /* signal colors */
-  --signal: #5b9cf2; /* Claude working, links, progress */
-  --on-signal: #08111d;
-  --signal-soft: rgba(91, 156, 242, 0.14);
-  --attention: #f0a93b; /* needs you */
+  --signal: #7c8cff;
+  --signal-text: #9aa6ff;
+  --on-signal: #0d0f14;
+  --signal-soft: rgba(124, 140, 255, 0.16);
+
+  --attention: #f5b544;
   --on-attention: #1d1404;
-  --attention-soft: rgba(240, 169, 59, 0.14);
-  --done: #4cc38a;
-  --done-soft: rgba(76, 195, 138, 0.14);
-  --danger: #f2756a;
-  --danger-soft: rgba(242, 117, 106, 0.14);
+  --attention-soft: #1d1a12;
+  --attention-line: #5a4313;
 
-  /* activity categories */
-  --cat-read: #5b9cf2;
-  --cat-write: #4cc38a;
+  --done: #3dd68c;
+  --done-soft: rgba(61, 214, 140, 0.13);
+  --danger: #ff8a8a;
+  --danger-soft: rgba(255, 107, 107, 0.13);
+
+  --cat-read: #7c8cff;
+  --cat-write: #3dd68c;
   --cat-run: #b48cf2;
   --cat-search: #3fc1c9;
   --cat-web: #f08a5d;
   --cat-agent: #e879b0;
   --cat-plan: #d8b44a;
-  --cat-other: #8e9cad;
+  --cat-other: #9ba1ab;
 
-  --terminal: #0a0f15;
+  --terminal: #0f1114;
 
-  --sans: "IBM Plex Sans", system-ui, sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, monospace;
-  --r-sm: 6px;
-  --r-md: 10px;
-  --r-lg: 14px;
-  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.25);
+  --sans: "Geist", system-ui, sans-serif;
+  --mono: "Geist Mono", ui-monospace, monospace;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --fast: 150ms;
 }
@@ -55,38 +58,44 @@
 @media (prefers-color-scheme: light) {
   :root {
     color-scheme: light;
-    --bg: #f2f5f9;
-    --bg-glow: rgba(37, 99, 168, 0.07);
+
+    --bg: #f6f7f9;
+    --sidebar: #eef0f3;
     --surface: #ffffff;
-    --raised: #f7f9fc;
-    --sunken: #e8edf3;
-    --line: #d7dee7;
-    --line-strong: #bfc9d5;
+    --raised: #f8f9fb;
+    --hover: #e2e6ec;
+    --sunken: #f1f3f6;
+    --line: #e1e4e9;
+    --line-strong: #c9ced6;
 
-    --ink: #17202c;
-    --muted: #556375;
-    --faint: #8794a4;
+    --ink: #15171b;
+    --muted: #59606b;
+    --faint: #737a85;
 
-    --signal: #2563a8;
+    --signal: #4f5bd5;
+    --signal-text: #3f4bc4;
     --on-signal: #ffffff;
-    --signal-soft: rgba(37, 99, 168, 0.1);
+    --signal-soft: rgba(79, 91, 213, 0.1);
+
     --attention: #8a5c00;
     --on-attention: #ffffff;
-    --attention-soft: rgba(183, 121, 31, 0.12);
-    --done: #23794a;
-    --done-soft: rgba(35, 121, 74, 0.1);
-    --danger: #b42318;
-    --danger-soft: rgba(180, 35, 24, 0.08);
+    --attention-soft: #fff7e8;
+    --attention-line: #f0d29a;
 
-    --cat-read: #2563a8;
-    --cat-write: #23794a;
+    --done: #1f7a4c;
+    --done-soft: rgba(31, 122, 76, 0.1);
+    --danger: #c0362c;
+    --danger-soft: rgba(192, 54, 44, 0.08);
+
+    --cat-read: #4f5bd5;
+    --cat-write: #1f7a4c;
     --cat-run: #7046c2;
     --cat-search: #0d7f87;
     --cat-web: #b4501f;
     --cat-agent: #b3366f;
     --cat-plan: #8a6a00;
-    --cat-other: #556375;
+    --cat-other: #59606b;
 
-    --shadow: 0 1px 2px rgba(23, 32, 44, 0.06), 0 6px 18px rgba(23, 32, 44, 0.06);
+    --shadow: 0 8px 24px rgba(21, 23, 27, 0.08);
   }
 }

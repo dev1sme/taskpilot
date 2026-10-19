@@ -19,11 +19,11 @@ export function Terminal({ sessionId, onExit }: { sessionId: string; onExit: (co
     const el = ref.current!;
     const term = new XTerm({
       cursorBlink: true,
-      fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+      fontFamily: '"Geist Mono", ui-monospace, monospace',
       fontSize: 13,
       scrollback: 10_000,
       // Matches --terminal in styles/tokens.css; the terminal stays dark in both themes.
-      theme: { background: "#0a0f15", foreground: "#e4eaf1", cursor: "#5b9cf2" },
+      theme: { background: "#0f1114", foreground: "#eceef1", cursor: "#7c8cff" },
     });
     const fit = new FitAddon();
     term.loadAddon(fit);

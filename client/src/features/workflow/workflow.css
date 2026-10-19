@@ -137,11 +137,10 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 16px;
-  padding: 18px 20px;
+  padding: 20px 22px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow);
 }
 
 .now-card.tone-signal {
@@ -149,8 +148,8 @@
 }
 
 .now-card.tone-attention {
-  border-color: var(--attention);
-  background: linear-gradient(135deg, var(--attention-soft), transparent 60%), var(--surface);
+  border-color: var(--attention-line);
+  background: var(--attention-soft);
 }
 
 .now-card.tone-done {
@@ -304,11 +303,10 @@
 .gate-card {
   display: grid;
   gap: 16px;
-  padding: 20px;
-  background: linear-gradient(160deg, var(--attention-soft), transparent 45%), var(--surface);
-  border: 1px solid var(--attention);
+  padding: 22px;
+  background: var(--attention-soft);
+  border: 1px solid var(--attention-line);
   border-radius: var(--r-lg);
-  box-shadow: 0 0 0 4px var(--attention-soft), var(--shadow);
 }
 
 .gate-head {
@@ -342,8 +340,9 @@
 
 .gate-claude {
   margin: 0;
-  padding: 12px 14px;
-  background: var(--raised);
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: var(--r-md);
 }
 
@@ -359,6 +358,7 @@
 }
 
 .gate-doc {
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   overflow: hidden;

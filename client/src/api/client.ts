@@ -1,4 +1,4 @@
-import type { ActivityItem, RepoInfo, RunState, RunView, SessionView, TaskSummary } from "./types";
+import type { ActivityItem, Info, Inventory, RepoInfo, RunState, RunView, SessionView, TaskSummary } from "./types";
 
 const TOKEN_KEY = "taskpilot-token";
 
@@ -39,6 +39,8 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
 const task = (key: string) => `/api/tasks/${encodeURIComponent(key)}`;
 
 export const api = {
+  info: () => call<Info>("GET", "/api/info"),
+  inventory: () => call<Inventory>("GET", "/api/inventory"),
   repo: () => call<RepoInfo>("GET", "/api/repo"),
   setRepo: (path: string) => call<RepoInfo>("PUT", "/api/repo", { path }),
   tasks: () => call<TaskSummary[]>("GET", "/api/tasks"),

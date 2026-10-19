@@ -119,7 +119,8 @@ Layout:
 
 - `server/src/`: `sessions/` (node-pty, hooks), `workflow/` (engine, workflow files),
   `activity/` (hook events → feed), `repo/` (task scanning)
-- `client/src/`: `api/`, `components/`, `features/{tasks,task,workflow,activity,docs,sessions,repo}/`
+- `client/src/`: `app/` (shell, hash router, workspace state), `api/`, `components/`,
+  `features/{shell,overview,tasks,task,workflow,activity,docs,sessions,repo,config}/`
   (each feature keeps its own CSS), `styles/` (tokens, base)
 - `workflows/default/`: built-in workflow and prompts
 

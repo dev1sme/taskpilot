@@ -15,8 +15,21 @@ export interface TaskSummary {
   specFiles: TaskFile[];
   outputFiles: TaskFile[];
   updatedAt: number;
-  run: { phase: RunPhase; stepIndex: number } | null;
+  run: { phase: RunPhase; stepIndex: number; stepStartedAt: number } | null;
   waitingPermission: boolean;
+  sessionsRunning: number;
+}
+
+export interface Info {
+  claudeVersion: string | null;
+}
+
+/** Read-only summary of the repo's Claude Code configuration. */
+export interface Inventory {
+  claudeMd: { exists: boolean; lines: number; bytes: number; mtime: number | null; headings: string[] };
+  claudeLocalMd: boolean;
+  mcp: { exists: boolean; servers: Array<{ name: string; type: string }>; error?: string };
+  claudeDir: { agents: number; commands: number; skills: number; hooks: number; allow: number; deny: number };
 }
 
 export interface RunState {

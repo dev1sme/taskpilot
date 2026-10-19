@@ -1,5 +1,11 @@
 import type {
   ActivityItem,
+  BackupEntry,
+  Permissions,
+  PermissionsFile,
+  Preview,
+  RawFile,
+  SaveResult,
   HookEntry,
   Info,
   Inventory,
@@ -10,6 +16,7 @@ import type {
   RepoInfo,
   RunState,
   RunView,
+  Scope,
   SessionView,
   SettingsFile,
   TaskSummary,
@@ -61,6 +68,20 @@ export const api = {
   hooks: () => call<HookEntry[]>("GET", "/api/config/hooks"),
   library: (kind: LibraryKind) => call<LibraryItem[]>("GET", `/api/config/${kind}`),
   mcp: () => call<McpConfig>("GET", "/api/config/mcp"),
+
+  memoryRaw: (scope: Scope) => call<RawFile>("GET", `/api/config/memory/${scope}/raw`),
+  memoryPreview: (scope: Scope, content: string, baseHash: string) =>
+    call<Preview>("POST", `/api/config/memory/${scope}/preview`, { content, baseHash }),
+  memorySave: (scope: Scope, content: string, baseHash: string) =>
+    call<SaveResult>("PUT", `/api/config/memory/${scope}`, { content, baseHash }),
+  permissions: (scope: Scope) => call<PermissionsFile>("GET", `/api/config/settings/${scope}/permissions`),
+  permissionsPreview: (scope: Scope, p: Permissions, baseHash: string) =>
+    call<Preview>("POST", `/api/config/settings/${scope}/permissions/preview`, { ...p, baseHash }),
+  permissionsSave: (scope: Scope, p: Permissions, baseHash: string) =>
+    call<SaveResult>("PUT", `/api/config/settings/${scope}/permissions`, { ...p, baseHash }),
+  backups: () => call<BackupEntry[]>("GET", "/api/backups"),
+  backupDiff: (id: string) => call<{ diff: string; entry: BackupEntry }>("GET", `/api/backups/${id}/diff`),
+  restoreBackup: (id: string) => call<SaveResult>("POST", `/api/backups/${id}/restore`, {}),
   repo: () => call<RepoInfo>("GET", "/api/repo"),
   setRepo: (path: string) => call<RepoInfo>("PUT", "/api/repo", { path }),
   tasks: () => call<TaskSummary[]>("GET", "/api/tasks"),

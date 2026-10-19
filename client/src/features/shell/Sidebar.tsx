@@ -1,5 +1,6 @@
 import {
   BookOpenText,
+  ClockCounterClockwise,
   CaretUpDown,
   ChartLineUp,
   Command,
@@ -14,6 +15,7 @@ import {
 import { motion } from "motion/react";
 import { href, type Route } from "../../app/router";
 import { useWorkspace } from "../../app/workspace";
+import { useDrafts } from "../config/drafts";
 import { sortTasks, statusOf } from "../tasks/taskStatus";
 import "./shell.css";
 
@@ -23,11 +25,15 @@ interface NavItem {
   route: Route;
   badge?: number;
   warn?: boolean;
+  /** Has unsaved edits. */
+  dirty?: boolean;
 }
 
 /** App navigation: repo switcher, three groups, and the task list nested under "Task". */
 export function Sidebar({ route, onSwitchRepo }: { route: Route; onSwitchRepo: () => void }) {
   const { repo, tasks, inventory } = useWorkspace();
+  const drafts = useDrafts();
+  const dirty = (prefix: string) => drafts.some((k) => k.startsWith(prefix));
   const waiting = tasks.filter((t) => statusOf(t).tone === "attention").length;
   const inTasks = route.page === "tasks" || route.page === "task";
   const repoName = repo?.path?.split(/[\\/]/).filter(Boolean).pop() ?? "Chưa chọn repo";
@@ -43,12 +49,13 @@ export function Sidebar({ route, onSwitchRepo }: { route: Route; onSwitchRepo: (
     {
       label: "Cấu hình Claude",
       items: [
-        { label: "CLAUDE.md", icon: BookOpenText, route: { page: "config", section: "memory" } },
-        { label: "Settings & quyền", icon: Gear, route: { page: "config", section: "settings" } },
+        { label: "CLAUDE.md", icon: BookOpenText, route: { page: "config", section: "memory" }, dirty: dirty("memory:") },
+        { label: "Settings & quyền", icon: Gear, route: { page: "config", section: "settings" }, dirty: dirty("settings:") },
         { label: "Hooks", icon: Lightning, route: { page: "config", section: "hooks" }, badge: inventory?.claudeDir.hooks || undefined },
         { label: "Agents", icon: Robot, route: { page: "config", section: "agents" }, badge: inventory?.claudeDir.agents || undefined },
         { label: "Commands", icon: Command, route: { page: "config", section: "commands" }, badge: inventory?.claudeDir.commands || undefined },
         { label: "Skills", icon: Sparkle, route: { page: "config", section: "skills" }, badge: inventory?.claudeDir.skills || undefined },
+        { label: "Lịch sử thay đổi", icon: ClockCounterClockwise, route: { page: "backups" } },
       ],
     },
     {
@@ -105,6 +112,7 @@ export function Sidebar({ route, onSwitchRepo }: { route: Route; onSwitchRepo: (
                     {active && <motion.span className="nav-active" layoutId="nav-active" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
                     <it.icon className="nav-icon" weight={active ? "fill" : "regular"} aria-hidden="true" />
                     <span className="nav-text">{it.label}</span>
+                    {it.dirty && <span className="nav-dirty" title="Có thay đổi chưa lưu" aria-label="chưa lưu" />}
                     {it.badge !== undefined && <span className={`nav-badge${it.warn ? " is-warn" : ""}`}>{it.badge}</span>}
                   </a>
                   {it.route.page === "tasks" && inTasks && tasks.length > 0 && (

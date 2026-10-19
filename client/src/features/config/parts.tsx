@@ -25,13 +25,15 @@ export function ScopeTag({ scope }: { scope: Scope }) {
   );
 }
 
-/** Header shared by the config pages: read-only marker and a reload button. */
+/** Header shared by the config pages: page actions (or a read-only marker) and a reload button. */
 export function ConfigHeader(props: {
   title: ReactNode;
   subtitle?: ReactNode;
   loading: boolean;
   onReload: () => void;
   extra?: ReactNode;
+  /** Edit actions; without them the page is marked read-only. */
+  actions?: ReactNode;
 }) {
   return (
     <PageHeader
@@ -40,16 +42,28 @@ export function ConfigHeader(props: {
       actions={
         <>
           {props.extra}
-          <span className="readonly-pill" title="Sửa và lưu có ở giai đoạn C">
-            <LockSimple weight="bold" aria-hidden="true" />
-            Chỉ xem
-          </span>
+          {props.actions ?? (
+            <span className="readonly-pill" title="Trang này chưa sửa được trong TaskPilot">
+              <LockSimple weight="bold" aria-hidden="true" />
+              Chỉ xem
+            </span>
+          )}
           <Button icon={ArrowClockwise} variant="quiet" busy={props.loading} onClick={props.onReload}>
             Tải lại
           </Button>
         </>
       }
     />
+  );
+}
+
+/** "● Chưa lưu" marker shown while a draft exists. */
+export function UnsavedPill() {
+  return (
+    <span className="unsaved-pill">
+      <span aria-hidden="true" />
+      Chưa lưu
+    </span>
   );
 }
 

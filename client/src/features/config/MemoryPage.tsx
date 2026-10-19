@@ -1,10 +1,15 @@
-import { CheckCircle, Warning } from "@phosphor-icons/react";
-import { useState } from "react";
+import { CheckCircle, Eye, PencilSimple, Plus, Warning, X } from "@phosphor-icons/react";
+import { lazy, Suspense, useState } from "react";
 import { api } from "../../api/client";
 import type { MemoryFile, Scope } from "../../api/types";
+import { Button } from "../../components/Button";
+import { DiffDialog } from "../../components/DiffDialog";
 import { clockTime } from "../../components/Elapsed";
-import { ConfigHeader, EmptyCard, LoadError, SCOPE_HINT } from "./parts";
+import { toast } from "../../components/Toast";
+import { clearDraft, getDraft, setDraft, useDrafts } from "./drafts";
+import { ConfigHeader, EmptyCard, LoadError, SCOPE_HINT, UnsavedPill } from "./parts";
 import { useConfig } from "./useConfig";
+import { useSaveFlow } from "./useSaveFlow";
 
 const TAB_LABEL: Record<Scope, string> = { project: "CLAUDE.md", local: "CLAUDE.local.md", user: "~/.claude/CLAUDE.md" };
 const MISSING: Record<Scope, string> = {
@@ -12,13 +17,82 @@ const MISSING: Record<Scope, string> = {
   local: "Chưa có CLAUDE.local.md: ghi chú riêng của ba cho repo này, không commit lên git.",
   user: "Chưa có ~/.claude/CLAUDE.md: hướng dẫn chung cho mọi repo trên máy ba.",
 };
+// CodeMirror is only needed once the user starts editing.
+const MarkdownEditor = lazy(() => import("./MarkdownEditor").then((m) => ({ default: m.MarkdownEditor })));
+
 const STACK_COLORS = ["var(--cat-read)", "var(--cat-search)", "var(--cat-run)", "var(--cat-agent)", "var(--cat-plan)"];
 
-/** CLAUDE.md files as Claude loads them: outline, source, imports, token estimate, checks. */
+interface MemoryDraft {
+  content: string;
+  baseHash: string;
+  path: string;
+}
+
+const draftKey = (scope: Scope) => `memory:${scope}`;
+
+/** CLAUDE.md files as Claude loads them; editable with diff review, backups and conflict checks. */
 export function MemoryPage() {
   const { data, error, loading, reload } = useConfig(api.memory);
   const [scope, setScope] = useState<Scope>("project");
+  const [opening, setOpening] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  useDrafts();
+  const draft = getDraft<MemoryDraft>(draftKey(scope));
   const file = data?.find((f) => f.scope === scope);
+
+  const startEditing = async () => {
+    setOpening(true);
+    try {
+      const raw = await api.memoryRaw(scope);
+      setDraft(draftKey(scope), { content: raw.content, baseHash: raw.hash, path: raw.path } satisfies MemoryDraft);
+    } catch (e) {
+      toast((e as Error).message, { error: true });
+    } finally {
+      setOpening(false);
+    }
+  };
+
+  const flow = useSaveFlow({
+    title: `Lưu ${draft?.path ?? TAB_LABEL[scope]}`,
+    preview: () => api.memoryPreview(scope, draft!.content, draft!.baseHash),
+    save: () => api.memorySave(scope, draft!.content, draft!.baseHash),
+    onSaved: () => {
+      toast(`Đã lưu ${draft?.path}. Bản cũ nằm trong Lịch sử thay đổi.`);
+      clearDraft(draftKey(scope));
+      void reload();
+    },
+  });
+
+  const actions = draft ? (
+    <>
+      <UnsavedPill />
+      {confirmDiscard ? (
+        <Button
+          icon={X}
+          variant="danger"
+          onClick={() => {
+            clearDraft(draftKey(scope));
+            setConfirmDiscard(false);
+          }}
+        >
+          Bỏ thay đổi
+        </Button>
+      ) : (
+        <Button icon={X} variant="quiet" onClick={() => setConfirmDiscard(true)}>
+          Huỷ
+        </Button>
+      )}
+      <Button icon={Eye} variant="primary" onClick={() => void flow.review()}>
+        Xem thay đổi &amp; lưu
+      </Button>
+    </>
+  ) : (
+    file && (
+      <Button icon={file.exists ? PencilSimple : Plus} variant="primary" busy={opening} onClick={() => void startEditing()}>
+        {file.exists ? "Sửa" : "Tạo file"}
+      </Button>
+    )
+  );
 
   return (
     <div className="page">
@@ -27,10 +101,12 @@ export function MemoryPage() {
         subtitle="Hướng dẫn Claude đọc ở đầu mỗi session trong repo này"
         loading={loading}
         onReload={() => void reload()}
+        actions={actions}
         extra={
           <div className="segmented" role="tablist" aria-label="File memory">
             {(["project", "local", "user"] as Scope[]).map((s) => {
               const f = data?.find((x) => x.scope === s);
+              const dirty = Boolean(getDraft(draftKey(s)));
               return (
                 <button
                   key={s}
@@ -38,10 +114,14 @@ export function MemoryPage() {
                   role="tab"
                   aria-selected={s === scope}
                   title={SCOPE_HINT[s]}
-                  onClick={() => setScope(s)}
-                  className={f && !f.exists ? "is-missing" : undefined}
+                  onClick={() => {
+                    setScope(s);
+                    setConfirmDiscard(false);
+                  }}
+                  className={f && !f.exists && !dirty ? "is-missing" : undefined}
                 >
                   {TAB_LABEL[s]}
+                  {dirty && <span className="tab-dirty" aria-label="chưa lưu" />}
                 </button>
               );
             })}
@@ -49,7 +129,28 @@ export function MemoryPage() {
         }
       />
       <LoadError error={error} />
-      {file && (file.exists ? <MemoryView file={file} /> : <div className="page-body"><EmptyCard title={`Chưa có ${TAB_LABEL[scope]}`}>{MISSING[scope]}</EmptyCard></div>)}
+      {draft ? (
+        <div className="memory is-editing">
+          <Suspense fallback={<p className="hint page-body">Đang mở editor…</p>}>
+            <MarkdownEditor
+              key={scope}
+              value={draft.content}
+              label={`Nội dung ${draft.path}`}
+              onChange={(content) => setDraft(draftKey(scope), { ...draft, content })}
+            />
+          </Suspense>
+        </div>
+      ) : (
+        file &&
+        (file.exists ? (
+          <MemoryView file={file} />
+        ) : (
+          <div className="page-body">
+            <EmptyCard title={`Chưa có ${TAB_LABEL[scope]}`}>{MISSING[scope]}</EmptyCard>
+          </div>
+        ))
+      )}
+      <DiffDialog {...flow.dialog} confirmLabel="Lưu file" />
     </div>
   );
 }

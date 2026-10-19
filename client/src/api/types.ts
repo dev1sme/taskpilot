@@ -166,3 +166,48 @@ export interface McpConfig {
   sources: Array<{ scope: Scope; path: string; exists: boolean; error?: string }>;
   servers: McpServer[];
 }
+
+// ------------------------------------------------------------------ edits (phase C)
+
+export interface RawFile {
+  path: string;
+  exists: boolean;
+  content: string;
+  hash: string;
+}
+
+export interface Permissions {
+  allow: string[];
+  ask: string[];
+  deny: string[];
+  defaultMode: string | null;
+}
+
+export interface PermissionsFile extends Permissions {
+  path: string;
+  exists: boolean;
+  hash: string;
+}
+
+export interface Preview {
+  diff: string;
+  changed: boolean;
+  /** The file changed on disk since it was loaded. */
+  stale: boolean;
+}
+
+export interface BackupEntry {
+  id: string;
+  at: number;
+  path: string;
+  display: string;
+  reason: string;
+  bytes: number;
+  existed: boolean;
+  restorable?: boolean;
+}
+
+export interface SaveResult {
+  hash: string;
+  backup: BackupEntry;
+}

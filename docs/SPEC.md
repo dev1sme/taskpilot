@@ -137,7 +137,15 @@ The embedded terminal is shell-equivalent access to the machine.
   leave the server: env/header values are masked unless they are `${VAR}` references (optionally
   with a short prefix such as `Bearer `), URL credentials in MCP args are hidden; MCP servers report
   `${VAR}`s that are not set.
-- **Phase C** editors with diff preview and safe writes, MCP connection check.
+- **Phase C1** — done: editing CLAUDE.md (project, local, global) in CodeMirror and allow/ask/deny
+  rules + default mode of each settings file (global included). Every save: diff review first
+  (settings diffs are built from masked JSON), conflict check against the hash the user started
+  from (409 if the file changed meanwhile), backup to `~/.taskpilot/backups/<id>/` (0700), atomic
+  write keeping the file mode, symlinks refused, target re-checked against an allow-list of Claude
+  config paths. "Lịch sử thay đổi" lists backups, shows the diff and restores (backing up first).
+  `bypassPermissions` is not offered as a default mode.
+- **Phase C2** hooks, agents/commands/skills and MCP editing; MCP connection check via
+  `claude mcp get` (keeps Claude's own approval of project servers).
 - **UI** mission control — done: workflow is the main view (stepper, "what Claude is doing now",
   live activity feed, gate card with doc preview and Claude's closing message); the terminal is a
   drawer that opens on demand or on a permission prompt. Client split into `api/`, `components/`,

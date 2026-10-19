@@ -1,6 +1,8 @@
 import { MotionConfig } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
 import { token } from "../api/client";
+import { ToastHost } from "../components/Toast";
+import { BackupsPage } from "../features/config/BackupsPage";
 import { ConfigPage } from "../features/config/ConfigPage";
 import { OverviewPage } from "../features/overview/OverviewPage";
 import { RepoDialog } from "../features/repo/RepoDialog";
@@ -73,6 +75,7 @@ function Shell() {
         {route.page === "overview" && <OverviewPage />}
         {route.page === "tasks" && <TasksPage />}
         {route.page === "config" && <ConfigPage key={route.section} section={route.section} />}
+        {route.page === "backups" && <BackupsPage />}
         {route.page === "task" &&
           (task ? (
             <TaskScreen key={task.key} task={task} />
@@ -86,6 +89,7 @@ function Shell() {
       <StatusBar />
       <CommandPalette open={palette} onClose={closePalette} />
       <RepoDialog open={repoDialog} onClose={closeRepo} />
+      <ToastHost />
     </div>
   );
 }

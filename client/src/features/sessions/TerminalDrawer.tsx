@@ -1,11 +1,13 @@
 import { ArrowClockwise, CaretDown, CaretUp, HandPalm, Plus, Stop, TerminalWindow, Trash } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { api } from "../../api/client";
 import type { SessionView } from "../../api/types";
 import { Button, SrOnly } from "../../components/Button";
-import { Terminal } from "./Terminal";
 import "./sessions.css";
+
+// xterm.js is loaded when the drawer first opens.
+const Terminal = lazy(() => import("./Terminal").then((m) => ({ default: m.Terminal })));
 
 interface Props {
   taskKey: string;
@@ -159,7 +161,9 @@ export function TerminalDrawer(props: Props) {
             transition={{ type: "spring", stiffness: 380, damping: 40 }}
           >
             {active ? (
-              <Terminal key={`${active.id}-${generation}`} sessionId={active.id} onExit={props.onChanged} />
+              <Suspense fallback={<p className="hint drawer-empty">Đang mở terminal…</p>}>
+                <Terminal key={`${active.id}-${generation}`} sessionId={active.id} onExit={props.onChanged} />
+              </Suspense>
             ) : (
               <p className="hint drawer-empty">Chưa có session. Bắt đầu quy trình hoặc bấm + để mở một session Claude.</p>
             )}

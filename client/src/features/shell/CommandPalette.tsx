@@ -23,6 +23,7 @@ const PAGES: Entry[] = [
   { id: "p-commands", label: "Commands", hint: "Cấu hình", route: { page: "config", section: "commands" } },
   { id: "p-skills", label: "Skills", hint: "Cấu hình", route: { page: "config", section: "skills" } },
   { id: "p-mcp", label: "MCP servers", hint: "Tích hợp", route: { page: "config", section: "mcp" } },
+  { id: "p-backups", label: "Lịch sử thay đổi", hint: "Backup", route: { page: "backups" } },
 ];
 
 /** ⌘K / Ctrl+K: jump to any task or page by typing. */

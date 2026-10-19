@@ -15,6 +15,137 @@
   border-radius: 999px;
 }
 
+.unsaved-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--attention);
+}
+
+.unsaved-pill span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--attention);
+}
+
+.tab-dirty {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: var(--attention);
+}
+
+.scope-edit {
+  margin-left: auto;
+}
+
+.perm-editor {
+  display: grid;
+  gap: 14px;
+}
+
+.perm-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.perm-mode select {
+  height: 36px;
+  padding: 0 10px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--sunken);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+}
+
+.rule-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rule-remove {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  color: var(--muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+
+.rule-remove:hover {
+  color: var(--danger);
+  border-color: var(--line);
+}
+
+.rule-remove svg,
+.rule-add-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.rule-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.rule-add input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: var(--sunken);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+}
+
+.rule-add-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  color: var(--ink);
+  background: var(--hover);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+}
+
+.perm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.md-editor {
+  min-height: 0;
+  height: calc(100vh - 180px);
+  overflow: hidden;
+  border-top: 1px solid var(--line);
+}
+
+.memory.is-editing {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .readonly-pill svg {
   width: 14px;
   height: 14px;
@@ -746,25 +877,6 @@
 .lib-body {
   padding-top: 12px;
   border-top: 1px solid var(--line);
-}
-
-.alert-warn {
-  display: flex;
-  gap: 10px;
-  margin: 0;
-  padding: 12px 14px;
-  line-height: 1.5;
-  background: var(--attention-soft);
-  border: 1px solid var(--attention-line);
-  border-radius: var(--r-md);
-}
-
-.alert-warn svg {
-  flex: none;
-  width: 18px;
-  height: 18px;
-  margin-top: 2px;
-  color: var(--attention);
 }
 
 @media (max-width: 1200px) {

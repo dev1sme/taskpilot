@@ -1,7 +1,12 @@
-import { Prohibit, Question, ShieldCheck } from "@phosphor-icons/react";
+import { PencilSimple, Prohibit, Question, ShieldCheck } from "@phosphor-icons/react";
+import { useState } from "react";
 import { api } from "../../api/client";
 import type { SettingsFile } from "../../api/types";
+import { Button } from "../../components/Button";
+import { toast } from "../../components/Toast";
+import { getDraft, setDraft, useDrafts } from "./drafts";
 import { ConfigHeader, LoadError, RuleChip, ScopeTag, SCOPE_HINT } from "./parts";
+import { PermissionsEditor, permissionsKey, type PermissionsDraft } from "./PermissionsEditor";
 import { useConfig } from "./useConfig";
 
 const MODE_LABEL: Record<string, string> = {
@@ -20,7 +25,13 @@ export function SettingsPage() {
 
   return (
     <div className="page">
-      <ConfigHeader title="Settings & quyền" subtitle="Claude gộp các file dưới đây; luật chặn luôn thắng luật cho phép" loading={loading} onReload={() => void reload()} />
+      <ConfigHeader
+        title="Settings & quyền"
+        subtitle="Claude gộp các file dưới đây; luật chặn luôn thắng luật cho phép"
+        loading={loading}
+        onReload={() => void reload()}
+        actions={<span className="scope-hint">Bấm "Sửa quyền" ở từng file</span>}
+      />
       <LoadError error={error} />
       <div className="page-body settings">
         {data && (
@@ -40,14 +51,34 @@ export function SettingsPage() {
           </div>
         )}
         {files.map((f) => (
-          <ScopeSection key={f.scope} file={f} />
+          <ScopeSection key={f.scope} file={f} onSaved={() => void reload()} />
         ))}
       </div>
     </div>
   );
 }
 
-function ScopeSection({ file }: { file: SettingsFile }) {
+function ScopeSection({ file, onSaved }: { file: SettingsFile; onSaved: () => void }) {
+  useDrafts();
+  const draft = getDraft<PermissionsDraft>(permissionsKey(file.scope));
+  const [opening, setOpening] = useState(false);
+
+  const startEditing = async () => {
+    setOpening(true);
+    try {
+      const p = await api.permissions(file.scope);
+      setDraft(permissionsKey(file.scope), {
+        permissions: { allow: p.allow, ask: p.ask, deny: p.deny, defaultMode: p.defaultMode },
+        baseHash: p.hash,
+        path: p.path,
+      } satisfies PermissionsDraft);
+    } catch (e) {
+      toast((e as Error).message, { error: true });
+    } finally {
+      setOpening(false);
+    }
+  };
+
   return (
     <section className="card scope-section" aria-labelledby={`settings-${file.scope}`}>
       <header className="scope-head">
@@ -56,8 +87,15 @@ function ScopeSection({ file }: { file: SettingsFile }) {
           {file.path}
         </h2>
         <span className="scope-hint">{SCOPE_HINT[file.scope]}</span>
+        {!draft && !file.error && (
+          <Button icon={PencilSimple} variant="quiet" className="scope-edit" busy={opening} onClick={() => void startEditing()}>
+            {file.exists ? "Sửa quyền" : "Thêm quyền"}
+          </Button>
+        )}
       </header>
-      {!file.exists ? (
+      {draft ? (
+        <PermissionsEditor scope={file.scope} draft={draft} onSaved={onSaved} />
+      ) : !file.exists ? (
         <p className="hint">Chưa có file này.</p>
       ) : file.error ? (
         <p className="error" role="alert">

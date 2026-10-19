@@ -134,9 +134,18 @@
 
 .nav-icon,
 .nav-text,
-.nav-badge {
+.nav-badge,
+.nav-dirty {
   position: relative;
   z-index: 1;
+}
+
+.nav-dirty {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--attention);
 }
 
 .nav-icon {

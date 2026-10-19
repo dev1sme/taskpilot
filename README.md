@@ -49,7 +49,9 @@ The server prints a URL with a one-time token (`http://127.0.0.1:8790/?token=…
 
 The sidebar's *Cấu hình Claude* and *Tích hợp* sections show the repo's CLAUDE.md files, settings
 and permissions, hooks, agents, commands, skills and MCP servers, merged across project, local and
-user scopes. These pages are read-only for now. Secret values (env, headers, credentials in URLs)
+user scopes. CLAUDE.md files and permission rules can be edited: every save shows a diff first,
+refuses to overwrite a file that changed since you opened it, and keeps a backup of the old version
+in `~/.taskpilot/backups/` (restore it from *Lịch sử thay đổi*). The other pages are read-only for now. Secret values (env, headers, credentials in URLs)
 are masked on the server and never sent to the browser; `${VAR}` references are shown, and MCP
 servers whose variables are not set are flagged.
 

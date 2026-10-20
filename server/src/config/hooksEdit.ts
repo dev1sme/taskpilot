@@ -80,6 +80,11 @@ export function readHookInputs(text: string | null): HookInput[] {
   return out;
 }
 
+/** The file's "hooks" value as written (every hook type), for showing it as is; null when absent. */
+export function readHooksBlock(text: string | null): unknown {
+  return parse(text).hooks ?? null;
+}
+
 export function validateHooks(body: unknown): HookInput[] {
   const list = isObject(body) ? body.hooks : undefined;
   if (!Array.isArray(list)) throw new HttpError(400, "hooks phải là danh sách");

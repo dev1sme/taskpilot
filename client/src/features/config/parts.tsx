@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import type { Scope } from "../../api/types";
 import { Button } from "../../components/Button";
 import { PageHeader } from "../shell/PageHeader";
+import { Toolbar } from "../shell/Toolbar";
 import { clearDraft, isDirty } from "./drafts";
 import "./config.css";
 
@@ -32,7 +33,7 @@ export function ConfigHeader(props: { title: ReactNode; subtitle?: ReactNode }) 
 }
 
 /**
- * Row under the page header: what the page shows on the left (scope tabs…), reload and the actions
+ * Toolbar of the config pages: what the page shows on the left (scope tabs…), reload and the actions
  * on what is shown on the right. `readOnly` pages get a marker in place of actions.
  */
 export function ConfigToolbar(props: {
@@ -43,21 +44,24 @@ export function ConfigToolbar(props: {
   onReload: () => void;
 }) {
   return (
-    <div className="config-toolbar">
-      <div className="toolbar-start">{props.start}</div>
-      <div className="toolbar-actions">
-        <Button icon={ArrowClockwise} variant="quiet" className="btn-icon-only" title="Tải lại" busy={props.loading} onClick={props.onReload}>
-          <span className="sr-only">Tải lại</span>
-        </Button>
-        {props.readOnly && (
-          <span className="readonly-pill" title="Trang này chưa sửa được trong TaskPilot">
-            <LockSimple weight="bold" aria-hidden="true" />
-            Chỉ xem
-          </span>
-        )}
-        {props.actions}
-      </div>
-    </div>
+    <Toolbar
+      className="config-toolbar"
+      start={props.start}
+      actions={
+        <>
+          <Button icon={ArrowClockwise} variant="quiet" className="btn-icon-only" title="Tải lại" busy={props.loading} onClick={props.onReload}>
+            <span className="sr-only">Tải lại</span>
+          </Button>
+          {props.readOnly && (
+            <span className="readonly-pill" title="Trang này chưa sửa được trong TaskPilot">
+              <LockSimple weight="bold" aria-hidden="true" />
+              Chỉ xem
+            </span>
+          )}
+          {props.actions}
+        </>
+      }
+    />
   );
 }
 

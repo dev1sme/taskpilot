@@ -41,32 +41,6 @@
   background: var(--attention);
 }
 
-.config-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px 16px;
-  padding: 14px 28px 0;
-}
-
-.toolbar-start {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  max-width: 100%;
-}
-
-.toolbar-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-left: auto;
-}
-
 .btn-icon-only {
   padding: 6px 9px;
 }
@@ -1064,10 +1038,6 @@
 }
 
 @media (max-width: 860px) {
-  .config-toolbar {
-    padding: 12px 16px 0;
-  }
-
   .memory,
   .memory.hooks-view,
   .library,

@@ -29,6 +29,13 @@ for (const route of ["/memory", "/settings", "/hooks", "/mcp", "/agents"]) {
   });
 }
 
+test("#/tasks/PROJ-1 header has no buttons besides search", async ({ page }) => {
+  await page.goto("/#/tasks/PROJ-1");
+  await expect(page.locator("main h1")).toContainText("PROJ-1");
+  await expect(page.locator(".toolbar")).toBeVisible();
+  await expect(page.locator(".page-header button:not(.search-trigger)")).toHaveCount(0);
+});
+
 test("CLAUDE.md edit actions stay in the toolbar while editing", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/#/memory");

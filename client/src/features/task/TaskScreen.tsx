@@ -11,6 +11,7 @@ import { DocViewer } from "../docs/DocViewer";
 import { TerminalDrawer } from "../sessions/TerminalDrawer";
 import { useSessions } from "../sessions/useSessions";
 import { PageHeader } from "../shell/PageHeader";
+import { Toolbar } from "../shell/Toolbar";
 import { GateCard } from "../workflow/GateCard";
 import { NowCard } from "../workflow/NowCard";
 import { Stepper } from "../workflow/Stepper";
@@ -85,31 +86,34 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
               {task.title !== task.key && task.title}
             </>
           }
+        />
+        <Toolbar
+          start={
+            pill &&
+            PillIcon && (
+              <span className={`pill ${pill.tone}`}>
+                <PillIcon weight="bold" className={working ? "spin" : undefined} aria-hidden="true" />
+                {pill.label}
+              </span>
+            )
+          }
           actions={
-            <>
-              {pill && PillIcon && (
-                <span className={`pill ${pill.tone}`}>
-                  <PillIcon weight="bold" className={working ? "spin" : undefined} aria-hidden="true" />
-                  {pill.label}
-                </span>
-              )}
-              {active && (
-                <Button
-                  icon={X}
-                  variant="quiet"
-                  busy={cancelling}
-                  onClick={() => {
-                    setCancelling(true);
-                    void api
-                      .cancelRun(task.key)
-                      .then(changed)
-                      .finally(() => setCancelling(false));
-                  }}
-                >
-                  Huỷ quy trình
-                </Button>
-              )}
-            </>
+            active && (
+              <Button
+                icon={X}
+                variant="quiet"
+                busy={cancelling}
+                onClick={() => {
+                  setCancelling(true);
+                  void api
+                    .cancelRun(task.key)
+                    .then(changed)
+                    .finally(() => setCancelling(false));
+                }}
+              >
+                Huỷ quy trình
+              </Button>
+            )
           }
         />
 

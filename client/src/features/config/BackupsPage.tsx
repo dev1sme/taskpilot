@@ -1,17 +1,20 @@
 import { ArrowCounterClockwise } from "@phosphor-icons/react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { BackupEntry } from "../../api/types";
 import { Button } from "../../components/Button";
 import { DiffDialog } from "../../components/DiffDialog";
 import { toast } from "../../components/Toast";
 import { useWorkspace } from "../../app/workspace";
+import { locale } from "../../i18n";
 import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "./parts";
 import { useConfig } from "./useConfig";
 import "../tasks/tasks.css";
 
 /** Every backup TaskPilot took before writing a config file; any of them can be restored. */
 export function BackupsPage() {
+  const { t } = useTranslation("backups");
   const { data, error, loading, reload } = useConfig(["backups"], api.backups);
   const { reloadInventory } = useWorkspace();
   const [picked, setPicked] = useState<BackupEntry | null>(null);
@@ -36,7 +39,7 @@ export function BackupsPage() {
     setBusy(true);
     try {
       await api.restoreBackup(picked.id);
-      toast(`Đã khôi phục ${picked.display}. Bản trước đó cũng đã được backup.`);
+      toast(t("restored", { file: picked.display }));
       setPicked(null);
       void reload();
       void reloadInventory();
@@ -49,35 +52,35 @@ export function BackupsPage() {
 
   return (
     <div className="page">
-      <ConfigHeader title="Lịch sử thay đổi" subtitle="Bản sao TaskPilot lưu ngay trước mỗi lần ghi file cấu hình (~/.taskpilot/backups)" />
+      <ConfigHeader title={t("title")} subtitle={t("subtitle")} />
       <ConfigToolbar loading={loading} onReload={() => void reload()} />
       <LoadError error={error} />
       <div className="page-body">
         {data && data.length === 0 ? (
-          <EmptyCard title="Chưa có thay đổi nào">Khi ba lưu CLAUDE.md, quyền hay cấu hình khác trong TaskPilot, bản cũ sẽ hiện ở đây.</EmptyCard>
+          <EmptyCard title={t("emptyTitle")}>{t("emptyBody")}</EmptyCard>
         ) : (
           <table className="task-table backups-table">
             <thead>
               <tr>
-                <th scope="col">Thời điểm</th>
-                <th scope="col">File</th>
-                <th scope="col">Lý do</th>
-                <th scope="col">Bản cũ</th>
+                <th scope="col">{t("col.at")}</th>
+                <th scope="col">{t("col.file")}</th>
+                <th scope="col">{t("col.reason")}</th>
+                <th scope="col">{t("col.old")}</th>
                 <th scope="col">
-                  <span className="sr-only">Hành động</span>
+                  <span className="sr-only">{t("col.actions")}</span>
                 </th>
               </tr>
             </thead>
             <tbody>
               {(data ?? []).map((b) => (
                 <tr key={b.id}>
-                  <td className="mono muted">{new Date(b.at).toLocaleString("vi-VN")}</td>
+                  <td className="mono muted">{new Date(b.at).toLocaleString(locale())}</td>
                   <td className="mono">{b.display}</td>
                   <td className="muted">{b.reason}</td>
-                  <td className="muted">{b.existed ? `${b.bytes} byte` : "chưa có file"}</td>
+                  <td className="muted">{b.existed ? t("bytes", { count: b.bytes }) : t("noFile")}</td>
                   <td>
                     <Button icon={ArrowCounterClockwise} variant="quiet" disabled={b.restorable === false} onClick={() => void open(b)}>
-                      Xem &amp; khôi phục
+                      {t("open")}
                     </Button>
                   </td>
                 </tr>
@@ -88,12 +91,12 @@ export function BackupsPage() {
       </div>
       <DiffDialog
         open={picked !== null}
-        title={picked ? `Khôi phục ${picked.display} về bản lúc ${new Date(picked.at).toLocaleTimeString("vi-VN")}` : ""}
+        title={picked ? t("dialogTitle", { file: picked.display, time: new Date(picked.at).toLocaleTimeString(locale()) }) : ""}
         diff={diff}
         changed={diff === null ? undefined : diff.includes("@@") || !picked?.existed}
         busy={busy}
         error={restoreError}
-        confirmLabel={picked?.existed ? "Khôi phục" : "Khôi phục (xoá file hiện tại)"}
+        confirmLabel={picked?.existed ? t("restore") : t("restoreDelete")}
         onConfirm={() => void restore()}
         onClose={() => setPicked(null)}
       />

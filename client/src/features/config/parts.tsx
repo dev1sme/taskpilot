@@ -1,28 +1,21 @@
 import { ArrowClockwise, LockSimple, X } from "@phosphor-icons/react";
 import { useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import type { Scope } from "../../api/types";
 import { Button } from "../../components/Button";
+import i18n from "../../i18n";
 import { PageHeader } from "../shell/PageHeader";
 import { Toolbar } from "../shell/Toolbar";
 import { clearDraft, isDirty } from "./drafts";
 import "./config.css";
 
-export const SCOPE_LABEL: Record<Scope, string> = {
-  project: "Project",
-  local: "Local",
-  user: "User",
-};
-
-export const SCOPE_HINT: Record<Scope, string> = {
-  project: "Commit vào repo, cả team dùng chung",
-  local: "Chỉ trên máy ba, không commit",
-  user: "Mọi repo trên máy ba",
-};
+export const scopeLabel = (scope: Scope) => i18n.t(`scope.label.${scope}`, { ns: "config" });
+export const scopeHint = (scope: Scope) => i18n.t(`scope.hint.${scope}`, { ns: "config" });
 
 export function ScopeTag({ scope }: { scope: Scope }) {
   return (
-    <span className={`scope-tag scope-${scope}`} title={SCOPE_HINT[scope]}>
-      {SCOPE_LABEL[scope]}
+    <span className={`scope-tag scope-${scope}`} title={scopeHint(scope)}>
+      {scopeLabel(scope)}
     </span>
   );
 }
@@ -43,19 +36,20 @@ export function ConfigToolbar(props: {
   loading: boolean;
   onReload: () => void;
 }) {
+  const { t } = useTranslation("config");
   return (
     <Toolbar
       className="config-toolbar"
       start={props.start}
       actions={
         <>
-          <Button icon={ArrowClockwise} variant="quiet" className="btn-icon-only" title="Tải lại" busy={props.loading} onClick={props.onReload}>
-            <span className="sr-only">Tải lại</span>
+          <Button icon={ArrowClockwise} variant="quiet" className="btn-icon-only" title={t("toolbar.reload")} busy={props.loading} onClick={props.onReload}>
+            <span className="sr-only">{t("toolbar.reload")}</span>
           </Button>
           {props.readOnly && (
-            <span className="readonly-pill" title="Trang này chưa sửa được trong TaskPilot">
+            <span className="readonly-pill" title={t("toolbar.readOnlyTitle")}>
               <LockSimple weight="bold" aria-hidden="true" />
-              Chỉ xem
+              {t("toolbar.readOnly")}
             </span>
           )}
           {props.actions}
@@ -79,6 +73,7 @@ export function ScopeTabs<S extends Scope>(props: {
   isMissing?: (scope: S) => boolean;
   isDirty?: (scope: S) => boolean;
 }) {
+  const { t } = useTranslation("common");
   return (
     <div className="segmented scope-tabs" role="tablist" aria-label={props.label}>
       {(props.scopes ?? (SCOPES as S[])).map((s) => (
@@ -87,14 +82,14 @@ export function ScopeTabs<S extends Scope>(props: {
           type="button"
           role="tab"
           aria-selected={s === props.value}
-          title={SCOPE_HINT[s]}
+          title={scopeHint(s)}
           aria-label={props.count && `${props.labels[s]} (${props.count(s)})`}
           onClick={() => props.onChange(s)}
           className={props.isMissing?.(s) ? "is-missing" : undefined}
         >
           {props.labels[s]}
           {props.count && <span className="tab-count">{props.count(s)}</span>}
-          {props.isDirty?.(s) && <span className="tab-dirty" aria-label="chưa lưu" />}
+          {props.isDirty?.(s) && <span className="tab-dirty" aria-label={t("unsaved")} />}
         </button>
       ))}
     </div>
@@ -106,6 +101,7 @@ export function ScopeTabs<S extends Scope>(props: {
  * draft has unsaved changes.
  */
 export function DraftControls({ draftKey }: { draftKey: string }) {
+  const { t } = useTranslation("config");
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const dirty = isDirty(draftKey);
   const discard = () => {
@@ -118,16 +114,16 @@ export function DraftControls({ draftKey }: { draftKey: string }) {
       {dirty && (
         <span className="unsaved-pill">
           <span aria-hidden="true" />
-          Chưa lưu
+          {t("draft.unsaved")}
         </span>
       )}
       {dirty && confirmDiscard ? (
         <Button icon={X} variant="danger" onClick={discard}>
-          Bỏ thay đổi
+          {t("draft.discard")}
         </Button>
       ) : (
         <Button icon={X} variant="quiet" onClick={() => (dirty ? setConfirmDiscard(true) : discard())}>
-          Huỷ
+          {t("draft.cancel")}
         </Button>
       )}
     </>

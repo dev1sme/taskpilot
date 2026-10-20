@@ -1,5 +1,5 @@
 import type { LibraryKind, Scope } from "../../api/types";
-import { SCOPE_LABEL } from "./parts";
+import { scopeLabel } from "./parts";
 
 /**
  * Which scope Claude Code loads when two define the same name, highest first. From the Claude Code
@@ -17,5 +17,5 @@ const PRECEDENCE: Record<LibraryKind | "mcp", Scope[]> = {
 export function shadowedBy(kind: LibraryKind | "mcp", item: { name: string; scope: Scope }, all: Array<{ name: string; scope: Scope }>): string | null {
   const rank = (s: Scope) => PRECEDENCE[kind].indexOf(s);
   const winner = all.filter((o) => o.name === item.name && rank(o.scope) < rank(item.scope)).sort((a, b) => rank(a.scope) - rank(b.scope))[0];
-  return winner ? SCOPE_LABEL[winner.scope] : null;
+  return winner ? scopeLabel(winner.scope) : null;
 }

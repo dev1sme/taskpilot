@@ -1,5 +1,6 @@
 import { Eye, PencilSimple, Plus } from "@phosphor-icons/react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { HooksFile, Scope } from "../../api/types";
 import { Button } from "../../components/Button";
@@ -10,27 +11,29 @@ import { EMPTY_HOOK, HooksEditor, hooksKey, useHooksSave, type HooksDraft } from
 import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs } from "./parts";
 import { useConfig } from "./useConfig";
 
-const TAB_LABEL: Record<Scope, string> = { project: ".claude/settings.json", local: ".claude/settings.local.json", user: "~/.claude/settings.json" };
-
-const EVENT_HINT: Record<string, string> = {
-  PreToolUse: "Trước khi Claude dùng một công cụ; có thể chặn thao tác",
-  PostToolUse: "Sau khi một công cụ chạy xong",
-  PostToolUseFailure: "Sau khi một công cụ chạy lỗi",
-  PermissionRequest: "Khi Claude xin quyền",
-  UserPromptSubmit: "Khi ba gửi một prompt",
-  Notification: "Khi Claude gửi thông báo (chờ quyền, đang rảnh…)",
-  Stop: "Khi Claude kết thúc một lượt",
-  SubagentStop: "Khi một subagent kết thúc",
-  SessionStart: "Khi session bắt đầu hoặc được resume",
-  SessionEnd: "Khi session kết thúc",
-  PreCompact: "Trước khi Claude nén ngữ cảnh",
-};
+/** Events with a one-line explanation in `config:hooks.event`. */
+const HINTED_EVENTS = [
+  "PreToolUse",
+  "PostToolUse",
+  "PostToolUseFailure",
+  "PermissionRequest",
+  "UserPromptSubmit",
+  "Notification",
+  "Stop",
+  "SubagentStop",
+  "SessionStart",
+  "SessionEnd",
+  "PreCompact",
+] as const;
+const hinted = (name: string): name is (typeof HINTED_EVENTS)[number] => (HINTED_EVENTS as readonly string[]).includes(name);
 
 /** An event key in the pretty-printed hooks block: `  "PostToolUse": [`. */
 const EVENT_LINE = /^ {2}"([^"]+)": \[/;
 
 /** Hooks of one settings file at a time, shown as the JSON block written in the file; edited as rows. */
 export function HooksPage() {
+  const { t } = useTranslation("config");
+  const tabLabel = (s: Scope) => t(`settings.tab.${s}`);
   const [scope, setScope] = useState<Scope>("project");
   const { data, error, loading, reload } = useConfig(["hooks-file", scope], () => api.hooksFile(scope));
   const [opening, setOpening] = useState(false);
@@ -58,7 +61,7 @@ export function HooksPage() {
     <>
       <DraftControls key={scope} draftKey={hooksKey(scope)} />
       <Button icon={Eye} variant="primary" onClick={() => void flow.review()}>
-        Xem thay đổi &amp; lưu
+        {t("action.review")}
       </Button>
     </>
   ) : (
@@ -67,19 +70,19 @@ export function HooksPage() {
         icon={hasHooks ? PencilSimple : Plus}
         variant="primary"
         busy={opening}
-        title={`${hasHooks ? "Sửa hooks" : "Thêm hook"} trong ${data.path}`}
+        title={t(hasHooks ? "hooks.editTitle" : "hooks.addTitle", { path: data.path })}
         onClick={() => void startEditing()}
       >
-        {hasHooks ? "Sửa" : "Thêm"}
+        {hasHooks ? t("action.edit") : t("action.add")}
       </Button>
     )
   );
 
   return (
     <div className="page">
-      <ConfigHeader title="Hooks" subtitle={'Lệnh tự chạy theo sự kiện của Claude, khai báo trong mục "hooks" của các file settings'} />
+      <ConfigHeader title={t("hooks.title")} subtitle={t("hooks.subtitle")} />
       <ConfigToolbar
-        start={<ScopeTabs value={scope} onChange={setScope} label="File settings" labels={TAB_LABEL} isDirty={(s) => isDirty(hooksKey(s))} />}
+        start={<ScopeTabs value={scope} onChange={setScope} label={t("settings.tabsLabel")} labels={{ project: tabLabel("project"), local: tabLabel("local"), user: tabLabel("user") }} isDirty={(s) => isDirty(hooksKey(s))} />}
         loading={loading}
         onReload={() => void reload()}
         actions={actions}
@@ -95,19 +98,19 @@ export function HooksPage() {
           <HooksView file={data} />
         ) : (
           <div className="page-body">
-            <EmptyCard title={`${TAB_LABEL[scope]} chưa có hook nào`}>
-              {data.exists ? "File này chưa có mục \"hooks\"." : "Chưa có file này."} TaskPilot tự gắn hook riêng cho session nó
-              mở; các hook đó không nằm trong file nên không hiện ở đây.
+            <EmptyCard title={t("hooks.emptyTitle", { file: tabLabel(scope) })}>
+              {t("hooks.emptyBody", { state: data.exists ? t("hooks.noSection") : t("settings.missingFile") })}
             </EmptyCard>
           </div>
         ))
       )}
-      <DiffDialog {...flow.dialog} confirmLabel="Lưu hooks" />
+      <DiffDialog {...flow.dialog} confirmLabel={t("hooks.confirm")} />
     </div>
   );
 }
 
 function HooksView({ file }: { file: HooksFile }) {
+  const { t } = useTranslation("config");
   const lines = JSON.stringify(file.raw, null, 2).split("\n");
   const events = lines.flatMap((text, i) => {
     const m = EVENT_LINE.exec(text);
@@ -118,22 +121,25 @@ function HooksView({ file }: { file: HooksFile }) {
 
   return (
     <div className="memory hooks-view">
-      <nav className="memory-outline" aria-label="Sự kiện">
-        <div className="pane-label">Sự kiện</div>
-        {events.map((e) => (
-          <button key={e.line} type="button" className="outline-item hook-event" title={EVENT_HINT[e.name]} onClick={() => jump(e.line)}>
-            <span className="mono">{e.name}</span>
-            {EVENT_HINT[e.name] && <span className="hook-event-hint">{EVENT_HINT[e.name]}</span>}
-          </button>
-        ))}
+      <nav className="memory-outline" aria-label={t("hooks.events")}>
+        <div className="pane-label">{t("hooks.events")}</div>
+        {events.map((e) => {
+          const hint = hinted(e.name) ? t(`hooks.event.${e.name}`) : undefined;
+          return (
+            <button key={e.line} type="button" className="outline-item hook-event" title={hint} onClick={() => jump(e.line)}>
+              <span className="mono">{e.name}</span>
+              {hint && <span className="hook-event-hint">{hint}</span>}
+            </button>
+          );
+        })}
       </nav>
 
-      <section className="code-view" aria-label={`Hooks trong ${file.path}`}>
+      <section className="code-view" aria-label={t("hooks.codeLabel", { path: file.path })}>
         <div className="code-head">
           <span className="mono">
             {file.path} › hooks
           </span>
-          <span className="code-meta">{lines.length} dòng</span>
+          <span className="code-meta">{t("hooks.lines", { count: lines.length })}</span>
         </div>
         <ol className="code-lines">
           {lines.map((text, i) => {

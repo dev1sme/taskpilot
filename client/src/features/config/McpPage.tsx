@@ -1,5 +1,6 @@
 import { CheckCircle, CircleNotch, HourglassMedium, Key, PencilSimple, Plugs, Plus, Trash, Warning, XCircle } from "@phosphor-icons/react";
 import { useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { McpCheck, McpEntryForm, McpServer, Scope } from "../../api/types";
 import { useWorkspace } from "../../app/workspace";
@@ -12,15 +13,10 @@ import { useConfig } from "./useConfig";
 
 type Editing = { scope: Scope; base: McpEntryForm | null; baseHash: string } | null;
 
-const TAB_LABEL: Record<Scope, string> = { project: ".mcp.json", local: "~/.claude.json · repo này", user: "~/.claude.json" };
-const EMPTY: Record<Scope, string> = {
-  project: "Server trong .mcp.json dùng chung cho cả team (commit vào repo).",
-  local: "Server riêng của ba, chỉ cho repo này (lưu trong ~/.claude.json).",
-  user: "Server riêng của ba, dùng ở mọi repo (lưu trong ~/.claude.json).",
-};
-
 /** MCP servers Claude sees for this repo, one scope per tab; add, edit, delete and check them. */
 export function McpPage() {
+  const { t } = useTranslation("config");
+  const tabLabel = (s: Scope) => t(`mcp.tab.${s}`);
   const { data, error, loading, reload } = useConfig(["mcp"], api.mcp);
   const { reloadInventory } = useWorkspace();
   const [scope, setScope] = useState<Scope>("project");
@@ -58,15 +54,15 @@ export function McpPage() {
 
   return (
     <div className="page">
-      <ConfigHeader title="MCP servers" subtitle="Server Claude dùng để gọi công cụ bên ngoài" />
+      <ConfigHeader title={t("mcp.title")} subtitle={t("mcp.subtitle")} />
       <ConfigToolbar
         start={
           !editing && (
             <ScopeTabs
               value={scope}
               onChange={setScope}
-              label="File MCP"
-              labels={TAB_LABEL}
+              label={t("mcp.tabsLabel")}
+              labels={{ project: tabLabel("project"), local: tabLabel("local"), user: tabLabel("user") }}
               count={(s) => all.filter((x) => x.scope === s).length}
             />
           )
@@ -77,8 +73,8 @@ export function McpPage() {
           editing ? (
             <span ref={setActionsSlot} className="toolbar-slot" />
           ) : (
-            <Button icon={Plus} variant="primary" title={`Thêm server vào ${TAB_LABEL[scope]}`} onClick={() => void startAdd(scope)}>
-              Thêm
+            <Button icon={Plus} variant="primary" title={t("mcp.addTitle", { file: tabLabel(scope) })} onClick={() => void startAdd(scope)}>
+              {t("action.add")}
             </Button>
           )
         }
@@ -108,10 +104,10 @@ export function McpPage() {
             }}
           />
         ) : data && servers.length === 0 ? (
-          <EmptyCard title={`Chưa có MCP server trong ${TAB_LABEL[scope]}`}>{EMPTY[scope]}</EmptyCard>
+          <EmptyCard title={t("mcp.emptyTitle", { file: tabLabel(scope) })}>{t(`mcp.empty.${scope}`)}</EmptyCard>
         ) : (
           <div className="library">
-            <ul className="mcp-list" aria-label="Danh sách server">
+            <ul className="mcp-list" aria-label={t("mcp.listLabel")}>
               {servers.map((s) => {
                 const hidden = shadowedBy("mcp", s, all);
                 return (
@@ -126,13 +122,13 @@ export function McpPage() {
                       <span className="mcp-text">
                         <span className="mono mcp-name">{s.name}</span>
                         <span className="mcp-meta">
-                          {s.error ? "lỗi cấu hình" : s.type}
-                          {s.missingEnv.length > 0 && ` · thiếu ${s.missingEnv.join(", ")}`}
+                          {s.error ? t("mcp.configError") : s.type}
+                          {s.missingEnv.length > 0 && t("mcp.missing", { vars: s.missingEnv.join(", ") })}
                         </span>
                       </span>
                       {hidden && (
-                        <span className="shadow-pill" title={`Claude dùng bản cùng tên ở ${hidden}`}>
-                          Bị {hidden} che
+                        <span className="shadow-pill" title={t("shadow.title", { scope: hidden })}>
+                          {t("shadow.pill", { scope: hidden })}
                         </span>
                       )}
                     </button>
@@ -164,13 +160,12 @@ const CHECK_ICON: Record<McpCheck["status"], typeof CheckCircle> = {
   unknown: Warning,
 };
 
-const CHECK_HINT: Partial<Record<McpCheck["status"], string>> = {
-  pending: "Server trong .mcp.json cần được duyệt: mở claude trong repo này và đồng ý dùng server.",
-  auth: "Server cần đăng nhập: chạy claude mcp login hoặc /mcp trong claude.",
-  failed: "Claude không kết nối được. Kiểm tra lệnh, URL và biến môi trường.",
-};
+/** Check results with a hint (`config:mcp.checkHint.<status>`). */
+const HINTED = ["pending", "auth", "failed"] as const;
+const hinted = (s: McpCheck["status"]): s is (typeof HINTED)[number] => (HINTED as readonly string[]).includes(s);
 
 function McpDetail({ server, source, onEdit, onChanged }: { server: McpServer; source: string; onEdit: () => void; onChanged: () => void }) {
+  const { t } = useTranslation("config");
   const [check, setCheck] = useState<McpCheck | null>(null);
   const [checking, setChecking] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -192,7 +187,7 @@ function McpDetail({ server, source, onEdit, onChanged }: { server: McpServer; s
     try {
       const { hash } = await api.mcpEntry(server.scope, server.name);
       await api.mcpDelete(server.scope, server.name, hash);
-      toast(`Đã xoá ${server.name}. Có thể khôi phục trong Lịch sử thay đổi.`);
+      toast(t("deletedRestorable", { name: server.name }));
       onChanged();
     } catch (e) {
       toast((e as Error).message, { error: true });
@@ -214,18 +209,18 @@ function McpDetail({ server, source, onEdit, onChanged }: { server: McpServer; s
         <span className="pill">{server.type}</span>
         <div className="lib-actions">
           <Button icon={Plugs} busy={checking} onClick={() => void runCheck()}>
-            Kiểm tra kết nối
+            {t("mcp.check")}
           </Button>
           <Button icon={PencilSimple} onClick={onEdit}>
-            Sửa
+            {t("action.edit")}
           </Button>
           {confirmDelete ? (
             <Button icon={Trash} variant="danger" busy={deleting} onClick={() => void remove()}>
-              Xác nhận xóa
+              {t("action.deleteConfirm")}
             </Button>
           ) : (
             <Button icon={Trash} variant="quiet" onClick={() => setConfirmDelete(true)}>
-              Xóa
+              {t("action.delete")}
             </Button>
           )}
         </div>
@@ -234,7 +229,7 @@ function McpDetail({ server, source, onEdit, onChanged }: { server: McpServer; s
 
       {checking && (
         <p className="check-result" role="status">
-          <CircleNotch className="spin" aria-hidden="true" /> Đang hỏi claude…
+          <CircleNotch className="spin" aria-hidden="true" /> {t("mcp.checking")}
         </p>
       )}
       {check && CheckIcon && !checking && (
@@ -242,7 +237,7 @@ function McpDetail({ server, source, onEdit, onChanged }: { server: McpServer; s
           <CheckIcon weight="fill" aria-hidden="true" />
           <span>
             <strong>{check.label}</strong>
-            {CHECK_HINT[check.status] && <span className="check-hint">{CHECK_HINT[check.status]}</span>}
+            {hinted(check.status) && <span className="check-hint">{t(`mcp.checkHint.${check.status}`)}</span>}
           </span>
         </div>
       )}
@@ -257,20 +252,20 @@ function McpDetail({ server, source, onEdit, onChanged }: { server: McpServer; s
       ))}
       {server.fromTaskPilot.length > 0 && (
         <p className="hint">
-          TaskPilot cung cấp <code>{server.fromTaskPilot.join(", ")}</code> cho các session nó mở (kho env riêng, không commit).
+          <Trans t={t} i18nKey="mcp.fromTaskPilot" values={{ vars: server.fromTaskPilot.join(", ") }} components={{ code: <code /> }} />
         </p>
       )}
 
       <dl className="fields">
         {server.command && (
           <div>
-            <dt>Lệnh</dt>
+            <dt>{t("mcp.command")}</dt>
             <dd className="mono">{server.command}</dd>
           </div>
         )}
         {server.args.length > 0 && (
           <div>
-            <dt>Tham số</dt>
+            <dt>{t("mcp.args")}</dt>
             <dd className="chips">
               {server.args.map((a, i) => (
                 <code key={i} className="chip">
@@ -282,19 +277,20 @@ function McpDetail({ server, source, onEdit, onChanged }: { server: McpServer; s
         )}
         {server.url && (
           <div>
-            <dt>URL</dt>
+            <dt>{t("mcp.url")}</dt>
             <dd className="mono">{server.url}</dd>
           </div>
         )}
       </dl>
-      <Values title="Biến môi trường" values={server.env} missing={server.missingEnv} />
-      <Values title="Headers" values={server.headers} missing={server.missingEnv} />
+      <Values title={t("mcp.env")} values={server.env} missing={server.missingEnv} />
+      <Values title={t("mcp.headers")} values={server.headers} missing={server.missingEnv} />
     </article>
   );
 }
 
 /** A ${VAR} nobody sets: let the user give TaskPilot's sessions a value for it. */
 function MissingVar({ name, onSaved }: { name: string; onSaved: () => void }) {
+  const { t } = useTranslation("config");
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   return (
@@ -305,7 +301,7 @@ function MissingVar({ name, onSaved }: { name: string; onSaved: () => void }) {
         setBusy(true);
         try {
           await api.envSet(name, value);
-          toast(`Đã lưu ${name} cho các session TaskPilot mở.`);
+          toast(t("mcp.envSaved", { name }));
           setValue("");
           onSaved();
         } catch (err) {
@@ -318,12 +314,12 @@ function MissingVar({ name, onSaved }: { name: string; onSaved: () => void }) {
       <Warning weight="fill" aria-hidden="true" />
       <div className="missing-body">
         <label htmlFor={`env-${name}`}>
-          Biến <code>{name}</code> chưa được đặt, nên server có thể không khởi động. Đặt giá trị cho các session TaskPilot mở:
+          <Trans t={t} i18nKey="mcp.missingVar" values={{ name }} components={{ code: <code /> }} />
         </label>
         <div className="missing-row">
-          <input id={`env-${name}`} type="password" value={value} onChange={(e) => setValue(e.target.value)} autoComplete="off" placeholder="giá trị" />
+          <input id={`env-${name}`} type="password" value={value} onChange={(e) => setValue(e.target.value)} autoComplete="off" placeholder={t("mcp.valuePlaceholder")} />
           <Button type="submit" busy={busy} disabled={!value}>
-            Lưu
+            {t("action.save")}
           </Button>
         </div>
       </div>
@@ -332,6 +328,7 @@ function MissingVar({ name, onSaved }: { name: string; onSaved: () => void }) {
 }
 
 function Values({ title, values, missing }: { title: string; values: McpServer["env"]; missing: string[] }) {
+  const { t } = useTranslation("config");
   if (values.length === 0) return null;
   return (
     <div className="env-table">
@@ -343,7 +340,7 @@ function Values({ title, values, missing }: { title: string; values: McpServer["
             <span className="mono">{v.key}</span>
             <span className={`mono env-value${v.reference ? " is-ref" : ""}${unset ? " is-unset" : ""}`}>
               {v.value}
-              {unset && " (chưa đặt)"}
+              {unset && t("mcp.unset")}
             </span>
           </div>
         );

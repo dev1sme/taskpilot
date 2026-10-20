@@ -1,1 +1,306 @@
-{}
+{
+  "scope": {
+    "label": {
+      "project": "Project",
+      "local": "Local",
+      "user": "User"
+    },
+    "hint": {
+      "project": "Commit vào repo, cả team dùng chung",
+      "local": "Chỉ trên máy ba, không commit",
+      "user": "Mọi repo trên máy ba"
+    }
+  },
+  "toolbar": {
+    "reload": "Tải lại",
+    "readOnlyTitle": "Trang này chưa sửa được trong TaskPilot",
+    "readOnly": "Chỉ xem"
+  },
+  "draft": {
+    "unsaved": "Chưa lưu",
+    "discard": "Bỏ thay đổi",
+    "cancel": "Huỷ"
+  },
+  "codegraph": {
+    "title": "Codegraph",
+    "subtitle": "Index code cho repo này qua codegraph (container trong environments)",
+    "outsideTitle": "Repo ngoài PROJECTS_ROOT",
+    "outsideBody": "Codegraph chỉ thấy repo nằm trong PROJECTS_ROOT của environments (bind-mount cố định). Repo này nằm ngoài đó nên không index được từ TaskPilot.",
+    "indexed": "Đã index",
+    "notIndexed": "Chưa index",
+    "noIndex": "Chưa có .codegraph cho repo này.",
+    "reindex": "Re-index",
+    "indexNow": "Index ngay",
+    "mcpTitle": "Dùng trong Claude",
+    "mcpHint": "Thêm server MCP \"codegraph\" vào .mcp.json để Claude tự gọi công cụ codegraph trong repo này.",
+    "mcpAddTitle": "Thêm MCP server \"codegraph\" vào .mcp.json",
+    "mcpAdd": "Thêm"
+  },
+  "library": {
+    "kind": {
+      "agents": {
+        "title": "Agents",
+        "one": "agent",
+        "subtitle": "Subagent Claude có thể giao việc",
+        "empty": "Mỗi agent là một file .md có frontmatter name, description, tools."
+      },
+      "commands": {
+        "title": "Commands",
+        "one": "command",
+        "subtitle": "Slash command riêng",
+        "empty": "Mỗi file .md là một lệnh /tên-file."
+      },
+      "skills": {
+        "title": "Skills",
+        "one": "skill",
+        "subtitle": "Skill Claude tự dùng khi phù hợp",
+        "empty": "Mỗi skill là một thư mục có SKILL.md."
+      }
+    },
+    "template": {
+      "agentDescription": "Khi nào nên giao việc cho agent này",
+      "agentBody": "Bạn là {{name}}. Mô tả cách làm việc ở đây.",
+      "commandDescription": "Lệnh này làm gì",
+      "commandArgumentHint": "[tham số]",
+      "commandBody": "Nội dung prompt. Dùng $ARGUMENTS để nhận tham số.",
+      "skillDescription": "Khi nào Claude nên dùng skill này",
+      "skillBody": "Các bước thực hiện."
+    },
+    "saveTitle": "Lưu {{path}}",
+    "createTitle": "Tạo {{path}}",
+    "created": "Đã tạo {{path}}.",
+    "saved": "Đã lưu {{path}}. Bản cũ nằm trong Lịch sử thay đổi.",
+    "scopeTabs": "Thư mục {{kind}}",
+    "addTitle": "Thêm {{one}} vào {{dir}}",
+    "emptyTitle": "Chưa có {{one}} trong {{dir}}",
+    "filter": "Lọc",
+    "filterPlaceholder": "Lọc {{kind}}",
+    "createFile": "Tạo file",
+    "saveFile": "Lưu file",
+    "exists": "Đã có {{path}}",
+    "editLabel": "Sửa {{path}}",
+    "editorLoading": "Đang mở editor…",
+    "contentLabel": "Nội dung {{path}}",
+    "editTitle": "Sửa {{path}}",
+    "deleteTitle": "Xóa {{path}}",
+    "skillDeleteHint": "Chỉ xóa SKILL.md; {{count}} file khác trong thư mục giữ nguyên.",
+    "files": "File đi kèm",
+    "body": "Nội dung",
+    "new": {
+      "title": "Tạo {{one}}",
+      "name": "Tên",
+      "commandHelp": "Chữ, số, - _; có thể có thư mục con (git/pr → /git:pr).",
+      "help": "Chữ, số, - _. Sẽ tạo {{file}}",
+      "namePlaceholder": "tên",
+      "where": "Nơi lưu",
+      "thisRepo": "repo này",
+      "allRepos": "mọi repo",
+      "cancel": "Huỷ",
+      "submit": "Tạo và mở editor"
+    }
+  },
+  "action": {
+    "add": "Thêm",
+    "edit": "Sửa",
+    "delete": "Xóa",
+    "deleteConfirm": "Xác nhận xóa",
+    "review": "Xem thay đổi & lưu",
+    "save": "Lưu"
+  },
+  "shadow": {
+    "title": "Claude dùng bản cùng tên ở {{scope}}",
+    "pill": "Bị {{scope}} che"
+  },
+  "deletedRestorable": "Đã xoá {{name}}. Có thể khôi phục trong Lịch sử thay đổi.",
+  "mcp": {
+    "title": "MCP servers",
+    "subtitle": "Server Claude dùng để gọi công cụ bên ngoài",
+    "tab": {
+      "project": ".mcp.json",
+      "local": "~/.claude.json · repo này",
+      "user": "~/.claude.json"
+    },
+    "empty": {
+      "project": "Server trong .mcp.json dùng chung cho cả team (commit vào repo).",
+      "local": "Server riêng của ba, chỉ cho repo này (lưu trong ~/.claude.json).",
+      "user": "Server riêng của ba, dùng ở mọi repo (lưu trong ~/.claude.json)."
+    },
+    "tabsLabel": "File MCP",
+    "addTitle": "Thêm server vào {{file}}",
+    "emptyTitle": "Chưa có MCP server trong {{file}}",
+    "listLabel": "Danh sách server",
+    "configError": "lỗi cấu hình",
+    "missing": " · thiếu {{vars}}",
+    "check": "Kiểm tra kết nối",
+    "checking": "Đang hỏi claude…",
+    "checkHint": {
+      "pending": "Server trong .mcp.json cần được duyệt: mở claude trong repo này và đồng ý dùng server.",
+      "auth": "Server cần đăng nhập: chạy claude mcp login hoặc /mcp trong claude.",
+      "failed": "Claude không kết nối được. Kiểm tra lệnh, URL và biến môi trường."
+    },
+    "fromTaskPilot": "TaskPilot cung cấp <code>{{vars}}</code> cho các session nó mở (kho env riêng, không commit).",
+    "command": "Lệnh",
+    "args": "Tham số",
+    "url": "URL",
+    "env": "Biến môi trường",
+    "headers": "Headers",
+    "envSaved": "Đã lưu {{name}} cho các session TaskPilot mở.",
+    "missingVar": "Biến <code>{{name}}</code> chưa được đặt, nên server có thể không khởi động. Đặt giá trị cho các session TaskPilot mở:",
+    "valuePlaceholder": "giá trị",
+    "unset": " (chưa đặt)"
+  },
+  "mcpForm": {
+    "needsValue": "{{key}}: cần giá trị",
+    "saveTitle": "Lưu MCP server {{name}}",
+    "addTitle": "Thêm MCP server {{name}}",
+    "saved": "Đã lưu {{name}}.",
+    "savedWithSecrets": "Đã lưu {{name}}; {{secrets}} lưu trong kho env của TaskPilot.",
+    "cancel": "Huỷ",
+    "edit": "Sửa {{name}}",
+    "add": "Thêm MCP server",
+    "name": "Tên",
+    "type": "Kiểu",
+    "types": {
+      "stdio": "stdio · chạy một lệnh trên máy",
+      "http": "http · server từ xa",
+      "sse": "sse · server từ xa (cũ)",
+      "ws": "ws · server từ xa qua WebSocket",
+      "streamable-http": "streamable-http · tên khác của http"
+    },
+    "command": "Lệnh",
+    "args": "Tham số",
+    "argsHelp": "Mỗi dòng một tham số. Mật khẩu trong URL đã bị che; giữ nguyên dòng đó thì giá trị cũ được giữ.",
+    "url": "URL",
+    "env": "Biến môi trường",
+    "headers": "Headers",
+    "confirmAdd": "Thêm server",
+    "secretHelp": "Giá trị đánh dấu \"bí mật\" không ghi vào .mcp.json (file được commit): TaskPilot ghi <code>${TÊN}</code> và giữ giá trị trong kho env riêng, đưa vào các session nó mở.",
+    "keyLabel": "Tên",
+    "valueLabel": "Giá trị {{key}}",
+    "keep": "giữ nguyên ({{masked}})",
+    "value": "giá trị",
+    "secret": "bí mật",
+    "remove": "Bỏ {{key}}",
+    "thisRow": "dòng này",
+    "addRow": "Thêm dòng"
+  },
+  "settings": {
+    "title": "Settings & quyền",
+    "subtitle": "Claude gộp cả 3 file settings; luật chặn luôn thắng luật cho phép",
+    "tab": {
+      "project": ".claude/settings.json",
+      "local": ".claude/settings.local.json",
+      "user": "~/.claude/settings.json"
+    },
+    "tabsLabel": "File settings",
+    "editTitle": "Sửa quyền trong {{path}}",
+    "addTitle": "Thêm quyền trong {{path}}",
+    "totalsLabel": "Tổng hợp cả 3 file",
+    "totals": {
+      "allow": "<strong>{{count}}</strong> cho phép",
+      "ask": "<strong>{{count}}</strong> hỏi trước",
+      "deny": "<strong>{{count}}</strong> bị chặn"
+    },
+    "totalsNote": "Tổng cả 3 file, Claude áp dụng gộp",
+    "confirm": "Lưu quyền",
+    "missingFile": "Chưa có file này.",
+    "defaultMode": "Chế độ mặc định: <code>{{mode}}</code> · {{label}}",
+    "modeLabel": {
+      "default": "Hỏi trước mỗi thao tác cần quyền",
+      "acceptEdits": "Tự sửa file, hỏi trước lệnh shell",
+      "plan": "Chỉ lập kế hoạch, không sửa",
+      "auto": "Tự quyết theo mức rủi ro",
+      "bypassPermissions": "Bỏ qua mọi kiểm tra quyền"
+    },
+    "column": {
+      "allow": "Cho phép",
+      "ask": "Hỏi trước",
+      "deny": "Chặn"
+    },
+    "extraDirs": "Thư mục thêm: ",
+    "env": "Biến môi trường",
+    "other": "Khác: {{keys}}",
+    "none": "Không có"
+  },
+  "permissions": {
+    "saveTitle": "Lưu quyền vào {{path}}",
+    "saved": "Đã lưu quyền vào {{path}}. Bản cũ nằm trong Lịch sử thay đổi.",
+    "defaultMode": "Chế độ mặc định",
+    "mode": {
+      "unset": "Không đặt (theo mặc định của Claude)",
+      "default": "default · hỏi trước mỗi thao tác cần quyền",
+      "acceptEdits": "acceptEdits · tự sửa file, hỏi trước lệnh shell",
+      "plan": "plan · chỉ lập kế hoạch",
+      "auto": "auto · tự quyết theo mức rủi ro"
+    },
+    "removeRule": "Bỏ luật {{rule}}",
+    "addRule": "Thêm luật {{column}}",
+    "addTo": "Thêm vào {{column}}"
+  },
+  "hooks": {
+    "title": "Hooks",
+    "subtitle": "Lệnh tự chạy theo sự kiện của Claude, khai báo trong mục \"hooks\" của các file settings",
+    "event": {
+      "PreToolUse": "Trước khi Claude dùng một công cụ; có thể chặn thao tác",
+      "PostToolUse": "Sau khi một công cụ chạy xong",
+      "PostToolUseFailure": "Sau khi một công cụ chạy lỗi",
+      "PermissionRequest": "Khi Claude xin quyền",
+      "UserPromptSubmit": "Khi ba gửi một prompt",
+      "Notification": "Khi Claude gửi thông báo (chờ quyền, đang rảnh…)",
+      "Stop": "Khi Claude kết thúc một lượt",
+      "SubagentStop": "Khi một subagent kết thúc",
+      "SessionStart": "Khi session bắt đầu hoặc được resume",
+      "SessionEnd": "Khi session kết thúc",
+      "PreCompact": "Trước khi Claude nén ngữ cảnh"
+    },
+    "editTitle": "Sửa hooks trong {{path}}",
+    "addTitle": "Thêm hook trong {{path}}",
+    "emptyTitle": "{{file}} chưa có hook nào",
+    "noSection": "File này chưa có mục \"hooks\".",
+    "emptyBody": "{{state}} TaskPilot tự gắn hook riêng cho session nó mở; các hook đó không nằm trong file nên không hiện ở đây.",
+    "confirm": "Lưu hooks",
+    "events": "Sự kiện",
+    "codeLabel": "Hooks trong {{path}}",
+    "lines": "{{count}} dòng",
+    "saveTitle": "Lưu hooks vào {{path}}",
+    "saved": "Đã lưu hooks vào {{path}}. Bản cũ nằm trong Lịch sử thay đổi.",
+    "editorLabel": "Sửa hooks trong {{path}}",
+    "editorHint": "Mỗi dòng là một lệnh chạy khi sự kiện xảy ra; matcher lọc theo tên công cụ (để trống = tất cả).",
+    "editorEmpty": "Chưa có hook nào trong file này.",
+    "matcher": "Matcher",
+    "command": "Lệnh",
+    "timeout": "Timeout (s)",
+    "remove": "Xoá hook {{n}}",
+    "extraTitle": "Các field này không sửa ở đây và được giữ nguyên khi lưu",
+    "extra": "Giữ nguyên",
+    "add": "Thêm hook"
+  },
+  "memory": {
+    "title": "CLAUDE.md",
+    "subtitle": "Hướng dẫn Claude đọc ở đầu mỗi session trong repo này",
+    "tab": {
+      "project": "CLAUDE.md",
+      "local": "CLAUDE.local.md",
+      "user": "~/.claude/CLAUDE.md"
+    },
+    "missing": {
+      "project": "Repo chưa có CLAUDE.md. Đây là nơi ghi quy ước của repo để Claude đọc ở đầu mỗi session.",
+      "local": "Chưa có CLAUDE.local.md: ghi chú riêng của ba cho repo này, không commit lên git.",
+      "user": "Chưa có ~/.claude/CLAUDE.md: hướng dẫn chung cho mọi repo trên máy ba."
+    },
+    "missingTitle": "Chưa có {{file}}",
+    "saveTitle": "Lưu {{path}}",
+    "saved": "Đã lưu {{path}}. Bản cũ nằm trong Lịch sử thay đổi.",
+    "editTitle": "Sửa {{path}}",
+    "createTitle": "Tạo {{path}}",
+    "tabsLabel": "File memory",
+    "outline": "Mục lục",
+    "noHeadings": "Không có tiêu đề.",
+    "imports": "Import",
+    "lines": "{{count}} dòng",
+    "modified": " · sửa lúc {{time}}",
+    "loads": "Claude sẽ nạp",
+    "checks": "Kiểm tra",
+    "line": "dòng {{line}}"
+  }
+}

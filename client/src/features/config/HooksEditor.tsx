@@ -1,4 +1,5 @@
 import { Plus, Trash } from "@phosphor-icons/react";
+import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { HookInput, Scope } from "../../api/types";
 import { Button } from "../../components/Button";
@@ -61,12 +62,13 @@ function extraText(value: unknown): string {
 
 /** Review-then-save of a hooks draft; the page places the buttons and the dialog. */
 export function useHooksSave(draft: HooksDraft | undefined, onSaved: () => void) {
+  const { t } = useTranslation("config");
   return useSaveFlow({
-    title: `Lưu hooks vào ${draft?.path ?? ""}`,
+    title: t("hooks.saveTitle", { path: draft?.path ?? "" }),
     preview: () => api.hooksPreview(draft!.scope, draft!.hooks, draft!.baseHash),
     save: () => api.hooksSave(draft!.scope, draft!.hooks, draft!.baseHash),
     onSaved: () => {
-      toast(`Đã lưu hooks vào ${draft?.path}. Bản cũ nằm trong Lịch sử thay đổi.`);
+      toast(t("hooks.saved", { path: draft?.path }));
       clearDraft(hooksKey(draft!.scope));
       onSaved();
     },
@@ -75,21 +77,22 @@ export function useHooksSave(draft: HooksDraft | undefined, onSaved: () => void)
 
 /** Command hooks of one settings file as editable rows. */
 export function HooksEditor({ draft }: { draft: HooksDraft }) {
+  const { t } = useTranslation("config");
   const setHooks = (hooks: HookInput[]) => setDraft(hooksKey(draft.scope), { ...draft, hooks });
   const update = (i: number, patch: Partial<HookInput>) => setHooks(draft.hooks.map((h, j) => (j === i ? { ...h, ...patch } : h)));
 
   return (
-    <section className="card hooks-editor" aria-label={`Sửa hooks trong ${draft.path}`}>
+    <section className="card hooks-editor" aria-label={t("hooks.editorLabel", { path: draft.path })}>
       <header className="scope-head">
         <h2 className="mono">{draft.path}</h2>
-        <span className="scope-hint">Mỗi dòng là một lệnh chạy khi sự kiện xảy ra; matcher lọc theo tên công cụ (để trống = tất cả).</span>
+        <span className="scope-hint">{t("hooks.editorHint")}</span>
       </header>
-      {draft.hooks.length === 0 && <p className="hint">Chưa có hook nào trong file này.</p>}
+      {draft.hooks.length === 0 && <p className="hint">{t("hooks.editorEmpty")}</p>}
       <ol className="hook-rows">
         {draft.hooks.map((h, i) => (
           <li key={i} className="hook-row">
             <label>
-              <span className="field-label">Sự kiện</span>
+              <span className="field-label">{t("hooks.events")}</span>
               <select value={h.event} onChange={(e) => update(i, { event: e.target.value })}>
                 {/* An event newer than this list stays selectable as it is in the file. */}
                 {(EVENTS.includes(h.event) ? EVENTS : [h.event, ...EVENTS]).map((ev) => (
@@ -98,15 +101,15 @@ export function HooksEditor({ draft }: { draft: HooksDraft }) {
               </select>
             </label>
             <label>
-              <span className="field-label">Matcher</span>
+              <span className="field-label">{t("hooks.matcher")}</span>
               <input value={h.matcher} onChange={(e) => update(i, { matcher: e.target.value })} placeholder="Edit|Write" spellCheck={false} />
             </label>
             <label className="hook-command-field">
-              <span className="field-label">Lệnh</span>
+              <span className="field-label">{t("hooks.command")}</span>
               <input value={h.command} onChange={(e) => update(i, { command: e.target.value })} placeholder="npx prettier --write ." spellCheck={false} />
             </label>
             <label className="hook-timeout-field">
-              <span className="field-label">Timeout (s)</span>
+              <span className="field-label">{t("hooks.timeout")}</span>
               <input
                 type="number"
                 min={1}
@@ -115,12 +118,12 @@ export function HooksEditor({ draft }: { draft: HooksDraft }) {
                 onChange={(e) => update(i, { timeout: e.target.value ? Number(e.target.value) : undefined })}
               />
             </label>
-            <button type="button" className="rule-remove hook-remove" aria-label={`Xoá hook ${i + 1}`} onClick={() => setHooks(draft.hooks.filter((_, j) => j !== i))}>
+            <button type="button" className="rule-remove hook-remove" aria-label={t("hooks.remove", { n: i + 1 })} onClick={() => setHooks(draft.hooks.filter((_, j) => j !== i))}>
               <Trash weight="bold" />
             </button>
             {h.extra && (
-              <p className="hook-extra" title="Các field này không sửa ở đây và được giữ nguyên khi lưu">
-                <span className="field-label">Giữ nguyên</span>
+              <p className="hook-extra" title={t("hooks.extraTitle")}>
+                <span className="field-label">{t("hooks.extra")}</span>
                 {Object.entries(h.extra).map(([k, v]) => (
                   <code key={k}>
                     {k}: {extraText(v)}
@@ -133,7 +136,7 @@ export function HooksEditor({ draft }: { draft: HooksDraft }) {
       </ol>
       <div className="perm-actions">
         <Button icon={Plus} variant="quiet" className="add-hook" onClick={() => setHooks([...draft.hooks, EMPTY_HOOK])}>
-          Thêm hook
+          {t("hooks.add")}
         </Button>
       </div>
     </section>

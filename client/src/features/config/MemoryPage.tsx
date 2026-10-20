@@ -1,5 +1,6 @@
 import { CheckCircle, Eye, PencilSimple, Plus, Warning } from "@phosphor-icons/react";
 import { lazy, Suspense, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { MemoryFile, Scope } from "../../api/types";
 import { Button } from "../../components/Button";
@@ -11,12 +12,6 @@ import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, Scope
 import { useConfig } from "./useConfig";
 import { useSaveFlow } from "./useSaveFlow";
 
-const TAB_LABEL: Record<Scope, string> = { project: "CLAUDE.md", local: "CLAUDE.local.md", user: "~/.claude/CLAUDE.md" };
-const MISSING: Record<Scope, string> = {
-  project: "Repo chưa có CLAUDE.md. Đây là nơi ghi quy ước của repo để Claude đọc ở đầu mỗi session.",
-  local: "Chưa có CLAUDE.local.md: ghi chú riêng của ba cho repo này, không commit lên git.",
-  user: "Chưa có ~/.claude/CLAUDE.md: hướng dẫn chung cho mọi repo trên máy ba.",
-};
 // CodeMirror is only needed once the user starts editing.
 const MarkdownEditor = lazy(() => import("./MarkdownEditor").then((m) => ({ default: m.MarkdownEditor })));
 
@@ -32,6 +27,8 @@ const draftKey = (scope: Scope) => `memory:${scope}`;
 
 /** CLAUDE.md files as Claude loads them; editable with diff review, backups and conflict checks. */
 export function MemoryPage() {
+  const { t } = useTranslation("config");
+  const tabLabel = (s: Scope) => t(`memory.tab.${s}`);
   const { data, error, loading, reload } = useConfig(["memory"], api.memory);
   const [scope, setScope] = useState<Scope>("project");
   const [opening, setOpening] = useState(false);
@@ -52,11 +49,11 @@ export function MemoryPage() {
   };
 
   const flow = useSaveFlow({
-    title: `Lưu ${draft?.path ?? TAB_LABEL[scope]}`,
+    title: t("memory.saveTitle", { path: draft?.path ?? tabLabel(scope) }),
     preview: () => api.memoryPreview(scope, draft!.content, draft!.baseHash),
     save: () => api.memorySave(scope, draft!.content, draft!.baseHash),
     onSaved: () => {
-      toast(`Đã lưu ${draft?.path}. Bản cũ nằm trong Lịch sử thay đổi.`);
+      toast(t("memory.saved", { path: draft?.path }));
       clearDraft(draftKey(scope));
       void reload();
     },
@@ -66,7 +63,7 @@ export function MemoryPage() {
     <>
       <DraftControls key={scope} draftKey={draftKey(scope)} />
       <Button icon={Eye} variant="primary" onClick={() => void flow.review()}>
-        Xem thay đổi &amp; lưu
+        {t("action.review")}
       </Button>
     </>
   ) : (
@@ -75,24 +72,24 @@ export function MemoryPage() {
         icon={file.exists ? PencilSimple : Plus}
         variant="primary"
         busy={opening}
-        title={`${file.exists ? "Sửa" : "Tạo"} ${file.path}`}
+        title={t(file.exists ? "memory.editTitle" : "memory.createTitle", { path: file.path })}
         onClick={() => void startEditing()}
       >
-        {file.exists ? "Sửa" : "Thêm"}
+        {file.exists ? t("action.edit") : t("action.add")}
       </Button>
     )
   );
 
   return (
     <div className="page">
-      <ConfigHeader title="CLAUDE.md" subtitle="Hướng dẫn Claude đọc ở đầu mỗi session trong repo này" />
+      <ConfigHeader title={t("memory.title")} subtitle={t("memory.subtitle")} />
       <ConfigToolbar
         start={
           <ScopeTabs
             value={scope}
             onChange={setScope}
-            label="File memory"
-            labels={TAB_LABEL}
+            label={t("memory.tabsLabel")}
+            labels={{ project: tabLabel("project"), local: tabLabel("local"), user: tabLabel("user") }}
             isMissing={(s) => data?.find((x) => x.scope === s)?.exists === false && !getDraft(draftKey(s))}
             isDirty={(s) => isDirty(draftKey(s))}
           />
@@ -104,11 +101,11 @@ export function MemoryPage() {
       <LoadError error={error} />
       {draft ? (
         <div className="memory is-editing">
-          <Suspense fallback={<p className="hint page-body">Đang mở editor…</p>}>
+          <Suspense fallback={<p className="hint page-body">{t("library.editorLoading")}</p>}>
             <MarkdownEditor
               key={scope}
               value={draft.content}
-              label={`Nội dung ${draft.path}`}
+              label={t("library.contentLabel", { path: draft.path })}
               onChange={(content) => setDraft(draftKey(scope), { ...draft, content })}
             />
           </Suspense>
@@ -119,16 +116,17 @@ export function MemoryPage() {
           <MemoryView file={file} />
         ) : (
           <div className="page-body">
-            <EmptyCard title={`Chưa có ${TAB_LABEL[scope]}`}>{MISSING[scope]}</EmptyCard>
+            <EmptyCard title={t("memory.missingTitle", { file: tabLabel(scope) })}>{t(`memory.missing.${scope}`)}</EmptyCard>
           </div>
         ))
       )}
-      <DiffDialog {...flow.dialog} confirmLabel="Lưu file" />
+      <DiffDialog {...flow.dialog} confirmLabel={t("library.saveFile")} />
     </div>
   );
 }
 
 function MemoryView({ file }: { file: MemoryFile }) {
+  const { t } = useTranslation("config");
   const warnLines = new Set(file.checks.filter((c) => c.level === "warn" && c.line).map((c) => c.line));
   const importLines = new Set(file.imports.filter((i) => i.depth === 1).map((i) => i.line));
   const headingLines = new Set(file.headings.map((h) => h.line));
@@ -139,9 +137,9 @@ function MemoryView({ file }: { file: MemoryFile }) {
 
   return (
     <div className="memory">
-      <nav className="memory-outline" aria-label="Mục lục">
-        <div className="pane-label">Mục lục</div>
-        {file.headings.length === 0 && <p className="hint">Không có tiêu đề.</p>}
+      <nav className="memory-outline" aria-label={t("memory.outline")}>
+        <div className="pane-label">{t("memory.outline")}</div>
+        {file.headings.length === 0 && <p className="hint">{t("memory.noHeadings")}</p>}
         {file.headings.map((h) => (
           <button key={h.line} type="button" className={`outline-item level-${h.level}`} onClick={() => jump(h.line)}>
             {h.text}
@@ -149,7 +147,7 @@ function MemoryView({ file }: { file: MemoryFile }) {
         ))}
         {file.imports.length > 0 && (
           <>
-            <div className="pane-label">Import</div>
+            <div className="pane-label">{t("memory.imports")}</div>
             {file.imports.map((i) => (
               <button
                 key={`${i.ref}-${i.line}-${i.depth}`}
@@ -165,11 +163,12 @@ function MemoryView({ file }: { file: MemoryFile }) {
         )}
       </nav>
 
-      <section className="code-view" aria-label={`Nội dung ${file.path}`}>
+      <section className="code-view" aria-label={t("library.contentLabel", { path: file.path })}>
         <div className="code-head">
           <span className="mono">{file.path}</span>
           <span className="code-meta">
-            {file.lines} dòng{file.mtime ? ` · sửa lúc ${clockTime(file.mtime)}` : ""}
+            {t("memory.lines", { count: file.lines })}
+            {file.mtime ? t("memory.modified", { time: clockTime(file.mtime) }) : ""}
           </span>
         </div>
         <ol className="code-lines">
@@ -190,7 +189,7 @@ function MemoryView({ file }: { file: MemoryFile }) {
 
       <aside className="memory-side">
         <section className="card">
-          <h2 className="card-title">Claude sẽ nạp</h2>
+          <h2 className="card-title">{t("memory.loads")}</h2>
           <div className="big-stat">
             ~{formatTokens(total / 4)} <span>token</span>
           </div>
@@ -211,7 +210,7 @@ function MemoryView({ file }: { file: MemoryFile }) {
         </section>
 
         <section className="card">
-          <h2 className="card-title">Kiểm tra</h2>
+          <h2 className="card-title">{t("memory.checks")}</h2>
           <ul className="checks">
             {file.checks.map((c, i) => (
               <li key={i} className={`check-${c.level}`}>
@@ -222,7 +221,7 @@ function MemoryView({ file }: { file: MemoryFile }) {
                     <>
                       {" "}
                       <button type="button" className="link-btn" onClick={() => jump(c.line!)}>
-                        dòng {c.line}
+                        {t("memory.line", { line: c.line })}
                       </button>
                     </>
                   )}

@@ -1,11 +1,13 @@
 import { Eye, MagnifyingGlass, PencilSimple, Plus, Trash, X } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { lazy, Suspense, useId, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { LibraryItem, LibraryKind } from "../../api/types";
 import { useWorkspace } from "../../app/workspace";
 import { Button } from "../../components/Button";
 import { DiffDialog } from "../../components/DiffDialog";
+import i18n from "../../i18n";
 import { Markdown } from "../../components/Markdown";
 import { toast } from "../../components/Toast";
 import { clearDraft, getDraft, setDraft, useDrafts } from "./drafts";
@@ -17,29 +19,20 @@ import "../../components/dialog.css";
 
 const MarkdownEditor = lazy(() => import("./MarkdownEditor").then((m) => ({ default: m.MarkdownEditor })));
 
-const COPY: Record<LibraryKind, { title: string; one: string; subtitle: string; empty: string; prefix: string }> = {
-  agents: {
-    title: "Agents",
-    one: "agent",
-    subtitle: "Subagent Claude có thể giao việc",
-    empty: "Mỗi agent là một file .md có frontmatter name, description, tools.",
-    prefix: "",
-  },
-  commands: {
-    title: "Commands",
-    one: "command",
-    subtitle: "Slash command riêng",
-    empty: "Mỗi file .md là một lệnh /tên-file.",
-    prefix: "/",
-  },
-  skills: {
-    title: "Skills",
-    one: "skill",
-    subtitle: "Skill Claude tự dùng khi phù hợp",
-    empty: "Mỗi skill là một thư mục có SKILL.md.",
-    prefix: "",
-  },
-};
+/** Shown before an item's name: commands run as `/name`. */
+const PREFIX: Record<LibraryKind, string> = { agents: "", commands: "/", skills: "" };
+
+/** Texts of `kind` from `config:library.kind.<kind>`. */
+function useCopy(kind: LibraryKind) {
+  const { t } = useTranslation("config");
+  return {
+    title: t(`library.kind.${kind}.title`),
+    one: t(`library.kind.${kind}.one`),
+    subtitle: t(`library.kind.${kind}.subtitle`),
+    empty: t(`library.kind.${kind}.empty`),
+    prefix: PREFIX[kind],
+  };
+}
 
 type LibraryScope = LibraryItem["scope"];
 const LIBRARY_SCOPES: readonly LibraryScope[] = ["project", "user"];
@@ -47,14 +40,15 @@ const LIBRARY_SCOPES: readonly LibraryScope[] = ["project", "user"];
 /** Folder of `kind` in `scope`, as the tab and the new-item dialog show it. */
 const scopeDir = (kind: LibraryKind, scope: LibraryScope) => (scope === "project" ? `.claude/${kind}` : `~/.claude/${kind}`);
 
-/** Starting content for a new item; the user edits it before the first save. */
+/** Starting content for a new item; the user edits it before the first save. Placeholders follow the UI language. */
 function template(kind: LibraryKind, name: string): string {
   const base = name.split("/").pop() ?? name;
+  const t = i18n.getFixedT(null, "config", "library.template");
   if (kind === "agents") {
-    return `---\nname: ${base}\ndescription: Khi nào nên giao việc cho agent này\ntools: Read, Grep, Glob\n---\n\nBạn là ${base}. Mô tả cách làm việc ở đây.\n`;
+    return `---\nname: ${base}\ndescription: ${t("agentDescription")}\ntools: Read, Grep, Glob\n---\n\n${t("agentBody", { name: base })}\n`;
   }
-  if (kind === "commands") return `---\ndescription: Lệnh này làm gì\nargument-hint: [tham số]\n---\n\nNội dung prompt. Dùng $ARGUMENTS để nhận tham số.\n`;
-  return `---\nname: ${base}\ndescription: Khi nào Claude nên dùng skill này\n---\n\n# ${base}\n\nCác bước thực hiện.\n`;
+  if (kind === "commands") return `---\ndescription: ${t("commandDescription")}\nargument-hint: ${t("commandArgumentHint")}\n---\n\n${t("commandBody")}\n`;
+  return `---\nname: ${base}\ndescription: ${t("skillDescription")}\n---\n\n# ${base}\n\n${t("skillBody")}\n`;
 }
 
 function relFor(kind: LibraryKind, name: string): string {
@@ -75,6 +69,7 @@ const draftKey = (kind: LibraryKind) => `library:${kind}`;
 
 /** Agents, commands or skills: list + detail, with create, edit (diff review) and delete (backed up). */
 export function LibraryPage({ kind }: { kind: LibraryKind }) {
+  const { t } = useTranslation("config");
   const { data, error, loading, reload } = useConfig(["library", kind], () => api.library(kind));
   const { reloadInventory } = useWorkspace();
   const [scope, setScope] = useState<LibraryScope>("project");
@@ -83,7 +78,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
   const [creating, setCreating] = useState(false);
   useDrafts();
   const draft = getDraft<LibraryDraft>(draftKey(kind));
-  const copy = COPY[kind];
+  const copy = useCopy(kind);
 
   const inScope = useMemo(() => (data ?? []).filter((i) => i.scope === scope), [data, scope]);
   const items = useMemo(() => {
@@ -100,11 +95,11 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
   };
 
   const flow = useSaveFlow({
-    title: `${draft?.isNew ? "Tạo" : "Lưu"} ${draft?.path ?? ""}`,
+    title: t(draft?.isNew ? "library.createTitle" : "library.saveTitle", { path: draft?.path ?? "" }),
     preview: () => api.libraryPreview(kind, draft!.scope, draft!.rel, draft!.content, draft!.baseHash),
     save: () => api.librarySave(kind, draft!.scope, draft!.rel, draft!.content, draft!.baseHash),
     onSaved: () => {
-      toast(draft!.isNew ? `Đã tạo ${draft!.path}.` : `Đã lưu ${draft!.path}. Bản cũ nằm trong Lịch sử thay đổi.`);
+      toast(t(draft!.isNew ? "library.created" : "library.saved", { path: draft!.path }));
       clearDraft(draftKey(kind));
       setScope(draft!.scope);
       setPicked(`${draft!.scope}:${draft!.rel}`);
@@ -130,7 +125,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
             <ScopeTabs
               value={scope}
               onChange={setScope}
-              label={`Thư mục ${copy.title.toLowerCase()}`}
+              label={t("library.scopeTabs", { kind: copy.title.toLowerCase() })}
               labels={{ project: scopeDir(kind, "project"), user: scopeDir(kind, "user") }}
               scopes={LIBRARY_SCOPES}
               count={(s) => (data ?? []).filter((i) => i.scope === s).length}
@@ -144,12 +139,12 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
             <>
               <DraftControls draftKey={draftKey(kind)} />
               <Button icon={Eye} variant="primary" onClick={() => void flow.review()}>
-                Xem thay đổi &amp; lưu
+                {t("action.review")}
               </Button>
             </>
           ) : (
-            <Button icon={Plus} variant="primary" title={`Thêm ${copy.one} vào ${scopeDir(kind, scope)}`} onClick={() => setCreating(true)}>
-              Thêm
+            <Button icon={Plus} variant="primary" title={t("library.addTitle", { one: copy.one, dir: scopeDir(kind, scope) })} onClick={() => setCreating(true)}>
+              {t("action.add")}
             </Button>
           )
         }
@@ -159,14 +154,14 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
         {draft ? (
           <LibraryEditor draft={draft} />
         ) : data && inScope.length === 0 ? (
-          <EmptyCard title={`Chưa có ${copy.one} trong ${scopeDir(kind, scope)}`}>{copy.empty}</EmptyCard>
+          <EmptyCard title={t("library.emptyTitle", { one: copy.one, dir: scopeDir(kind, scope) })}>{copy.empty}</EmptyCard>
         ) : (
           <div className="library">
             <div className="library-list">
               <label className="filter">
                 <MagnifyingGlass aria-hidden="true" />
-                <span className="sr-only">Lọc</span>
-                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Lọc ${copy.title.toLowerCase()}`} />
+                <span className="sr-only">{t("library.filter")}</span>
+                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("library.filterPlaceholder", { kind: copy.title.toLowerCase() })} />
               </label>
               <ul>
                 {items.map((i) => {
@@ -184,8 +179,8 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
                           {i.name}
                         </span>
                         {hidden && (
-                          <span className="shadow-pill" title={`Claude dùng bản cùng tên ở ${hidden}`}>
-                            Bị {hidden} che
+                          <span className="shadow-pill" title={t("shadow.title", { scope: hidden })}>
+                            {t("shadow.pill", { scope: hidden })}
                           </span>
                         )}
                         {i.description && <span className="lib-desc">{i.description}</span>}
@@ -207,7 +202,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
           </div>
         )}
       </div>
-      {draft && <DiffDialog {...flow.dialog} confirmLabel={draft.isNew ? "Tạo file" : "Lưu file"} />}
+      {draft && <DiffDialog {...flow.dialog} confirmLabel={draft.isNew ? t("library.createFile") : t("library.saveFile")} />}
       <NewItemDialog
         open={creating}
         kind={kind}
@@ -216,7 +211,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
         onCreate={async (name) => {
           const rel = relFor(kind, name);
           const raw = await api.libraryRaw(kind, scope, rel);
-          if (raw.exists) throw new Error(`Đã có ${raw.path}`);
+          if (raw.exists) throw new Error(t("library.exists", { path: raw.path }));
           setDraft(draftKey(kind), { kind, scope, rel, path: raw.path, content: template(kind, name), baseHash: raw.hash, isNew: true } satisfies LibraryDraft, null);
           setCreating(false);
         }}
@@ -226,20 +221,22 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
 }
 
 function LibraryEditor({ draft }: { draft: LibraryDraft }) {
+  const { t } = useTranslation("config");
   return (
-    <section className="card lib-editor" aria-label={`Sửa ${draft.path}`}>
+    <section className="card lib-editor" aria-label={t("library.editLabel", { path: draft.path })}>
       <header className="lib-head">
         <h2 className="mono">{draft.path}</h2>
         <ScopeTag scope={draft.scope} />
       </header>
-      <Suspense fallback={<p className="hint">Đang mở editor…</p>}>
-        <MarkdownEditor value={draft.content} label={`Nội dung ${draft.path}`} onChange={(content) => setDraft(draftKey(draft.kind), { ...draft, content })} />
+      <Suspense fallback={<p className="hint">{t("library.editorLoading")}</p>}>
+        <MarkdownEditor value={draft.content} label={t("library.contentLabel", { path: draft.path })} onChange={(content) => setDraft(draftKey(draft.kind), { ...draft, content })} />
       </Suspense>
     </section>
   );
 }
 
 function LibraryDetail({ item, prefix, onEdit, onDeleted }: { item: LibraryItem; prefix: string; onEdit: () => void; onDeleted: () => void }) {
+  const { t } = useTranslation("config");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -248,7 +245,7 @@ function LibraryDetail({ item, prefix, onEdit, onDeleted }: { item: LibraryItem;
     try {
       const raw = await api.libraryRaw(item.kind, item.scope, item.rel);
       await api.libraryDelete(item.kind, item.scope, item.rel, raw.hash);
-      toast(`Đã xoá ${item.path}. Có thể khôi phục trong Lịch sử thay đổi.`);
+      toast(t("deletedRestorable", { name: item.path }));
       onDeleted();
     } catch (e) {
       toast((e as Error).message, { error: true });
@@ -267,23 +264,23 @@ function LibraryDetail({ item, prefix, onEdit, onDeleted }: { item: LibraryItem;
         </h2>
         <ScopeTag scope={item.scope} />
         <div className="lib-actions">
-          <Button icon={PencilSimple} title={`Sửa ${item.path}`} onClick={onEdit}>
-            Sửa
+          <Button icon={PencilSimple} title={t("library.editTitle", { path: item.path })} onClick={onEdit}>
+            {t("action.edit")}
           </Button>
           {confirmDelete ? (
-            <Button icon={Trash} variant="danger" busy={busy} title={`Xóa ${item.path}`} onClick={() => void remove()}>
-              Xác nhận xóa
+            <Button icon={Trash} variant="danger" busy={busy} title={t("library.deleteTitle", { path: item.path })} onClick={() => void remove()}>
+              {t("action.deleteConfirm")}
             </Button>
           ) : (
-            <Button icon={Trash} variant="quiet" title={`Xóa ${item.path}`} onClick={() => setConfirmDelete(true)}>
-              Xóa
+            <Button icon={Trash} variant="quiet" title={t("library.deleteTitle", { path: item.path })} onClick={() => setConfirmDelete(true)}>
+              {t("action.delete")}
             </Button>
           )}
         </div>
       </header>
       <p className="mono lib-path">{item.path}</p>
       {confirmDelete && item.kind === "skills" && item.files && item.files.length > 0 && (
-        <p className="hint">Chỉ xóa SKILL.md; {item.files.length} file khác trong thư mục giữ nguyên.</p>
+        <p className="hint">{t("library.skillDeleteHint", { count: item.files.length })}</p>
       )}
       {item.error && (
         <p className="error" role="alert">
@@ -303,7 +300,7 @@ function LibraryDetail({ item, prefix, onEdit, onDeleted }: { item: LibraryItem;
       )}
       {item.files && item.files.length > 0 && (
         <div>
-          <div className="pane-label">File đi kèm</div>
+          <div className="pane-label">{t("library.files")}</div>
           <ul className="file-list">
             {item.files.map((f) => (
               <li key={f} className="mono">
@@ -314,7 +311,7 @@ function LibraryDetail({ item, prefix, onEdit, onDeleted }: { item: LibraryItem;
         </div>
       )}
       <div className="lib-body">
-        <div className="pane-label">Nội dung</div>
+        <div className="pane-label">{t("library.body")}</div>
         <Markdown source={item.body} />
       </div>
     </article>
@@ -328,13 +325,14 @@ function NewItemDialog(props: {
   onClose: () => void;
   onCreate: (name: string) => Promise<void>;
 }) {
+  const { t } = useTranslation(["config", "common"]);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameId = useId();
   const pattern = props.kind === "commands" ? /^([A-Za-z0-9][\w-]*\/){0,2}[A-Za-z0-9][\w-]*$/ : /^[A-Za-z0-9][\w-]*$/;
   const valid = pattern.test(name);
-  const copy = COPY[props.kind];
+  const copy = useCopy(props.kind);
 
   return (
     <AnimatePresence>
@@ -363,22 +361,22 @@ function NewItemDialog(props: {
             }}
           >
             <header className="dialog-head">
-              <h2 id="new-item-title">Tạo {copy.one}</h2>
-              <button type="button" className="icon-btn" onClick={props.onClose} aria-label="Đóng">
+              <h2 id="new-item-title">{t("library.new.title", { one: copy.one })}</h2>
+              <button type="button" className="icon-btn" onClick={props.onClose} aria-label={t("common:close")}>
                 <X weight="bold" />
               </button>
             </header>
             <div className="form-grid">
-              <label htmlFor={nameId}>Tên</label>
+              <label htmlFor={nameId}>{t("library.new.name")}</label>
               <input id={nameId} value={name} onChange={(e) => setName(e.target.value)} placeholder={props.kind === "commands" ? "git/pr" : "reviewer"} autoFocus spellCheck={false} />
               <span className="field-help">
                 {props.kind === "commands"
-                  ? "Chữ, số, - _; có thể có thư mục con (git/pr → /git:pr)."
-                  : "Chữ, số, - _. Sẽ tạo " + (props.kind === "skills" ? `${name || "tên"}/SKILL.md` : `${name || "tên"}.md`)}
+                  ? t("library.new.commandHelp")
+                  : t("library.new.help", { file: relFor(props.kind, name || t("library.new.namePlaceholder")) })}
               </span>
-              <span>Nơi lưu</span>
+              <span>{t("library.new.where")}</span>
               <span className="mono">
-                {scopeDir(props.kind, props.scope)} ({props.scope === "project" ? "repo này" : "mọi repo"})
+                {scopeDir(props.kind, props.scope)} ({props.scope === "project" ? t("library.new.thisRepo") : t("library.new.allRepos")})
               </span>
             </div>
             {error && (
@@ -388,10 +386,10 @@ function NewItemDialog(props: {
             )}
             <footer className="dialog-actions">
               <Button variant="quiet" onClick={props.onClose}>
-                Huỷ
+                {t("library.new.cancel")}
               </Button>
               <Button type="submit" icon={Plus} variant="primary" busy={busy} disabled={!valid}>
-                Tạo và mở editor
+                {t("library.new.submit")}
               </Button>
             </footer>
           </motion.form>

@@ -1,5 +1,5 @@
 import path from "node:path";
-import { claudeHome, displayPath, isObject, maskValue, readJsonFile, strings } from "./fs.js";
+import { claudeHome, displayPath, isObject, maskValue, readJsonFile, strings } from "../shared/fs.js";
 
 export type SettingsScope = "project" | "local" | "user";
 

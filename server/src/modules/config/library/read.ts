@@ -1,7 +1,7 @@
 import { readdir, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import path from "node:path";
-import { claudeHome, displayPath, fileInfo, frontmatter, readText, strings } from "./fs.js";
+import { claudeHome, displayPath, fileInfo, frontmatter, readText, strings } from "../shared/fs.js";
 
 export type LibraryKind = "agents" | "commands" | "skills";
 export type LibraryScope = "project" | "user";

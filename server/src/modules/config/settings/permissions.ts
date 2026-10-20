@@ -1,6 +1,6 @@
-import { HttpError } from "../core/errors.js";
-import { isObject, maskValue, strings } from "./fs.js";
-import { t } from "../core/i18n.js";
+import { HttpError } from "../../../core/errors.js";
+import { isObject, maskValue, strings } from "../shared/fs.js";
+import { t } from "../../../core/i18n.js";
 
 export interface PermissionsInput {
   allow: string[];

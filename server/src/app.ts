@@ -8,8 +8,9 @@ import path from "node:path";
 import { ActivityStore } from "./modules/activity/store.js";
 import { EventHub } from "./core/events.js";
 import { getTask, listTasks, readTaskFile, REPO_SESSION_KEY, resolveRepo, tasksRoot } from "./modules/tasks/scan.js";
-import { BackupStore } from "./config/backups.js";
-import { registerConfigRoutes } from "./config/routes.js";
+import { BackupStore } from "./modules/config/backups/store.js";
+import { registerConfigRoutes } from "./modules/config/routes.js";
+import { registerEnvRoutes } from "./modules/env/routes.js";
 import { EnvStore } from "./modules/env/store.js";
 import { readInventory } from "./modules/repo/inventory.js";
 import { TasksWatcher } from "./modules/tasks/watcher.js";
@@ -21,7 +22,7 @@ import type { Launcher } from "./core/claude/launch.js";
 import { claudeVersion } from "./core/claude/version.js";
 import { SessionManager } from "./modules/sessions/manager.js";
 import { UsageStore } from "./modules/usage/store.js";
-import { statusLineCommand } from "./config/settings.js";
+import { statusLineCommand } from "./modules/config/settings/read.js";
 import type { StateStore } from "./core/state.js";
 import { WorkflowEngine } from "./modules/workflow/engine.js";
 import type { WorkflowDef } from "./modules/workflow/types.js";
@@ -162,6 +163,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   app.get("/api/usage", async () => usage.view());
 
   registerConfigRoutes(app, { requireRepo, envStore, backups: new BackupStore(path.join(opts.state.dir, "backups")) });
+  registerEnvRoutes(app, { requireRepo, envStore });
 
   app.get("/api/tasks", async () => {
     const current = requireRepo();

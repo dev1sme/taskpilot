@@ -2,11 +2,11 @@ import { createHash, randomBytes } from "node:crypto";
 import { chmod, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createTwoFilesPatch } from "diff";
-import { HttpError } from "../core/errors.js";
-import type { BackupEntry, BackupStore } from "./backups.js";
+import { HttpError } from "../../../core/errors.js";
+import type { BackupEntry, BackupStore } from "../backups/store.js";
 import { claudeHome } from "./fs.js";
 import { isAllowedPath, type FileTarget } from "./targets.js";
-import { t } from "../core/i18n.js";
+import { t } from "../../../core/i18n.js";
 
 /**
  * A directory between the repo (or ~/.claude) and the file that is a symlink, e.g. a skill folder

@@ -3,7 +3,7 @@ import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
-import { isAllowedPath } from "../src/config/targets.js";
+import { isAllowedPath } from "../src/modules/config/shared/targets.js";
 import { StateStore } from "../src/core/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
 

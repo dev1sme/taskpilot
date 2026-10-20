@@ -2,7 +2,7 @@ import { readFile, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { parse } from "yaml";
-import { t } from "../core/i18n.js";
+import { t } from "../../../core/i18n.js";
 
 /** The user's Claude Code home; overridable for tests. */
 export function claudeHome(): string {

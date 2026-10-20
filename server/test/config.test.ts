@@ -1,10 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { readLibrary } from "../src/config/library.js";
-import { readMcp } from "../src/config/mcp.js";
-import { readMemory } from "../src/config/memory.js";
-import { readHooks, readSettings } from "../src/config/settings.js";
+import { readLibrary } from "../src/modules/config/library/read.js";
+import { readMcp } from "../src/modules/config/mcp/read.js";
+import { readMemory } from "../src/modules/config/memory/read.js";
+import { readHooks, readSettings } from "../src/modules/config/settings/read.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
 
 let repo: string;

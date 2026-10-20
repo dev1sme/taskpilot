@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { HttpError } from "../core/errors.js";
-import { t } from "../core/i18n.js";
+import { HttpError } from "../../../core/errors.js";
+import { t } from "../../../core/i18n.js";
 
 export interface BackupEntry {
   id: string;

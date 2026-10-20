@@ -1,14 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import path from "node:path";
-import { HttpError } from "../core/errors.js";
-import type { EnvStore } from "../modules/env/store.js";
-import type { BackupStore } from "./backups.js";
-import { checkMcp, runClaude } from "../core/claude/cli.js";
-import { claudeJson, displayPath, isObject, maskValue } from "./fs.js";
-import { claudeJsonEntry, readMcp } from "./mcp.js";
-import { buildEntry, maskEntry, validateEntry } from "./mcpEdit.js";
-import { diffText, hashOf, readCurrent, writeWithBackup } from "./writer.js";
-import { t } from "../core/i18n.js";
+import { HttpError } from "../../../core/errors.js";
+import type { EnvStore } from "../../env/store.js";
+import type { BackupStore } from "../backups/store.js";
+import { checkMcp, runClaude } from "../../../core/claude/cli.js";
+import { claudeJson, displayPath, isObject, maskValue } from "../shared/fs.js";
+import { claudeJsonEntry, readMcp } from "./read.js";
+import { buildEntry, maskEntry, validateEntry } from "./edit.js";
+import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
+import { t } from "../../../core/i18n.js";
 
 type McpScope = "project" | "local" | "user";
 
@@ -173,21 +173,6 @@ export function registerMcpRoutes(
     const repo = requireRepo();
     if (!/^[A-Za-z0-9][\w.-]{0,63}$/.test(req.params.name)) throw new HttpError(400, t("mcp.invalidServerName"));
     return checkMcp(req.params.name, { cwd: repo, env: await envStore.forRepo(repo) });
-  });
-
-  // ---------------------------------------------------------------- TaskPilot env store
-
-  app.get("/api/env", async () => Object.keys(await envStore.forRepo(requireRepo())).map((key) => ({ key })));
-
-  app.put<{ Params: { key: string }; Body: { value?: unknown } }>("/api/env/:key", async (req) => {
-    if (typeof req.body?.value !== "string" || !req.body.value) throw new HttpError(400, t("errors.missingValue"));
-    await envStore.set(requireRepo(), req.params.key, req.body.value);
-    return { ok: true };
-  });
-
-  app.delete<{ Params: { key: string } }>("/api/env/:key", async (req) => {
-    await envStore.remove(requireRepo(), req.params.key);
-    return { ok: true };
   });
 
   async function backupEntry(repo: string, scope: "local" | "user", name: string, entry: unknown, reason: string) {

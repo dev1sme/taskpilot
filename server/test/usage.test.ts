@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
-import { statusLineCommand } from "../src/config/settings.js";
+import { statusLineCommand } from "../src/modules/config/settings/read.js";
 import type { Launcher } from "../src/core/claude/launch.js";
 import { UsageStore } from "../src/modules/usage/store.js";
 import { StateStore } from "../src/core/state.js";

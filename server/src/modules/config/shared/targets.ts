@@ -1,11 +1,11 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { claudeHome, displayPath } from "./fs.js";
-import { HttpError } from "../core/errors.js";
-import type { LibraryKind, LibraryScope } from "./library.js";
-import type { MemoryScope } from "./memory.js";
-import type { SettingsScope } from "./settings.js";
-import { t } from "../core/i18n.js";
+import { HttpError } from "../../../core/errors.js";
+import type { LibraryKind, LibraryScope } from "../library/read.js";
+import type { MemoryScope } from "../memory/read.js";
+import type { SettingsScope } from "../settings/read.js";
+import { t } from "../../../core/i18n.js";
 
 /** A config file TaskPilot may write. */
 export interface FileTarget {

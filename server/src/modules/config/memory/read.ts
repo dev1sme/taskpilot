@@ -1,9 +1,9 @@
 import os from "node:os";
 import path from "node:path";
-import { markdownHeadings } from "../core/markdown.js";
-import { claudeHome, displayPath, fileInfo, readJsonFile, readText, isObject } from "./fs.js";
-import { projectMemoryFiles } from "./targets.js";
-import { t } from "../core/i18n.js";
+import { markdownHeadings } from "../../../core/markdown.js";
+import { claudeHome, displayPath, fileInfo, readJsonFile, readText, isObject } from "../shared/fs.js";
+import { projectMemoryFiles } from "../shared/targets.js";
+import { t } from "../../../core/i18n.js";
 
 export type MemoryScope = "project" | "local" | "user";
 

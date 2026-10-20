@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { claudeHome, displayPath } from "./fs.js";
 import { HttpError } from "../errors.js";
@@ -13,9 +14,20 @@ export interface FileTarget {
 
 const LIBRARY_DIRS = ["agents", "commands", "skills"];
 
+/**
+ * The project CLAUDE.md: Claude Code reads both ./CLAUDE.md and ./.claude/CLAUDE.md. TaskPilot
+ * shows and edits ./CLAUDE.md, or .claude/CLAUDE.md when that is the only one.
+ */
+export function projectMemoryFiles(repo: string): { main: string; other: string | null } {
+  const root = path.join(repo, "CLAUDE.md");
+  const dotClaude = path.join(repo, ".claude", "CLAUDE.md");
+  if (existsSync(root)) return { main: root, other: existsSync(dotClaude) ? dotClaude : null };
+  return { main: existsSync(dotClaude) ? dotClaude : root, other: null };
+}
+
 export function memoryTarget(repo: string, scope: MemoryScope): FileTarget {
   const abs = {
-    project: path.join(repo, "CLAUDE.md"),
+    project: projectMemoryFiles(repo).main,
     local: path.join(repo, "CLAUDE.local.md"),
     user: path.join(claudeHome(), "CLAUDE.md"),
   }[scope];
@@ -32,7 +44,7 @@ export function settingsTarget(repo: string, scope: SettingsScope): FileTarget {
 }
 
 const LIBRARY_REL: Record<LibraryKind, RegExp> = {
-  agents: /^[A-Za-z0-9][\w-]*\.md$/,
+  agents: /^(?:[A-Za-z0-9][\w-]*\/){0,2}[A-Za-z0-9][\w-]*\.md$/,
   commands: /^(?:[A-Za-z0-9][\w-]*\/){0,2}[A-Za-z0-9][\w-]*\.md$/,
   skills: /^[A-Za-z0-9][\w-]*\/SKILL\.md$/,
 };
@@ -53,6 +65,7 @@ export function isAllowedPath(abs: string, repo: string): boolean {
   const p = path.resolve(abs);
   const exact = [
     path.join(repo, "CLAUDE.md"),
+    path.join(repo, ".claude", "CLAUDE.md"),
     path.join(repo, "CLAUDE.local.md"),
     path.join(repo, ".claude", "settings.json"),
     path.join(repo, ".claude", "settings.local.json"),

@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { projectMemoryFiles } from "../config/targets.js";
 
 /** Read-only summary of the repo's Claude Code configuration, for the overview page. */
 export interface Inventory {
@@ -12,10 +13,11 @@ export interface Inventory {
 export async function readInventory(repo: string): Promise<Inventory> {
   const claude = path.join(repo, ".claude");
   const [claudeMd, claudeLocalMd, mcp, agents, commands, skills, settings] = await Promise.all([
-    readClaudeMd(path.join(repo, "CLAUDE.md")),
+    readClaudeMd(projectMemoryFiles(repo).main),
     exists(path.join(repo, "CLAUDE.local.md")),
     readMcp(path.join(repo, ".mcp.json")),
-    countFiles(path.join(claude, "agents"), (f) => f.endsWith(".md"), false),
+    // Claude Code scans agents/ recursively, like commands/.
+    countFiles(path.join(claude, "agents"), (f) => f.endsWith(".md"), true),
     countFiles(path.join(claude, "commands"), (f) => f.endsWith(".md"), true),
     countSkills(path.join(claude, "skills")),
     Promise.all(["settings.json", "settings.local.json"].map((f) => readJson(path.join(claude, f)))),
@@ -73,9 +75,8 @@ async function readMcp(file: string): Promise<Inventory["mcp"]> {
             ? cfg.type
             : typeof cfg.command === "string"
               ? "stdio"
-              : typeof cfg.url === "string"
-                ? "http"
-                : "?"
+              : // A `url` without `type` is read as stdio and fails; see config/mcp.ts.
+                "?"
           : "?",
       })),
     };
@@ -107,7 +108,10 @@ async function countSkills(dir: string): Promise<number> {
   } catch {
     return 0;
   }
-  const found = await Promise.all(entries.filter((e) => e.isDirectory()).map((e) => exists(path.join(dir, e.name, "SKILL.md"))));
+  // A skill folder may be a symlink; exists() follows it.
+  const found = await Promise.all(
+    entries.filter((e) => e.isDirectory() || e.isSymbolicLink()).map((e) => exists(path.join(dir, e.name, "SKILL.md"))),
+  );
   return found.filter(Boolean).length;
 }
 

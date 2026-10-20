@@ -4,7 +4,27 @@ import path from "node:path";
 import { createTwoFilesPatch } from "diff";
 import { HttpError } from "../errors.js";
 import type { BackupEntry, BackupStore } from "./backups.js";
+import { claudeHome } from "./fs.js";
 import { isAllowedPath, type FileTarget } from "./targets.js";
+
+/**
+ * A directory between the repo (or ~/.claude) and the file that is a symlink, e.g. a skill folder
+ * linked from elsewhere: writing through it would land outside the allowed paths. The repo and
+ * ~/.claude themselves may be symlinks.
+ */
+async function symlinkedDir(abs: string, repo: string): Promise<string | null> {
+  const file = path.resolve(abs);
+  const root = [path.resolve(repo), path.resolve(claudeHome())].find((r) => file.startsWith(r + path.sep));
+  if (!root) return null;
+  for (let dir = path.dirname(file); dir !== root && dir.startsWith(root + path.sep); dir = path.dirname(dir)) {
+    try {
+      if ((await lstat(dir)).isSymbolicLink()) return path.relative(root, dir);
+    } catch {
+      // Not created yet: nothing to follow.
+    }
+  }
+  return null;
+}
 
 /** Version token of a file's content; "absent" when the file does not exist. */
 export function hashOf(content: string | null): string {
@@ -40,6 +60,8 @@ export async function writeWithBackup(opts: {
 }): Promise<{ hash: string; backup: BackupEntry }> {
   const { target } = opts;
   if (!isAllowedPath(target.abs, opts.repo)) throw new HttpError(403, `Không được phép ghi ${target.display}`);
+  const linked = await symlinkedDir(target.abs, opts.repo);
+  if (linked) throw new HttpError(409, `${target.display} nằm trong thư mục symlink (${linked}); sửa ở file gốc`);
 
   let mode: number | undefined;
   try {

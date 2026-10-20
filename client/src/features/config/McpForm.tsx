@@ -103,6 +103,8 @@ export function McpForm(props: {
           <option value="stdio">stdio · chạy một lệnh trên máy</option>
           <option value="http">http · server từ xa</option>
           <option value="sse">sse · server từ xa (cũ)</option>
+          <option value="ws">ws · server từ xa qua WebSocket</option>
+          {type === "streamable-http" && <option value="streamable-http">streamable-http · tên khác của http</option>}
         </select>
         {type === "stdio" ? (
           <>
@@ -115,7 +117,13 @@ export function McpForm(props: {
         ) : (
           <>
             <label htmlFor={ids.url}>URL</label>
-            <input id={ids.url} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://api.example.com/mcp" spellCheck={false} />
+            <input
+              id={ids.url}
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder={type === "ws" ? "wss://mcp.example.com/socket" : "https://api.example.com/mcp"}
+              spellCheck={false}
+            />
           </>
         )}
       </div>

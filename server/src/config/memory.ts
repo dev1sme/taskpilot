@@ -1,6 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 import { claudeHome, displayPath, fileInfo, readJsonFile, readText, isObject } from "./fs.js";
+import { projectMemoryFiles } from "./targets.js";
 
 export type MemoryScope = "project" | "local" | "user";
 
@@ -45,12 +46,20 @@ const SECRET_PATTERNS: Array<[RegExp, string]> = [
 /** CLAUDE.md files Claude loads for this repo, with their imports and a few sanity checks. */
 export async function readMemory(repo: string): Promise<MemoryFile[]> {
   const scripts = await npmScripts(repo);
+  const project = projectMemoryFiles(repo);
   const targets: Array<[MemoryScope, string]> = [
-    ["project", path.join(repo, "CLAUDE.md")],
+    ["project", project.main],
     ["local", path.join(repo, "CLAUDE.local.md")],
     ["user", path.join(claudeHome(), "CLAUDE.md")],
   ];
-  return Promise.all(targets.map(([scope, file]) => readOne(scope, file, repo, scripts)));
+  const files = await Promise.all(targets.map(([scope, file]) => readOne(scope, file, repo, scripts)));
+  if (project.other) {
+    files[0].checks.unshift({
+      level: "warn",
+      message: `Claude nạp cả ${displayPath(project.other, repo)}; trang này chỉ hiện và sửa ${displayPath(project.main, repo)}`,
+    });
+  }
+  return files;
 }
 
 async function readOne(scope: MemoryScope, file: string, repo: string, scripts: Set<string> | null): Promise<MemoryFile> {

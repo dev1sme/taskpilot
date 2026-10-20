@@ -101,11 +101,11 @@ export function McpPage() {
                     aria-current={current && keyOf(current) === keyOf(s) ? "true" : undefined}
                     onClick={() => setPicked(keyOf(s))}
                   >
-                    <span className={`mcp-dot${s.missingEnv.length ? " is-warn" : ""}`} aria-hidden="true" />
+                    <span className={`mcp-dot${s.error || s.missingEnv.length ? " is-warn" : ""}`} aria-hidden="true" />
                     <span className="mcp-text">
                       <span className="mono mcp-name">{s.name}</span>
                       <span className="mcp-meta">
-                        {s.type}
+                        {s.error ? "lỗi cấu hình" : s.type}
                         {s.missingEnv.length > 0 && ` · thiếu ${s.missingEnv.join(", ")}`}
                       </span>
                     </span>
@@ -221,6 +221,11 @@ function McpDetail({ server, source, onEdit, onChanged }: { server: McpServer; s
         </div>
       )}
 
+      {server.error && (
+        <p className="error" role="alert">
+          {server.error}
+        </p>
+      )}
       {server.missingEnv.map((v) => (
         <MissingVar key={v} name={v} onSaved={onChanged} />
       ))}

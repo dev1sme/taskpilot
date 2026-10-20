@@ -168,6 +168,8 @@ export interface McpServer {
   headers: MaskedValue[];
   missingEnv: string[];
   fromTaskPilot: string[];
+  /** Why Claude Code skips this entry. */
+  error?: string;
 }
 
 export interface McpConfig {
@@ -232,6 +234,8 @@ export interface HookInput {
   matcher: string;
   command: string;
   timeout?: number;
+  /** Other handler fields (if, args, async…), kept as they are on save. */
+  extra?: Record<string, unknown>;
 }
 
 export interface HooksFile {
@@ -248,10 +252,12 @@ export interface ValueRow {
   secret?: boolean;
 }
 
+export type McpType = "stdio" | "http" | "sse" | "ws" | "streamable-http";
+
 export interface McpEntryInput {
   name: string;
   originalName?: string;
-  type: "stdio" | "http" | "sse";
+  type: McpType;
   command?: string;
   args: string[];
   url?: string;
@@ -262,7 +268,7 @@ export interface McpEntryInput {
 export interface McpEntryForm {
   name: string;
   scope: Scope;
-  type: "stdio" | "http" | "sse";
+  type: McpType;
   command?: string;
   args: string[];
   url?: string;

@@ -6,22 +6,54 @@ export interface HookInput {
   matcher: string;
   command: string;
   timeout?: number;
+  /**
+   * The handler's other fields (if, args, async, shell, onFailure, statusMessage…), passed through
+   * untouched so that saving never drops what TaskPilot does not edit.
+   */
+  extra?: Record<string, unknown>;
 }
 
-/** Events a user hook can listen to (Claude Code 2.1.x). */
+/** Hook events in the Claude Code hooks reference (code.claude.com/docs/en/hooks). */
 export const HOOK_EVENTS = [
+  "SessionStart",
+  "Setup",
+  "InstructionsLoaded",
+  "UserPromptSubmit",
+  "UserPromptExpansion",
+  "MessageDisplay",
   "PreToolUse",
+  "PermissionRequest",
   "PostToolUse",
   "PostToolUseFailure",
-  "PermissionRequest",
-  "UserPromptSubmit",
+  "PostToolBatch",
+  "PermissionDenied",
   "Notification",
-  "Stop",
+  "SubagentStart",
   "SubagentStop",
-  "SessionStart",
-  "SessionEnd",
+  "TaskCreated",
+  "TaskCompleted",
+  "Stop",
+  "StopFailure",
+  "TeammateIdle",
+  "ConfigChange",
+  "CwdChanged",
+  "DirectoryAdded",
+  "FileChanged",
+  "WorktreeCreate",
+  "WorktreeRemove",
   "PreCompact",
+  "PostCompact",
+  "PreModelSwitch",
+  "PostModelSwitch",
+  "SessionEnd",
+  "Elicitation",
+  "ElicitationResult",
 ];
+
+/** Claude Code adds events often; a well-formed name TaskPilot does not know yet is kept as is. */
+const EVENT_NAME = /^[A-Z][A-Za-z]{1,63}$/;
+const EDITED_FIELDS = new Set(["type", "command", "timeout"]);
+const MAX_EXTRA_BYTES = 16 * 1024;
 
 /** Command hooks of a settings file, in file order. Non-command hooks are left alone on save. */
 export function readHookInputs(text: string | null): HookInput[] {
@@ -34,11 +66,13 @@ export function readHookInputs(text: string | null): HookInput[] {
       if (!isObject(m) || !Array.isArray(m.hooks)) continue;
       for (const h of m.hooks) {
         if (!isObject(h) || (h.type !== undefined && h.type !== "command") || typeof h.command !== "string") continue;
+        const extra = Object.fromEntries(Object.entries(h).filter(([k]) => !EDITED_FIELDS.has(k)));
         out.push({
           event,
           matcher: typeof m.matcher === "string" ? m.matcher : "",
           command: h.command,
           ...(typeof h.timeout === "number" ? { timeout: h.timeout } : {}),
+          ...(Object.keys(extra).length ? { extra } : {}),
         });
       }
     }
@@ -51,19 +85,26 @@ export function validateHooks(body: unknown): HookInput[] {
   if (!Array.isArray(list)) throw new HttpError(400, "hooks phải là danh sách");
   return list.map((h, i) => {
     if (!isObject(h)) throw new HttpError(400, `Hook #${i + 1} không hợp lệ`);
-    const { event, matcher, command, timeout } = h;
-    if (typeof event !== "string" || !HOOK_EVENTS.includes(event)) throw new HttpError(400, `Hook #${i + 1}: sự kiện không hợp lệ`);
+    const { event, matcher, command, timeout, extra } = h;
+    if (typeof event !== "string" || !EVENT_NAME.test(event)) throw new HttpError(400, `Hook #${i + 1}: sự kiện không hợp lệ`);
     if (typeof command !== "string" || !command.trim()) throw new HttpError(400, `Hook #${i + 1}: thiếu lệnh`);
     if (/[\r\n\0]/.test(command)) throw new HttpError(400, `Hook #${i + 1}: lệnh phải nằm trên một dòng`);
     if (matcher !== undefined && typeof matcher !== "string") throw new HttpError(400, `Hook #${i + 1}: matcher phải là chuỗi`);
     if (timeout !== undefined && timeout !== null && (typeof timeout !== "number" || !Number.isInteger(timeout) || timeout < 1 || timeout > 3600)) {
       throw new HttpError(400, `Hook #${i + 1}: timeout phải là số giây từ 1 đến 3600`);
     }
+    if (extra !== undefined && extra !== null) {
+      if (!isObject(extra) || Object.keys(extra).some((k) => EDITED_FIELDS.has(k))) {
+        throw new HttpError(400, `Hook #${i + 1}: extra không hợp lệ`);
+      }
+      if (JSON.stringify(extra).length > MAX_EXTRA_BYTES) throw new HttpError(400, `Hook #${i + 1}: extra quá lớn`);
+    }
     return {
       event,
       matcher: (matcher ?? "").trim(),
       command: command.trim(),
       ...(typeof timeout === "number" ? { timeout } : {}),
+      ...(isObject(extra) && Object.keys(extra).length ? { extra } : {}),
     };
   });
 }
@@ -94,7 +135,7 @@ export function applyHooks(text: string | null, hooks: HookInput[]): string {
       group = h.matcher ? { matcher: h.matcher, hooks: [] } : { hooks: [] };
       list.push(group);
     }
-    group.hooks.push({ type: "command", command: h.command, ...(h.timeout ? { timeout: h.timeout } : {}) });
+    group.hooks.push({ type: "command", command: h.command, ...h.extra, ...(h.timeout ? { timeout: h.timeout } : {}) });
   }
 
   const merged: Record<string, unknown[]> = {};

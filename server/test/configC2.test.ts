@@ -1,4 +1,4 @@
-import { chmod, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -101,7 +101,7 @@ describe("hooks editing", () => {
   });
 
   it.each([
-    [{ event: "Nope", matcher: "", command: "x" }],
+    [{ event: "not an event", matcher: "", command: "x" }],
     [{ event: "Stop", matcher: "", command: "a\nb" }],
     [{ event: "Stop", matcher: "", command: "x", timeout: 0 }],
   ])("rejects invalid hook %#", async (hook) => {
@@ -132,7 +132,7 @@ describe("agents, commands and skills", () => {
 
   it.each([
     ["agents", "../evil.md"],
-    ["agents", "nested/x.md"],
+    ["agents", "a/b/c/d.md"],
     ["skills", "deploy/run.sh"],
     ["commands", "a/b/c/d.md"],
   ])("rejects %s path %s", async (kind, rel) => {
@@ -241,5 +241,92 @@ describe("MCP servers, user scope via claude mcp", () => {
     await send("PUT", "/api/env/GOOD_TOKEN", { value: "yes" });
     await send("PUT", "/api/config/mcp/local", { name: "x", type: "stdio", command: "x", args: [], env: [], baseHash: "absent" });
     expect((await send("POST", "/api/config/mcp/check/x")).json()).toEqual({ status: "connected", label: "Connected" });
+  });
+});
+
+describe("fields TaskPilot does not edit", () => {
+  it("keeps other hook handler fields and events it does not know yet", async () => {
+    const file = path.join(repo, ".claude", "settings.json");
+    const handler = { type: "command", command: "lint", if: "Bash(git *)", async: true, statusMessage: "Linting" };
+    await writeFile(file, JSON.stringify({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [handler] }] } }));
+    const before = await get("/api/config/settings/project/hooks");
+    expect(before.hooks).toEqual([{ event: "PreToolUse", matcher: "Bash", command: "lint", extra: { if: "Bash(git *)", async: true, statusMessage: "Linting" } }]);
+
+    const hooks = [
+      { ...before.hooks[0], timeout: 5 },
+      { event: "FutureEvent", matcher: "", command: "echo hi" },
+    ];
+    expect((await send("PUT", "/api/config/settings/project/hooks", { hooks, baseHash: before.hash })).statusCode).toBe(200);
+    expect(JSON.parse(await readFile(file, "utf8")).hooks).toEqual({
+      PreToolUse: [{ matcher: "Bash", hooks: [{ ...handler, timeout: 5 }] }],
+      FutureEvent: [{ hooks: [{ type: "command", command: "echo hi" }] }],
+    });
+  });
+
+  it.each([[{ type: "command" }], [{ command: "x" }], ["text"]])("rejects hook extra %j", async (extra) => {
+    const hooks = [{ event: "Stop", matcher: "", command: "x", extra }];
+    expect((await send("PUT", "/api/config/settings/project/hooks", { hooks, baseHash: "absent" })).statusCode).toBe(400);
+  });
+
+  it("keeps other MCP fields, dropping transport-only ones when the type changes", async () => {
+    const mcpFile = path.join(repo, ".mcp.json");
+    await writeFile(mcpFile, JSON.stringify({ mcpServers: { s: { type: "stdio", command: "srv", cwd: "/x", timeout: 9000, alwaysLoad: true } } }));
+    const form = await get("/api/config/mcp/project/s");
+    const stdio = { name: "s", originalName: "s", type: "stdio", command: "srv2", args: [], env: [], baseHash: form.hash };
+    expect((await send("PUT", "/api/config/mcp/project", stdio)).statusCode).toBe(200);
+    const read = async () => JSON.parse(await readFile(mcpFile, "utf8")).mcpServers.s;
+    expect(await read()).toEqual({ type: "stdio", command: "srv2", cwd: "/x", timeout: 9000, alwaysLoad: true });
+
+    const { hash } = await get("/api/config/mcp/project/s");
+    const ws = { name: "s", originalName: "s", type: "ws", url: "wss://mcp.example.com/socket", args: [], headers: [], baseHash: hash };
+    expect((await send("PUT", "/api/config/mcp/project", ws)).statusCode).toBe(200);
+    expect(await read()).toEqual({ type: "ws", url: "wss://mcp.example.com/socket", timeout: 9000, alwaysLoad: true });
+  });
+
+  it("validates ws URLs separately from http ones", async () => {
+    const base = { name: "w", args: [], headers: [], baseHash: "absent" };
+    expect((await send("PUT", "/api/config/mcp/project", { ...base, type: "ws", url: "https://x/mcp" })).statusCode).toBe(400);
+    expect((await send("PUT", "/api/config/mcp/project", { ...base, type: "http", url: "wss://x/mcp" })).statusCode).toBe(400);
+    expect((await send("PUT", "/api/config/mcp/project", { ...base, type: "nope", url: "https://x/mcp" })).statusCode).toBe(400);
+  });
+
+  it("flags a url entry without a type, which Claude Code skips", async () => {
+    await writeFile(path.join(repo, ".mcp.json"), JSON.stringify({ mcpServers: { bare: { url: "https://x/mcp" }, ok: { command: "srv" } } }));
+    const { servers } = await get("/api/config/mcp");
+    expect(servers.map((s: { name: string; type: string; error?: string }) => [s.name, s.type, Boolean(s.error)])).toEqual([
+      ["bare", "?", true],
+      ["ok", "stdio", false],
+    ]);
+  });
+});
+
+describe("project memory and linked folders", () => {
+  it("uses .claude/CLAUDE.md when it is the only one, warns when both exist", async () => {
+    const dotClaude = path.join(repo, ".claude", "CLAUDE.md");
+    await writeFile(dotClaude, "# Dot\n");
+    expect((await get("/api/config/memory"))[0]).toMatchObject({ exists: true, content: "# Dot\n" });
+
+    await writeFile(path.join(repo, "CLAUDE.md"), "# Root\n");
+    const [project] = await get("/api/config/memory");
+    expect(project.content).toBe("# Root\n");
+    expect(project.checks[0]).toMatchObject({ level: "warn", message: expect.stringContaining(".claude/CLAUDE.md") });
+  });
+
+  it("lists nested and symlinked agents and skills, refuses to write through a link", async () => {
+    await mkdir(path.join(repo, ".claude", "agents", "team"), { recursive: true });
+    await writeFile(path.join(repo, ".claude", "agents", "team", "qa.md"), "---\nname: qa\ndescription: Tests\n---\n");
+    expect((await get("/api/config/agents")).map((a: { name: string }) => a.name)).toEqual(["qa"]);
+
+    const shared = await tempDir("taskpilot-shared-");
+    await mkdir(path.join(shared, "deploy"));
+    await writeFile(path.join(shared, "deploy", "SKILL.md"), "---\nname: deploy\ndescription: Ship\n---\n");
+    await mkdir(path.join(repo, ".claude", "skills"), { recursive: true });
+    await symlink(path.join(shared, "deploy"), path.join(repo, ".claude", "skills", "deploy"));
+    expect((await get("/api/config/skills")).map((s: { name: string }) => s.name)).toContain("deploy");
+
+    const raw = await get("/api/config/library/skills/project/raw?rel=deploy/SKILL.md");
+    const put = await send("PUT", "/api/config/library/skills/project", { rel: "deploy/SKILL.md", content: "x", baseHash: raw.hash });
+    expect(put.statusCode).toBe(409);
+    expect(await readFile(path.join(shared, "deploy", "SKILL.md"), "utf8")).toContain("Ship");
   });
 });

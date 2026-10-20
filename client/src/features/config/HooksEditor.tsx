@@ -18,19 +18,46 @@ export interface HooksDraft {
 
 export const HOOKS_DRAFT = "hooks";
 
+/** Hook events in the Claude Code hooks reference, the common ones first. */
 export const EVENTS = [
   "PreToolUse",
   "PostToolUse",
   "PostToolUseFailure",
+  "PostToolBatch",
   "PermissionRequest",
+  "PermissionDenied",
   "UserPromptSubmit",
+  "UserPromptExpansion",
   "Notification",
   "Stop",
+  "StopFailure",
+  "SubagentStart",
   "SubagentStop",
   "SessionStart",
   "SessionEnd",
+  "Setup",
+  "InstructionsLoaded",
+  "MessageDisplay",
+  "TaskCreated",
+  "TaskCompleted",
+  "TeammateIdle",
+  "ConfigChange",
+  "CwdChanged",
+  "DirectoryAdded",
+  "FileChanged",
+  "WorktreeCreate",
+  "WorktreeRemove",
   "PreCompact",
+  "PostCompact",
+  "PreModelSwitch",
+  "PostModelSwitch",
+  "Elicitation",
+  "ElicitationResult",
 ];
+
+function extraText(value: unknown): string {
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
 
 /** Command hooks of one settings file as editable rows. */
 export function HooksEditor({ draft, onSaved }: { draft: HooksDraft; onSaved: () => void }) {
@@ -62,7 +89,8 @@ export function HooksEditor({ draft, onSaved }: { draft: HooksDraft; onSaved: ()
             <label>
               <span className="field-label">Sự kiện</span>
               <select value={h.event} onChange={(e) => update(i, { event: e.target.value })}>
-                {EVENTS.map((ev) => (
+                {/* An event newer than this list stays selectable as it is in the file. */}
+                {(EVENTS.includes(h.event) ? EVENTS : [h.event, ...EVENTS]).map((ev) => (
                   <option key={ev}>{ev}</option>
                 ))}
               </select>
@@ -88,6 +116,16 @@ export function HooksEditor({ draft, onSaved }: { draft: HooksDraft; onSaved: ()
             <button type="button" className="rule-remove hook-remove" aria-label={`Xoá hook ${i + 1}`} onClick={() => setHooks(draft.hooks.filter((_, j) => j !== i))}>
               <Trash weight="bold" />
             </button>
+            {h.extra && (
+              <p className="hook-extra" title="Các field này không sửa ở đây và được giữ nguyên khi lưu">
+                <span className="field-label">Giữ nguyên</span>
+                {Object.entries(h.extra).map(([k, v]) => (
+                  <code key={k}>
+                    {k}: {extraText(v)}
+                  </code>
+                ))}
+              </p>
+            )}
           </li>
         ))}
       </ol>

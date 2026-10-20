@@ -14,13 +14,23 @@ export interface McpEntryInput {
   name: string;
   /** The server's current name when renaming; omitted when adding. */
   originalName?: string;
-  type: "stdio" | "http" | "sse";
+  type: McpType;
   command?: string;
   args: string[];
   url?: string;
   env: ValueInput[];
   headers: ValueInput[];
 }
+
+/** `streamable-http` is Claude Code's alias for `http`; `ws` is a WebSocket server. */
+export const MCP_TYPES = ["stdio", "http", "sse", "ws", "streamable-http"] as const;
+export type McpType = (typeof MCP_TYPES)[number];
+
+/** Fields the form edits. Everything else in an entry (timeout, alwaysLoad, headersHelper…) is kept. */
+const EDITED = ["type", "command", "args", "env", "url", "headers"];
+/** Transport fields the form does not edit, dropped when an entry moves between stdio and remote. */
+const STDIO_ONLY = ["cwd"];
+const REMOTE_ONLY = ["headersHelper", "oauth"];
 
 const NAME = /^[A-Za-z0-9][\w.-]{0,63}$/;
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -33,13 +43,19 @@ export function validateEntry(body: unknown): McpEntryInput {
   if (b.originalName !== undefined && (typeof b.originalName !== "string" || !NAME.test(b.originalName))) {
     throw new HttpError(400, "originalName không hợp lệ");
   }
-  if (b.type !== "stdio" && b.type !== "http" && b.type !== "sse") throw new HttpError(400, "type phải là stdio, http hoặc sse");
+  if (typeof b.type !== "string" || !(MCP_TYPES as readonly string[]).includes(b.type)) {
+    throw new HttpError(400, `type phải là một trong ${MCP_TYPES.join(", ")}`);
+  }
+  const type = b.type as McpType;
   const args = b.args ?? [];
   if (!Array.isArray(args) || args.some((a) => typeof a !== "string" || /[\r\n\0]/.test(a))) throw new HttpError(400, "args phải là danh sách chuỗi một dòng");
-  if (b.type === "stdio" && (typeof b.command !== "string" || !b.command.trim() || /[\r\n\0]/.test(b.command))) {
+  if (type === "stdio" && (typeof b.command !== "string" || !b.command.trim() || /[\r\n\0]/.test(b.command))) {
     throw new HttpError(400, "Server stdio cần lệnh chạy");
   }
-  if (b.type !== "stdio" && (typeof b.url !== "string" || !/^https?:\/\/\S+$/.test(b.url))) {
+  if (type === "ws" && (typeof b.url !== "string" || !/^wss?:\/\/\S+$/.test(b.url))) {
+    throw new HttpError(400, "Server ws cần URL bắt đầu bằng ws:// hoặc wss://");
+  }
+  if (type !== "stdio" && type !== "ws" && (typeof b.url !== "string" || !/^https?:\/\/\S+$/.test(b.url))) {
     throw new HttpError(400, "Server http/sse cần URL bắt đầu bằng http:// hoặc https://");
   }
   const values = (v: unknown, what: string, keyRe: RegExp): ValueInput[] => {
@@ -59,12 +75,12 @@ export function validateEntry(body: unknown): McpEntryInput {
   return {
     name: b.name,
     originalName: b.originalName as string | undefined,
-    type: b.type,
+    type,
     command: typeof b.command === "string" ? b.command.trim() : undefined,
     args: args as string[],
     url: typeof b.url === "string" ? b.url.trim() : undefined,
-    env: b.type === "stdio" ? values(b.env, "env", KEY) : [],
-    headers: b.type === "stdio" ? [] : values(b.headers, "header", HEADER),
+    env: type === "stdio" ? values(b.env, "env", KEY) : [],
+    headers: type === "stdio" ? [] : values(b.headers, "header", HEADER),
   };
 }
 
@@ -104,6 +120,9 @@ export function buildEntry(
 
   const prefix = input.name.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
   const entry: Record<string, unknown> = { type: input.type };
+  const wasStdio = existing ? existing.type === "stdio" || (existing.type === undefined && typeof existing.command === "string") : input.type === "stdio";
+  const dropped = new Set([...EDITED, ...(wasStdio === (input.type === "stdio") ? [] : wasStdio ? STDIO_ONLY : REMOTE_ONLY)]);
+  const kept = Object.entries(existing ?? {}).filter(([k]) => !dropped.has(k));
   if (input.type === "stdio") {
     entry.command = input.command;
     if (input.args.length) entry.args = input.args.map((a) => restore(a, oldArgs));
@@ -114,6 +133,7 @@ export function buildEntry(
     const headers = resolve(input.headers, existing?.headers, (key) => `${prefix}_${key.toUpperCase().replace(/-/g, "_")}`);
     if (Object.keys(headers).length) entry.headers = headers;
   }
+  for (const [k, v] of kept) entry[k] = v;
   return { entry, secrets };
 }
 

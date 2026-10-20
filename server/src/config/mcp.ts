@@ -16,6 +16,8 @@ export interface McpServer {
   missingEnv: string[];
   /** ${VAR} references TaskPilot provides to its sessions from its env store. */
   fromTaskPilot: string[];
+  /** Why Claude Code skips this entry, e.g. a `url` without a `type`. */
+  error?: string;
 }
 
 export interface McpConfig {
@@ -62,10 +64,16 @@ function toServers(value: unknown, scope: McpScope, provided: Record<string, str
     const vars = [...new Set([...refs, ...envRefs(url ?? "")])];
     const missingEnv = vars.filter((v) => process.env[v] === undefined && provided[v] === undefined);
     const fromTaskPilot = vars.filter((v) => provided[v] !== undefined);
+    // Claude Code reads an entry without `type` as stdio, so a bare `url` entry fails to load.
+    const error =
+      cfg.type === undefined && !command && url
+        ? 'Có "url" nhưng thiếu "type": Claude Code bỏ qua server này. Thêm "type": "http" (hoặc "sse", "ws").'
+        : undefined;
     return {
       name,
       scope,
-      type: typeof cfg.type === "string" ? cfg.type : command ? "stdio" : url ? "http" : "?",
+      type: typeof cfg.type === "string" ? cfg.type : url && !command ? "?" : "stdio",
+      ...(error ? { error } : {}),
       command,
       args: strings(cfg.args).map(hideUrlCredentials),
       url: url && hideUrlCredentials(url),

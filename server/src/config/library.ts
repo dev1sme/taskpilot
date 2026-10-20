@@ -1,4 +1,5 @@
-import { readdir } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
+import type { Dirent } from "node:fs";
 import path from "node:path";
 import { claudeHome, displayPath, fileInfo, frontmatter, readText, strings } from "./fs.js";
 
@@ -55,11 +56,14 @@ async function readMarkdownItems(
   const out: LibraryItem[] = [];
   for (const e of entries) {
     const file = path.join(dir, e.name);
-    // Agents are flat; commands may be namespaced by folder (git/pr.md → git:pr).
-    if (e.isDirectory() && kind === "commands") out.push(...(await readMarkdownItems(root, file, kind, scope, repo)));
-    if (!e.isFile() || !e.name.endsWith(".md")) continue;
-    const stem = path.relative(root, file).replace(/\.md$/, "").split(path.sep).join(":");
-    out.push(await toItem(file, kind, scope, repo, stem, path.relative(root, file).split(path.sep).join("/")));
+    const type = await entryType(dir, e);
+    // Both are scanned recursively. Commands are namespaced by folder (git/pr.md → git:pr); an
+    // agent is identified by its frontmatter name, the folder does not count.
+    if (type === "dir") out.push(...(await readMarkdownItems(root, file, kind, scope, repo)));
+    if (type !== "file" || !e.name.endsWith(".md")) continue;
+    const rel = path.relative(root, file);
+    const fallback = kind === "commands" ? rel.replace(/\.md$/, "").split(path.sep).join(":") : path.basename(file, ".md");
+    out.push(await toItem(file, kind, scope, repo, fallback, rel.split(path.sep).join("/")));
   }
   return out;
 }
@@ -73,7 +77,8 @@ async function readSkills(root: string, scope: LibraryScope, repo: string): Prom
   }
   const out: LibraryItem[] = [];
   for (const e of entries) {
-    if (!e.isDirectory()) continue;
+    // A skill folder may be a symlink to a directory elsewhere.
+    if ((await entryType(root, e)) !== "dir") continue;
     const dir = path.join(root, e.name);
     const skillFile = path.join(dir, "SKILL.md");
     if (!(await fileInfo(skillFile))) continue;
@@ -130,6 +135,19 @@ async function listFiles(root: string, dir: string, depth = 0): Promise<string[]
     else if (e.isFile()) out.push(path.relative(root, p).split(path.sep).join("/"));
   }
   return out.sort();
+}
+
+/** File or directory, following a symlink to see what it points at. */
+async function entryType(dir: string, e: Dirent): Promise<"file" | "dir" | null> {
+  if (e.isFile()) return "file";
+  if (e.isDirectory()) return "dir";
+  if (!e.isSymbolicLink()) return null;
+  try {
+    const s = await stat(path.join(dir, e.name));
+    return s.isFile() ? "file" : s.isDirectory() ? "dir" : null;
+  } catch {
+    return null; // dangling link
+  }
 }
 
 function firstLine(text: string): string {

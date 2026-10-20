@@ -2,7 +2,7 @@ import { X } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useWorkspace } from "../workspace/WorkspaceProvider";
+import { useWorkspace } from "../workspace";
 import { RepoPicker } from "./RepoPicker";
 
 /** Switch repo: a small dialog around the path form. */

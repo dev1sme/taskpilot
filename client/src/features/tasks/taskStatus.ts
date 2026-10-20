@@ -1,5 +1,5 @@
 import i18n from "../../i18n";
-import type { Stage, TaskSummary } from "../workspace/types";
+import type { Stage, TaskSummary } from "../workspace";
 
 export type Tone = "attention" | "active" | "done" | "idle";
 

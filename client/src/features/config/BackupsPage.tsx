@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "../../shared/ui/Button";
 import { DiffDialog } from "../../shared/ui/DiffDialog";
 import { toast } from "../../shared/ui/Toast";
-import { useWorkspace } from "../workspace/WorkspaceProvider";
+import { useWorkspace } from "../workspace";
 import { locale } from "../../i18n";
 import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "./parts";
 import { useConfig } from "./useConfig";

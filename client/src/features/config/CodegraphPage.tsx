@@ -2,7 +2,7 @@ import { ArrowClockwise, Plugs, TreeStructure } from "@phosphor-icons/react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { queryClient } from "../../shared/api/queryClient";
-import { useWorkspace } from "../workspace/WorkspaceProvider";
+import { useWorkspace } from "../workspace";
 import { Button } from "../../shared/ui/Button";
 import { toast } from "../../shared/ui/Toast";
 import { McpForm } from "./McpForm";

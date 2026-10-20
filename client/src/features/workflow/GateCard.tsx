@@ -5,7 +5,7 @@ import { useId, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Button } from "../../shared/ui/Button";
 import { Markdown } from "../../shared/ui/Markdown";
-import { docsApi } from "../docs/api";
+import { docsApi } from "../docs";
 import { workflowApi } from "./api";
 import type { RunState, WorkflowStep } from "./types";
 

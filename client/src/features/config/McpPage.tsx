@@ -1,7 +1,7 @@
 import { CheckCircle, CircleNotch, HourglassMedium, Key, PencilSimple, Plugs, Plus, Trash, Warning, XCircle } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { useWorkspace } from "../workspace/WorkspaceProvider";
+import { useWorkspace } from "../workspace";
 import { Button } from "../../shared/ui/Button";
 import { toast } from "../../shared/ui/Toast";
 import { McpForm } from "./McpForm";

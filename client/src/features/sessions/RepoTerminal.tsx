@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useWorkspace } from "../workspace/WorkspaceProvider";
+import { useWorkspace } from "../workspace";
 import { TerminalDrawer } from "./TerminalDrawer";
 import { useRepoSessions } from "./useSessions";
 import { sessionsApi } from "./api";

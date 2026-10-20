@@ -1,4 +1,4 @@
-import type { RunPhase } from "../workflow/types";
+import type { RunPhase } from "../workflow";
 
 export type Stage = "new" | "investigated" | "planned" | "implementing" | "summarized";
 

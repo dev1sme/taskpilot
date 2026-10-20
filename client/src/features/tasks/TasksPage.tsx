@@ -1,6 +1,6 @@
 import { Trans, useTranslation } from "react-i18next";
 import { href } from "../../shared/router";
-import { useWorkspace } from "../workspace/WorkspaceProvider";
+import { useWorkspace } from "../workspace";
 import { clockTime } from "../../shared/ui/Elapsed";
 import { PageHeader } from "../../shared/ui/PageHeader";
 import { sortTasks, statusOf } from "./taskStatus";

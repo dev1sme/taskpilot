@@ -3,7 +3,7 @@ import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "../../shared/ui/Button";
 import "./repo.css";
-import type { RepoInfo } from "../workspace/types";
+import type { RepoInfo } from "../workspace";
 
 export function RepoPicker({
   repo,

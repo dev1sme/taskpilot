@@ -2,7 +2,7 @@ import { Eye, MagnifyingGlass, PencilSimple, Plus, Trash, X } from "@phosphor-ic
 import { AnimatePresence, motion } from "motion/react";
 import { lazy, Suspense, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useWorkspace } from "../workspace/WorkspaceProvider";
+import { useWorkspace } from "../workspace";
 import { Button } from "../../shared/ui/Button";
 import { DiffDialog } from "../../shared/ui/DiffDialog";
 import i18n from "../../i18n";

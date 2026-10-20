@@ -2,15 +2,12 @@ import { ArrowRight, BookOpenText, CheckCircle, Command, Lightning, Plugs, Robot
 import { motion } from "motion/react";
 import { Trans, useTranslation } from "react-i18next";
 import { href } from "../../shared/router";
-import { useWorkspace } from "../workspace/WorkspaceProvider";
+import { useWorkspace, type TaskSummary } from "../workspace";
 import { Elapsed } from "../../shared/ui/Elapsed";
-import { CategoryIcon } from "../activity/categories";
-import { useActivity } from "../activity/useActivity";
+import { CategoryIcon, useActivity, type ActivityItem } from "../activity";
 import { PageHeader } from "../../shared/ui/PageHeader";
-import { isAttention, sortTasks, statusOf } from "../tasks/taskStatus";
+import { isAttention, sortTasks, statusOf } from "../tasks";
 import "./overview.css";
-import type { ActivityItem } from "../activity/types";
-import type { TaskSummary } from "../workspace/types";
 
 /** Repo dashboard: what needs the user, what is running, and the shape of the Claude config. */
 export function OverviewPage() {

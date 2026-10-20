@@ -3,7 +3,7 @@ import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "../../shared/ui/Button";
 // .brand-mark
-import "../shell/shell.css";
+import "../../app/layout/shell.css";
 import { authApi } from "./api";
 
 export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {

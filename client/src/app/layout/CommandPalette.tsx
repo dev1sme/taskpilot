@@ -3,8 +3,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { navigate, type Route } from "../../shared/router";
-import { useWorkspace } from "../workspace/WorkspaceProvider";
-import { sortTasks, statusOf } from "../tasks/taskStatus";
+import { useWorkspace } from "../../features/workspace";
+import { sortTasks, statusOf } from "../../features/tasks";
 import "./shell.css";
 
 interface Entry {

@@ -14,10 +14,9 @@ import { useState, type ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Button } from "../../shared/ui/Button";
 import { Elapsed, formatDuration } from "../../shared/ui/Elapsed";
-import { CategoryIcon } from "../activity/categories";
+import { CategoryIcon, type ActivityItem } from "../activity";
 import { workflowApi } from "./api";
-import type { ActivityItem } from "../activity/types";
-import type { SessionView } from "../sessions/types";
+import type { SessionView } from "../sessions";
 import type { RunState, WorkflowStep } from "./types";
 
 interface Props {

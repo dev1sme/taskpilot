@@ -80,6 +80,28 @@ describe("workflow run end to end", () => {
     expect(after.statusCode).toBe(200);
   });
 
+  it("restarts a run from the first step in a new session", async () => {
+    const app = await start();
+    const none = await app.inject({ method: "POST", url: "/api/tasks/DEMO-1/run/restart", headers: ok });
+    expect(none.statusCode).toBe(409);
+
+    const first = (await app.inject({ method: "POST", url: "/api/tasks/DEMO-1/run", headers: ok })).json();
+    await waitFor(
+      async () => (await app.inject({ url: "/api/tasks/DEMO-1/run", headers: ok })).json(),
+      (v) => v.run?.phase === "gate",
+    );
+    const restarted = await app.inject({ method: "POST", url: "/api/tasks/DEMO-1/run/restart", headers: ok });
+    expect(restarted.statusCode).toBe(200);
+    expect(restarted.json()).toMatchObject({ stepIndex: 0 });
+    expect(restarted.json().sessionId).not.toBe(first.sessionId);
+    // The old session is stopped but stays listed.
+    const sessions = await waitFor(
+      async () => (await app.inject({ url: "/api/tasks/DEMO-1/sessions", headers: ok })).json(),
+      (list: { id: string; status: string }[]) => list.find((x) => x.id === first.sessionId)?.status === "exited",
+    );
+    expect(sessions).toHaveLength(2);
+  });
+
   it("rejects hook calls without a valid session token", async () => {
     const app = await start();
     const bad = await app.inject({

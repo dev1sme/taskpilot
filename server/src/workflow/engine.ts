@@ -7,6 +7,7 @@ import type { HookEvent } from "../sessions/hooks.js";
 import type { SessionView } from "../sessions/manager.js";
 import type { SessionMeta, StateStore } from "../state.js";
 import { loadWorkflow, render, REPO_WORKFLOW_FILE } from "./definition.js";
+import { archiveOutputs } from "./archive.js";
 import { appendHistory, HISTORY_FILE } from "./history.js";
 import type { RunState, StepDef, WorkflowDef } from "./types.js";
 
@@ -14,6 +15,7 @@ import type { RunState, StepDef, WorkflowDef } from "./types.js";
 export interface SessionPort {
   create(repo: string, taskKey: string, opts: { permissionMode?: string }): Promise<SessionView>;
   resume(id: string): Promise<SessionView>;
+  stop(id: string): Promise<void>;
   get(id: string): Promise<SessionView>;
   paste(id: string, text: string): void;
 }
@@ -59,25 +61,49 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     return this.serial(async () => {
       const existing = await this.find(repo, taskKey);
       if (existing && ACTIVE.includes(existing.phase)) throw new HttpError(409, "A workflow run is already active");
-      const def = await this.loadDef(repo);
-      const session = await this.sessions.create(repo, taskKey, { permissionMode: def.permissionMode });
-      const now = Date.now();
-      const run: RunState = {
-        repo,
-        taskKey,
-        sessionId: session.id,
-        stepIndex: 0,
-        phase: "starting",
-        stepStartedAt: now,
-        message: "",
-        startedAt: now,
-        updatedAt: now,
-      };
-      const source = def.source.endsWith(REPO_WORKFLOW_FILE) ? REPO_WORKFLOW_FILE : "mặc định của TaskPilot";
-      await this.log(run, "Bắt đầu quy trình", { body: `Quy trình: ${source}, ${def.steps.length} bước.` });
-      await this.deliver(run, await this.prompt(run, def.steps[0].prompt));
-      return run;
+      return this.begin(repo, taskKey);
     });
+  }
+
+  /**
+   * Starts over from the first step in a new session, whatever the current phase. The old session
+   * is stopped (it stays listed) and the task's documents are copied to archive/ first: Claude then
+   * rewrites them in place, so the step names and done-when files do not change.
+   */
+  restart(repo: string, taskKey: string): Promise<RunState> {
+    return this.serial(async () => {
+      const existing = await this.find(repo, taskKey);
+      if (!existing) throw new HttpError(409, "No workflow run to restart; start one first");
+      const old = await this.sessions.get(existing.sessionId).catch(() => null);
+      if (old?.status === "running") await this.sessions.stop(existing.sessionId);
+      const { dir, files } = await archiveOutputs(taskDirOf(existing), new Date());
+      await this.log(existing, "Chạy lại từ đầu", {
+        body: files.length ? `Bản cũ: ${dir}/ (${files.join(", ")})` : "Chưa có tài liệu nào để lưu bản cũ.",
+      });
+      return this.begin(repo, taskKey);
+    });
+  }
+
+  /** A new run on a new session at step 1; callers hold the queue. */
+  private async begin(repo: string, taskKey: string): Promise<RunState> {
+    const def = await this.loadDef(repo);
+    const session = await this.sessions.create(repo, taskKey, { permissionMode: def.permissionMode });
+    const now = Date.now();
+    const run: RunState = {
+      repo,
+      taskKey,
+      sessionId: session.id,
+      stepIndex: 0,
+      phase: "starting",
+      stepStartedAt: now,
+      message: "",
+      startedAt: now,
+      updatedAt: now,
+    };
+    const source = def.source.endsWith(REPO_WORKFLOW_FILE) ? REPO_WORKFLOW_FILE : "mặc định của TaskPilot";
+    await this.log(run, "Bắt đầu quy trình", { body: `Quy trình: ${source}, ${def.steps.length} bước.` });
+    await this.deliver(run, await this.prompt(run, def.steps[0].prompt));
+    return run;
   }
 
   approve(repo: string, taskKey: string): Promise<RunState> {
@@ -142,7 +168,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
           await this.log(run, "Gián đoạn", { body: "TaskPilot khởi động lại giữa bước." });
           await this.save(run, {
             phase: "interrupted",
-            message: "TaskPilot đã khởi động lại. Bấm \"Gửi lại bước\" để resume session và chạy tiếp.",
+            message: "TaskPilot đã khởi động lại. Bấm \"Gửi lại bước\" để resume session và chạy tiếp, hoặc \"Chạy lại từ đầu\".",
           });
         }
       }
@@ -173,7 +199,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       await this.log(run, "Gián đoạn", { body: "Session dừng giữa bước." });
       await this.save(run, {
         phase: "interrupted",
-        message: "Session đã dừng giữa chừng. Bấm \"Gửi lại bước\" để resume session và chạy tiếp bước này.",
+        message: "Session đã dừng giữa chừng. Bấm \"Gửi lại bước\" để resume session và chạy tiếp bước này, hoặc \"Chạy lại từ đầu\".",
       });
     });
   }

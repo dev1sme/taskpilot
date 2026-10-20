@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { getTask, listTasks, readTaskFile, resolveRepo } from "../src/repo/tasks.js";
 import { cleanupTempDirs, makeRepo } from "./fixtures.js";
@@ -24,6 +26,17 @@ describe("listTasks", () => {
     expect(demo2.title).toBe("DEMO-2");
     expect(demo2.stage).toBe("new");
     expect(demo2.specFiles.map((f) => f.path)).toEqual(["spec/ui/screen.md"]);
+  });
+
+  it("lists the decision log but not archived documents, and keeps the stage", async () => {
+    const repo = await makeRepo();
+    const dir = path.join(repo, ".claude", "tasks", "DEMO-1");
+    await writeFile(path.join(dir, "00-history.md"), "# log\n");
+    await mkdir(path.join(dir, "archive", "20261020-150000"), { recursive: true });
+    await writeFile(path.join(dir, "archive", "20261020-150000", "04-summary.md"), "# old\n");
+    const demo1 = await getTask(repo, "DEMO-1");
+    expect(demo1.outputFiles.map((f) => f.path)).toEqual(["00-history.md", "02-plan.md"]);
+    expect(demo1.stage).toBe("planned");
   });
 
   it("returns an empty list when .claude/tasks is missing", async () => {

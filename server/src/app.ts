@@ -227,6 +227,10 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     return engine.feedback(requireRepo(), req.params.key, req.body.text);
   });
 
+  app.post<{ Params: { key: string } }>("/api/tasks/:key/run/restart", async (req) =>
+    engine.restart(requireRepo(), (await getTask(requireRepo(), req.params.key)).key),
+  );
+
   app.post<{ Params: { key: string } }>("/api/tasks/:key/run/retry", async (req) =>
     engine.retry(requireRepo(), req.params.key),
   );

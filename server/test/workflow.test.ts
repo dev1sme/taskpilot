@@ -1,4 +1,4 @@
-import { mkdir, readFile, utimes, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { SessionView } from "../src/sessions/manager.js";
@@ -84,6 +84,11 @@ class FakeSessions implements SessionPort {
   }
   async get(id: string) {
     return this.sessions.get(id)!;
+  }
+  stopped: string[] = [];
+  async stop(id: string) {
+    this.stopped.push(id);
+    this.exit(id);
   }
   paste(id: string, text: string) {
     this.pasted.push(text);
@@ -217,6 +222,48 @@ describe("workflow engine", () => {
     const log = await readFile(path.join(taskDir(), HISTORY_FILE), "utf8");
     expect(log.startsWith("# Viết tay\n\n- quyết định cũ\n\n## ")).toBe(true);
     expect(log).toContain("· Gián đoạn\n\nSession dừng giữa bước.");
+  });
+
+  it("restarts from the first step in a new session and archives the documents first", async () => {
+    await expect(engine.restart(repo, "DEMO-1")).rejects.toMatchObject({ status: 409 });
+    const first = await engine.start(repo, "DEMO-1");
+    await hook("SessionStart");
+    await write("02-plan.md");
+    await hook("Stop");
+    await engine.approve(repo, "DEMO-1");
+    await write("03-progress.md");
+    fake.exit(first.sessionId);
+    await engine.onExit(fake.meta(first.sessionId));
+    expect((await state.load()).runs[0]).toMatchObject({ phase: "interrupted", stepIndex: 1 });
+
+    const run = await engine.restart(repo, "DEMO-1");
+    expect(run).toMatchObject({ phase: "starting", stepIndex: 0 });
+    expect(run.sessionId).not.toBe(first.sessionId);
+    // The old session had already exited: nothing to stop.
+    expect(fake.stopped).toEqual([]);
+    expect((await state.load()).runs).toHaveLength(1);
+
+    const archive = path.join(taskDir(), "archive");
+    const [stamp] = await readdir(archive);
+    expect(stamp).toMatch(/^\d{8}-\d{6}$/);
+    expect((await readdir(path.join(archive, stamp))).sort()).toEqual(["02-plan.md", "03-progress.md"]);
+    // Documents stay in place for Claude to read and rewrite.
+    expect((await readdir(taskDir())).sort()).toEqual([HISTORY_FILE, "02-plan.md", "03-progress.md", "archive", "notes.txt", "spec"].sort());
+
+    const log = await readFile(path.join(taskDir(), HISTORY_FILE), "utf8");
+    expect(log).toContain(`· Implement · Chạy lại từ đầu\n\nBản cũ: archive/${stamp}/ (02-plan.md, 03-progress.md)`);
+    expect(log.lastIndexOf("Bắt đầu quy trình")).toBeGreaterThan(log.indexOf("Chạy lại từ đầu"));
+  });
+
+  it("stops the session of a run that is still working before restarting", async () => {
+    const first = await engine.start(repo, "DEMO-1");
+    await hook("SessionStart");
+    expect((await state.load()).runs[0]).toMatchObject({ phase: "running" });
+    await engine.restart(repo, "DEMO-1");
+    expect(fake.stopped).toEqual([first.sessionId]);
+    // The old session's exit no longer touches the new run.
+    await engine.onExit(fake.meta(first.sessionId));
+    expect((await state.load()).runs[0]).toMatchObject({ phase: "starting", stepIndex: 0 });
   });
 
   it("marks active runs interrupted after a restart", async () => {

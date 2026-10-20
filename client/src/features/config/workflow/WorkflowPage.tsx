@@ -1,6 +1,7 @@
 import { ArrowCounterClockwise, CheckCircle, Eye, FilePlus, GitDiff, PencilSimple, Play, Plus, Trash, Warning } from "@phosphor-icons/react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { queryClient } from "../../../shared/api/queryClient";
 import { Button } from "../../../shared/ui/Button";
 import { DiffDialog } from "../../../shared/ui/DiffDialog";
 import { toast } from "../../../shared/ui/Toast";
@@ -45,6 +46,12 @@ export function WorkflowPage() {
   const file = data?.files.find((f) => f.name === picked);
   const newFiles = draftNames.filter((n) => !data?.files.some((f) => f.name === n));
 
+  // Task stages are read from the workflow's documents, so the task list follows every change.
+  const refresh = async () => {
+    await reload();
+    void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+  };
+
   useEffect(() => setConfirm(null), [picked]);
   // A new prompt whose draft was cancelled no longer exists: go back to workflow.yml.
   useEffect(() => {
@@ -67,7 +74,7 @@ export function WorkflowPage() {
     run(async () => {
       const res = await workflowConfigApi.createOverride();
       toast(t("workflow.created", { count: res.files.length }));
-      await reload();
+      await refresh();
     });
 
   const reset = () =>
@@ -76,7 +83,7 @@ export function WorkflowPage() {
       for (const f of data?.files ?? []) clearDraft(draftKey(f.name));
       toast(t("workflow.resetDone"));
       setPicked(WORKFLOW_FILE);
-      await reload();
+      await refresh();
     });
 
   const removeFile = () =>
@@ -84,7 +91,7 @@ export function WorkflowPage() {
       await workflowConfigApi.remove(picked, file!.hash);
       toast(t("deletedRestorable", { name: file!.path }));
       setPicked(WORKFLOW_FILE);
-      await reload();
+      await refresh();
     });
 
   const startEdit = () =>
@@ -100,7 +107,7 @@ export function WorkflowPage() {
     onSaved: () => {
       toast(t(draft!.isNew ? "library.created" : "library.saved", { path: draft!.path }));
       clearDraft(draftKey(draft!.name));
-      void reload();
+      void refresh();
     },
   });
 

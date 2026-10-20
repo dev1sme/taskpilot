@@ -79,6 +79,8 @@ describe("hooks editing", () => {
     );
     const before = await get("/api/config/settings/project/hooks");
     expect(before.hooks).toEqual([{ event: "Stop", matcher: "", command: "old" }]);
+    // raw is the "hooks" value as written, prompt hooks included, and nothing else from the file.
+    expect(before.raw).toEqual({ Stop: [{ hooks: [{ type: "command", command: "old" }, { type: "prompt", prompt: "keep me" }] }] });
 
     const body = {
       hooks: [

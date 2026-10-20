@@ -243,6 +243,8 @@ export interface HooksFile {
   exists: boolean;
   hash: string;
   hooks: HookInput[];
+  /** The file's "hooks" value as written (every hook type); null when absent. */
+  raw: unknown;
 }
 
 export interface ValueRow {

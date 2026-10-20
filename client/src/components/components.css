@@ -9,6 +9,7 @@
   padding: 6px 14px;
   font-weight: 500;
   white-space: nowrap;
+  text-decoration: none;
   color: var(--ink);
   background: var(--raised);
   border: 1px solid var(--line-strong);

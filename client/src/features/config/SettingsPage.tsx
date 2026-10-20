@@ -1,12 +1,13 @@
-import { PencilSimple, Prohibit, Question, ShieldCheck } from "@phosphor-icons/react";
+import { Eye, PencilSimple, Plus, Prohibit, Question, ShieldCheck } from "@phosphor-icons/react";
 import { useState } from "react";
 import { api } from "../../api/client";
-import type { SettingsFile } from "../../api/types";
+import type { Scope, SettingsFile } from "../../api/types";
 import { Button } from "../../components/Button";
+import { DiffDialog } from "../../components/DiffDialog";
 import { toast } from "../../components/Toast";
-import { getDraft, setDraft, useDrafts } from "./drafts";
-import { ConfigHeader, LoadError, RuleChip, ScopeTag, SCOPE_HINT } from "./parts";
-import { PermissionsEditor, permissionsKey, type PermissionsDraft } from "./PermissionsEditor";
+import { getDraft, isDirty, setDraft, useDrafts } from "./drafts";
+import { ConfigHeader, ConfigToolbar, DraftControls, LoadError, RuleChip, ScopeTabs, ScopeTag, SCOPE_HINT } from "./parts";
+import { PermissionsEditor, permissionsKey, usePermissionsSave, type PermissionsDraft } from "./PermissionsEditor";
 import { useConfig } from "./useConfig";
 
 const MODE_LABEL: Record<string, string> = {
@@ -17,25 +18,75 @@ const MODE_LABEL: Record<string, string> = {
   bypassPermissions: "Bỏ qua mọi kiểm tra quyền",
 };
 
-/** Permission rules and env of each settings scope. Deny beats ask beats allow in Claude Code. */
+const TAB_LABEL: Record<Scope, string> = { project: ".claude/settings.json", local: ".claude/settings.local.json", user: "~/.claude/settings.json" };
+
+/** Permission rules and env of each settings scope, one file at a time. Deny beats ask beats allow in Claude Code. */
 export function SettingsPage() {
   const { data, error, loading, reload } = useConfig(["settings"], api.settings);
+  const [scope, setScope] = useState<Scope>("project");
+  const [opening, setOpening] = useState(false);
+  useDrafts();
+  const draft = getDraft<PermissionsDraft>(permissionsKey(scope));
   const files = data ?? [];
+  const file = files.find((f) => f.scope === scope);
   const totals = files.reduce((t, f) => ({ allow: t.allow + f.allow.length, ask: t.ask + f.ask.length, deny: t.deny + f.deny.length }), { allow: 0, ask: 0, deny: 0 });
+
+  const startEditing = async () => {
+    setOpening(true);
+    try {
+      const p = await api.permissions(scope);
+      setDraft(permissionsKey(scope), {
+        permissions: { allow: p.allow, ask: p.ask, deny: p.deny, defaultMode: p.defaultMode },
+        baseHash: p.hash,
+        path: p.path,
+      } satisfies PermissionsDraft);
+    } catch (e) {
+      toast((e as Error).message, { error: true });
+    } finally {
+      setOpening(false);
+    }
+  };
+
+  const flow = usePermissionsSave(scope, draft, () => void reload());
+
+  const actions = draft ? (
+    <>
+      <DraftControls key={scope} draftKey={permissionsKey(scope)} />
+      <Button icon={Eye} variant="primary" onClick={() => void flow.review()}>
+        Xem thay đổi &amp; lưu
+      </Button>
+    </>
+  ) : (
+    file &&
+    !file.error && (
+      <Button icon={file.exists ? PencilSimple : Plus} variant="primary" busy={opening} onClick={() => void startEditing()}>
+        {file.exists ? "Sửa quyền" : "Thêm quyền"}
+      </Button>
+    )
+  );
 
   return (
     <div className="page">
-      <ConfigHeader
-        title="Settings & quyền"
-        subtitle="Claude gộp các file dưới đây; luật chặn luôn thắng luật cho phép"
+      <ConfigHeader title="Settings & quyền" subtitle="Claude gộp cả 3 file settings; luật chặn luôn thắng luật cho phép" />
+      <ConfigToolbar
+        start={
+          <ScopeTabs
+            value={scope}
+            onChange={setScope}
+            label="File settings"
+            labels={TAB_LABEL}
+            isMissing={(s) => files.find((f) => f.scope === s)?.exists === false && !getDraft(permissionsKey(s))}
+            isDirty={(s) => isDirty(permissionsKey(s))}
+          />
+        }
         loading={loading}
         onReload={() => void reload()}
-        actions={<span className="scope-hint">Bấm "Sửa quyền" ở từng file</span>}
+        actions={actions}
       />
       <LoadError error={error} />
       <div className="page-body settings">
         {data && (
-          <div className="totals" aria-label="Tổng hợp">
+          <div className="totals" aria-label="Tổng hợp cả 3 file">
             <div className="total allow">
               <ShieldCheck weight="fill" aria-hidden="true" />
               <strong>{totals.allow}</strong> cho phép
@@ -48,37 +99,17 @@ export function SettingsPage() {
               <Prohibit weight="fill" aria-hidden="true" />
               <strong>{totals.deny}</strong> bị chặn
             </div>
+            <span className="scope-hint totals-note">Tổng cả 3 file, Claude áp dụng gộp</span>
           </div>
         )}
-        {files.map((f) => (
-          <ScopeSection key={f.scope} file={f} onSaved={() => void reload()} />
-        ))}
+        {file && <ScopeSection file={file} draft={draft} />}
       </div>
+      <DiffDialog {...flow.dialog} confirmLabel="Lưu quyền" />
     </div>
   );
 }
 
-function ScopeSection({ file, onSaved }: { file: SettingsFile; onSaved: () => void }) {
-  useDrafts();
-  const draft = getDraft<PermissionsDraft>(permissionsKey(file.scope));
-  const [opening, setOpening] = useState(false);
-
-  const startEditing = async () => {
-    setOpening(true);
-    try {
-      const p = await api.permissions(file.scope);
-      setDraft(permissionsKey(file.scope), {
-        permissions: { allow: p.allow, ask: p.ask, deny: p.deny, defaultMode: p.defaultMode },
-        baseHash: p.hash,
-        path: p.path,
-      } satisfies PermissionsDraft);
-    } catch (e) {
-      toast((e as Error).message, { error: true });
-    } finally {
-      setOpening(false);
-    }
-  };
-
+function ScopeSection({ file, draft }: { file: SettingsFile; draft: PermissionsDraft | undefined }) {
   return (
     <section className="card scope-section" aria-labelledby={`settings-${file.scope}`}>
       <header className="scope-head">
@@ -87,14 +118,9 @@ function ScopeSection({ file, onSaved }: { file: SettingsFile; onSaved: () => vo
           {file.path}
         </h2>
         <span className="scope-hint">{SCOPE_HINT[file.scope]}</span>
-        {!draft && !file.error && (
-          <Button icon={PencilSimple} variant="quiet" className="scope-edit" busy={opening} onClick={() => void startEditing()}>
-            {file.exists ? "Sửa quyền" : "Thêm quyền"}
-          </Button>
-        )}
       </header>
       {draft ? (
-        <PermissionsEditor scope={file.scope} draft={draft} onSaved={onSaved} />
+        <PermissionsEditor scope={file.scope} draft={draft} />
       ) : !file.exists ? (
         <p className="hint">Chưa có file này.</p>
       ) : file.error ? (

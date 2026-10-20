@@ -6,7 +6,7 @@ import { useWorkspace } from "../../app/workspace";
 import { Button } from "../../components/Button";
 import { toast } from "../../components/Toast";
 import { McpForm } from "./McpForm";
-import { ConfigHeader, EmptyCard, LoadError } from "./parts";
+import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "./parts";
 import { useConfig } from "./useConfig";
 
 type Adding = { baseHash: string } | null;
@@ -43,12 +43,8 @@ export function CodegraphPage() {
 
   return (
     <div className="page">
-      <ConfigHeader
-        title="Codegraph"
-        subtitle="Index code cho repo này qua codegraph (container trong environments)"
-        loading={loading}
-        onReload={() => void reload()}
-      />
+      <ConfigHeader title="Codegraph" subtitle="Index code cho repo này qua codegraph (container trong environments)" />
+      <ConfigToolbar readOnly loading={loading} onReload={() => void reload()} />
       <LoadError error={error} />
       <div className="page-body">
         {status && !status.supported && (

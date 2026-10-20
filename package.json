@@ -16,7 +16,8 @@
     "build": "vite build && tsc -p tsconfig.json",
     "start": "node dist/server/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p client/tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "npm --prefix e2e test"
   },
   "dependencies": {
     "@fastify/static": "^10.1.6",

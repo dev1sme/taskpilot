@@ -1,12 +1,10 @@
-import { Eye, Plus, X } from "@phosphor-icons/react";
+import { Plus, X } from "@phosphor-icons/react";
 import { useId, useState } from "react";
 import { api } from "../../api/client";
 import type { Permissions, Scope } from "../../api/types";
-import { Button } from "../../components/Button";
-import { DiffDialog } from "../../components/DiffDialog";
 import { toast } from "../../components/Toast";
 import { clearDraft, setDraft } from "./drafts";
-import { RuleChip, UnsavedPill } from "./parts";
+import { RuleChip } from "./parts";
 import { useSaveFlow } from "./useSaveFlow";
 
 export interface PermissionsDraft {
@@ -31,22 +29,24 @@ const COLUMNS: Array<{ key: "allow" | "ask" | "deny"; title: string; example: st
   { key: "deny", title: "Chặn", example: "Read(./.env)" },
 ];
 
-/** Edits allow/ask/deny rules and the default mode of one settings file. */
-export function PermissionsEditor({ scope, draft, onSaved }: { scope: Scope; draft: PermissionsDraft; onSaved: () => void }) {
-  const [confirmDiscard, setConfirmDiscard] = useState(false);
-  const modeId = useId();
-  const update = (p: Partial<Permissions>) => setDraft(permissionsKey(scope), { ...draft, permissions: { ...draft.permissions, ...p } });
-
-  const flow = useSaveFlow({
-    title: `Lưu quyền vào ${draft.path}`,
-    preview: () => api.permissionsPreview(scope, draft.permissions, draft.baseHash),
-    save: () => api.permissionsSave(scope, draft.permissions, draft.baseHash),
+/** Review-then-save of a permissions draft; the page places the buttons and the dialog. */
+export function usePermissionsSave(scope: Scope, draft: PermissionsDraft | undefined, onSaved: () => void) {
+  return useSaveFlow({
+    title: `Lưu quyền vào ${draft?.path ?? ""}`,
+    preview: () => api.permissionsPreview(scope, draft!.permissions, draft!.baseHash),
+    save: () => api.permissionsSave(scope, draft!.permissions, draft!.baseHash),
     onSaved: () => {
-      toast(`Đã lưu quyền vào ${draft.path}. Bản cũ nằm trong Lịch sử thay đổi.`);
+      toast(`Đã lưu quyền vào ${draft?.path}. Bản cũ nằm trong Lịch sử thay đổi.`);
       clearDraft(permissionsKey(scope));
       onSaved();
     },
   });
+}
+
+/** Edits allow/ask/deny rules and the default mode of one settings file. */
+export function PermissionsEditor({ scope, draft }: { scope: Scope; draft: PermissionsDraft }) {
+  const modeId = useId();
+  const update = (p: Partial<Permissions>) => setDraft(permissionsKey(scope), { ...draft, permissions: { ...draft.permissions, ...p } });
 
   return (
     <div className="perm-editor">
@@ -73,23 +73,6 @@ export function PermissionsEditor({ scope, draft, onSaved }: { scope: Scope; dra
           />
         ))}
       </div>
-
-      <div className="perm-actions">
-        <UnsavedPill />
-        {confirmDiscard ? (
-          <Button icon={X} variant="danger" onClick={() => clearDraft(permissionsKey(scope))}>
-            Bỏ thay đổi
-          </Button>
-        ) : (
-          <Button icon={X} variant="quiet" onClick={() => setConfirmDiscard(true)}>
-            Huỷ
-          </Button>
-        )}
-        <Button icon={Eye} variant="primary" onClick={() => void flow.review()}>
-          Xem thay đổi &amp; lưu
-        </Button>
-      </div>
-      <DiffDialog {...flow.dialog} confirmLabel="Lưu quyền" />
     </div>
   );
 }

@@ -9,7 +9,7 @@ import { DiffDialog } from "../../components/DiffDialog";
 import { Markdown } from "../../components/Markdown";
 import { toast } from "../../components/Toast";
 import { clearDraft, getDraft, setDraft, useDrafts } from "./drafts";
-import { ConfigHeader, EmptyCard, LoadError, ScopeTag, UnsavedPill } from "./parts";
+import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTag } from "./parts";
 import { useConfig } from "./useConfig";
 import { useSaveFlow } from "./useSaveFlow";
 import "../../components/dialog.css";
@@ -100,9 +100,8 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
 
   return (
     <div className="page">
-      <ConfigHeader
-        title={copy.title}
-        subtitle={copy.subtitle}
+      <ConfigHeader title={copy.title} subtitle={copy.subtitle} />
+      <ConfigToolbar
         loading={loading}
         onReload={refresh}
         actions={
@@ -165,7 +164,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
           const rel = relFor(kind, name);
           const raw = await api.libraryRaw(kind, scope, rel);
           if (raw.exists) throw new Error(`Đã có ${raw.path}`);
-          setDraft(draftKey(kind), { kind, scope, rel, path: raw.path, content: template(kind, name), baseHash: raw.hash, isNew: true } satisfies LibraryDraft);
+          setDraft(draftKey(kind), { kind, scope, rel, path: raw.path, content: template(kind, name), baseHash: raw.hash, isNew: true } satisfies LibraryDraft, null);
           setCreating(false);
         }}
       />
@@ -174,7 +173,6 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
 }
 
 function LibraryEditor({ draft, onSaved }: { draft: LibraryDraft; onSaved: (rel: string) => void }) {
-  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const flow = useSaveFlow({
     title: `${draft.isNew ? "Tạo" : "Lưu"} ${draft.path}`,
     preview: () => api.libraryPreview(draft.kind, draft.scope, draft.rel, draft.content, draft.baseHash),
@@ -192,16 +190,7 @@ function LibraryEditor({ draft, onSaved }: { draft: LibraryDraft; onSaved: (rel:
         <h2 className="mono">{draft.path}</h2>
         <ScopeTag scope={draft.scope} />
         <div className="perm-actions lib-editor-actions">
-          <UnsavedPill />
-          {confirmDiscard ? (
-            <Button icon={X} variant="danger" onClick={() => clearDraft(draftKey(draft.kind))}>
-              Bỏ thay đổi
-            </Button>
-          ) : (
-            <Button icon={X} variant="quiet" onClick={() => setConfirmDiscard(true)}>
-              Huỷ
-            </Button>
-          )}
+          <DraftControls draftKey={draftKey(draft.kind)} />
           <Button icon={Eye} variant="primary" onClick={() => void flow.review()}>
             Xem thay đổi &amp; lưu
           </Button>

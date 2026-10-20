@@ -41,8 +41,34 @@
   background: var(--attention);
 }
 
-.scope-edit {
+.config-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 14px 28px 0;
+}
+
+.toolbar-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
   margin-left: auto;
+}
+
+.btn-icon-only {
+  padding: 6px 9px;
 }
 
 .perm-editor {
@@ -268,6 +294,12 @@
 .form-grid .field-help {
   grid-column: 2;
   margin: -2px 0 4px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.form-grid .segmented {
+  flex-wrap: wrap;
 }
 
 .form-grid .segmented button[aria-selected="true"] {
@@ -360,6 +392,8 @@
 
 .segmented {
   display: flex;
+  max-width: 100%;
+  overflow-x: auto;
   padding: 3px;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -367,7 +401,9 @@
 }
 
 .segmented button {
+  flex: none;
   padding: 6px 12px;
+  white-space: nowrap;
   font-family: var(--mono);
   font-size: 12.5px;
   color: var(--muted);
@@ -460,11 +496,15 @@
 .memory {
   display: grid;
   grid-template-columns: 210px minmax(0, 1fr) 300px;
-  min-height: calc(100vh - 130px);
+  min-height: calc(100vh - 186px);
 }
 
 .memory > * {
   min-width: 0;
+}
+
+.memory.hooks-view {
+  grid-template-columns: 240px minmax(0, 1fr);
 }
 
 .memory-outline {
@@ -667,12 +707,14 @@
 
 .settings {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
 .totals {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 12px;
 }
 
@@ -719,6 +761,7 @@
   margin: 0;
   font-size: 15px;
   font-weight: 500;
+  overflow-wrap: anywhere;
 }
 
 .mode-line {
@@ -806,6 +849,7 @@
   gap: 16px;
 }
 
+/* Card heading, also used by the codegraph page. */
 .hook-head {
   display: flex;
   flex-wrap: wrap;
@@ -821,45 +865,22 @@
   color: var(--signal-text);
 }
 
-.hook-list {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.hook-event {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: normal;
 }
 
-.hook-list li {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  background: var(--raised);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-}
-
-.matcher {
-  padding: 2px 8px;
-  font-family: var(--mono);
+.hook-event .mono {
   font-size: 12.5px;
-  background: var(--hover);
-  border-radius: 6px;
+  color: var(--signal-text);
 }
 
-.hook-command {
-  padding: 0;
-  overflow-wrap: anywhere;
-  background: none;
-}
-
-.hook-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--muted);
+.hook-event-hint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--faint);
 }
 
 /* ------------------------------------------------------------------ library / mcp */
@@ -1033,7 +1054,12 @@
 }
 
 @media (max-width: 860px) {
+  .config-toolbar {
+    padding: 12px 16px 0;
+  }
+
   .memory,
+  .memory.hooks-view,
   .library,
   .rule-columns {
     grid-template-columns: minmax(0, 1fr);
@@ -1042,6 +1068,11 @@
   .memory-outline {
     border-right: none;
     border-bottom: 1px solid var(--line);
+  }
+
+  /* One column: rows take their content height instead of sharing the page height. */
+  .memory.hooks-view {
+    align-content: start;
   }
 
   .memory-side {

@@ -39,13 +39,6 @@ export function OverviewPage() {
       <PageHeader
         title="Tổng quan"
         subtitle={repo?.path ? <span className="mono path-line" title={repo.path}>{repo.path}</span> : "Chưa chọn repo"}
-        actions={
-          tasks.length > 0 && (
-            <a className="btn btn-primary" href={href({ page: "tasks" })}>
-              <span>Mở danh sách task</span>
-            </a>
-          )
-        }
       />
 
       <div className="bento" aria-label={`Tổng quan ${repoName}`}>

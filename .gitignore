@@ -4,3 +4,5 @@ dist/
 .codegraph/
 .env
 .vitest/
+# Playwright CLI output (may contain credentials)
+.playwright-cli/

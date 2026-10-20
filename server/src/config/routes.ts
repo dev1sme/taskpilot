@@ -3,7 +3,7 @@ import { HttpError } from "../errors.js";
 import type { EnvStore } from "../sessions/envStore.js";
 import { BackupStore } from "./backups.js";
 import { getCodegraphStatus, runCodegraphIndex } from "./codegraph.js";
-import { applyHooks, readHookInputs, validateHooks } from "./hooksEdit.js";
+import { applyHooks, readHookInputs, readHooksBlock, validateHooks } from "./hooksEdit.js";
 import { readLibrary, type LibraryKind, type LibraryScope } from "./library.js";
 import { registerMcpRoutes, restoreMcpEntry } from "./mcpRoutes.js";
 import { readMemory, type MemoryScope } from "./memory.js";
@@ -111,7 +111,7 @@ export function registerConfigRoutes(
   app.get<{ Params: { scope: string } }>("/api/config/settings/:scope/hooks", async (req) => {
     const target = settingsTarget(requireRepo(), scopeOf(req.params.scope));
     const current = await readCurrent(target.abs);
-    return { path: target.display, exists: current !== null, hash: hashOf(current), hooks: readHookInputs(current) };
+    return { path: target.display, exists: current !== null, hash: hashOf(current), hooks: readHookInputs(current), raw: readHooksBlock(current) };
   });
 
   app.post<{ Params: { scope: string } }>("/api/config/settings/:scope/hooks/preview", async (req) => {

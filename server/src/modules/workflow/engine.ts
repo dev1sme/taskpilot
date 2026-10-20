@@ -9,7 +9,7 @@ import { loadWorkflow, OVERRIDE_DIR } from "./definition.js";
 import { archiveOutputs } from "./archive.js";
 import { appendHistory, HISTORY_TEXT } from "./history.js";
 import type { RunState, StepDef, WorkflowDef } from "./types.js";
-import { promptVars, render } from "./vars.js";
+import { promptVars, renderPrompt } from "./vars.js";
 import { t } from "../../core/i18n.js";
 
 /** The parts of SessionManager the engine uses. */
@@ -291,9 +291,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
 
   private async prompt(run: RunState, template: string, extra: { feedback?: string } = {}): Promise<string> {
     const task = await getTask(run.repo, run.taskKey);
-    const text = render(template, promptVars(await this.defOf(run), run.stepIndex, task, { previous: run.previous, ...extra }));
-    // Variables that render empty (e.g. {{previousRun}} on a first run) leave runs of blank lines.
-    return text.replace(/\n{3,}/g, "\n\n");
+    return renderPrompt(template, promptVars(await this.defOf(run), run.stepIndex, task, { previous: run.previous, ...extra }));
   }
 
   /** The workflow the run started with; runs saved before snapshots existed follow the current one. */

@@ -14,4 +14,4 @@ export { WorkflowEngine } from "./engine.js";
 export { registerWorkflowRoutes } from "./routes.js";
 export { stageOf, type Stage } from "./stage.js";
 export { type OutputDef, type RunState, type StepDef, type WorkflowDef } from "./types.js";
-export { promptVars, render, templateVars } from "./vars.js";
+export { promptVars, render, renderPrompt, templateVars } from "./vars.js";

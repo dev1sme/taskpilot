@@ -7,6 +7,7 @@ import { registerLibraryRoutes } from "./library/routes.js";
 import { registerMcpRoutes } from "./mcp/routes.js";
 import { registerMemoryRoutes } from "./memory/routes.js";
 import { registerSettingsRoutes } from "./settings/routes.js";
+import { registerWorkflowConfigRoutes } from "./workflow/routes.js";
 import type { ConfigRouteOptions } from "./shared/http.js";
 
 /** Claude configuration: reads (phase B), and edits with diff preview, backups and conflict checks (phase C). */
@@ -17,5 +18,6 @@ export function registerConfigRoutes(app: FastifyInstance, opts: ConfigRouteOpti
   registerConfigHooksRoutes(app, opts);
   registerLibraryRoutes(app, opts);
   registerCodegraphRoutes(app, opts);
+  registerWorkflowConfigRoutes(app, opts);
   registerBackupsRoutes(app, opts);
 }

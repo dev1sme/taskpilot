@@ -28,6 +28,11 @@ export function render(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{([\w.]+)\}\}/g, (match, name: string) => vars[name] ?? match);
 }
 
+/** A prompt as sent: variables filled, and the blank-line runs that empty ones (e.g. {{previousRun}}) leave collapsed. */
+export function renderPrompt(template: string, vars: Record<string, string>): string {
+  return render(template, vars).replace(/\n{3,}/g, "\n\n");
+}
+
 /** The task directory as Claude sees it from the repo root, with forward slashes. */
 export function taskDirOf(taskKey: string): string {
   return path.posix.join(TASKS_DIR.split(path.sep).join("/"), taskKey);

@@ -13,12 +13,12 @@ interface StepModel {
   "on-reject"?: string;
   gate?: string;
   "done-when"?: string;
-  outputs?: Array<{ id?: string; file?: string; content?: string }>;
+  outputs?: Array<{ id?: string; file?: string; content?: string; format?: string }>;
 }
 
 interface Model {
   "permission-mode"?: string;
-  history?: { file?: string; entry?: string };
+  history?: { file?: string; entry?: string; format?: string };
   language?: string;
   rules?: string[];
   restart?: { read?: string[] };
@@ -88,6 +88,9 @@ export function WorkflowForm(props: { text: string; prompts: string[]; onChange:
           </Field>
           <Field label={t("workflow.form.historyEntry")} help={t("workflow.form.historyEntryHelp", { v: "{{historyEntry}}" })}>
             {(id) => <input id={id} className="mono" value={model.history?.entry ?? ""} onChange={(e) => set(["history", "entry"], e.target.value, true)} />}
+          </Field>
+          <Field label={t("workflow.form.historyFormat")} help={t("workflow.form.historyFormatHelp", { v: "{{historyFormat}}" })}>
+            {(id) => <FileSelect id={id} value={model.history?.format ?? ""} files={props.prompts} onChange={(v) => set(["history", "format"], v, true)} />}
           </Field>
           <Field label={t("workflow.form.language")} help={t("workflow.form.languageHelp", { v: "{{language}}" })}>
             {(id) => <input id={id} value={model.language ?? ""} onChange={(e) => set(["language"], e.target.value, true)} />}
@@ -199,6 +202,7 @@ export function WorkflowForm(props: { text: string; prompts: string[]; onChange:
                 <input className="mono" aria-label={t("workflow.form.outputId")} placeholder="plan" value={o.id ?? ""} onChange={(e) => set(["steps", i, "outputs", j, "id"], e.target.value)} />
                 <input className="mono" aria-label={t("workflow.form.outputFile")} placeholder="02-plan.md" value={o.file ?? ""} onChange={(e) => set(["steps", i, "outputs", j, "file"], e.target.value)} />
                 <input aria-label={t("workflow.form.outputContent")} placeholder={t("workflow.form.outputContentPlaceholder")} value={o.content ?? ""} onChange={(e) => set(["steps", i, "outputs", j, "content"], e.target.value, true)} />
+                <FileSelect label={t("workflow.form.outputFormat")} value={o.format ?? ""} files={props.prompts} onChange={(v) => set(["steps", i, "outputs", j, "format"], v, true)} />
                 <IconAction icon={Trash} label={t("workflow.form.removeOutput")} onClick={() => remove(["steps", i, "outputs", j])} />
               </li>
             ))}
@@ -226,6 +230,22 @@ function Field(props: { label: string; help?: string; children: (id: string) => 
         {props.help && <span className="field-help">{props.help}</span>}
       </div>
     </>
+  );
+}
+
+/** A file of the workflow directory, or none. */
+function FileSelect(props: { id?: string; label?: string; value: string; files: string[]; onChange: (value: string) => void }) {
+  const { t } = useTranslation("config");
+  return (
+    <select id={props.id} aria-label={props.label} value={props.value} onChange={(e) => props.onChange(e.target.value)}>
+      <option value="">{t("workflow.form.none")}</option>
+      {!props.files.includes(props.value) && props.value && <option value={props.value}>{props.value}</option>}
+      {props.files.map((f) => (
+        <option key={f} value={f}>
+          {f}
+        </option>
+      ))}
+    </select>
   );
 }
 

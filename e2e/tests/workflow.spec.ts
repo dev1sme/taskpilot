@@ -31,6 +31,8 @@ test("the built-in workflow is read only until an override is added", async ({ p
   const nav = page.getByRole("navigation", { name: "File của workflow" });
   await expect(nav).toContainText("Điều tra & lên kế hoạch");
   await expect(nav).toContainText("01-investigation.md, 02-plan.md ✓");
+  await expect(nav.getByRole("button", { name: /format-plan\.md/ })).toContainText("Khung 02-plan.md");
+  await expect(nav.getByRole("button", { name: /format-history\.md/ })).toContainText("Khung entry trong 00-history.md");
   await nav.getByRole("button", { name: /investigate\.md/ }).click();
   await expect(page.locator(".wf-file .code-lines")).toContainText("{{outputs}}");
 
@@ -53,6 +55,10 @@ test("workflow.yml is edited in the form, previewed and checked before saving", 
   // The preview renders the unsaved draft.
   await page.getByRole("button", { name: "Xem prompt" }).click();
   await expect(page.locator(".wf-rendered")).toContainText(".claude/tasks/PROJ-1/02-ke-hoach.md");
+  // Each document comes with its skeleton.
+  await expect(page.locator(".wf-rendered")).toContainText("# PROJ-1 — Kế hoạch");
+  await expect(page.locator(".wf-rendered")).toContainText("## 5. Cách verify");
+  await expect(page.getByRole("combobox", { name: "File khung" }).nth(1)).toHaveValue("format-plan.md");
 
   // A broken step id is reported live and refused at review.
   const id = page.getByRole("textbox", { name: "id", exact: true }).first();

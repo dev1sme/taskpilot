@@ -300,3 +300,15 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.wf-output select {
+  flex: 0 1 180px;
+  min-width: 0;
+  height: 36px;
+  padding: 0 8px;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--sunken);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+}

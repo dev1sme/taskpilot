@@ -43,6 +43,7 @@ permission-mode: acceptEdits        # optional: default | acceptEdits | plan | a
 history:
   file: 00-history.md               # the task's decision log
   entry: "## <YYYY-MM-DD HH:MM> · {{step}} · Claude"
+  format: format-history.md         # skeleton of a whole entry ({{historyFormat}})
 language: Write the documents in the same language as the spec.
 rules:                              # shared by every prompt through {{rules}}
   - "Append only to {{historyFile}}: add new entries at the end with Edit, never rewrite or remove earlier ones."
@@ -61,9 +62,17 @@ steps:
       - id: plan
         file: 02-plan.md
         content: goal, changes per file, ordered steps, risks, how to verify, open questions
+        format: format-plan.md      # skeleton the document must follow (shown in {{outputs}})
     done-when: plan                 # an output id of this step
     gate: approve                   # or none: continue without stopping
 ```
+
+Skeleton (`format`) files sit next to the prompts: the headings Claude must keep, in order, with a
+`<!-- hint -->` per section; they may use the same variables (e.g. `# {{key}} — Kế hoạch`). The
+built-in workflow ships one per document (`format-investigation.md`, `format-plan.md`,
+`format-progress.md`, `format-summary.md`) and one for history entries (`format-history.md`), and
+its prompts share one layout: *Context*, *Your job*, *Write*, *Rules*, *When done* (on-reject
+prompts start with *Feedback*).
 
 Prompt files are templates. Variables:
 
@@ -71,8 +80,8 @@ Prompt files are templates. Variables:
 |---|---|
 | `{{key}}`, `{{title}}`, `{{step}}`, `{{stepNumber}}`, `{{stepCount}}` | the task and the step |
 | `{{taskDir}}`, `{{specDir}}` | `.claude/tasks/<KEY>` and its `spec/` |
-| `{{historyFile}}`, `{{historyEntry}}` | the decision log and the heading Claude uses in it |
-| `{{outputs}}` | this step's documents with what each must contain |
+| `{{historyFile}}`, `{{historyEntry}}`, `{{historyFormat}}` | the decision log, the heading Claude uses in it, and the skeleton of a whole entry |
+| `{{outputs}}` | this step's documents with what each must contain and, when it has a `format`, its skeleton in a code block |
 | `{{inputs}}` | the documents of earlier steps |
 | `{{out.<id>}}` | the path of one document, e.g. `{{out.plan}}` |
 | `{{rules}}`, `{{language}}` | `rules` and `language` from `workflow.yml` |

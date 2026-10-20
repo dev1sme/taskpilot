@@ -278,7 +278,12 @@ function FileNav(props: {
   const { t } = useTranslation("config");
   const { config } = props;
   const steps = config.def?.steps ?? [];
-  const known = new Set([WORKFLOW_FILE, ...steps.flatMap((s) => [s.promptFile, s.onRejectFile ?? ""])]);
+  const historyFormat = config.def?.history.format ?? null;
+  const known = new Set([
+    WORKFLOW_FILE,
+    historyFormat ?? "",
+    ...steps.flatMap((s) => [s.promptFile, s.onRejectFile ?? "", ...s.outputs.map((o) => o.format ?? "")]),
+  ]);
   const loose = [...config.files.map((f) => f.name).filter((n) => !known.has(n)), ...props.newFiles];
 
   const item = (name: string, label?: string) => {
@@ -305,7 +310,10 @@ function FileNav(props: {
 
   return (
     <nav className="library-list wf-nav" aria-label={t("workflow.files")}>
-      <ul>{item(WORKFLOW_FILE, t("workflow.ymlLabel"))}</ul>
+      <ul>
+        {item(WORKFLOW_FILE, t("workflow.ymlLabel"))}
+        {historyFormat && item(historyFormat, t("workflow.historyFormatLabel", { file: config.def!.history.file }))}
+      </ul>
       {steps.map((s, i) => (
         <div key={s.id} className="wf-nav-step">
           <div className="pane-label">
@@ -318,6 +326,7 @@ function FileNav(props: {
           <ul>
             {item(s.promptFile, t("workflow.promptLabel"))}
             {s.onRejectFile && item(s.onRejectFile, t("workflow.onRejectLabel"))}
+            {s.outputs.map((o) => o.format && item(o.format, t("workflow.formatLabel", { file: o.file })))}
           </ul>
         </div>
       ))}

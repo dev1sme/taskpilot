@@ -2,6 +2,8 @@ export interface WorkflowOutput {
   id: string;
   file: string;
   content: string;
+  /** Skeleton file the document must follow. */
+  format: string | null;
 }
 
 export interface WorkflowStepView {
@@ -19,7 +21,7 @@ export interface WorkflowFile {
   path: string;
   content: string;
   hash: string;
-  /** Titles of the steps whose prompt or on-reject this file is. */
+  /** Steps whose prompt or on-reject this file is, documents whose skeleton it is, or the history file. */
   usedBy: string[];
   /** null when the built-in workflow has no file of that name. */
   sameAsDefault: boolean | null;
@@ -35,7 +37,7 @@ export interface WorkflowConfig {
   variables: string[];
   def: {
     permissionMode: string | null;
-    history: { file: string; entry: string };
+    history: { file: string; entry: string; format: string | null };
     language: string;
     rules: string[];
     restart: { read: string[] } | null;

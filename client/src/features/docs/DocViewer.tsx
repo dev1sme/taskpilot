@@ -3,9 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "../../api/client";
 import { Markdown } from "../../shared/ui/Markdown";
 import "./docs.css";
+import { docsApi } from "./api";
 
 /** Full document in a panel sliding in from the right. Esc or the backdrop closes it. */
 export function DocViewer(props: { taskKey: string; path: string | null; version: number; onClose: () => void }) {
@@ -13,7 +13,7 @@ export function DocViewer(props: { taskKey: string; path: string | null; version
   const { t } = useTranslation(["docs", "common"]);
   const query = useQuery({
     queryKey: ["doc", taskKey, path, props.version],
-    queryFn: () => api.file(taskKey, path!),
+    queryFn: () => docsApi.file(taskKey, path!),
     enabled: !!path,
   });
   const content = query.data?.content ?? null;

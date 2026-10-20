@@ -1,13 +1,13 @@
 import { ArrowClockwise, LockSimple, X } from "@phosphor-icons/react";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { Scope } from "../../api/types";
 import { Button } from "../../shared/ui/Button";
 import i18n from "../../i18n";
 import { PageHeader } from "../../shared/ui/PageHeader";
 import { Toolbar } from "../../shared/ui/Toolbar";
 import { clearDraft, isDirty } from "./drafts";
 import "./config.css";
+import type { Scope } from "./types";
 
 export const scopeLabel = (scope: Scope) => i18n.t(`scope.label.${scope}`, { ns: "config" });
 export const scopeHint = (scope: Scope) => i18n.t(`scope.hint.${scope}`, { ns: "config" });

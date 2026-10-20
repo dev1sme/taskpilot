@@ -3,10 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useId, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { api } from "../../api/client";
-import type { RunState, WorkflowStep } from "../../api/types";
 import { Button } from "../../shared/ui/Button";
 import { Markdown } from "../../shared/ui/Markdown";
+import { docsApi } from "../docs/api";
+import { workflowApi } from "./api";
+import type { RunState, WorkflowStep } from "./types";
 
 /**
  * The approval gate, front and center: what Claude produced (file preview + its closing message)
@@ -25,7 +26,7 @@ export function GateCard(props: {
   const { taskKey, step } = props;
   const docQuery = useQuery({
     queryKey: ["doc", taskKey, step.doneFile, props.docVersion],
-    queryFn: () => api.file(taskKey, step.doneFile!),
+    queryFn: () => docsApi.file(taskKey, step.doneFile!),
     enabled: !!step.doneFile,
   });
   const doc = docQuery.data?.content ?? null;
@@ -101,7 +102,7 @@ export function GateCard(props: {
           size="lg"
           busy={busy === "approve"}
           disabled={busy !== null}
-          onClick={() => void act("approve", () => api.approve(taskKey))}
+          onClick={() => void act("approve", () => workflowApi.approve(taskKey))}
         >
           {props.isLast ? t("gate.approveLast") : t("gate.approveNext")}
         </Button>
@@ -109,7 +110,7 @@ export function GateCard(props: {
           className="gate-feedback"
           onSubmit={(e) => {
             e.preventDefault();
-            void act("feedback", () => api.feedback(taskKey, feedback));
+            void act("feedback", () => workflowApi.feedback(taskKey, feedback));
           }}
         >
           <label htmlFor={feedbackId}>{t("gate.feedbackLabel")}</label>

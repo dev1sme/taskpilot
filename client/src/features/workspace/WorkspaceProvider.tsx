@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, type ReactNode } from "react";
-import { api } from "../api/client";
-import { queryClient } from "../shared/api/queryClient";
-import { useInvalidateOnEvent } from "../shared/api/useInvalidateOnEvent";
-import type { Info, Inventory, RepoInfo, TaskSummary } from "../api/types";
+import { queryClient } from "../../shared/api/queryClient";
+import { useInvalidateOnEvent } from "../../shared/api/useInvalidateOnEvent";
+import { workspaceApi } from "./api";
+import type { Info, Inventory, RepoInfo, TaskSummary } from "./types";
 
 interface Workspace {
   repo: RepoInfo | null;
@@ -19,18 +19,18 @@ const Ctx = createContext<Workspace | null>(null);
 
 /** Repo-wide state shared by every page: the repo, its tasks (live), config inventory, claude version. */
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const infoQuery = useQuery({ queryKey: ["info"], queryFn: api.info });
-  const repoQuery = useQuery({ queryKey: ["repo"], queryFn: api.repo });
+  const infoQuery = useQuery({ queryKey: ["info"], queryFn: workspaceApi.info });
+  const repoQuery = useQuery({ queryKey: ["repo"], queryFn: workspaceApi.repo });
   const repo = repoQuery.data ?? null;
 
   const tasksQuery = useQuery({
     queryKey: ["tasks"],
-    queryFn: api.tasks,
+    queryFn: workspaceApi.tasks,
     enabled: !!repo?.path,
   });
   const inventoryQuery = useQuery({
     queryKey: ["inventory"],
-    queryFn: api.inventory,
+    queryFn: workspaceApi.inventory,
     enabled: !!repo?.path,
   });
 
@@ -45,7 +45,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const openRepo = useCallback(async (path: string) => {
-    queryClient.setQueryData(["repo"], await api.setRepo(path));
+    queryClient.setQueryData(["repo"], await workspaceApi.setRepo(path));
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["tasks"] }),
       queryClient.invalidateQueries({ queryKey: ["inventory"] }),

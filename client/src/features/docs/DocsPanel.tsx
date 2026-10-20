@@ -1,8 +1,9 @@
 import { CheckCircle, FileText, NotePencil } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
-import type { TaskSummary, WorkflowStep } from "../../api/types";
 import { clockTime } from "../../shared/ui/Elapsed";
 import "./docs.css";
+import type { WorkflowStep } from "../workflow/types";
+import type { TaskSummary } from "../workspace/types";
 
 /**
  * The task's documents: the spec the user wrote, then what Claude is expected to write, in step

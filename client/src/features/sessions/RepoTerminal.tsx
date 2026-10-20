@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "../../api/client";
-import { useWorkspace } from "../../app/workspace";
+import { useWorkspace } from "../workspace/WorkspaceProvider";
 import { TerminalDrawer } from "./TerminalDrawer";
 import { useRepoSessions } from "./useSessions";
+import { sessionsApi } from "./api";
 
 /**
  * Claude in the repo without a task, on every page. Rendered only while open; the footer's
@@ -29,7 +29,7 @@ export function RepoTerminal({ open, onToggle }: { open: boolean; onToggle: (ope
         label={t("repoTerminal")}
         scopeLabel="repo"
         emptyHint={t("repoEmpty")}
-        onCreate={api.createRepoSession}
+        onCreate={sessionsApi.createRepoSession}
         sessions={sessions}
         activeId={activeId}
         open

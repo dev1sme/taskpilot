@@ -1,12 +1,12 @@
 import { Plus, X } from "@phosphor-icons/react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "../../api/client";
-import type { Permissions, Scope } from "../../api/types";
 import { toast } from "../../shared/ui/Toast";
 import { clearDraft, setDraft } from "./drafts";
 import { RuleChip } from "./parts";
 import { useSaveFlow } from "./useSaveFlow";
+import { configApi } from "./api";
+import type { Permissions, Scope } from "./types";
 
 export interface PermissionsDraft {
   permissions: Permissions;
@@ -30,8 +30,8 @@ export function usePermissionsSave(scope: Scope, draft: PermissionsDraft | undef
   const { t } = useTranslation("config");
   return useSaveFlow({
     title: t("permissions.saveTitle", { path: draft?.path ?? "" }),
-    preview: () => api.permissionsPreview(scope, draft!.permissions, draft!.baseHash),
-    save: () => api.permissionsSave(scope, draft!.permissions, draft!.baseHash),
+    preview: () => configApi.permissionsPreview(scope, draft!.permissions, draft!.baseHash),
+    save: () => configApi.permissionsSave(scope, draft!.permissions, draft!.baseHash),
     onSaved: () => {
       toast(t("permissions.saved", { path: draft?.path }));
       clearDraft(permissionsKey(scope));

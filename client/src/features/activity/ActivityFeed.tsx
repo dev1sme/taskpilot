@@ -2,10 +2,10 @@ import { ChatCircleText, CircleNotch, HandPalm, PaperPlaneTilt, Power, WarningCi
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { ActivityItem } from "../../api/types";
 import { clockTime, formatDuration } from "../../shared/ui/Elapsed";
 import { CategoryIcon } from "./categories";
 import "./activity.css";
+import type { ActivityItem } from "./types";
 
 const VISIBLE = 60;
 

@@ -1,15 +1,15 @@
 import { CheckCircle, CircleNotch, HourglassMedium, Key, PencilSimple, Plugs, Plus, Trash, Warning, XCircle } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { api } from "../../api/client";
-import type { McpCheck, McpEntryForm, McpServer, Scope } from "../../api/types";
-import { useWorkspace } from "../../app/workspace";
+import { useWorkspace } from "../workspace/WorkspaceProvider";
 import { Button } from "../../shared/ui/Button";
 import { toast } from "../../shared/ui/Toast";
 import { McpForm } from "./McpForm";
 import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError, ScopeTabs, ScopeTag } from "./parts";
 import { shadowedBy } from "./precedence";
 import { useConfig } from "./useConfig";
+import { configApi } from "./api";
+import type { McpCheck, McpEntryForm, McpServer, Scope } from "./types";
 
 type Editing = { scope: Scope; base: McpEntryForm | null; baseHash: string } | null;
 
@@ -17,7 +17,7 @@ type Editing = { scope: Scope; base: McpEntryForm | null; baseHash: string } | n
 export function McpPage() {
   const { t } = useTranslation("config");
   const tabLabel = (s: Scope) => t(`mcp.tab.${s}`);
-  const { data, error, loading, reload } = useConfig(["mcp"], api.mcp);
+  const { data, error, loading, reload } = useConfig(["mcp"], configApi.mcp);
   const { reloadInventory } = useWorkspace();
   const [scope, setScope] = useState<Scope>("project");
   const [picked, setPicked] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export function McpPage() {
 
   const startAdd = async (scope: Scope) => {
     try {
-      const { hash } = await api.mcpAddHash(scope);
+      const { hash } = await configApi.mcpAddHash(scope);
       setEditing({ scope, base: null, baseHash: hash });
     } catch (e) {
       toast((e as Error).message, { error: true });
@@ -45,7 +45,7 @@ export function McpPage() {
 
   const startEdit = async (s: McpServer) => {
     try {
-      const form = await api.mcpEntry(s.scope, s.name);
+      const form = await configApi.mcpEntry(s.scope, s.name);
       setEditing({ scope: s.scope, base: form, baseHash: form.hash });
     } catch (e) {
       toast((e as Error).message, { error: true });
@@ -174,7 +174,7 @@ function McpDetail({ server, source, onEdit, onChanged }: { server: McpServer; s
   const runCheck = async () => {
     setChecking(true);
     try {
-      setCheck(await api.mcpCheck(server.name));
+      setCheck(await configApi.mcpCheck(server.name));
     } catch (e) {
       setCheck({ status: "unknown", label: (e as Error).message });
     } finally {
@@ -185,8 +185,8 @@ function McpDetail({ server, source, onEdit, onChanged }: { server: McpServer; s
   const remove = async () => {
     setDeleting(true);
     try {
-      const { hash } = await api.mcpEntry(server.scope, server.name);
-      await api.mcpDelete(server.scope, server.name, hash);
+      const { hash } = await configApi.mcpEntry(server.scope, server.name);
+      await configApi.mcpDelete(server.scope, server.name, hash);
       toast(t("deletedRestorable", { name: server.name }));
       onChanged();
     } catch (e) {
@@ -300,7 +300,7 @@ function MissingVar({ name, onSaved }: { name: string; onSaved: () => void }) {
         e.preventDefault();
         setBusy(true);
         try {
-          await api.envSet(name, value);
+          await configApi.envSet(name, value);
           toast(t("mcp.envSaved", { name }));
           setValue("");
           onSaved();

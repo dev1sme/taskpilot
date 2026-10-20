@@ -1,8 +1,6 @@
 import { Eye, PencilSimple, Plus, Prohibit, Question, ShieldCheck } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { api } from "../../api/client";
-import type { Scope, SettingsFile } from "../../api/types";
 import { Button } from "../../shared/ui/Button";
 import { DiffDialog } from "../../shared/ui/DiffDialog";
 import { toast } from "../../shared/ui/Toast";
@@ -10,6 +8,8 @@ import { getDraft, isDirty, setDraft, useDrafts } from "./drafts";
 import { ConfigHeader, ConfigToolbar, DraftControls, LoadError, RuleChip, ScopeTabs, ScopeTag, scopeHint } from "./parts";
 import { PermissionsEditor, permissionsKey, usePermissionsSave, type PermissionsDraft } from "./PermissionsEditor";
 import { useConfig } from "./useConfig";
+import { configApi } from "./api";
+import type { Scope, SettingsFile } from "./types";
 
 /** Modes with a description in `config:settings.modeLabel`. */
 const MODES = ["default", "acceptEdits", "plan", "auto", "bypassPermissions"] as const;
@@ -18,7 +18,7 @@ const knownMode = (m: string): m is (typeof MODES)[number] => (MODES as readonly
 /** Permission rules and env of each settings scope, one file at a time. Deny beats ask beats allow in Claude Code. */
 export function SettingsPage() {
   const { t } = useTranslation("config");
-  const { data, error, loading, reload } = useConfig(["settings"], api.settings);
+  const { data, error, loading, reload } = useConfig(["settings"], configApi.settings);
   const [scope, setScope] = useState<Scope>("project");
   const [opening, setOpening] = useState(false);
   useDrafts();
@@ -30,7 +30,7 @@ export function SettingsPage() {
   const startEditing = async () => {
     setOpening(true);
     try {
-      const p = await api.permissions(scope);
+      const p = await configApi.permissions(scope);
       setDraft(permissionsKey(scope), {
         permissions: { allow: p.allow, ask: p.ask, deny: p.deny, defaultMode: p.defaultMode },
         baseHash: p.hash,

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Preview, SaveResult } from "../../api/types";
+import type { Preview, SaveResult } from "./types";
 
 /**
  * Review-then-save: `review()` asks the server for a diff and opens the dialog; the dialog's

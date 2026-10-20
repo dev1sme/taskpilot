@@ -12,11 +12,13 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useState, type ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { api } from "../../api/client";
-import type { ActivityItem, RunState, SessionView, WorkflowStep } from "../../api/types";
 import { Button } from "../../shared/ui/Button";
 import { Elapsed, formatDuration } from "../../shared/ui/Elapsed";
 import { CategoryIcon } from "../activity/categories";
+import { workflowApi } from "./api";
+import type { ActivityItem } from "../activity/types";
+import type { SessionView } from "../sessions/types";
+import type { RunState, WorkflowStep } from "./types";
 
 interface Props {
   taskKey: string;
@@ -50,12 +52,12 @@ export function NowCard(props: Props) {
   };
 
   const retry = (
-    <Button icon={ArrowClockwise} variant="attention" busy={busy} onClick={() => void act(() => api.retry(props.taskKey))}>
+    <Button icon={ArrowClockwise} variant="attention" busy={busy} onClick={() => void act(() => workflowApi.retry(props.taskKey))}>
       {t("now.retry")}
     </Button>
   );
   const restart = (
-    <Button icon={ArrowCounterClockwise} variant="quiet" busy={busy} onClick={() => void act(() => api.restartRun(props.taskKey))}>
+    <Button icon={ArrowCounterClockwise} variant="quiet" busy={busy} onClick={() => void act(() => workflowApi.restartRun(props.taskKey))}>
       {t("now.restart")}
     </Button>
   );
@@ -97,7 +99,7 @@ export function NowCard(props: Props) {
             variant={done ? "default" : "primary"}
             size={done ? "md" : "lg"}
             busy={busy}
-            onClick={() => void act(() => (run ? api.restartRun(props.taskKey) : api.startRun(props.taskKey)))}
+            onClick={() => void act(() => (run ? workflowApi.restartRun(props.taskKey) : workflowApi.startRun(props.taskKey)))}
           >
             {run ? t("now.restart") : t("now.start")}
           </Button>

@@ -1,8 +1,6 @@
 import { ArrowCounterClockwise, CheckCircle, ChatCircleDots, CircleNotch, Diamond, PlugsConnected, X } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "../../api/client";
-import type { RunPhase, TaskSummary } from "../../api/types";
 import { href } from "../../shared/router";
 import { Button } from "../../shared/ui/Button";
 import { ActivityFeed } from "../activity/ActivityFeed";
@@ -19,6 +17,10 @@ import { Stepper } from "../workflow/Stepper";
 import { ACTIVE_PHASES, useRun } from "../workflow/useRun";
 import "../workflow/workflow.css";
 import "./task.css";
+import { sessionsApi } from "../sessions/api";
+import { workflowApi } from "../workflow/api";
+import type { RunPhase } from "../workflow/types";
+import type { TaskSummary } from "../workspace/types";
 
 type PillPhase = Exclude<RunPhase, "cancelled">;
 
@@ -125,7 +127,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                     busy={restart === "busy"}
                     onClick={() => {
                       setRestart("busy");
-                      void api
+                      void workflowApi
                         .restartRun(task.key)
                         .then(changed)
                         .finally(() => setRestart("idle"));
@@ -142,7 +144,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                   title={t("cancelTitle")}
                   onClick={() => {
                     setCancelling(true);
-                    void api
+                    void workflowApi
                       .cancelRun(task.key)
                       .then(changed)
                       .finally(() => setCancelling(false));
@@ -204,7 +206,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
       <TerminalDrawer
         scopeLabel="task"
         emptyHint={t("terminalEmpty")}
-        onCreate={() => api.createSession(task.key)}
+        onCreate={() => sessionsApi.createSession(task.key)}
         sessions={sessions}
         activeId={activeSession}
         open={drawerOpen}

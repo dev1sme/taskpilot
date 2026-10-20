@@ -1,11 +1,11 @@
 import { Plus, Trash } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
-import { api } from "../../api/client";
-import type { HookInput, Scope } from "../../api/types";
 import { Button } from "../../shared/ui/Button";
 import { toast } from "../../shared/ui/Toast";
 import { clearDraft, setDraft } from "./drafts";
 import { useSaveFlow } from "./useSaveFlow";
+import { configApi } from "./api";
+import type { HookInput, Scope } from "./types";
 
 export interface HooksDraft {
   scope: Scope;
@@ -65,8 +65,8 @@ export function useHooksSave(draft: HooksDraft | undefined, onSaved: () => void)
   const { t } = useTranslation("config");
   return useSaveFlow({
     title: t("hooks.saveTitle", { path: draft?.path ?? "" }),
-    preview: () => api.hooksPreview(draft!.scope, draft!.hooks, draft!.baseHash),
-    save: () => api.hooksSave(draft!.scope, draft!.hooks, draft!.baseHash),
+    preview: () => configApi.hooksPreview(draft!.scope, draft!.hooks, draft!.baseHash),
+    save: () => configApi.hooksSave(draft!.scope, draft!.hooks, draft!.baseHash),
     onSaved: () => {
       toast(t("hooks.saved", { path: draft?.path }));
       clearDraft(hooksKey(draft!.scope));

@@ -1,10 +1,10 @@
 import { SignIn } from "@phosphor-icons/react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "../../api/client";
 import { Button } from "../../shared/ui/Button";
 // .brand-mark
 import "../shell/shell.css";
+import { authApi } from "./api";
 
 export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
   const { t } = useTranslation(["auth", "common"]);
@@ -23,7 +23,7 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
           e.preventDefault();
           setBusy(true);
           try {
-            await api.login({ user, password });
+            await authApi.login({ user, password });
             onLoggedIn();
           } catch (err) {
             setError((err as Error).message);

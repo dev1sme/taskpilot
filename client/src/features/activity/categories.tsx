@@ -9,7 +9,7 @@ import {
   Wrench,
   type Icon,
 } from "@phosphor-icons/react";
-import type { ToolCategory } from "../../api/types";
+import type { ToolCategory } from "./types";
 
 const ICONS: Record<ToolCategory, Icon> = {
   read: BookOpenText,

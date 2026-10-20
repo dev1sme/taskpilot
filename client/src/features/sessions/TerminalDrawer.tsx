@@ -2,10 +2,10 @@ import { ArrowClockwise, CaretDown, CaretUp, HandPalm, Plus, Stop, TerminalWindo
 import { AnimatePresence, motion } from "motion/react";
 import { lazy, Suspense, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "../../api/client";
-import type { SessionView } from "../../api/types";
 import { Button, SrOnly } from "../../shared/ui/Button";
 import "./sessions.css";
+import { sessionsApi } from "./api";
+import type { SessionView } from "./types";
 
 // xterm.js is loaded when the drawer first opens.
 const Terminal = lazy(() => import("./Terminal").then((m) => ({ default: m.Terminal })));
@@ -116,7 +116,7 @@ export function TerminalDrawer(props: Props) {
         {active && props.open && (
           <div className="drawer-actions">
             {active.status === "running" ? (
-              <Button icon={Stop} variant="quiet" busy={busy === "stop"} onClick={() => void act("stop", () => api.stopSession(active.id))}>
+              <Button icon={Stop} variant="quiet" busy={busy === "stop"} onClick={() => void act("stop", () => sessionsApi.stopSession(active.id))}>
                 {t("stop")}
               </Button>
             ) : (
@@ -127,7 +127,7 @@ export function TerminalDrawer(props: Props) {
                   busy={busy === "resume"}
                   onClick={() =>
                     void act("resume", async () => {
-                      await api.resumeSession(active.id);
+                      await sessionsApi.resumeSession(active.id);
                       setGeneration((g) => g + 1);
                     })
                   }
@@ -141,7 +141,7 @@ export function TerminalDrawer(props: Props) {
                       variant="danger"
                       busy={busy === "remove"}
                       title={t("removeTitle", { scope: props.scopeLabel })}
-                      onClick={() => void act("remove", () => api.forgetSession(active.id))}
+                      onClick={() => void act("remove", () => sessionsApi.forgetSession(active.id))}
                     >
                       {t("removeConfirm")}
                     </Button>

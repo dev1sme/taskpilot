@@ -1,8 +1,6 @@
 import { CheckCircle, Eye, PencilSimple, Plus, Warning } from "@phosphor-icons/react";
 import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "../../api/client";
-import type { MemoryFile, Scope } from "../../api/types";
 import { Button } from "../../shared/ui/Button";
 import { DiffDialog } from "../../shared/ui/DiffDialog";
 import { clockTime } from "../../shared/ui/Elapsed";
@@ -11,6 +9,8 @@ import { clearDraft, getDraft, isDirty, setDraft, useDrafts } from "./drafts";
 import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs } from "./parts";
 import { useConfig } from "./useConfig";
 import { useSaveFlow } from "./useSaveFlow";
+import { configApi } from "./api";
+import type { MemoryFile, Scope } from "./types";
 
 // CodeMirror is only needed once the user starts editing.
 const MarkdownEditor = lazy(() => import("./MarkdownEditor").then((m) => ({ default: m.MarkdownEditor })));
@@ -29,7 +29,7 @@ const draftKey = (scope: Scope) => `memory:${scope}`;
 export function MemoryPage() {
   const { t } = useTranslation("config");
   const tabLabel = (s: Scope) => t(`memory.tab.${s}`);
-  const { data, error, loading, reload } = useConfig(["memory"], api.memory);
+  const { data, error, loading, reload } = useConfig(["memory"], configApi.memory);
   const [scope, setScope] = useState<Scope>("project");
   const [opening, setOpening] = useState(false);
   useDrafts();
@@ -39,7 +39,7 @@ export function MemoryPage() {
   const startEditing = async () => {
     setOpening(true);
     try {
-      const raw = await api.memoryRaw(scope);
+      const raw = await configApi.memoryRaw(scope);
       setDraft(draftKey(scope), { content: raw.content, baseHash: raw.hash, path: raw.path } satisfies MemoryDraft);
     } catch (e) {
       toast((e as Error).message, { error: true });
@@ -50,8 +50,8 @@ export function MemoryPage() {
 
   const flow = useSaveFlow({
     title: t("memory.saveTitle", { path: draft?.path ?? tabLabel(scope) }),
-    preview: () => api.memoryPreview(scope, draft!.content, draft!.baseHash),
-    save: () => api.memorySave(scope, draft!.content, draft!.baseHash),
+    preview: () => configApi.memoryPreview(scope, draft!.content, draft!.baseHash),
+    save: () => configApi.memorySave(scope, draft!.content, draft!.baseHash),
     onSaved: () => {
       toast(t("memory.saved", { path: draft?.path }));
       clearDraft(draftKey(scope));

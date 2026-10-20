@@ -2,13 +2,13 @@ import { Eye, Plus, Trash, X } from "@phosphor-icons/react";
 import { useId, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
-import { api } from "../../api/client";
-import type { McpEntryForm, McpEntryInput, Scope } from "../../api/types";
 import { Button } from "../../shared/ui/Button";
 import { DiffDialog } from "../../shared/ui/DiffDialog";
 import { toast } from "../../shared/ui/Toast";
 import { ScopeTag } from "./parts";
 import { useSaveFlow } from "./useSaveFlow";
+import { configApi } from "./api";
+import type { McpEntryForm, McpEntryInput, Scope } from "./types";
 
 interface Row {
   key: string;
@@ -76,11 +76,11 @@ export function McpForm(props: {
   const flow = useSaveFlow({
     title: t(base ? "mcpForm.saveTitle" : "mcpForm.addTitle", { name }),
     preview: async () => {
-      const p = await api.mcpPreview(scope, build(), props.baseHash);
+      const p = await configApi.mcpPreview(scope, build(), props.baseHash);
       setSecrets(p.secrets);
       return p;
     },
-    save: () => api.mcpSave(scope, build(), props.baseHash),
+    save: () => configApi.mcpSave(scope, build(), props.baseHash),
     onSaved: () => {
       toast(secrets.length ? t("mcpForm.savedWithSecrets", { name, secrets: secrets.join(", ") }) : t("mcpForm.saved", { name }));
       props.onDone(name);

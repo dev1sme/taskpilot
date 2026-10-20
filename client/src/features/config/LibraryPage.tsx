@@ -2,9 +2,7 @@ import { Eye, MagnifyingGlass, PencilSimple, Plus, Trash, X } from "@phosphor-ic
 import { AnimatePresence, motion } from "motion/react";
 import { lazy, Suspense, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "../../api/client";
-import type { LibraryItem, LibraryKind } from "../../api/types";
-import { useWorkspace } from "../../app/workspace";
+import { useWorkspace } from "../workspace/WorkspaceProvider";
 import { Button } from "../../shared/ui/Button";
 import { DiffDialog } from "../../shared/ui/DiffDialog";
 import i18n from "../../i18n";
@@ -16,6 +14,8 @@ import { shadowedBy } from "./precedence";
 import { useConfig } from "./useConfig";
 import { useSaveFlow } from "./useSaveFlow";
 import "../../shared/ui/dialog.css";
+import { configApi } from "./api";
+import type { LibraryItem, LibraryKind } from "./types";
 
 const MarkdownEditor = lazy(() => import("./MarkdownEditor").then((m) => ({ default: m.MarkdownEditor })));
 
@@ -70,7 +70,7 @@ const draftKey = (kind: LibraryKind) => `library:${kind}`;
 /** Agents, commands or skills: list + detail, with create, edit (diff review) and delete (backed up). */
 export function LibraryPage({ kind }: { kind: LibraryKind }) {
   const { t } = useTranslation("config");
-  const { data, error, loading, reload } = useConfig(["library", kind], () => api.library(kind));
+  const { data, error, loading, reload } = useConfig(["library", kind], () => configApi.library(kind));
   const { reloadInventory } = useWorkspace();
   const [scope, setScope] = useState<LibraryScope>("project");
   const [query, setQuery] = useState("");
@@ -96,8 +96,8 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
 
   const flow = useSaveFlow({
     title: t(draft?.isNew ? "library.createTitle" : "library.saveTitle", { path: draft?.path ?? "" }),
-    preview: () => api.libraryPreview(kind, draft!.scope, draft!.rel, draft!.content, draft!.baseHash),
-    save: () => api.librarySave(kind, draft!.scope, draft!.rel, draft!.content, draft!.baseHash),
+    preview: () => configApi.libraryPreview(kind, draft!.scope, draft!.rel, draft!.content, draft!.baseHash),
+    save: () => configApi.librarySave(kind, draft!.scope, draft!.rel, draft!.content, draft!.baseHash),
     onSaved: () => {
       toast(t(draft!.isNew ? "library.created" : "library.saved", { path: draft!.path }));
       clearDraft(draftKey(kind));
@@ -109,7 +109,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
 
   const startEdit = async (item: LibraryItem) => {
     try {
-      const raw = await api.libraryRaw(kind, item.scope, item.rel);
+      const raw = await configApi.libraryRaw(kind, item.scope, item.rel);
       setDraft(draftKey(kind), { kind, scope: item.scope, rel: item.rel, path: raw.path, content: raw.content, baseHash: raw.hash, isNew: false } satisfies LibraryDraft);
     } catch (e) {
       toast((e as Error).message, { error: true });
@@ -210,7 +210,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
         onClose={() => setCreating(false)}
         onCreate={async (name) => {
           const rel = relFor(kind, name);
-          const raw = await api.libraryRaw(kind, scope, rel);
+          const raw = await configApi.libraryRaw(kind, scope, rel);
           if (raw.exists) throw new Error(t("library.exists", { path: raw.path }));
           setDraft(draftKey(kind), { kind, scope, rel, path: raw.path, content: template(kind, name), baseHash: raw.hash, isNew: true } satisfies LibraryDraft, null);
           setCreating(false);
@@ -243,8 +243,8 @@ function LibraryDetail({ item, prefix, onEdit, onDeleted }: { item: LibraryItem;
   const remove = async () => {
     setBusy(true);
     try {
-      const raw = await api.libraryRaw(item.kind, item.scope, item.rel);
-      await api.libraryDelete(item.kind, item.scope, item.rel, raw.hash);
+      const raw = await configApi.libraryRaw(item.kind, item.scope, item.rel);
+      await configApi.libraryDelete(item.kind, item.scope, item.rel, raw.hash);
       toast(t("deletedRestorable", { name: item.path }));
       onDeleted();
     } catch (e) {

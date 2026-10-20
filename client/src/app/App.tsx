@@ -15,7 +15,7 @@ import { StatusBar } from "../features/shell/StatusBar";
 import { TaskScreen } from "../features/task/TaskScreen";
 import { TasksPage } from "../features/tasks/TasksPage";
 import { useRoute } from "../shared/router";
-import { useWorkspace, WorkspaceProvider } from "./workspace";
+import { useWorkspace, WorkspaceProvider } from "../features/workspace/WorkspaceProvider";
 import "./app.css";
 
 export function App() {

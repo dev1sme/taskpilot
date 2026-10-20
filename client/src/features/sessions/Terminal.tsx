@@ -2,8 +2,8 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as XTerm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef } from "react";
-import { api } from "../../api/client";
 import i18n from "../../i18n";
+import { sessionsApi } from "./api";
 
 type ServerFrame = { t: "o"; d: string } | { t: "x"; code: number | null };
 
@@ -31,7 +31,7 @@ export function Terminal({ sessionId, onExit }: { sessionId: string; onExit: (co
     term.open(el);
     fit.fit();
 
-    const ws = new WebSocket(api.ptyUrl(sessionId));
+    const ws = new WebSocket(sessionsApi.ptyUrl(sessionId));
     const send = (frame: object) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(frame));
     };

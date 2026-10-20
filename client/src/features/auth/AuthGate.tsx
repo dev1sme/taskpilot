@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { api } from "../../api/client";
 import { takeUrlToken, UNAUTHORIZED } from "../../shared/api/http";
-import type { AuthStatus } from "../../api/types";
 import { LoginScreen } from "./LoginScreen";
 import "./auth.css";
+import { authApi } from "./api";
+import type { AuthStatus } from "./types";
 
 let boot: Promise<AuthStatus> | null = null;
 
@@ -15,8 +15,8 @@ let boot: Promise<AuthStatus> | null = null;
 function bootstrap(): Promise<AuthStatus> {
   boot ??= (async () => {
     const token = takeUrlToken();
-    if (token) await api.login({ token }).catch(() => undefined);
-    return api.auth();
+    if (token) await authApi.login({ token }).catch(() => undefined);
+    return authApi.auth();
   })();
   return boot;
 }
@@ -29,7 +29,7 @@ export function useAuthMode(): AuthStatus["mode"] {
 }
 
 export async function logout(): Promise<void> {
-  await api.logout().catch(() => undefined);
+  await authApi.logout().catch(() => undefined);
   location.reload();
 }
 

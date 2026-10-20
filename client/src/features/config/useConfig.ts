@@ -1,6 +1,6 @@
 import type { QueryKey } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
-import { useWorkspace } from "../../app/workspace";
+import { useWorkspace } from "../workspace/WorkspaceProvider";
 
 /** Loads one config view, keyed by `key`; refetches when the repo changes or on demand. */
 export function useConfig<T>(key: QueryKey, load: () => Promise<T>) {

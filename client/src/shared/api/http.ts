@@ -23,3 +23,6 @@ export async function call<T>(method: string, url: string, body?: unknown): Prom
   if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
   return data as T;
 }
+
+/** Base URL of a task's API. */
+export const taskUrl = (key: string) => `/api/tasks/${encodeURIComponent(key)}`;

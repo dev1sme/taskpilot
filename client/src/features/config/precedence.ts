@@ -1,5 +1,5 @@
-import type { LibraryKind, Scope } from "../../api/types";
 import { scopeLabel } from "./parts";
+import type { LibraryKind, Scope } from "./types";
 
 /**
  * Which scope Claude Code loads when two define the same name, highest first. From the Claude Code

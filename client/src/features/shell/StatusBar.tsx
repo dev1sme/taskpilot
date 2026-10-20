@@ -1,13 +1,13 @@
 import { Gauge, HandPalm, SignOut, TerminalWindow } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
-import type { UsageView } from "../../api/types";
 import { href } from "../../shared/router";
-import { useWorkspace } from "../../app/workspace";
+import { useWorkspace } from "../workspace/WorkspaceProvider";
 import { locale } from "../../i18n";
 import { logout, useAuthMode } from "../auth/AuthGate";
 import { useRepoSessions } from "../sessions/useSessions";
-import { useUsage } from "./useUsage";
+import { useUsage } from "../usage/useUsage";
 import "./shell.css";
+import type { UsageView } from "../usage/types";
 
 /** Live, repo-wide counters at the bottom of every page. */
 export function StatusBar(props: { terminalOpen: boolean; onToggleTerminal: (open: boolean) => void }) {

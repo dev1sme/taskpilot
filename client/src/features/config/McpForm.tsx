@@ -1,5 +1,6 @@
 import { Eye, Plus, Trash, X } from "@phosphor-icons/react";
 import { useId, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../../api/client";
 import type { McpEntryForm, McpEntryInput, Scope } from "../../api/types";
 import { Button } from "../../components/Button";
@@ -32,6 +33,8 @@ export function McpForm(props: {
   /** Prefilled values for a new server (ignored once `base` is set, i.e. when editing). */
   initial?: { name: string; command: string; args: string[] };
   onDone: (name: string | null) => void;
+  /** Where to render cancel / review & save, e.g. the page toolbar; inline at the end of the form when absent. */
+  actionsSlot?: HTMLElement | null;
 }) {
   const { scope, base } = props;
   const [name, setName] = useState(base?.name ?? props.initial?.name ?? "");
@@ -89,6 +92,17 @@ export function McpForm(props: {
     }
   };
 
+  const actions = (
+    <>
+      <Button icon={X} variant="quiet" onClick={() => props.onDone(null)}>
+        Huỷ
+      </Button>
+      <Button icon={Eye} variant="primary" onClick={review} disabled={!name.trim()}>
+        Xem thay đổi &amp; lưu
+      </Button>
+    </>
+  );
+
   return (
     <article className="card library-detail mcp-form" aria-label={base ? `Sửa ${base.name}` : "Thêm MCP server"}>
       <header className="lib-head">
@@ -139,14 +153,7 @@ export function McpForm(props: {
           {formError}
         </p>
       )}
-      <div className="perm-actions">
-        <Button icon={X} variant="quiet" onClick={() => props.onDone(null)}>
-          Huỷ
-        </Button>
-        <Button icon={Eye} variant="primary" onClick={review} disabled={!name.trim()}>
-          Xem thay đổi &amp; lưu
-        </Button>
-      </div>
+      {props.actionsSlot ? createPortal(actions, props.actionsSlot) : <div className="perm-actions">{actions}</div>}
       <DiffDialog {...flow.dialog} confirmLabel={base ? "Lưu" : "Thêm server"} />
     </article>
   );

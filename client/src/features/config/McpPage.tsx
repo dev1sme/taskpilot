@@ -17,6 +17,8 @@ export function McpPage() {
   const { reloadInventory } = useWorkspace();
   const [picked, setPicked] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
+  // The form renders its cancel / save buttons into the toolbar.
+  const [actionsSlot, setActionsSlot] = useState<HTMLSpanElement | null>(null);
   const servers = data?.servers ?? [];
   const keyOf = (s: McpServer) => `${s.scope}:${s.name}`;
   const current = servers.find((s) => keyOf(s) === picked) ?? servers[0];
@@ -51,7 +53,9 @@ export function McpPage() {
         loading={loading}
         onReload={refresh}
         actions={
-          !editing && (
+          editing ? (
+            <span ref={setActionsSlot} className="toolbar-slot" />
+          ) : (
             <>
               <span className="scope-hint" aria-hidden="true">
                 Thêm vào:
@@ -81,6 +85,7 @@ export function McpPage() {
             scope={editing.scope}
             base={editing.base}
             baseHash={editing.baseHash}
+            actionsSlot={actionsSlot}
             onDone={(name) => {
               if (name) setPicked(`${editing.scope}:${name}`);
               setEditing(null);

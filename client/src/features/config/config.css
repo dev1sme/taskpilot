@@ -234,8 +234,7 @@
   }
 }
 
-.lib-actions,
-.lib-editor-actions {
+.lib-actions {
   display: flex;
   gap: 8px;
   margin-left: auto;

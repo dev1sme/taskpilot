@@ -597,6 +597,11 @@ a.status-item.is-warn {
   margin-left: auto;
 }
 
+/* Mount point for actions a child component portals into the toolbar. */
+.toolbar-slot {
+  display: contents;
+}
+
 @media (max-width: 860px) {
   .toolbar {
     padding: 12px 16px 0;

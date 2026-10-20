@@ -89,6 +89,18 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
     void reloadInventory();
   };
 
+  const flow = useSaveFlow({
+    title: `${draft?.isNew ? "Tạo" : "Lưu"} ${draft?.path ?? ""}`,
+    preview: () => api.libraryPreview(kind, draft!.scope, draft!.rel, draft!.content, draft!.baseHash),
+    save: () => api.librarySave(kind, draft!.scope, draft!.rel, draft!.content, draft!.baseHash),
+    onSaved: () => {
+      toast(draft!.isNew ? `Đã tạo ${draft!.path}.` : `Đã lưu ${draft!.path}. Bản cũ nằm trong Lịch sử thay đổi.`);
+      clearDraft(draftKey(kind));
+      setPicked(`${draft!.scope}:${draft!.rel}`);
+      refresh();
+    },
+  });
+
   const startEdit = async (item: LibraryItem) => {
     try {
       const raw = await api.libraryRaw(kind, item.scope, item.rel);
@@ -105,7 +117,14 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
         loading={loading}
         onReload={refresh}
         actions={
-          !draft && (
+          draft ? (
+            <>
+              <DraftControls draftKey={draftKey(kind)} />
+              <Button icon={Eye} variant="primary" onClick={() => void flow.review()}>
+                Xem thay đổi &amp; lưu
+              </Button>
+            </>
+          ) : (
             <Button icon={Plus} variant="primary" onClick={() => setCreating(true)}>
               Tạo {copy.one}
             </Button>
@@ -115,13 +134,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
       <LoadError error={error} />
       <div className="page-body">
         {draft ? (
-          <LibraryEditor
-            draft={draft}
-            onSaved={(rel) => {
-              setPicked(`${draft.scope}:${rel}`);
-              refresh();
-            }}
-          />
+          <LibraryEditor draft={draft} />
         ) : data && data.length === 0 ? (
           <EmptyCard title={`Chưa có ${copy.one}`}>{copy.empty}</EmptyCard>
         ) : (
@@ -156,6 +169,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
           </div>
         )}
       </div>
+      {draft && <DiffDialog {...flow.dialog} confirmLabel={draft.isNew ? "Tạo file" : "Lưu file"} />}
       <NewItemDialog
         open={creating}
         kind={kind}
@@ -172,34 +186,16 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
   );
 }
 
-function LibraryEditor({ draft, onSaved }: { draft: LibraryDraft; onSaved: (rel: string) => void }) {
-  const flow = useSaveFlow({
-    title: `${draft.isNew ? "Tạo" : "Lưu"} ${draft.path}`,
-    preview: () => api.libraryPreview(draft.kind, draft.scope, draft.rel, draft.content, draft.baseHash),
-    save: () => api.librarySave(draft.kind, draft.scope, draft.rel, draft.content, draft.baseHash),
-    onSaved: () => {
-      toast(draft.isNew ? `Đã tạo ${draft.path}.` : `Đã lưu ${draft.path}. Bản cũ nằm trong Lịch sử thay đổi.`);
-      clearDraft(draftKey(draft.kind));
-      onSaved(draft.rel);
-    },
-  });
-
+function LibraryEditor({ draft }: { draft: LibraryDraft }) {
   return (
     <section className="card lib-editor" aria-label={`Sửa ${draft.path}`}>
       <header className="lib-head">
         <h2 className="mono">{draft.path}</h2>
         <ScopeTag scope={draft.scope} />
-        <div className="perm-actions lib-editor-actions">
-          <DraftControls draftKey={draftKey(draft.kind)} />
-          <Button icon={Eye} variant="primary" onClick={() => void flow.review()}>
-            Xem thay đổi &amp; lưu
-          </Button>
-        </div>
       </header>
       <Suspense fallback={<p className="hint">Đang mở editor…</p>}>
         <MarkdownEditor value={draft.content} label={`Nội dung ${draft.path}`} onChange={(content) => setDraft(draftKey(draft.kind), { ...draft, content })} />
       </Suspense>
-      <DiffDialog {...flow.dialog} confirmLabel={draft.isNew ? "Tạo file" : "Lưu file"} />
     </section>
   );
 }

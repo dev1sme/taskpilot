@@ -1,5 +1,6 @@
 import { HttpError } from "../errors.js";
 import { isObject } from "./fs.js";
+import { t } from "../i18n.js";
 
 export interface HookInput {
   event: string;
@@ -87,22 +88,22 @@ export function readHooksBlock(text: string | null): unknown {
 
 export function validateHooks(body: unknown): HookInput[] {
   const list = isObject(body) ? body.hooks : undefined;
-  if (!Array.isArray(list)) throw new HttpError(400, "hooks phải là danh sách");
+  if (!Array.isArray(list)) throw new HttpError(400, t("hooks.notList"));
   return list.map((h, i) => {
-    if (!isObject(h)) throw new HttpError(400, `Hook #${i + 1} không hợp lệ`);
+    if (!isObject(h)) throw new HttpError(400, t("hooks.invalid", { n: i + 1 }));
     const { event, matcher, command, timeout, extra } = h;
-    if (typeof event !== "string" || !EVENT_NAME.test(event)) throw new HttpError(400, `Hook #${i + 1}: sự kiện không hợp lệ`);
-    if (typeof command !== "string" || !command.trim()) throw new HttpError(400, `Hook #${i + 1}: thiếu lệnh`);
-    if (/[\r\n\0]/.test(command)) throw new HttpError(400, `Hook #${i + 1}: lệnh phải nằm trên một dòng`);
-    if (matcher !== undefined && typeof matcher !== "string") throw new HttpError(400, `Hook #${i + 1}: matcher phải là chuỗi`);
+    if (typeof event !== "string" || !EVENT_NAME.test(event)) throw new HttpError(400, t("hooks.event", { n: i + 1 }));
+    if (typeof command !== "string" || !command.trim()) throw new HttpError(400, t("hooks.noCommand", { n: i + 1 }));
+    if (/[\r\n\0]/.test(command)) throw new HttpError(400, t("hooks.multiline", { n: i + 1 }));
+    if (matcher !== undefined && typeof matcher !== "string") throw new HttpError(400, t("hooks.matcher", { n: i + 1 }));
     if (timeout !== undefined && timeout !== null && (typeof timeout !== "number" || !Number.isInteger(timeout) || timeout < 1 || timeout > 3600)) {
-      throw new HttpError(400, `Hook #${i + 1}: timeout phải là số giây từ 1 đến 3600`);
+      throw new HttpError(400, t("hooks.timeout", { n: i + 1 }));
     }
     if (extra !== undefined && extra !== null) {
       if (!isObject(extra) || Object.keys(extra).some((k) => EDITED_FIELDS.has(k))) {
-        throw new HttpError(400, `Hook #${i + 1}: extra không hợp lệ`);
+        throw new HttpError(400, t("hooks.extra", { n: i + 1 }));
       }
-      if (JSON.stringify(extra).length > MAX_EXTRA_BYTES) throw new HttpError(400, `Hook #${i + 1}: extra quá lớn`);
+      if (JSON.stringify(extra).length > MAX_EXTRA_BYTES) throw new HttpError(400, t("hooks.extraTooBig", { n: i + 1 }));
     }
     return {
       event,
@@ -159,8 +160,8 @@ function parse(text: string | null): Record<string, unknown> {
   try {
     data = JSON.parse(text);
   } catch (e) {
-    throw new HttpError(409, `File settings không phải JSON hợp lệ (${(e as Error).message})`);
+    throw new HttpError(409, t("errors.settingsNotJson", { error: (e as Error).message }));
   }
-  if (!isObject(data)) throw new HttpError(409, "File settings phải là một object JSON");
+  if (!isObject(data)) throw new HttpError(409, t("errors.settingsNotObject"));
   return data;
 }

@@ -10,6 +10,7 @@ import { loadWorkflow, render, REPO_WORKFLOW_FILE } from "./definition.js";
 import { archiveOutputs } from "./archive.js";
 import { appendHistory, HISTORY_FILE } from "./history.js";
 import type { RunState, StepDef, WorkflowDef } from "./types.js";
+import { t } from "../i18n.js";
 
 /** The parts of SessionManager the engine uses. */
 export interface SessionPort {
@@ -113,7 +114,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       const last = run.stepIndex + 1 >= def.steps.length;
       await this.log(run, "Ba duyệt", last ? { body: "Quy trình hoàn tất." } : {});
       if (last) {
-        return this.save(run, { phase: "done", message: "Quy trình hoàn tất." });
+        return this.save(run, { phase: "done", message: t("run.done") });
       }
       run.stepIndex += 1;
       await this.deliver(run, await this.prompt(run, def.steps[run.stepIndex].prompt));
@@ -151,7 +152,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     return this.serial(async () => {
       const run = await this.require(repo, taskKey, ACTIVE);
       await this.log(run, "Huỷ quy trình");
-      return this.save(run, { phase: "cancelled", message: "Đã huỷ quy trình. Session vẫn giữ nguyên.", pendingPrompt: undefined });
+      return this.save(run, { phase: "cancelled", message: t("run.cancelled"), pendingPrompt: undefined });
     });
   }
 
@@ -168,7 +169,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
           await this.log(run, "Gián đoạn", { body: "TaskPilot khởi động lại giữa bước." });
           await this.save(run, {
             phase: "interrupted",
-            message: "TaskPilot đã khởi động lại. Bấm \"Gửi lại bước\" để resume session và chạy tiếp, hoặc \"Chạy lại từ đầu\".",
+            message: t("run.restarted"),
           });
         }
       }
@@ -185,7 +186,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       if (event === "SessionStart" && run.phase === "starting" && run.pendingPrompt) {
         await this.send(run, run.pendingPrompt);
       } else if (event === "UserPromptSubmit" && run.phase === "waiting") {
-        await this.save(run, { phase: "running", message: "Claude đang làm việc." });
+        await this.save(run, { phase: "running", message: t("run.working") });
       } else if (event === "Stop" && (run.phase === "running" || run.phase === "waiting")) {
         await this.onStop(run);
       }
@@ -199,7 +200,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       await this.log(run, "Gián đoạn", { body: "Session dừng giữa bước." });
       await this.save(run, {
         phase: "interrupted",
-        message: "Session đã dừng giữa chừng. Bấm \"Gửi lại bước\" để resume session và chạy tiếp bước này, hoặc \"Chạy lại từ đầu\".",
+        message: t("run.sessionStopped"),
       });
     });
   }
@@ -210,13 +211,13 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     if (step.doneWhen && !(await this.writtenSince(run, step.doneWhen.file))) {
       await this.save(run, {
         phase: "waiting",
-        message: `Claude đã dừng nhưng chưa ghi ${step.doneWhen.file}. Trả lời Claude trong terminal, hoặc bấm "Gửi lại bước".`,
+        message: t("run.notWritten", { file: step.doneWhen.file }),
       });
     } else if (step.gate === "approve") {
-      const what = step.doneWhen ? ` Xem ${step.doneWhen.file} rồi duyệt hoặc góp ý.` : "";
-      await this.save(run, { phase: "gate", message: `Bước "${step.title}" xong, chờ duyệt.${what}` });
+      const message = step.doneWhen ? t("run.gateFile", { step: step.title, file: step.doneWhen.file }) : t("run.gate", { step: step.title });
+      await this.save(run, { phase: "gate", message });
     } else if (run.stepIndex + 1 >= def.steps.length) {
-      await this.save(run, { phase: "done", message: "Quy trình hoàn tất." });
+      await this.save(run, { phase: "done", message: t("run.done") });
     } else {
       run.stepIndex += 1;
       await this.deliver(run, await this.prompt(run, def.steps[run.stepIndex].prompt));
@@ -231,12 +232,12 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   private async deliver(run: RunState, text: string, opts: { force?: boolean } = {}): Promise<void> {
     const session = await this.sessions.get(run.sessionId);
     if (session.status !== "running") {
-      await this.save(run, { phase: "starting", message: "Đang resume session…", pendingPrompt: text });
+      await this.save(run, { phase: "starting", message: t("run.resuming"), pendingPrompt: text });
       await this.sessions.resume(run.sessionId);
     } else if (session.activity === "starting" && !opts.force) {
       await this.save(run, {
         phase: "starting",
-        message: "Đang chờ Claude khởi động. Nếu Claude hỏi trust folder, trả lời trong terminal.",
+        message: t("run.starting"),
         pendingPrompt: text,
       });
     } else {
@@ -250,7 +251,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     await this.save(run, {
       phase: "running",
       stepStartedAt: Date.now(),
-      message: `Claude đang làm bước "${step.title}".`,
+      message: t("run.step", { step: step.title }),
       pendingPrompt: undefined,
     });
   }

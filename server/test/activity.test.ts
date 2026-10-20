@@ -58,4 +58,12 @@ describe("ActivityStore", () => {
     const reloaded = await new ActivityStore(dir).list([meta.id]);
     expect(reloaded).toEqual(items);
   });
+
+  it("keeps what a permission request asks for apart from its prefix", async () => {
+    const store = new ActivityStore(await tempDir("taskpilot-activity-"));
+    await store.record(meta, "PermissionRequest", { tool_name: "Bash", tool_input: { command: "npm test" } });
+
+    const [item] = await store.list([meta.id]);
+    expect(item).toMatchObject({ kind: "permission", summary: "Xin quyền: Chạy npm test", action: "Chạy npm test" });
+  });
 });

@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, relative, isAbsolute } from "node:path";
 import { HttpError } from "../errors.js";
+import { t } from "../i18n.js";
 
 export interface CodegraphStatus {
   supported: boolean;
@@ -29,7 +30,7 @@ function firstLine(s: string): string {
 function resolveEnvironments(): string {
   const dir = process.env.TASKPILOT_ENVIRONMENTS_DIR ?? join(homedir(), "dev", "environments");
   if (!existsSync(join(dir, "Makefile"))) {
-    throw new HttpError(404, `Không tìm thấy environments ở ${dir} (đặt TASKPILOT_ENVIRONMENTS_DIR nếu khác)`);
+    throw new HttpError(404, t("codegraph.noEnvironments", { dir }));
   }
   return dir;
 }
@@ -37,10 +38,10 @@ function resolveEnvironments(): string {
 /** `PROJECTS_ROOT` as declared in environments/.env — the single source of truth, not duplicated here. */
 async function readProjectsRoot(envDir: string): Promise<string> {
   const text = await readFile(join(envDir, ".env"), "utf8").catch(() => {
-    throw new HttpError(404, `Không đọc được ${envDir}/.env`);
+    throw new HttpError(404, t("codegraph.noEnv", { dir: envDir }));
   });
   const line = text.split("\n").find((l) => l.startsWith("PROJECTS_ROOT="));
-  if (!line) throw new HttpError(404, `Không thấy PROJECTS_ROOT trong ${envDir}/.env`);
+  if (!line) throw new HttpError(404, t("codegraph.noRoot", { dir: envDir }));
   return line.slice("PROJECTS_ROOT=".length).trim();
 }
 
@@ -73,11 +74,11 @@ export async function getCodegraphStatus(repoPath: string): Promise<CodegraphSta
 
 export async function runCodegraphIndex(repoPath: string): Promise<{ ok: true; output: string }> {
   const r = await resolve(repoPath);
-  if (!r) throw new HttpError(409, "Repo này không nằm trong PROJECTS_ROOT của environments nên codegraph không thấy được");
+  if (!r) throw new HttpError(409, t("codegraph.outside"));
   try {
     const { stdout, stderr } = await run("make", ["-C", r.envDir, "cg-index", `p=${r.rel}`], 120_000);
     return { ok: true, output: (stdout + stderr).trim() };
   } catch (e) {
-    throw new HttpError(502, `make cg-index lỗi: ${(e as Error).message}`);
+    throw new HttpError(502, t("codegraph.indexFailed", { error: (e as Error).message }));
   }
 }

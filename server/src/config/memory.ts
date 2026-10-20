@@ -3,6 +3,7 @@ import path from "node:path";
 import { markdownHeadings } from "../markdown.js";
 import { claudeHome, displayPath, fileInfo, readJsonFile, readText, isObject } from "./fs.js";
 import { projectMemoryFiles } from "./targets.js";
+import { t } from "../i18n.js";
 
 export type MemoryScope = "project" | "local" | "user";
 
@@ -36,12 +37,13 @@ export interface MemoryFile {
 
 const MAX_IMPORT_DEPTH = 4;
 
-const SECRET_PATTERNS: Array<[RegExp, string]> = [
-  [/\bsk-[A-Za-z0-9_-]{20,}/, "khoá API dạng sk-…"],
-  [/\bgh[pousr]_[A-Za-z0-9]{30,}/, "token GitHub"],
-  [/\bAKIA[0-9A-Z]{16}\b/, "access key AWS"],
-  [/\bxox[abpr]-[A-Za-z0-9-]{10,}/, "token Slack"],
-  [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, "private key"],
+/** Secret shapes, named by their `memory.secretKind` key. */
+const SECRET_PATTERNS: Array<[RegExp, "sk" | "github" | "aws" | "slack" | "privateKey"]> = [
+  [/\bsk-[A-Za-z0-9_-]{20,}/, "sk"],
+  [/\bgh[pousr]_[A-Za-z0-9]{30,}/, "github"],
+  [/\bAKIA[0-9A-Z]{16}\b/, "aws"],
+  [/\bxox[abpr]-[A-Za-z0-9-]{10,}/, "slack"],
+  [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, "privateKey"],
 ];
 
 /** CLAUDE.md files Claude loads for this repo, with their imports and a few sanity checks. */
@@ -57,7 +59,7 @@ export async function readMemory(repo: string): Promise<MemoryFile[]> {
   if (project.other) {
     files[0].checks.unshift({
       level: "warn",
-      message: `Claude nạp cả ${displayPath(project.other, repo)}; trang này chỉ hiện và sửa ${displayPath(project.main, repo)}`,
+      message: t("memory.alsoLoads", { other: displayPath(project.other, repo), main: displayPath(project.main, repo) }),
     });
   }
   return files;
@@ -80,15 +82,15 @@ async function readOne(scope: MemoryScope, file: string, repo: string, scripts: 
   const missing = imports.filter((i) => !i.exists);
   checks.push(
     missing.length === 0
-      ? { level: "ok", message: imports.length ? `${imports.length} file @import đều tồn tại` : "Không có @import" }
-      : { level: "warn", message: `Không tìm thấy ${missing.map((m) => m.ref).join(", ")}`, line: missing[0].line },
+      ? { level: "ok", message: imports.length ? t("memory.importsOk", { count: imports.length }) : t("memory.noImports") }
+      : { level: "warn", message: t("memory.importsMissing", { refs: missing.map((m) => m.ref).join(", ") }), line: missing[0].line },
   );
   if (scripts) {
     lines.forEach((l, i) => {
       for (const m of l.matchAll(/\bnpm run ([\w:.-]+)/g)) {
         const script = m[1].replace(/[.:]+$/, ""); // "…npm run e2e." ends a sentence
         if (!scripts.has(script)) {
-          checks.push({ level: "warn", message: `Nhắc "npm run ${script}" nhưng package.json không có script này`, line: i + 1 });
+          checks.push({ level: "warn", message: t("memory.unknownScript", { script }), line: i + 1 });
         }
       }
     });
@@ -96,8 +98,8 @@ async function readOne(scope: MemoryScope, file: string, repo: string, scripts: 
   const secrets = lines.flatMap((l, i) => SECRET_PATTERNS.filter(([re]) => re.test(l)).map(([, what]) => ({ what, line: i + 1 })));
   checks.push(
     secrets.length === 0
-      ? { level: "ok", message: "Không thấy secret dạng token/key" }
-      : { level: "warn", message: `Có thể chứa ${secrets[0].what}; file này được nạp vào mọi session`, line: secrets[0].line },
+      ? { level: "ok", message: t("memory.noSecrets") }
+      : { level: "warn", message: t("memory.secret", { what: t(`memory.secretKind.${secrets[0].what}`) }), line: secrets[0].line },
   );
 
   return {

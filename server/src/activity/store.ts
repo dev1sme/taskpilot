@@ -4,6 +4,7 @@ import { EventEmitter } from "node:events";
 import type { HookEvent } from "../sessions/hooks.js";
 import type { SessionMeta } from "../state.js";
 import { describeTool, firstLine, type ToolCategory } from "./describe.js";
+import { t } from "../i18n.js";
 
 export type ActivityKind = "session" | "prompt" | "tool" | "permission" | "stop";
 
@@ -14,6 +15,8 @@ export interface ActivityItem {
   at: number;
   kind: ActivityKind;
   summary: string;
+  /** permission: what Claude asks to do, the summary without its "asks for permission" prefix. */
+  action?: string;
   detail?: string;
   tool?: string;
   category?: ToolCategory;
@@ -68,14 +71,14 @@ export class ActivityStore extends EventEmitter<{ item: [item: ActivityItem] }> 
           ...base,
           id: this.newId(),
           kind: "session",
-          summary: str("source") === "resume" ? "Session được resume" : "Session bắt đầu",
+          summary: str("source") === "resume" ? t("activity.sessionResume") : t("activity.sessionStart"),
         });
       case "UserPromptSubmit":
         return this.put(items, {
           ...base,
           id: this.newId(),
           kind: "prompt",
-          summary: `Nhận yêu cầu: ${firstLine(str("prompt"), 100)}`,
+          summary: t("activity.prompt", { text: firstLine(str("prompt"), 100) }),
           detail: str("prompt"),
         });
       case "PreToolUse":
@@ -87,14 +90,17 @@ export class ActivityStore extends EventEmitter<{ item: [item: ActivityItem] }> 
           ...describeTool(tool, input, meta.repo),
           status: "running",
         });
-      case "PermissionRequest":
+      case "PermissionRequest": {
+        const action = describeTool(tool, input, meta.repo).summary;
         return this.put(items, {
           ...base,
           id: this.newId(),
           kind: "permission",
           tool,
-          summary: `Xin quyền: ${describeTool(tool, input, meta.repo).summary}`,
+          summary: t("activity.permission", { action }),
+          action,
         });
+      }
       case "PostToolUse":
       case "PostToolUseFailure": {
         const running = items.find((i) => i.id === toolUseId);
@@ -111,7 +117,7 @@ export class ActivityStore extends EventEmitter<{ item: [item: ActivityItem] }> 
           ...base,
           id: this.newId(),
           kind: "stop",
-          summary: firstLine(str("last_assistant_message"), 140) || "Claude kết thúc lượt",
+          summary: firstLine(str("last_assistant_message"), 140) || t("activity.stop"),
           detail: str("last_assistant_message"),
         });
     }

@@ -1,11 +1,12 @@
 import path from "node:path";
+import { t } from "../i18n.js";
 
 /** What a tool call does, for icon and color in the feed. */
 export type ToolCategory = "read" | "write" | "run" | "search" | "web" | "agent" | "plan" | "other";
 
 export interface ToolDescription {
   category: ToolCategory;
-  /** One line in Vietnamese, e.g. "Đọc src/orders.ts". */
+  /** One line in the server's language, e.g. "Đọc src/orders.ts". */
   summary: string;
   /** Longer text shown when the item is expanded (full command, pattern…). */
   detail?: string;
@@ -20,39 +21,40 @@ export function describeTool(tool: string, input: Record<string, unknown>, cwd: 
 
   switch (tool) {
     case "Read":
-      return { category: "read", summary: `Đọc ${file()}` };
+      return { category: "read", summary: t("activity.read", { file: file() }) };
     case "Write":
-      return { category: "write", summary: `Ghi ${file()}` };
+      return { category: "write", summary: t("activity.write", { file: file() }) };
     case "Edit":
     case "MultiEdit":
     case "NotebookEdit":
-      return { category: "write", summary: `Sửa ${file()}` };
+      return { category: "write", summary: t("activity.edit", { file: file() }) };
     case "Bash": {
       // The command itself is the most telling; Claude's own description goes to the detail.
       const command = str("command");
       const detail = [str("description"), command].filter(Boolean).join("\n\n");
-      return { category: "run", summary: `Chạy ${clip(oneLine(command))}`, detail };
+      return { category: "run", summary: t("activity.run", { command: clip(oneLine(command)) }), detail };
     }
     case "Grep": {
       const where = relative(str("path"), cwd);
+      const pattern = clip(str("pattern"), 60);
       return {
         category: "search",
-        summary: `Tìm "${clip(str("pattern"), 60)}"${where && where !== "." ? ` trong ${where}` : ""}`,
+        summary: where && where !== "." ? t("activity.grepIn", { pattern, where }) : t("activity.grep", { pattern }),
       };
     }
     case "Glob":
-      return { category: "search", summary: `Tìm file ${clip(str("pattern"), 80)}` };
+      return { category: "search", summary: t("activity.glob", { pattern: clip(str("pattern"), 80) }) };
     case "WebFetch":
-      return { category: "web", summary: `Mở ${clip(str("url"))}` };
+      return { category: "web", summary: t("activity.fetch", { url: clip(str("url")) }) };
     case "WebSearch":
-      return { category: "web", summary: `Tìm trên web: ${clip(str("query"))}` };
+      return { category: "web", summary: t("activity.webSearch", { query: clip(str("query")) }) };
     case "Task":
     case "Agent":
-      return { category: "agent", summary: `Giao subagent: ${clip(str("description") || str("prompt"))}` };
+      return { category: "agent", summary: t("activity.agent", { task: clip(str("description") || str("prompt")) }) };
     case "TodoWrite":
-      return { category: "plan", summary: "Cập nhật danh sách việc" };
+      return { category: "plan", summary: t("activity.todo") };
     default:
-      return { category: "other", summary: tool.startsWith("mcp__") ? `Dùng ${tool.split("__").slice(1).join(" › ")}` : `Dùng ${tool}` };
+      return { category: "other", summary: t("activity.use", { tool: tool.startsWith("mcp__") ? tool.split("__").slice(1).join(" › ") : tool }) };
   }
 }
 

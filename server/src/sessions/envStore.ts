@@ -1,6 +1,7 @@
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { HttpError } from "../errors.js";
+import { t } from "../i18n.js";
 
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -24,8 +25,8 @@ export class EnvStore {
   }
 
   set(repo: string, key: string, value: string): Promise<void> {
-    if (!KEY.test(key)) throw new HttpError(400, `Tên biến không hợp lệ: ${key}`);
-    if (/[\r\n\0]/.test(value)) throw new HttpError(400, "Giá trị không được chứa xuống dòng");
+    if (!KEY.test(key)) throw new HttpError(400, t("errors.invalidEnvName", { key }));
+    if (/[\r\n\0]/.test(value)) throw new HttpError(400, t("errors.envNewline"));
     return this.update((all) => {
       all[repo] = { ...(all[repo] ?? {}), [key]: value };
     });

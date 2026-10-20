@@ -5,6 +5,7 @@ import { HttpError } from "../errors.js";
 import type { LibraryKind, LibraryScope } from "./library.js";
 import type { MemoryScope } from "./memory.js";
 import type { SettingsScope } from "./settings.js";
+import { t } from "../i18n.js";
 
 /** A config file TaskPilot may write. */
 export interface FileTarget {
@@ -51,7 +52,7 @@ const LIBRARY_REL: Record<LibraryKind, RegExp> = {
 
 /** An agent, command or skill file; `rel` must match the kind's naming (no "..", no other files). */
 export function libraryTarget(repo: string, kind: LibraryKind, scope: LibraryScope, rel: string): FileTarget {
-  if (!LIBRARY_REL[kind].test(rel)) throw new HttpError(400, `Tên không hợp lệ: ${rel}`);
+  if (!LIBRARY_REL[kind].test(rel)) throw new HttpError(400, t("errors.invalidName", { name: rel }));
   const root = scope === "project" ? path.join(repo, ".claude", kind) : path.join(claudeHome(), kind);
   const abs = path.join(root, ...rel.split("/"));
   return { abs, display: displayPath(abs, repo) };

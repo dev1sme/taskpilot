@@ -1,6 +1,7 @@
 import { HttpError } from "../errors.js";
 import { isObject, maskValue } from "./fs.js";
 import { hideUrlCredentials } from "./mcp.js";
+import { t } from "../i18n.js";
 
 export interface ValueInput {
   key: string;
@@ -37,37 +38,37 @@ const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const HEADER = /^[A-Za-z0-9-]{1,100}$/;
 
 export function validateEntry(body: unknown): McpEntryInput {
-  if (!isObject(body)) throw new HttpError(400, "Body phải là object");
+  if (!isObject(body)) throw new HttpError(400, t("errors.bodyObject"));
   const b = body;
-  if (typeof b.name !== "string" || !NAME.test(b.name)) throw new HttpError(400, "Tên server chỉ gồm chữ, số, . _ - (tối đa 64 ký tự)");
+  if (typeof b.name !== "string" || !NAME.test(b.name)) throw new HttpError(400, t("mcp.name"));
   if (b.originalName !== undefined && (typeof b.originalName !== "string" || !NAME.test(b.originalName))) {
-    throw new HttpError(400, "originalName không hợp lệ");
+    throw new HttpError(400, t("mcp.originalName"));
   }
   if (typeof b.type !== "string" || !(MCP_TYPES as readonly string[]).includes(b.type)) {
-    throw new HttpError(400, `type phải là một trong ${MCP_TYPES.join(", ")}`);
+    throw new HttpError(400, t("mcp.type", { types: MCP_TYPES.join(", ") }));
   }
   const type = b.type as McpType;
   const args = b.args ?? [];
-  if (!Array.isArray(args) || args.some((a) => typeof a !== "string" || /[\r\n\0]/.test(a))) throw new HttpError(400, "args phải là danh sách chuỗi một dòng");
+  if (!Array.isArray(args) || args.some((a) => typeof a !== "string" || /[\r\n\0]/.test(a))) throw new HttpError(400, t("mcp.args"));
   if (type === "stdio" && (typeof b.command !== "string" || !b.command.trim() || /[\r\n\0]/.test(b.command))) {
-    throw new HttpError(400, "Server stdio cần lệnh chạy");
+    throw new HttpError(400, t("mcp.stdioCommand"));
   }
   if (type === "ws" && (typeof b.url !== "string" || !/^wss?:\/\/\S+$/.test(b.url))) {
-    throw new HttpError(400, "Server ws cần URL bắt đầu bằng ws:// hoặc wss://");
+    throw new HttpError(400, t("mcp.wsUrl"));
   }
   if (type !== "stdio" && type !== "ws" && (typeof b.url !== "string" || !/^https?:\/\/\S+$/.test(b.url))) {
-    throw new HttpError(400, "Server http/sse cần URL bắt đầu bằng http:// hoặc https://");
+    throw new HttpError(400, t("mcp.httpUrl"));
   }
   const values = (v: unknown, what: string, keyRe: RegExp): ValueInput[] => {
     if (v === undefined) return [];
-    if (!Array.isArray(v)) throw new HttpError(400, `${what} phải là danh sách`);
+    if (!Array.isArray(v)) throw new HttpError(400, t("mcp.notList", { what }));
     const seen = new Set<string>();
     return v.map((row) => {
-      if (!isObject(row) || typeof row.key !== "string" || !keyRe.test(row.key)) throw new HttpError(400, `${what}: tên không hợp lệ`);
-      if (seen.has(row.key)) throw new HttpError(400, `${what}: trùng ${row.key}`);
+      if (!isObject(row) || typeof row.key !== "string" || !keyRe.test(row.key)) throw new HttpError(400, t("mcp.badKey", { what }));
+      if (seen.has(row.key)) throw new HttpError(400, t("mcp.duplicate", { what, key: row.key }));
       seen.add(row.key);
       if (row.value !== null && (typeof row.value !== "string" || /[\r\n\0]/.test(row.value))) {
-        throw new HttpError(400, `${what} ${row.key}: giá trị không hợp lệ`);
+        throw new HttpError(400, t("mcp.badValue", { what, key: row.key }));
       }
       return { key: row.key, value: row.value as string | null, secret: row.secret === true };
     });
@@ -105,7 +106,7 @@ export function buildEntry(
     for (const row of rows) {
       if (row.value === null) {
         const kept = previous[row.key];
-        if (typeof kept !== "string") throw new HttpError(400, `${row.key} chưa có giá trị để giữ lại`);
+        if (typeof kept !== "string") throw new HttpError(400, t("mcp.nothingToKeep", { key: row.key }));
         out[row.key] = kept;
       } else if (row.secret && scope === "project" && !maskValue(row.value).reference) {
         const name = varName(row.key);

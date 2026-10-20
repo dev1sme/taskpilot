@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { HttpError } from "../errors.js";
 import { childEnv } from "../sessions/launch.js";
+import { t } from "../i18n.js";
 
 /** Runs `claude <args>` in the repo with the same environment TaskPilot gives its sessions. */
 export function runClaude(
@@ -14,10 +15,10 @@ export function runClaude(
       { cwd: opts.cwd, env: childEnv(process.env, opts.env ?? {}), timeout: opts.timeoutMs ?? 30_000, maxBuffer: 1024 * 1024 },
       (err, stdout, stderr) => {
         if (err && (err as NodeJS.ErrnoException).code === "ENOENT") {
-          reject(new HttpError(502, "Không tìm thấy lệnh claude"));
+          reject(new HttpError(502, t("errors.claudeMissing")));
         } else if (err && !stdout) {
           // Messages from claude may echo the config; keep only the first line.
-          reject(new HttpError(502, `claude ${args[0]} ${args[1] ?? ""} lỗi: ${firstLine(stderr || err.message)}`));
+          reject(new HttpError(502, t("errors.claudeFailed", { command: `${args[0]} ${args[1] ?? ""}`, error: firstLine(stderr || err.message) })));
         } else {
           resolve({ stdout, stderr });
         }
@@ -38,7 +39,7 @@ export async function checkMcp(
 ): Promise<{ status: McpStatus; label: string }> {
   const { stdout } = await runClaude(["mcp", "get", name], { ...opts, timeoutMs: 60_000 });
   const line = stdout.split("\n").find((l) => /^\s*Status:/.test(l));
-  if (!line) return { status: "unknown", label: "Không đọc được trạng thái" };
+  if (!line) return { status: "unknown", label: t("errors.claudeStatusUnknown") };
   const label = line.replace(/^\s*Status:\s*/, "").replace(/^[^\p{L}]+/u, "").trim();
   const lower = label.toLowerCase();
   const status: McpStatus = lower.includes("pending approval")

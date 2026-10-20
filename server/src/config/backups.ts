@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { HttpError } from "../errors.js";
+import { t } from "../i18n.js";
 
 export interface BackupEntry {
   id: string;
@@ -73,13 +74,13 @@ export class BackupStore {
   }
 
   async get(id: string): Promise<{ entry: BackupEntry; content: string | null }> {
-    if (!ID.test(id)) throw new HttpError(400, "Mã backup không hợp lệ");
+    if (!ID.test(id)) throw new HttpError(400, t("errors.invalidBackupId"));
     const folder = path.join(this.dir, id);
     let entry: BackupEntry;
     try {
       entry = JSON.parse(await readFile(path.join(folder, "meta.json"), "utf8")) as BackupEntry;
     } catch {
-      throw new HttpError(404, "Không tìm thấy backup");
+      throw new HttpError(404, t("errors.backupNotFound"));
     }
     const content = entry.existed ? await readFile(path.join(folder, "content"), "utf8") : null;
     return { entry, content };

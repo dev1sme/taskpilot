@@ -8,17 +8,18 @@ import { claudeJson, displayPath, isObject, maskValue } from "./fs.js";
 import { claudeJsonEntry, readMcp } from "./mcp.js";
 import { buildEntry, maskEntry, validateEntry } from "./mcpEdit.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "./writer.js";
+import { t } from "../i18n.js";
 
 type McpScope = "project" | "local" | "user";
 
 function scopeOf(raw: string): McpScope {
-  if (raw !== "project" && raw !== "local" && raw !== "user") throw new HttpError(400, `Phạm vi không hợp lệ: ${raw}`);
+  if (raw !== "project" && raw !== "local" && raw !== "user") throw new HttpError(400, t("errors.invalidScope", { scope: raw }));
   return raw;
 }
 
 function baseHashOf(body: unknown): string {
   const v = (body as Record<string, unknown> | null)?.baseHash;
-  if (typeof v !== "string") throw new HttpError(400, "Thiếu baseHash");
+  if (typeof v !== "string") throw new HttpError(400, t("errors.missing", { key: "baseHash" }));
   return v;
 }
 
@@ -56,7 +57,7 @@ export function registerMcpRoutes(
     const repo = requireRepo();
     const scope = scopeOf(req.params.scope);
     const { entry, hash } = await current(repo, scope, req.params.name);
-    if (!entry) throw new HttpError(404, `Không có server ${req.params.name}`);
+    if (!entry) throw new HttpError(404, t("mcp.notFound", { name: req.params.name }));
     const masked = maskEntry(entry)!;
     const rows = (v: unknown) =>
       isObject(v) ? Object.entries(v).map(([key, val]) => ({ key, ...maskValue(val) })) : [];
@@ -85,10 +86,10 @@ export function registerMcpRoutes(
     const input = validateEntry(body);
     const original = input.originalName ?? input.name;
     const before = await current(repo, scope, original);
-    if (input.originalName && !before.entry) throw new HttpError(404, `Không có server ${original}`);
+    if (input.originalName && !before.entry) throw new HttpError(404, t("mcp.notFound", { name: original }));
     if (input.name !== original || !input.originalName) {
       const clash = await current(repo, scope, input.name);
-      if (clash.entry) throw new HttpError(409, `Đã có server tên ${input.name}`);
+      if (clash.entry) throw new HttpError(409, t("mcp.exists", { name: input.name }));
     }
     const { entry, secrets } = buildEntry(input, before.entry, scope);
     return { input, original, before, entry, secrets };
@@ -121,7 +122,7 @@ export function registerMcpRoutes(
     const repo = requireRepo();
     const scope = scopeOf(req.params.scope);
     const { input, original, before, entry, secrets } = await plan(repo, scope, req.body);
-    if (before.hash !== baseHashOf(req.body)) throw new HttpError(409, "Cấu hình server đã thay đổi bên ngoài TaskPilot. Tải lại để xem bản mới nhất.");
+    if (before.hash !== baseHashOf(req.body)) throw new HttpError(409, t("mcp.changedOutside"));
 
     if (scope === "project") {
       const result = await writeWithBackup({
@@ -129,14 +130,14 @@ export function registerMcpRoutes(
         target: { abs: projectFile(repo), display: ".mcp.json" },
         next: withServer(before.doc!, original, input.name, entry),
         baseHash: before.hash,
-        reason: `Sửa MCP server ${input.name}`,
+        reason: t("backup.mcpEdit", { name: input.name }),
         backups,
       });
       for (const [k, v] of Object.entries(secrets)) await envStore.set(repo, k, v);
       return result;
     }
 
-    const backup = await backupEntry(repo, scope, original, before.entry, `Sửa MCP server ${input.name}`);
+    const backup = await backupEntry(repo, scope, original, before.entry, t("backup.mcpEdit", { name: input.name }));
     if (before.entry) await runClaude(["mcp", "remove", "--scope", scope, original], { cwd: repo });
     await runClaude(["mcp", "add-json", "--scope", scope, input.name, JSON.stringify(entry)], { cwd: repo });
     return { hash: hashOf(JSON.stringify(entry)), backup };
@@ -149,19 +150,19 @@ export function registerMcpRoutes(
       const scope = scopeOf(req.params.scope);
       const name = req.params.name;
       const before = await current(repo, scope, name);
-      if (!before.entry) throw new HttpError(404, `Không có server ${name}`);
-      if (before.hash !== req.query.baseHash) throw new HttpError(409, "Cấu hình server đã thay đổi bên ngoài TaskPilot. Tải lại để xem bản mới nhất.");
+      if (!before.entry) throw new HttpError(404, t("mcp.notFound", { name }));
+      if (before.hash !== req.query.baseHash) throw new HttpError(409, t("mcp.changedOutside"));
       if (scope === "project") {
         return writeWithBackup({
           repo,
           target: { abs: projectFile(repo), display: ".mcp.json" },
           next: withServer(before.doc!, name, null, null),
           baseHash: before.hash,
-          reason: `Xoá MCP server ${name}`,
+          reason: t("backup.mcpDelete", { name }),
           backups,
         });
       }
-      const backup = await backupEntry(repo, scope, name, before.entry, `Xoá MCP server ${name}`);
+      const backup = await backupEntry(repo, scope, name, before.entry, t("backup.mcpDelete", { name }));
       await runClaude(["mcp", "remove", "--scope", scope, name], { cwd: repo });
       return { hash: "absent", backup };
     },
@@ -170,7 +171,7 @@ export function registerMcpRoutes(
   /** Connection status as Claude reports it (`claude mcp get`); only the status is returned. */
   app.post<{ Params: { name: string } }>("/api/config/mcp/check/:name", async (req) => {
     const repo = requireRepo();
-    if (!/^[A-Za-z0-9][\w.-]{0,63}$/.test(req.params.name)) throw new HttpError(400, "Tên server không hợp lệ");
+    if (!/^[A-Za-z0-9][\w.-]{0,63}$/.test(req.params.name)) throw new HttpError(400, t("mcp.invalidServerName"));
     return checkMcp(req.params.name, { cwd: repo, env: await envStore.forRepo(repo) });
   });
 
@@ -179,7 +180,7 @@ export function registerMcpRoutes(
   app.get("/api/env", async () => Object.keys(await envStore.forRepo(requireRepo())).map((key) => ({ key })));
 
   app.put<{ Params: { key: string }; Body: { value?: unknown } }>("/api/env/:key", async (req) => {
-    if (typeof req.body?.value !== "string" || !req.body.value) throw new HttpError(400, "Thiếu giá trị");
+    if (typeof req.body?.value !== "string" || !req.body.value) throw new HttpError(400, t("errors.missingValue"));
     await envStore.set(requireRepo(), req.params.key, req.body.value);
     return { ok: true };
   });
@@ -210,7 +211,7 @@ export async function restoreMcpEntry(
   await backups.save(
     { abs: claudeJson(), display: `${displayPath(claudeJson(), repo)} › ${scope} › ${name}` },
     now ? JSON.stringify(now, null, 2) : null,
-    "Trước khi khôi phục",
+    t("backup.beforeRestore"),
     backup.mcp,
   );
   if (now) await runClaude(["mcp", "remove", "--scope", scope, name], { cwd: repo });
@@ -223,9 +224,9 @@ function parseMcpFile(text: string | null): Record<string, unknown> {
   try {
     doc = JSON.parse(text);
   } catch (e) {
-    throw new HttpError(409, `.mcp.json không phải JSON hợp lệ (${(e as Error).message}); sửa tay trước`);
+    throw new HttpError(409, t("mcp.notJson", { error: (e as Error).message }));
   }
-  if (!isObject(doc)) throw new HttpError(409, ".mcp.json phải là một object JSON");
+  if (!isObject(doc)) throw new HttpError(409, t("mcp.notObject"));
   return doc;
 }
 
@@ -248,7 +249,7 @@ function maskMcpFile(text: string | null): string | null {
   try {
     doc = parseMcpFile(text);
   } catch {
-    return "(JSON không hợp lệ)";
+    return t("errors.invalidJsonShort");
   }
   const servers = isObject(doc.mcpServers) ? doc.mcpServers : {};
   const masked = Object.fromEntries(Object.entries(servers).map(([k, v]) => [k, maskEntry(v) ?? v]));

@@ -6,6 +6,7 @@ import { HttpError } from "../errors.js";
 import type { BackupEntry, BackupStore } from "./backups.js";
 import { claudeHome } from "./fs.js";
 import { isAllowedPath, type FileTarget } from "./targets.js";
+import { t } from "../i18n.js";
 
 /**
  * A directory between the repo (or ~/.claude) and the file that is a symlink, e.g. a skill folder
@@ -42,7 +43,7 @@ export async function readCurrent(abs: string): Promise<string | null> {
 
 /** Unified diff shown to the user before a save. */
 export function diffText(display: string, before: string | null, after: string | null): string {
-  return createTwoFilesPatch(display, display, before ?? "", after ?? "", "hiện tại", "sau khi lưu", { context: 3 });
+  return createTwoFilesPatch(display, display, before ?? "", after ?? "", t("diff.before"), t("diff.after"), { context: 3 });
 }
 
 /**
@@ -59,14 +60,14 @@ export async function writeWithBackup(opts: {
   backups: BackupStore;
 }): Promise<{ hash: string; backup: BackupEntry }> {
   const { target } = opts;
-  if (!isAllowedPath(target.abs, opts.repo)) throw new HttpError(403, `Không được phép ghi ${target.display}`);
+  if (!isAllowedPath(target.abs, opts.repo)) throw new HttpError(403, t("errors.writeForbidden", { file: target.display }));
   const linked = await symlinkedDir(target.abs, opts.repo);
-  if (linked) throw new HttpError(409, `${target.display} nằm trong thư mục symlink (${linked}); sửa ở file gốc`);
+  if (linked) throw new HttpError(409, t("errors.symlinkDir", { file: target.display, link: linked }));
 
   let mode: number | undefined;
   try {
     const st = await lstat(target.abs);
-    if (st.isSymbolicLink()) throw new HttpError(409, `${target.display} là symlink; TaskPilot không ghi qua symlink`);
+    if (st.isSymbolicLink()) throw new HttpError(409, t("errors.symlink", { file: target.display }));
     mode = st.mode & 0o777;
   } catch (e) {
     if (e instanceof HttpError) throw e;
@@ -74,7 +75,7 @@ export async function writeWithBackup(opts: {
 
   const current = await readCurrent(target.abs);
   if (hashOf(current) !== opts.baseHash) {
-    throw new HttpError(409, `${target.display} đã bị thay đổi bên ngoài TaskPilot. Tải lại để xem bản mới nhất.`);
+    throw new HttpError(409, t("errors.changedOutside", { file: target.display }));
   }
 
   const backup = await opts.backups.save(target, current, opts.reason);

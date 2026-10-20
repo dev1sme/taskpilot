@@ -1,5 +1,6 @@
 import { HttpError } from "../errors.js";
 import { isObject, maskValue, strings } from "./fs.js";
+import { t } from "../i18n.js";
 
 export interface PermissionsInput {
   allow: string[];
@@ -12,22 +13,22 @@ export interface PermissionsInput {
 export const EDITABLE_MODES = ["default", "acceptEdits", "plan", "auto"];
 
 export function validatePermissions(body: unknown): PermissionsInput {
-  if (!isObject(body)) throw new HttpError(400, "Body phải là object");
+  if (!isObject(body)) throw new HttpError(400, t("errors.bodyObject"));
   const list = (key: "allow" | "ask" | "deny") => {
     const v = body[key];
-    if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) throw new HttpError(400, `${key} phải là danh sách chuỗi`);
+    if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) throw new HttpError(400, t("permissions.notList", { key }));
     const rules = [...new Set((v as string[]).map((r) => r.trim()).filter(Boolean))];
     for (const r of rules) {
-      if (r.length > 500 || /[\n\r]/.test(r)) throw new HttpError(400, `Luật không hợp lệ: ${r.slice(0, 60)}`);
+      if (r.length > 500 || /[\n\r]/.test(r)) throw new HttpError(400, t("permissions.invalidRule", { rule: r.slice(0, 60) }));
       if (!/^[A-Za-z_][\w-]*(\(.*\))?$/.test(r) && !r.startsWith("mcp__")) {
-        throw new HttpError(400, `Luật "${r}" phải có dạng Tool hoặc Tool(mẫu), ví dụ Bash(npm test)`);
+        throw new HttpError(400, t("permissions.ruleShape", { rule: r }));
       }
     }
     return rules;
   };
   const mode = body.defaultMode;
   if (mode !== null && mode !== undefined && (typeof mode !== "string" || !EDITABLE_MODES.includes(mode))) {
-    throw new HttpError(400, `defaultMode phải là một trong ${EDITABLE_MODES.join(", ")}`);
+    throw new HttpError(400, t("permissions.mode", { modes: EDITABLE_MODES.join(", ") }));
   }
   return { allow: list("allow"), ask: list("ask"), deny: list("deny"), defaultMode: (mode as string | null | undefined) ?? null };
 }
@@ -72,7 +73,7 @@ export function maskSettingsText(text: string | null): string | null {
   try {
     data = parseSettings(text);
   } catch {
-    return "(JSON không hợp lệ)";
+    return t("errors.invalidJsonShort");
   }
   if (isObject(data.env)) {
     data = { ...data, env: Object.fromEntries(Object.entries(data.env).map(([k, v]) => [k, maskValue(v).value])) };
@@ -86,8 +87,8 @@ function parseSettings(text: string | null): Record<string, unknown> {
   try {
     data = JSON.parse(text);
   } catch (e) {
-    throw new HttpError(409, `File settings không phải JSON hợp lệ (${(e as Error).message}); sửa tay trước khi chỉnh quyền ở đây`);
+    throw new HttpError(409, t("errors.settingsNotJsonPermissions", { error: (e as Error).message }));
   }
-  if (!isObject(data)) throw new HttpError(409, "File settings phải là một object JSON");
+  if (!isObject(data)) throw new HttpError(409, t("errors.settingsNotObject"));
   return data;
 }

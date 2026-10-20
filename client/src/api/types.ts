@@ -104,6 +104,8 @@ export interface ActivityItem {
   at: number;
   kind: "session" | "prompt" | "tool" | "permission" | "stop";
   summary: string;
+  /** permission: what Claude asks to do, without the summary's prefix. */
+  action?: string;
   detail?: string;
   tool?: string;
   category?: ToolCategory;

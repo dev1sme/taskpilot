@@ -1,5 +1,6 @@
 import path from "node:path";
 import { claudeJson, displayPath, envRefs, isObject, maskValue, readJsonFile, strings } from "./fs.js";
+import { t } from "../i18n.js";
 
 export type McpScope = "project" | "local" | "user";
 
@@ -67,7 +68,7 @@ function toServers(value: unknown, scope: McpScope, provided: Record<string, str
     // Claude Code reads an entry without `type` as stdio, so a bare `url` entry fails to load.
     const error =
       cfg.type === undefined && !command && url
-        ? 'Có "url" nhưng thiếu "type": Claude Code bỏ qua server này. Thêm "type": "http" (hoặc "sse", "ws").'
+        ? t("mcp.urlWithoutType")
         : undefined;
     return {
       name,

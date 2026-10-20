@@ -10,6 +10,7 @@ import {
   type Credentials,
 } from "./auth.js";
 import { tokenMatches } from "./security.js";
+import { t } from "./i18n.js";
 
 export interface AuthRoutesOptions {
   sessions: AuthSessions;
@@ -33,7 +34,7 @@ export function registerAuthRoutes(app: FastifyInstance, opts: AuthRoutesOptions
       return reply
         .code(429)
         .header("retry-after", Math.ceil(wait / 1000))
-        .send({ error: `Sai quá nhiều lần, thử lại sau ${minutes} phút` });
+        .send({ error: t("auth.tooMany", { minutes }) });
     }
     const body = req.body ?? {};
     const ok = opts.login
@@ -41,7 +42,7 @@ export function registerAuthRoutes(app: FastifyInstance, opts: AuthRoutesOptions
       : opts.token !== undefined && typeof body.token === "string" && tokenMatches(opts.token, body.token);
     if (!ok) {
       limiter.fail(req.ip);
-      return reply.code(401).send({ error: opts.login ? "Sai tên đăng nhập hoặc mật khẩu" : "Token không đúng" });
+      return reply.code(401).send({ error: opts.login ? t("auth.badLogin") : t("auth.badToken") });
     }
     limiter.succeed(req.ip);
     const session = await opts.sessions.create();

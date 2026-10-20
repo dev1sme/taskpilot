@@ -111,7 +111,7 @@ export function NowCard(props: Props) {
     return (
       <Card tone="attention" icon={<HandPalm weight="fill" />}>
         <h3>{t("now.permissionTitle")}</h3>
-        <p className="now-text">{ask?.summary.replace(/^Xin quyền: /, "") ?? t("now.permissionFallback")}</p>
+        <p className="now-text">{ask?.action ?? t("now.permissionFallback")}</p>
         <p className="now-sub">{t("now.permissionHint")}</p>
         <div className="now-actions">
           <Button icon={TerminalWindow} variant="attention" onClick={props.onOpenTerminal}>

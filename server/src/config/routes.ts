@@ -14,17 +14,18 @@ import { isObject } from "./fs.js";
 import { claudeJsonEntry } from "./mcp.js";
 import { maskEntry } from "./mcpEdit.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "./writer.js";
+import { locale, t } from "../i18n.js";
 
 const SCOPES = ["project", "local", "user"];
 
 function scopeOf(raw: string): MemoryScope & SettingsScope {
-  if (!SCOPES.includes(raw)) throw new HttpError(400, `Phạm vi không hợp lệ: ${raw}`);
+  if (!SCOPES.includes(raw)) throw new HttpError(400, t("errors.invalidScope", { scope: raw }));
   return raw as MemoryScope & SettingsScope;
 }
 
 function stringField(body: unknown, key: string): string {
   const v = (body as Record<string, unknown> | null)?.[key];
-  if (typeof v !== "string") throw new HttpError(400, `Thiếu ${key}`);
+  if (typeof v !== "string") throw new HttpError(400, t("errors.missing", { key }));
   return v;
 }
 
@@ -68,7 +69,7 @@ export function registerConfigRoutes(
       target,
       next: stringField(req.body, "content"),
       baseHash: stringField(req.body, "baseHash"),
-      reason: "Sửa trong TaskPilot",
+      reason: t("backup.edit"),
       backups,
     });
   });
@@ -101,7 +102,7 @@ export function registerConfigRoutes(
       target,
       next: applyPermissions(current, validatePermissions(req.body)),
       baseHash: stringField(req.body, "baseHash"),
-      reason: "Sửa quyền trong TaskPilot",
+      reason: t("backup.permissions"),
       backups,
     });
   });
@@ -135,7 +136,7 @@ export function registerConfigRoutes(
       target,
       next: applyHooks(current, validateHooks(req.body)),
       baseHash: stringField(req.body, "baseHash"),
-      reason: "Sửa hooks trong TaskPilot",
+      reason: t("backup.hooks"),
       backups,
     });
   });
@@ -143,8 +144,8 @@ export function registerConfigRoutes(
   // ---------------------------------------------------------------- agents, commands, skills
 
   const libraryOf = (kind: string, scope: string, rel: string) => {
-    if (kind !== "agents" && kind !== "commands" && kind !== "skills") throw new HttpError(400, `Loại không hợp lệ: ${kind}`);
-    if (scope !== "project" && scope !== "user") throw new HttpError(400, `Phạm vi không hợp lệ: ${scope}`);
+    if (kind !== "agents" && kind !== "commands" && kind !== "skills") throw new HttpError(400, t("errors.invalidKind", { kind }));
+    if (scope !== "project" && scope !== "user") throw new HttpError(400, t("errors.invalidScope", { scope }));
     return libraryTarget(requireRepo(), kind as LibraryKind, scope as LibraryScope, rel);
   };
 
@@ -172,7 +173,7 @@ export function registerConfigRoutes(
       target,
       next: stringField(req.body, "content"),
       baseHash: stringField(req.body, "baseHash"),
-      reason: "Sửa trong TaskPilot",
+      reason: t("backup.edit"),
       backups,
     });
   });
@@ -182,7 +183,7 @@ export function registerConfigRoutes(
     async (req) => {
       const repo = requireRepo();
       const target = libraryOf(req.params.kind, req.params.scope, req.query.rel ?? "");
-      return writeWithBackup({ repo, target, next: null, baseHash: req.query.baseHash ?? "", reason: "Xoá trong TaskPilot", backups });
+      return writeWithBackup({ repo, target, next: null, baseHash: req.query.baseHash ?? "", reason: t("backup.delete"), backups });
     },
   );
 
@@ -199,7 +200,7 @@ export function registerConfigRoutes(
   app.get<{ Params: { id: string } }>("/api/backups/:id/diff", async (req) => {
     const repo = requireRepo();
     const { entry, content } = await backups.get(req.params.id);
-    if (!restorable(entry, repo)) throw new HttpError(403, "Backup này thuộc repo khác");
+    if (!restorable(entry, repo)) throw new HttpError(403, t("errors.otherRepoBackup"));
     if (entry.mcp) {
       const show = (s: string | null) => (s === null ? null : `${JSON.stringify(maskEntry(JSON.parse(s)), null, 2)}\n`);
       const now = await currentMcpEntry(entry.mcp);
@@ -213,7 +214,7 @@ export function registerConfigRoutes(
   app.post<{ Params: { id: string } }>("/api/backups/:id/restore", async (req) => {
     const repo = requireRepo();
     const { entry, content } = await backups.get(req.params.id);
-    if (!restorable(entry, repo)) throw new HttpError(403, "Backup này thuộc repo khác");
+    if (!restorable(entry, repo)) throw new HttpError(403, t("errors.otherRepoBackup"));
     if (entry.mcp) {
       await restoreMcpEntry({ mcp: entry.mcp }, content, backups);
       return { ok: true };
@@ -224,7 +225,7 @@ export function registerConfigRoutes(
       target: { abs: entry.path, display: entry.display },
       next: content,
       baseHash: hashOf(current),
-      reason: `Trước khi khôi phục bản lúc ${new Date(entry.at).toLocaleString("vi-VN")}`,
+      reason: t("backup.beforeRestoreAt", { time: new Date(entry.at).toLocaleString(locale()) }),
       backups,
     });
   });
@@ -243,6 +244,6 @@ function maskMcpText(text: string | null): string | null {
     const servers = isObject(doc.mcpServers) ? doc.mcpServers : {};
     return `${JSON.stringify({ ...doc, mcpServers: Object.fromEntries(Object.entries(servers).map(([k, v]) => [k, maskEntry(v) ?? v])) }, null, 2)}\n`;
   } catch {
-    return "(JSON không hợp lệ)";
+    return t("errors.invalidJsonShort");
   }
 }

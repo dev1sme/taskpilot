@@ -2,6 +2,7 @@ import { readFile, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { parse } from "yaml";
+import { t } from "../i18n.js";
 
 /** The user's Claude Code home; overridable for tests. */
 export function claudeHome(): string {
@@ -38,7 +39,7 @@ export async function readJsonFile(file: string): Promise<JsonResult> {
   try {
     return { exists: true, data: JSON.parse(text) };
   } catch (e) {
-    return { exists: true, error: `JSON không hợp lệ: ${(e as Error).message}` };
+    return { exists: true, error: t("errors.invalidJson", { error: (e as Error).message }) };
   }
 }
 
@@ -50,7 +51,7 @@ export function frontmatter(text: string): { meta: Record<string, unknown>; body
     const meta = parse(m[1]) as unknown;
     return { meta: isObject(meta) ? meta : {}, body: text.slice(m[0].length) };
   } catch (e) {
-    return { meta: {}, body: text.slice(m[0].length), error: `Frontmatter lỗi: ${(e as Error).message}` };
+    return { meta: {}, body: text.slice(m[0].length), error: t("errors.frontmatter", { error: (e as Error).message }) };
   }
 }
 
@@ -74,7 +75,7 @@ export function maskValue(v: unknown): { value: string; reference: boolean } {
   const s = typeof v === "string" ? v : JSON.stringify(v);
   const rest = s.replace(ENV_REF, "");
   if (rest !== s && /^[A-Za-z ]{0,12}$/.test(rest)) return { value: s, reference: true };
-  return { value: s === "" ? "(trống)" : "••••", reference: false };
+  return { value: s === "" ? t("mcp.empty") : "••••", reference: false };
 }
 
 /** Variable names referenced as ${VAR} in a string. */

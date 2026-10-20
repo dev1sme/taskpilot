@@ -2,6 +2,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { projectMemoryFiles } from "../config/targets.js";
 import { markdownHeadings } from "../markdown.js";
+import { t } from "../i18n.js";
 
 /** Read-only summary of the repo's Claude Code configuration, for the overview page. */
 export interface Inventory {
@@ -81,7 +82,7 @@ async function readMcp(file: string): Promise<Inventory["mcp"]> {
       })),
     };
   } catch (e) {
-    return { exists: true, servers: [], error: `JSON không hợp lệ: ${(e as Error).message}` };
+    return { exists: true, servers: [], error: t("errors.invalidJson", { error: (e as Error).message }) };
   }
 }
 

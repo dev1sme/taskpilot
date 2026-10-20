@@ -19,7 +19,7 @@ test("skill editor saves and cancels from the toolbar", async ({ page }) => {
 test("mcp form saves and cancels from the toolbar", async ({ page }) => {
   await page.goto("/#/mcp");
   const toolbar = page.locator(".toolbar");
-  await toolbar.getByRole("group", { name: "Thêm server vào" }).getByRole("button", { name: "Project" }).click();
+  await toolbar.getByRole("button", { name: "Thêm", exact: true }).click();
   await expect(page.locator(".mcp-form")).toBeVisible();
   await expect(toolbar.getByRole("button", { name: "Xem thay đổi & lưu" })).toBeDisabled();
   await expect(page.locator(".mcp-form .perm-actions")).toHaveCount(0);
@@ -31,7 +31,7 @@ test("mcp form saves and cancels from the toolbar", async ({ page }) => {
 test("action buttons use short labels", async ({ page }) => {
   await page.goto("/#/skills");
   const add = page.locator(".toolbar").getByRole("button", { name: "Thêm", exact: true });
-  await expect(add).toHaveAttribute("title", "Thêm skill");
+  await expect(add).toHaveAttribute("title", "Thêm skill vào .claude/skills");
   const card = page.locator(".library-detail");
   await expect(card.getByRole("button", { name: "Sửa", exact: true })).toBeVisible();
   await card.getByRole("button", { name: "Xóa", exact: true }).click();

@@ -6,20 +6,30 @@ import { useWorkspace } from "../../app/workspace";
 import { Button } from "../../components/Button";
 import { toast } from "../../components/Toast";
 import { McpForm } from "./McpForm";
-import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError, ScopeTag, SCOPE_LABEL } from "./parts";
+import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError, ScopeTabs, ScopeTag } from "./parts";
+import { precedenceHint, shadowOf } from "./precedence";
 import { useConfig } from "./useConfig";
 
 type Editing = { scope: Scope; base: McpEntryForm | null; baseHash: string } | null;
 
-/** MCP servers Claude sees for this repo, from every scope; add, edit, delete and check them. */
+const TAB_LABEL: Record<Scope, string> = { project: ".mcp.json", local: "~/.claude.json · repo này", user: "~/.claude.json" };
+const EMPTY: Record<Scope, string> = {
+  project: "Server trong .mcp.json dùng chung cho cả team (commit vào repo).",
+  local: "Server riêng của ba, chỉ cho repo này (lưu trong ~/.claude.json).",
+  user: "Server riêng của ba, dùng ở mọi repo (lưu trong ~/.claude.json).",
+};
+
+/** MCP servers Claude sees for this repo, one scope per tab; add, edit, delete and check them. */
 export function McpPage() {
   const { data, error, loading, reload } = useConfig(["mcp"], api.mcp);
   const { reloadInventory } = useWorkspace();
+  const [scope, setScope] = useState<Scope>("project");
   const [picked, setPicked] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
   // The form renders its cancel / save buttons into the toolbar.
   const [actionsSlot, setActionsSlot] = useState<HTMLSpanElement | null>(null);
-  const servers = data?.servers ?? [];
+  const all = data?.servers ?? [];
+  const servers = all.filter((s) => s.scope === scope);
   const keyOf = (s: McpServer) => `${s.scope}:${s.name}`;
   const current = servers.find((s) => keyOf(s) === picked) ?? servers[0];
 
@@ -48,33 +58,35 @@ export function McpPage() {
 
   return (
     <div className="page">
-      <ConfigHeader title="MCP servers" subtitle="Server Claude dùng để gọi công cụ bên ngoài, gộp từ .mcp.json và ~/.claude.json" />
+      <ConfigHeader title="MCP servers" subtitle="Server Claude dùng để gọi công cụ bên ngoài" />
       <ConfigToolbar
+        start={
+          !editing && (
+            <ScopeTabs
+              value={scope}
+              onChange={setScope}
+              label="File MCP"
+              labels={TAB_LABEL}
+              count={(s) => all.filter((x) => x.scope === s).length}
+            />
+          )
+        }
         loading={loading}
         onReload={refresh}
         actions={
           editing ? (
             <span ref={setActionsSlot} className="toolbar-slot" />
           ) : (
-            <>
-              <span className="scope-hint" aria-hidden="true">
-                Thêm:
-              </span>
-              <div className="segmented" role="group" aria-label="Thêm server vào">
-                {(["project", "local", "user"] as Scope[]).map((s) => (
-                  <button key={s} type="button" onClick={() => void startAdd(s)} title={s === "project" ? ".mcp.json (cả team)" : s === "local" ? "Riêng ba, repo này" : "Riêng ba, mọi repo"}>
-                    <Plus aria-hidden="true" /> {SCOPE_LABEL[s]}
-                  </button>
-                ))}
-              </div>
-            </>
+            <Button icon={Plus} variant="primary" title={`Thêm server vào ${TAB_LABEL[scope]}`} onClick={() => void startAdd(scope)}>
+              Thêm
+            </Button>
           )
         }
       />
       <LoadError error={error} />
       <div className="page-body">
         {data?.sources
-          .filter((s) => s.error)
+          .filter((s) => s.error && s.scope === scope)
           .map((s) => (
             <p key={s.scope} className="error config-error" role="alert">
               {s.path}: {s.error}
@@ -87,42 +99,56 @@ export function McpPage() {
             baseHash={editing.baseHash}
             actionsSlot={actionsSlot}
             onDone={(name) => {
-              if (name) setPicked(`${editing.scope}:${name}`);
+              if (name) {
+                setScope(editing.scope);
+                setPicked(`${editing.scope}:${name}`);
+              }
               setEditing(null);
               refresh();
             }}
           />
         ) : data && servers.length === 0 ? (
-          <EmptyCard title="Chưa có MCP server">Thêm server cho cả team (Project, lưu vào .mcp.json) hoặc riêng cho ba (Local/User).</EmptyCard>
+          <EmptyCard title={`Chưa có MCP server trong ${TAB_LABEL[scope]}`}>{EMPTY[scope]}</EmptyCard>
         ) : (
           <div className="library">
-            <ul className="mcp-list" aria-label="Danh sách server">
-              {servers.map((s) => (
-                <li key={keyOf(s)}>
-                  <button
-                    type="button"
-                    className="mcp-item"
-                    aria-current={current && keyOf(current) === keyOf(s) ? "true" : undefined}
-                    onClick={() => setPicked(keyOf(s))}
-                  >
-                    <span className={`mcp-dot${s.error || s.missingEnv.length ? " is-warn" : ""}`} aria-hidden="true" />
-                    <span className="mcp-text">
-                      <span className="mono mcp-name">{s.name}</span>
-                      <span className="mcp-meta">
-                        {s.error ? "lỗi cấu hình" : s.type}
-                        {s.missingEnv.length > 0 && ` · thiếu ${s.missingEnv.join(", ")}`}
-                      </span>
-                    </span>
-                    <ScopeTag scope={s.scope} />
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <div className="library-list">
+              <p className="hint precedence-hint">{precedenceHint("mcp")}</p>
+              <ul className="mcp-list" aria-label="Danh sách server">
+                {servers.map((s) => {
+                  const hidden = shadowOf("mcp", s, all);
+                  return (
+                    <li key={keyOf(s)}>
+                      <button
+                        type="button"
+                        className="mcp-item"
+                        aria-current={current && keyOf(current) === keyOf(s) ? "true" : undefined}
+                        onClick={() => setPicked(keyOf(s))}
+                      >
+                        <span className={`mcp-dot${s.error || s.missingEnv.length ? " is-warn" : ""}`} aria-hidden="true" />
+                        <span className="mcp-text">
+                          <span className="mono mcp-name">{s.name}</span>
+                          <span className="mcp-meta">
+                            {s.error ? "lỗi cấu hình" : s.type}
+                            {s.missingEnv.length > 0 && ` · thiếu ${s.missingEnv.join(", ")}`}
+                          </span>
+                        </span>
+                        {hidden && (
+                          <span className="shadow-pill" title={hidden.long}>
+                            {hidden.short}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
             {current && (
               <McpDetail
                 key={keyOf(current)}
                 server={current}
                 source={data?.sources.find((x) => x.scope === current.scope)?.path ?? ""}
+                shadow={shadowOf("mcp", current, all)?.long ?? null}
                 onEdit={() => void startEdit(current)}
                 onChanged={refresh}
               />
@@ -148,7 +174,8 @@ const CHECK_HINT: Partial<Record<McpCheck["status"], string>> = {
   failed: "Claude không kết nối được. Kiểm tra lệnh, URL và biến môi trường.",
 };
 
-function McpDetail({ server, source, onEdit, onChanged }: { server: McpServer; source: string; onEdit: () => void; onChanged: () => void }) {
+function McpDetail(props: { server: McpServer; source: string; shadow: string | null; onEdit: () => void; onChanged: () => void }) {
+  const { server, source, onEdit, onChanged } = props;
   const [check, setCheck] = useState<McpCheck | null>(null);
   const [checking, setChecking] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -209,6 +236,11 @@ function McpDetail({ server, source, onEdit, onChanged }: { server: McpServer; s
         </div>
       </header>
       <p className="mono lib-path">{source}</p>
+      {props.shadow && (
+        <p className="alert-warn" role="note">
+          {props.shadow}
+        </p>
+      )}
 
       {checking && (
         <p className="check-result" role="status">

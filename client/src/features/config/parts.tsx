@@ -67,28 +67,33 @@ export function ConfigToolbar(props: {
 
 export const SCOPES: Scope[] = ["project", "local", "user"];
 
-/** One tab per settings scope; a dot marks a scope with unsaved edits. */
-export function ScopeTabs(props: {
-  value: Scope;
-  onChange: (scope: Scope) => void;
+/** One tab per scope (all three unless `scopes` says otherwise); a dot marks a scope with unsaved edits. */
+export function ScopeTabs<S extends Scope>(props: {
+  value: S;
+  onChange: (scope: S) => void;
   label: string;
-  labels: Record<Scope, string>;
-  isMissing?: (scope: Scope) => boolean;
-  isDirty?: (scope: Scope) => boolean;
+  labels: Record<S, string>;
+  scopes?: readonly S[];
+  /** Number shown after the label, e.g. how many items the scope holds. */
+  count?: (scope: S) => number;
+  isMissing?: (scope: S) => boolean;
+  isDirty?: (scope: S) => boolean;
 }) {
   return (
     <div className="segmented scope-tabs" role="tablist" aria-label={props.label}>
-      {SCOPES.map((s) => (
+      {(props.scopes ?? (SCOPES as S[])).map((s) => (
         <button
           key={s}
           type="button"
           role="tab"
           aria-selected={s === props.value}
           title={SCOPE_HINT[s]}
+          aria-label={props.count && `${props.labels[s]} (${props.count(s)})`}
           onClick={() => props.onChange(s)}
           className={props.isMissing?.(s) ? "is-missing" : undefined}
         >
           {props.labels[s]}
+          {props.count && <span className="tab-count">{props.count(s)}</span>}
           {props.isDirty?.(s) && <span className="tab-dirty" aria-label="chưa lưu" />}
         </button>
       ))}

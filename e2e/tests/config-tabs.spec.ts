@@ -53,3 +53,45 @@ test("hooks tab of a file without hooks offers to add one", async ({ page }) => 
   // The empty starter row alone is not an unsaved change.
   await expect(page.getByText("Chưa lưu")).toHaveCount(0);
 });
+
+test("agents show one tab per folder and mark the agent another scope hides", async ({ page }) => {
+  await page.goto("/#/agents");
+  const tabs = page.getByRole("tablist", { name: "Thư mục agents" });
+  await expect(tabs.getByRole("tab", { name: ".claude/agents (1)", exact: true })).toBeVisible();
+  await expect(tabs.getByRole("tab", { name: "~/.claude/agents (1)", exact: true })).toBeVisible();
+  const list = page.locator(".library-list");
+  await expect(list.locator(".lib-item")).toHaveCount(1);
+  await expect(list.getByText("Review của repo")).toBeVisible();
+  await expect(list.locator(".shadow-pill")).toHaveCount(0);
+
+  await tabs.getByRole("tab", { name: "~/.claude/agents" }).click();
+  await expect(list.getByText("Review của ba")).toBeVisible();
+  await expect(list.getByText("Review của repo")).toHaveCount(0);
+  await expect(list.locator(".shadow-pill")).toHaveText("Bị Project che");
+  await expect(page.locator(".library-detail .alert-warn")).toContainText("scope Project được ưu tiên");
+});
+
+test("new item goes to the folder of the open tab", async ({ page }) => {
+  await page.goto("/#/commands");
+  await page.getByRole("tablist", { name: "Thư mục commands" }).getByRole("tab", { name: "~/.claude/commands" }).click();
+  await expect(page.getByRole("heading", { name: "Chưa có command trong ~/.claude/commands" })).toBeVisible();
+  await page.locator(".toolbar").getByRole("button", { name: "Thêm", exact: true }).click();
+  await expect(page.getByRole("dialog").getByText("~/.claude/commands (mọi repo)")).toBeVisible();
+});
+
+test("mcp shows three scope tabs and marks the server a local one hides", async ({ page }) => {
+  await page.goto("/#/mcp");
+  const tabs = page.getByRole("tablist", { name: "File MCP" });
+  await expect(tabs.getByRole("tab")).toHaveCount(3);
+  const list = page.locator(".mcp-list");
+  await expect(list.locator(".mcp-item")).toHaveCount(1);
+  await expect(list.locator(".shadow-pill")).toHaveText("Bị Local che");
+  await expect(page.getByText("Trùng tên: Local > Project > User.")).toBeVisible();
+
+  await tabs.getByRole("tab", { name: "~/.claude.json · repo này" }).click();
+  await expect(list.locator(".shadow-pill")).toHaveCount(0);
+  await expect(page.locator(".library-detail .lib-path")).toHaveText(/claude\.json/);
+
+  await tabs.getByRole("tab", { name: "~/.claude.json (0)", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Chưa có MCP server trong ~/.claude.json" })).toBeVisible();
+});

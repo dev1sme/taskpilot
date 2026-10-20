@@ -9,7 +9,8 @@ import { DiffDialog } from "../../components/DiffDialog";
 import { Markdown } from "../../components/Markdown";
 import { toast } from "../../components/Toast";
 import { clearDraft, getDraft, setDraft, useDrafts } from "./drafts";
-import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTag } from "./parts";
+import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs, ScopeTag } from "./parts";
+import { precedenceHint, shadowOf } from "./precedence";
 import { useConfig } from "./useConfig";
 import { useSaveFlow } from "./useSaveFlow";
 import "../../components/dialog.css";
@@ -20,25 +21,31 @@ const COPY: Record<LibraryKind, { title: string; one: string; subtitle: string; 
   agents: {
     title: "Agents",
     one: "agent",
-    subtitle: "Subagent Claude có thể giao việc: .claude/agents và ~/.claude/agents",
-    empty: "Chưa có agent. Mỗi agent là một file .md có frontmatter name, description, tools trong .claude/agents/.",
+    subtitle: "Subagent Claude có thể giao việc",
+    empty: "Mỗi agent là một file .md có frontmatter name, description, tools.",
     prefix: "",
   },
   commands: {
     title: "Commands",
     one: "command",
-    subtitle: "Slash command riêng: .claude/commands và ~/.claude/commands",
-    empty: "Chưa có command. Mỗi file .md trong .claude/commands/ là một lệnh /tên-file.",
+    subtitle: "Slash command riêng",
+    empty: "Mỗi file .md là một lệnh /tên-file.",
     prefix: "/",
   },
   skills: {
     title: "Skills",
     one: "skill",
-    subtitle: "Skill Claude tự dùng khi phù hợp: .claude/skills và ~/.claude/skills",
-    empty: "Chưa có skill. Mỗi skill là một thư mục có SKILL.md trong .claude/skills/.",
+    subtitle: "Skill Claude tự dùng khi phù hợp",
+    empty: "Mỗi skill là một thư mục có SKILL.md.",
     prefix: "",
   },
 };
+
+type LibraryScope = LibraryItem["scope"];
+const LIBRARY_SCOPES: readonly LibraryScope[] = ["project", "user"];
+
+/** Folder of `kind` in `scope`, as the tab and the new-item dialog show it. */
+const scopeDir = (kind: LibraryKind, scope: LibraryScope) => (scope === "project" ? `.claude/${kind}` : `~/.claude/${kind}`);
 
 /** Starting content for a new item; the user edits it before the first save. */
 function template(kind: LibraryKind, name: string): string {
@@ -56,7 +63,7 @@ function relFor(kind: LibraryKind, name: string): string {
 
 interface LibraryDraft {
   kind: LibraryKind;
-  scope: "project" | "user";
+  scope: LibraryScope;
   rel: string;
   path: string;
   content: string;
@@ -69,7 +76,10 @@ const draftKey = (kind: LibraryKind) => `library:${kind}`;
 /** Agents, commands or skills: list + detail, with create, edit (diff review) and delete (backed up). */
 export function LibraryPage({ kind }: { kind: LibraryKind }) {
   const { data, error, loading, reload } = useConfig(["library", kind], () => api.library(kind));
+  // A skill hides a command of the same name, so the commands page needs the skills too.
+  const skills = useConfig(["library", "skills"], () => api.library("skills"), kind === "commands");
   const { reloadInventory } = useWorkspace();
+  const [scope, setScope] = useState<LibraryScope>("project");
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -77,15 +87,18 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
   const draft = getDraft<LibraryDraft>(draftKey(kind));
   const copy = COPY[kind];
 
+  const inScope = useMemo(() => (data ?? []).filter((i) => i.scope === scope), [data, scope]);
   const items = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (data ?? []).filter((i) => !q || `${i.name} ${i.description}`.toLowerCase().includes(q));
-  }, [data, query]);
+    return inScope.filter((i) => !q || `${i.name} ${i.description}`.toLowerCase().includes(q));
+  }, [inScope, query]);
+  const shadow = (i: LibraryItem) => shadowOf(kind, i, data ?? [], kind === "commands" ? (skills.data ?? []) : []);
   const keyOf = (i: LibraryItem) => `${i.scope}:${i.rel}`;
   const current = items.find((i) => keyOf(i) === picked) ?? items[0];
 
   const refresh = () => {
     void reload();
+    if (kind === "commands") void skills.reload();
     void reloadInventory();
   };
 
@@ -96,6 +109,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
     onSaved: () => {
       toast(draft!.isNew ? `Đã tạo ${draft!.path}.` : `Đã lưu ${draft!.path}. Bản cũ nằm trong Lịch sử thay đổi.`);
       clearDraft(draftKey(kind));
+      setScope(draft!.scope);
       setPicked(`${draft!.scope}:${draft!.rel}`);
       refresh();
     },
@@ -114,6 +128,18 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
     <div className="page">
       <ConfigHeader title={copy.title} subtitle={copy.subtitle} />
       <ConfigToolbar
+        start={
+          !draft && (
+            <ScopeTabs
+              value={scope}
+              onChange={setScope}
+              label={`Thư mục ${copy.title.toLowerCase()}`}
+              labels={{ project: scopeDir(kind, "project"), user: scopeDir(kind, "user") }}
+              scopes={LIBRARY_SCOPES}
+              count={(s) => (data ?? []).filter((i) => i.scope === s).length}
+            />
+          )
+        }
         loading={loading}
         onReload={refresh}
         actions={
@@ -125,7 +151,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
               </Button>
             </>
           ) : (
-            <Button icon={Plus} variant="primary" title={`Thêm ${copy.one}`} onClick={() => setCreating(true)}>
+            <Button icon={Plus} variant="primary" title={`Thêm ${copy.one} vào ${scopeDir(kind, scope)}`} onClick={() => setCreating(true)}>
               Thêm
             </Button>
           )
@@ -135,37 +161,54 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
       <div className="page-body">
         {draft ? (
           <LibraryEditor draft={draft} />
-        ) : data && data.length === 0 ? (
-          <EmptyCard title={`Chưa có ${copy.one}`}>{copy.empty}</EmptyCard>
+        ) : data && inScope.length === 0 ? (
+          <EmptyCard title={`Chưa có ${copy.one} trong ${scopeDir(kind, scope)}`}>{copy.empty}</EmptyCard>
         ) : (
           <div className="library">
             <div className="library-list">
+              <p className="hint precedence-hint">{precedenceHint(kind)}</p>
               <label className="filter">
                 <MagnifyingGlass aria-hidden="true" />
                 <span className="sr-only">Lọc</span>
                 <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Lọc ${copy.title.toLowerCase()}`} />
               </label>
               <ul>
-                {items.map((i) => (
-                  <li key={keyOf(i)}>
-                    <button
-                      type="button"
-                      className="lib-item"
-                      aria-current={current && keyOf(current) === keyOf(i) ? "true" : undefined}
-                      onClick={() => setPicked(keyOf(i))}
-                    >
-                      <span className="lib-name mono">
-                        {copy.prefix}
-                        {i.name}
-                      </span>
-                      <ScopeTag scope={i.scope} />
-                      {i.description && <span className="lib-desc">{i.description}</span>}
-                    </button>
-                  </li>
-                ))}
+                {items.map((i) => {
+                  const hidden = shadow(i);
+                  return (
+                    <li key={keyOf(i)}>
+                      <button
+                        type="button"
+                        className="lib-item"
+                        aria-current={current && keyOf(current) === keyOf(i) ? "true" : undefined}
+                        onClick={() => setPicked(keyOf(i))}
+                      >
+                        <span className="lib-name mono">
+                          {copy.prefix}
+                          {i.name}
+                        </span>
+                        {hidden && (
+                          <span className="shadow-pill" title={hidden.long}>
+                            {hidden.short}
+                          </span>
+                        )}
+                        {i.description && <span className="lib-desc">{i.description}</span>}
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
-            {current && <LibraryDetail key={keyOf(current)} item={current} prefix={copy.prefix} onEdit={() => void startEdit(current)} onDeleted={refresh} />}
+            {current && (
+              <LibraryDetail
+                key={keyOf(current)}
+                item={current}
+                prefix={copy.prefix}
+                shadow={shadow(current)?.long ?? null}
+                onEdit={() => void startEdit(current)}
+                onDeleted={refresh}
+              />
+            )}
           </div>
         )}
       </div>
@@ -173,8 +216,9 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
       <NewItemDialog
         open={creating}
         kind={kind}
+        scope={scope}
         onClose={() => setCreating(false)}
-        onCreate={async (scope, name) => {
+        onCreate={async (name) => {
           const rel = relFor(kind, name);
           const raw = await api.libraryRaw(kind, scope, rel);
           if (raw.exists) throw new Error(`Đã có ${raw.path}`);
@@ -200,7 +244,8 @@ function LibraryEditor({ draft }: { draft: LibraryDraft }) {
   );
 }
 
-function LibraryDetail({ item, prefix, onEdit, onDeleted }: { item: LibraryItem; prefix: string; onEdit: () => void; onDeleted: () => void }) {
+function LibraryDetail(props: { item: LibraryItem; prefix: string; shadow: string | null; onEdit: () => void; onDeleted: () => void }) {
+  const { item, prefix, onEdit, onDeleted } = props;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -243,6 +288,11 @@ function LibraryDetail({ item, prefix, onEdit, onDeleted }: { item: LibraryItem;
         </div>
       </header>
       <p className="mono lib-path">{item.path}</p>
+      {props.shadow && (
+        <p className="alert-warn" role="note">
+          {props.shadow}
+        </p>
+      )}
       {confirmDelete && item.kind === "skills" && item.files && item.files.length > 0 && (
         <p className="hint">Chỉ xóa SKILL.md; {item.files.length} file khác trong thư mục giữ nguyên.</p>
       )}
@@ -285,10 +335,10 @@ function LibraryDetail({ item, prefix, onEdit, onDeleted }: { item: LibraryItem;
 function NewItemDialog(props: {
   open: boolean;
   kind: LibraryKind;
+  scope: LibraryScope;
   onClose: () => void;
-  onCreate: (scope: "project" | "user", name: string) => Promise<void>;
+  onCreate: (name: string) => Promise<void>;
 }) {
-  const [scope, setScope] = useState<"project" | "user">("project");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -313,7 +363,7 @@ function NewItemDialog(props: {
               e.preventDefault();
               setBusy(true);
               try {
-                await props.onCreate(scope, name);
+                await props.onCreate(name);
                 setName("");
                 setError(null);
               } catch (err) {
@@ -338,13 +388,9 @@ function NewItemDialog(props: {
                   : "Chữ, số, - _. Sẽ tạo " + (props.kind === "skills" ? `${name || "tên"}/SKILL.md` : `${name || "tên"}.md`)}
               </span>
               <span>Nơi lưu</span>
-              <div className="segmented" role="radiogroup" aria-label="Nơi lưu">
-                {(["project", "user"] as const).map((s) => (
-                  <button key={s} type="button" role="radio" aria-checked={scope === s} aria-selected={scope === s} onClick={() => setScope(s)}>
-                    {s === "project" ? `.claude/${props.kind} (repo)` : `~/.claude/${props.kind} (mọi repo)`}
-                  </button>
-                ))}
-              </div>
+              <span className="mono">
+                {scopeDir(props.kind, props.scope)} ({props.scope === "project" ? "repo này" : "mọi repo"})
+              </span>
             </div>
             {error && (
               <p className="error" role="alert">

@@ -2,22 +2,22 @@ import { Eye, MagnifyingGlass, PencilSimple, Plus, Trash, X } from "@phosphor-ic
 import { AnimatePresence, motion } from "motion/react";
 import { lazy, Suspense, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useWorkspace } from "../workspace";
-import { Button } from "../../shared/ui/Button";
-import { DiffDialog } from "../../shared/ui/DiffDialog";
-import i18n from "../../i18n";
-import { Markdown } from "../../shared/ui/Markdown";
-import { toast } from "../../shared/ui/Toast";
-import { clearDraft, getDraft, setDraft, useDrafts } from "./drafts";
-import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs, ScopeTag } from "./parts";
-import { shadowedBy } from "./precedence";
-import { useConfig } from "./useConfig";
-import { useSaveFlow } from "./useSaveFlow";
-import "../../shared/ui/dialog.css";
-import { configApi } from "./api";
+import { useWorkspace } from "../../workspace";
+import { Button } from "../../../shared/ui/Button";
+import { DiffDialog } from "../../../shared/ui/DiffDialog";
+import i18n from "../../../i18n";
+import { Markdown } from "../../../shared/ui/Markdown";
+import { toast } from "../../../shared/ui/Toast";
+import { clearDraft, getDraft, setDraft, useDrafts } from "../shared/drafts";
+import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs, ScopeTag } from "../shared/parts";
+import { shadowedBy } from "../shared/precedence";
+import { useConfig } from "../shared/useConfig";
+import { useSaveFlow } from "../shared/useSaveFlow";
+import "../../../shared/ui/dialog.css";
+import { libraryApi } from "./api";
 import type { LibraryItem, LibraryKind } from "./types";
 
-const MarkdownEditor = lazy(() => import("./MarkdownEditor").then((m) => ({ default: m.MarkdownEditor })));
+const MarkdownEditor = lazy(() => import("../shared/MarkdownEditor").then((m) => ({ default: m.MarkdownEditor })));
 
 /** Shown before an item's name: commands run as `/name`. */
 const PREFIX: Record<LibraryKind, string> = { agents: "", commands: "/", skills: "" };
@@ -70,7 +70,7 @@ const draftKey = (kind: LibraryKind) => `library:${kind}`;
 /** Agents, commands or skills: list + detail, with create, edit (diff review) and delete (backed up). */
 export function LibraryPage({ kind }: { kind: LibraryKind }) {
   const { t } = useTranslation("config");
-  const { data, error, loading, reload } = useConfig(["library", kind], () => configApi.library(kind));
+  const { data, error, loading, reload } = useConfig(["library", kind], () => libraryApi.library(kind));
   const { reloadInventory } = useWorkspace();
   const [scope, setScope] = useState<LibraryScope>("project");
   const [query, setQuery] = useState("");
@@ -96,8 +96,8 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
 
   const flow = useSaveFlow({
     title: t(draft?.isNew ? "library.createTitle" : "library.saveTitle", { path: draft?.path ?? "" }),
-    preview: () => configApi.libraryPreview(kind, draft!.scope, draft!.rel, draft!.content, draft!.baseHash),
-    save: () => configApi.librarySave(kind, draft!.scope, draft!.rel, draft!.content, draft!.baseHash),
+    preview: () => libraryApi.libraryPreview(kind, draft!.scope, draft!.rel, draft!.content, draft!.baseHash),
+    save: () => libraryApi.librarySave(kind, draft!.scope, draft!.rel, draft!.content, draft!.baseHash),
     onSaved: () => {
       toast(t(draft!.isNew ? "library.created" : "library.saved", { path: draft!.path }));
       clearDraft(draftKey(kind));
@@ -109,7 +109,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
 
   const startEdit = async (item: LibraryItem) => {
     try {
-      const raw = await configApi.libraryRaw(kind, item.scope, item.rel);
+      const raw = await libraryApi.libraryRaw(kind, item.scope, item.rel);
       setDraft(draftKey(kind), { kind, scope: item.scope, rel: item.rel, path: raw.path, content: raw.content, baseHash: raw.hash, isNew: false } satisfies LibraryDraft);
     } catch (e) {
       toast((e as Error).message, { error: true });
@@ -210,7 +210,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
         onClose={() => setCreating(false)}
         onCreate={async (name) => {
           const rel = relFor(kind, name);
-          const raw = await configApi.libraryRaw(kind, scope, rel);
+          const raw = await libraryApi.libraryRaw(kind, scope, rel);
           if (raw.exists) throw new Error(t("library.exists", { path: raw.path }));
           setDraft(draftKey(kind), { kind, scope, rel, path: raw.path, content: template(kind, name), baseHash: raw.hash, isNew: true } satisfies LibraryDraft, null);
           setCreating(false);
@@ -243,8 +243,8 @@ function LibraryDetail({ item, prefix, onEdit, onDeleted }: { item: LibraryItem;
   const remove = async () => {
     setBusy(true);
     try {
-      const raw = await configApi.libraryRaw(item.kind, item.scope, item.rel);
-      await configApi.libraryDelete(item.kind, item.scope, item.rel, raw.hash);
+      const raw = await libraryApi.libraryRaw(item.kind, item.scope, item.rel);
+      await libraryApi.libraryDelete(item.kind, item.scope, item.rel, raw.hash);
       toast(t("deletedRestorable", { name: item.path }));
       onDeleted();
     } catch (e) {

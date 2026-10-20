@@ -1,12 +1,13 @@
 import { Plus, X } from "@phosphor-icons/react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "../../shared/ui/Toast";
-import { clearDraft, setDraft } from "./drafts";
-import { RuleChip } from "./parts";
-import { useSaveFlow } from "./useSaveFlow";
-import { configApi } from "./api";
-import type { Permissions, Scope } from "./types";
+import { toast } from "../../../shared/ui/Toast";
+import { clearDraft, setDraft } from "../shared/drafts";
+import { RuleChip } from "../shared/parts";
+import { useSaveFlow } from "../shared/useSaveFlow";
+import { settingsApi } from "./api";
+import type { Permissions } from "./types";
+import type { Scope } from "../shared/types";
 
 export interface PermissionsDraft {
   permissions: Permissions;
@@ -30,8 +31,8 @@ export function usePermissionsSave(scope: Scope, draft: PermissionsDraft | undef
   const { t } = useTranslation("config");
   return useSaveFlow({
     title: t("permissions.saveTitle", { path: draft?.path ?? "" }),
-    preview: () => configApi.permissionsPreview(scope, draft!.permissions, draft!.baseHash),
-    save: () => configApi.permissionsSave(scope, draft!.permissions, draft!.baseHash),
+    preview: () => settingsApi.permissionsPreview(scope, draft!.permissions, draft!.baseHash),
+    save: () => settingsApi.permissionsSave(scope, draft!.permissions, draft!.baseHash),
     onSaved: () => {
       toast(t("permissions.saved", { path: draft?.path }));
       clearDraft(permissionsKey(scope));

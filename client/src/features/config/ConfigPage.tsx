@@ -1,10 +1,10 @@
 import type { ConfigSection } from "../../shared/router";
-import { CodegraphPage } from "./CodegraphPage";
-import { HooksPage } from "./HooksPage";
-import { LibraryPage } from "./LibraryPage";
-import { McpPage } from "./McpPage";
-import { MemoryPage } from "./MemoryPage";
-import { SettingsPage } from "./SettingsPage";
+import { CodegraphPage } from "./codegraph/CodegraphPage";
+import { HooksPage } from "./hooks/HooksPage";
+import { LibraryPage } from "./library/LibraryPage";
+import { McpPage } from "./mcp/McpPage";
+import { MemoryPage } from "./memory/MemoryPage";
+import { SettingsPage } from "./settings/SettingsPage";
 
 /** Claude configuration pages (read-only in phase B). */
 export function ConfigPage({ section }: { section: ConfigSection }) {

@@ -1,15 +1,16 @@
 import { Eye, PencilSimple, Plus } from "@phosphor-icons/react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button } from "../../shared/ui/Button";
-import { DiffDialog } from "../../shared/ui/DiffDialog";
-import { toast } from "../../shared/ui/Toast";
-import { getDraft, isDirty, setDraft, useDrafts } from "./drafts";
+import { Button } from "../../../shared/ui/Button";
+import { DiffDialog } from "../../../shared/ui/DiffDialog";
+import { toast } from "../../../shared/ui/Toast";
+import { getDraft, isDirty, setDraft, useDrafts } from "../shared/drafts";
 import { EMPTY_HOOK, HooksEditor, hooksKey, useHooksSave, type HooksDraft } from "./HooksEditor";
-import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs } from "./parts";
-import { useConfig } from "./useConfig";
-import { configApi } from "./api";
-import type { HooksFile, Scope } from "./types";
+import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs } from "../shared/parts";
+import { useConfig } from "../shared/useConfig";
+import { hooksApi } from "./api";
+import type { HooksFile } from "./types";
+import type { Scope } from "../shared/types";
 
 /** Events with a one-line explanation in `config:hooks.event`. */
 const HINTED_EVENTS = [
@@ -35,7 +36,7 @@ export function HooksPage() {
   const { t } = useTranslation("config");
   const tabLabel = (s: Scope) => t(`settings.tab.${s}`);
   const [scope, setScope] = useState<Scope>("project");
-  const { data, error, loading, reload } = useConfig(["hooks-file", scope], () => configApi.hooksFile(scope));
+  const { data, error, loading, reload } = useConfig(["hooks-file", scope], () => hooksApi.hooksFile(scope));
   const [opening, setOpening] = useState(false);
   useDrafts();
   const draft = getDraft<HooksDraft>(hooksKey(scope));
@@ -44,7 +45,7 @@ export function HooksPage() {
   const startEditing = async () => {
     setOpening(true);
     try {
-      const f = await configApi.hooksFile(scope);
+      const f = await hooksApi.hooksFile(scope);
       const base: HooksDraft = { scope, hooks: f.hooks, baseHash: f.hash, path: f.path };
       // A file without command hooks opens with one empty row to fill in; that row alone is not a change.
       setDraft(hooksKey(scope), f.hooks.length ? base : { ...base, hooks: [EMPTY_HOOK] });

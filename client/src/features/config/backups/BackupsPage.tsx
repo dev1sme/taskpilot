@@ -1,21 +1,21 @@
 import { ArrowCounterClockwise } from "@phosphor-icons/react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button } from "../../shared/ui/Button";
-import { DiffDialog } from "../../shared/ui/DiffDialog";
-import { toast } from "../../shared/ui/Toast";
-import { useWorkspace } from "../workspace";
-import { locale } from "../../i18n";
-import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "./parts";
-import { useConfig } from "./useConfig";
-import "../tasks/tasks.css";
-import { configApi } from "./api";
-import type { BackupEntry } from "./types";
+import { Button } from "../../../shared/ui/Button";
+import { DiffDialog } from "../../../shared/ui/DiffDialog";
+import { toast } from "../../../shared/ui/Toast";
+import { useWorkspace } from "../../workspace";
+import { locale } from "../../../i18n";
+import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "../shared/parts";
+import { useConfig } from "../shared/useConfig";
+import "../../tasks/tasks.css";
+import { backupsApi } from "./api";
+import type { BackupEntry } from "../shared/types";
 
 /** Every backup TaskPilot took before writing a config file; any of them can be restored. */
 export function BackupsPage() {
   const { t } = useTranslation("backups");
-  const { data, error, loading, reload } = useConfig(["backups"], configApi.backups);
+  const { data, error, loading, reload } = useConfig(["backups"], backupsApi.backups);
   const { reloadInventory } = useWorkspace();
   const [picked, setPicked] = useState<BackupEntry | null>(null);
   const [diff, setDiff] = useState<string | null>(null);
@@ -27,7 +27,7 @@ export function BackupsPage() {
     setDiff(null);
     setRestoreError(null);
     try {
-      setDiff((await configApi.backupDiff(b.id)).diff);
+      setDiff((await backupsApi.backupDiff(b.id)).diff);
     } catch (e) {
       setRestoreError((e as Error).message);
       setDiff("");
@@ -38,7 +38,7 @@ export function BackupsPage() {
     if (!picked) return;
     setBusy(true);
     try {
-      await configApi.restoreBackup(picked.id);
+      await backupsApi.restoreBackup(picked.id);
       toast(t("restored", { file: picked.display }));
       setPicked(null);
       void reload();

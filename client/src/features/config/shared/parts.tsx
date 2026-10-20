@@ -1,10 +1,10 @@
 import { ArrowClockwise, LockSimple, X } from "@phosphor-icons/react";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Button } from "../../shared/ui/Button";
-import i18n from "../../i18n";
-import { PageHeader } from "../../shared/ui/PageHeader";
-import { Toolbar } from "../../shared/ui/Toolbar";
+import { Button } from "../../../shared/ui/Button";
+import i18n from "../../../i18n";
+import { PageHeader } from "../../../shared/ui/PageHeader";
+import { Toolbar } from "../../../shared/ui/Toolbar";
 import { clearDraft, isDirty } from "./drafts";
 import "./config.css";
 import type { Scope } from "./types";

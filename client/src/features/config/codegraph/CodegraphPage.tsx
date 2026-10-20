@@ -1,21 +1,22 @@
 import { ArrowClockwise, Plugs, TreeStructure } from "@phosphor-icons/react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { queryClient } from "../../shared/api/queryClient";
-import { useWorkspace } from "../workspace";
-import { Button } from "../../shared/ui/Button";
-import { toast } from "../../shared/ui/Toast";
-import { McpForm } from "./McpForm";
-import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "./parts";
-import { useConfig } from "./useConfig";
-import { configApi } from "./api";
+import { queryClient } from "../../../shared/api/queryClient";
+import { useWorkspace } from "../../workspace";
+import { Button } from "../../../shared/ui/Button";
+import { toast } from "../../../shared/ui/Toast";
+import { McpForm } from "../mcp/McpForm";
+import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "../shared/parts";
+import { useConfig } from "../shared/useConfig";
+import { codegraphApi } from "./api";
+import { mcpApi } from "../mcp/api";
 
 type Adding = { baseHash: string } | null;
 
 /** Codegraph index status for the open repo, driven by environments' `make cg-status`/`cg-index`. */
 export function CodegraphPage() {
   const { t } = useTranslation("config");
-  const { data: status, error, loading, reload } = useConfig(["codegraph"], configApi.codegraph);
+  const { data: status, error, loading, reload } = useConfig(["codegraph"], codegraphApi.codegraph);
   const { repo, reloadInventory } = useWorkspace();
   const [busy, setBusy] = useState(false);
   const [indexError, setIndexError] = useState<string | null>(null);
@@ -24,7 +25,7 @@ export function CodegraphPage() {
   const index = async () => {
     setBusy(true);
     try {
-      await configApi.codegraphIndex();
+      await codegraphApi.codegraphIndex();
       setIndexError(null);
     } catch (e) {
       setIndexError((e as Error).message);
@@ -36,7 +37,7 @@ export function CodegraphPage() {
 
   const startAddMcp = async () => {
     try {
-      const { hash } = await configApi.mcpAddHash("project");
+      const { hash } = await mcpApi.mcpAddHash("project");
       setAdding({ baseHash: hash });
     } catch (e) {
       toast((e as Error).message, { error: true });

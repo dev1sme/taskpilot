@@ -2,13 +2,14 @@ import { Eye, Plus, Trash, X } from "@phosphor-icons/react";
 import { useId, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
-import { Button } from "../../shared/ui/Button";
-import { DiffDialog } from "../../shared/ui/DiffDialog";
-import { toast } from "../../shared/ui/Toast";
-import { ScopeTag } from "./parts";
-import { useSaveFlow } from "./useSaveFlow";
-import { configApi } from "./api";
-import type { McpEntryForm, McpEntryInput, Scope } from "./types";
+import { Button } from "../../../shared/ui/Button";
+import { DiffDialog } from "../../../shared/ui/DiffDialog";
+import { toast } from "../../../shared/ui/Toast";
+import { ScopeTag } from "../shared/parts";
+import { useSaveFlow } from "../shared/useSaveFlow";
+import { mcpApi } from "./api";
+import type { McpEntryForm, McpEntryInput } from "./types";
+import type { Scope } from "../shared/types";
 
 interface Row {
   key: string;
@@ -76,11 +77,11 @@ export function McpForm(props: {
   const flow = useSaveFlow({
     title: t(base ? "mcpForm.saveTitle" : "mcpForm.addTitle", { name }),
     preview: async () => {
-      const p = await configApi.mcpPreview(scope, build(), props.baseHash);
+      const p = await mcpApi.mcpPreview(scope, build(), props.baseHash);
       setSecrets(p.secrets);
       return p;
     },
-    save: () => configApi.mcpSave(scope, build(), props.baseHash),
+    save: () => mcpApi.mcpSave(scope, build(), props.baseHash),
     onSaved: () => {
       toast(secrets.length ? t("mcpForm.savedWithSecrets", { name, secrets: secrets.join(", ") }) : t("mcpForm.saved", { name }));
       props.onDone(name);

@@ -1,11 +1,12 @@
 import { Plus, Trash } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
-import { Button } from "../../shared/ui/Button";
-import { toast } from "../../shared/ui/Toast";
-import { clearDraft, setDraft } from "./drafts";
-import { useSaveFlow } from "./useSaveFlow";
-import { configApi } from "./api";
-import type { HookInput, Scope } from "./types";
+import { Button } from "../../../shared/ui/Button";
+import { toast } from "../../../shared/ui/Toast";
+import { clearDraft, setDraft } from "../shared/drafts";
+import { useSaveFlow } from "../shared/useSaveFlow";
+import { hooksApi } from "./api";
+import type { HookInput } from "./types";
+import type { Scope } from "../shared/types";
 
 export interface HooksDraft {
   scope: Scope;
@@ -65,8 +66,8 @@ export function useHooksSave(draft: HooksDraft | undefined, onSaved: () => void)
   const { t } = useTranslation("config");
   return useSaveFlow({
     title: t("hooks.saveTitle", { path: draft?.path ?? "" }),
-    preview: () => configApi.hooksPreview(draft!.scope, draft!.hooks, draft!.baseHash),
-    save: () => configApi.hooksSave(draft!.scope, draft!.hooks, draft!.baseHash),
+    preview: () => hooksApi.hooksPreview(draft!.scope, draft!.hooks, draft!.baseHash),
+    save: () => hooksApi.hooksSave(draft!.scope, draft!.hooks, draft!.baseHash),
     onSaved: () => {
       toast(t("hooks.saved", { path: draft?.path }));
       clearDraft(hooksKey(draft!.scope));

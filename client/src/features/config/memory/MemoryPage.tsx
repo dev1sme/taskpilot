@@ -1,19 +1,20 @@
 import { CheckCircle, Eye, PencilSimple, Plus, Warning } from "@phosphor-icons/react";
 import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button } from "../../shared/ui/Button";
-import { DiffDialog } from "../../shared/ui/DiffDialog";
-import { clockTime } from "../../shared/ui/Elapsed";
-import { toast } from "../../shared/ui/Toast";
-import { clearDraft, getDraft, isDirty, setDraft, useDrafts } from "./drafts";
-import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs } from "./parts";
-import { useConfig } from "./useConfig";
-import { useSaveFlow } from "./useSaveFlow";
-import { configApi } from "./api";
-import type { MemoryFile, Scope } from "./types";
+import { Button } from "../../../shared/ui/Button";
+import { DiffDialog } from "../../../shared/ui/DiffDialog";
+import { clockTime } from "../../../shared/ui/Elapsed";
+import { toast } from "../../../shared/ui/Toast";
+import { clearDraft, getDraft, isDirty, setDraft, useDrafts } from "../shared/drafts";
+import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs } from "../shared/parts";
+import { useConfig } from "../shared/useConfig";
+import { useSaveFlow } from "../shared/useSaveFlow";
+import { memoryApi } from "./api";
+import type { MemoryFile } from "./types";
+import type { Scope } from "../shared/types";
 
 // CodeMirror is only needed once the user starts editing.
-const MarkdownEditor = lazy(() => import("./MarkdownEditor").then((m) => ({ default: m.MarkdownEditor })));
+const MarkdownEditor = lazy(() => import("../shared/MarkdownEditor").then((m) => ({ default: m.MarkdownEditor })));
 
 const STACK_COLORS = ["var(--cat-read)", "var(--cat-search)", "var(--cat-run)", "var(--cat-agent)", "var(--cat-plan)"];
 
@@ -29,7 +30,7 @@ const draftKey = (scope: Scope) => `memory:${scope}`;
 export function MemoryPage() {
   const { t } = useTranslation("config");
   const tabLabel = (s: Scope) => t(`memory.tab.${s}`);
-  const { data, error, loading, reload } = useConfig(["memory"], configApi.memory);
+  const { data, error, loading, reload } = useConfig(["memory"], memoryApi.memory);
   const [scope, setScope] = useState<Scope>("project");
   const [opening, setOpening] = useState(false);
   useDrafts();
@@ -39,7 +40,7 @@ export function MemoryPage() {
   const startEditing = async () => {
     setOpening(true);
     try {
-      const raw = await configApi.memoryRaw(scope);
+      const raw = await memoryApi.memoryRaw(scope);
       setDraft(draftKey(scope), { content: raw.content, baseHash: raw.hash, path: raw.path } satisfies MemoryDraft);
     } catch (e) {
       toast((e as Error).message, { error: true });
@@ -50,8 +51,8 @@ export function MemoryPage() {
 
   const flow = useSaveFlow({
     title: t("memory.saveTitle", { path: draft?.path ?? tabLabel(scope) }),
-    preview: () => configApi.memoryPreview(scope, draft!.content, draft!.baseHash),
-    save: () => configApi.memorySave(scope, draft!.content, draft!.baseHash),
+    preview: () => memoryApi.memoryPreview(scope, draft!.content, draft!.baseHash),
+    save: () => memoryApi.memorySave(scope, draft!.content, draft!.baseHash),
     onSaved: () => {
       toast(t("memory.saved", { path: draft?.path }));
       clearDraft(draftKey(scope));

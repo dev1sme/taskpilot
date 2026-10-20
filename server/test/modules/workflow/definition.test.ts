@@ -32,7 +32,8 @@ describe("workflow definition", () => {
   it("loads the built-in workflow with its outputs and prompts, without warnings", async () => {
     const def = await loadWorkflow(await makeRepo());
     expect(def).toMatchObject({ origin: "default", source: path.join(DEFAULT_WORKFLOW_DIR, "workflow.yml") });
-    expect(def.history).toEqual({ file: "00-history.md", entry: "## <YYYY-MM-DD HH:MM> · {{step}} · Claude" });
+    expect(def.history).toMatchObject({ file: "00-history.md", entry: "## <YYYY-MM-DD HH:MM> · {{step}} · Claude", format: "format-history.md" });
+    expect(def.steps.flatMap((s) => s.outputs.map((o) => o.format))).toEqual(["format-investigation.md", "format-plan.md", "format-progress.md", "format-summary.md"]);
     expect(def.restart).toEqual({ read: ["plan", "summary", "progress"] });
     expect(def.steps.map((s) => [s.id, s.gate, s.doneWhen?.file, s.outputs.map((o) => o.file)])).toEqual([
       ["investigate", "approve", "02-plan.md", ["01-investigation.md", "02-plan.md"]],
@@ -56,7 +57,7 @@ describe("workflow definition", () => {
   it("never falls back to a built-in prompt the override does not have", async () => {
     const repo = await makeRepo();
     await writeOverride(repo, { "workflow.yml": "version: 2\nsteps:\n  - {id: a, prompt: implement.md}\n" });
-    await expect(loadWorkflow(repo)).rejects.toThrow("prompt file not found: implement.md");
+    await expect(loadWorkflow(repo)).rejects.toThrow("file not found: implement.md");
   });
 
   it.each([
@@ -64,8 +65,11 @@ describe("workflow definition", () => {
     ["version: 2\nsteps: []", "non-empty"],
     ["version: 2\npermission-mode: bypassPermissions\nsteps:\n  - {id: a, prompt: p.md}", "permission-mode"],
     ["version: 2\nsteps:\n  - {id: a, prompt: p.md}\n  - {id: a, prompt: p.md}", "duplicate step id"],
-    ["version: 2\nsteps:\n  - {id: a, prompt: ../../etc/passwd}", "prompt file name"],
-    ["version: 2\nsteps:\n  - {id: a, prompt: sub/p.md}", "prompt file name"],
+    ["version: 2\nsteps:\n  - {id: a, prompt: ../../etc/passwd}", "must be a file name like investigate.md"],
+    ["version: 2\nsteps:\n  - {id: a, prompt: sub/p.md}", "must be a file name like investigate.md"],
+    ["version: 2\nsteps:\n  - {id: a, prompt: p.md, outputs: [{id: x, file: x.md, format: nope.md}]}", "outputs[0].format: file not found: nope.md"],
+    ["version: 2\nhistory: {format: ../h.md}\nsteps:\n  - {id: a, prompt: p.md}", "history.format must be a file name"],
+    ["version: 2\nsteps:\n  - {id: a, prompt: p.md, outputs: [{id: x, file: x.md, format: f.md}]}", "f.md: {{feedback}} is only available"],
     ["version: 2\nsteps:\n  - {id: a, prompt: missing.md}", "not found"],
     ["version: 2\nsteps:\n  - {id: a, prompt: p.md, gate: maybe}", "gate"],
     ["version: 2\nsteps:\n  - {id: a, prompt: p.md, done-when: nope}", "done-when"],
@@ -78,7 +82,7 @@ describe("workflow definition", () => {
     ["version: 2\nsteps:\n  - {id: a, prompt: bad.md}", "{{out.missing}} names no output"],
     ["version: 2\nsteps:\n  - {id: a, prompt: fb.md}", "only available in on-reject"],
   ])("rejects %j", (yml, message) => {
-    const { def, errors } = parse(yml, { "bad.md": "{{out.missing}}", "fb.md": "{{feedback}}" });
+    const { def, errors } = parse(yml, { "bad.md": "{{out.missing}}", "fb.md": "{{feedback}}", "f.md": "# {{feedback}}" });
     expect(def).toBeNull();
     expect(errors.join("\n")).toContain(message);
   });

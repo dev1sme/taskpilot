@@ -5,6 +5,9 @@ export interface OutputDef {
   file: string;
   /** What the document must contain; listed in the prompt through {{outputs}}. */
   content: string;
+  /** Skeleton file (next to workflow.yml) the document must follow, and its text; shown in {{outputs}}. */
+  format?: string;
+  formatText?: string;
 }
 
 export interface StepDef {
@@ -31,8 +34,11 @@ export interface WorkflowDef {
   /** Directory holding workflow.yml and its prompt files. */
   dir: string;
   permissionMode?: string;
-  /** The task's decision log: file name in the task dir, and the heading Claude uses for its entries. */
-  history: { file: string; entry: string };
+  /**
+   * The task's decision log: file name in the task dir, the heading Claude uses for its entries, and
+   * an optional skeleton file for a whole entry ({{historyFormat}}).
+   */
+  history: { file: string; entry: string; format?: string; formatText?: string };
   /** Sentence about the documents' language, available as {{language}}. */
   language: string;
   /** Rules shared by every prompt, available as {{rules}}. */

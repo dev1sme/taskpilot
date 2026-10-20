@@ -58,8 +58,12 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     const files = await readWorkflowDir(dir);
     const defaults = origin === "repo" ? await readWorkflowDir(DEFAULT_WORKFLOW_DIR) : files;
     const { def, errors, warnings } = parseWorkflowFiles(files, { dir, origin });
-    const usedBy = (name: string) =>
-      def?.steps.filter((s) => s.promptFile === name || s.onRejectFile === name).map((s) => s.title) ?? [];
+    /** Where a file is used: step titles for prompts, document files for skeletons, the history file. */
+    const usedBy = (name: string) => [
+      ...(def?.steps.filter((s) => s.promptFile === name || s.onRejectFile === name).map((s) => s.title) ?? []),
+      ...(def?.steps.flatMap((s) => s.outputs).filter((o) => o.format === name).map((o) => o.file) ?? []),
+      ...(def?.history.format === name ? [def.history.file] : []),
+    ];
     return {
       origin,
       overrideDir: OVERRIDE_DIR.split(path.sep).join("/"),
@@ -69,7 +73,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
       variables: templateVars,
       def: def && {
         permissionMode: def.permissionMode ?? null,
-        history: def.history,
+        history: { file: def.history.file, entry: def.history.entry, format: def.history.format ?? null },
         language: def.language,
         rules: def.rules,
         restart: def.restart ?? null,
@@ -78,7 +82,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
           title: s.title,
           gate: s.gate,
           doneWhen: s.doneWhen?.output ?? null,
-          outputs: s.outputs,
+          outputs: s.outputs.map((o) => ({ id: o.id, file: o.file, content: o.content, format: o.format ?? null })),
           promptFile: s.promptFile,
           onRejectFile: s.onRejectFile ?? null,
         })),

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_WORKFLOW_DIR, loadWorkflow } from "../../../src/modules/workflow/definition.js";
 import { stageOf } from "../../../src/modules/workflow/stage.js";
 import type { WorkflowDef } from "../../../src/modules/workflow/types.js";
-import { promptVars, render } from "../../../src/modules/workflow/vars.js";
+import { promptVars, render, renderPrompt } from "../../../src/modules/workflow/vars.js";
 
 const task = { key: "A-1", title: "Health" };
 
@@ -78,25 +78,69 @@ describe("prompt variables", () => {
     expect(none.previousRun).not.toContain("archive/x");
   });
 
-  it("keeps the built-in prompts saying what they said before variables", async () => {
+  it("shows an output's skeleton and the history entry's skeleton in a code block", () => {
+    const withFormats: WorkflowDef = {
+      ...def,
+      history: { ...def.history, format: "h.md", formatText: "### {{step}}\n**Quyết định:**\n" },
+      steps: [
+        { ...def.steps[0], outputs: [{ id: "plan", file: "plan.md", content: "the plan", format: "f.md", formatText: "# {{key}} — Plan\n\n## Goal\n```sh\nnpm test\n```\n" }] },
+        def.steps[1],
+      ],
+    };
+    const vars = promptVars(withFormats, 0, task);
+    expect(vars.outputs).toBe(
+      [
+        "- `.claude/tasks/A-1/plan.md`: the plan",
+        "  Follow this structure: keep the headings in this order, fill every section, drop the <!-- --> hints.",
+        "",
+        "````markdown",
+        "# A-1 — Plan",
+        "",
+        "## Goal",
+        "```sh",
+        "npm test",
+        "```",
+        "````",
+      ].join("\n"),
+    );
+    expect(vars.historyFormat).toBe("```markdown\n### Plan\n**Quyết định:**\n```");
+    // Without a skeleton, the entry heading alone.
+    expect(promptVars(def, 0, task).historyFormat).toBe("```markdown\n### Plan · Claude\n```");
+  });
+
+  it("builds the built-in prompts from the workflow: sections, documents with skeletons, rules", async () => {
     const builtIn = await loadWorkflow(DEFAULT_WORKFLOW_DIR);
     const [investigate, implement] = builtIn.steps;
-    const first = render(investigate.prompt, promptVars(builtIn, 0, task));
-    expect(first).toContain('You are working on task A-1: "Health".');
-    expect(first).toContain("- `.claude/tasks/A-1/01-investigation.md`: scope, related files (with paths)");
+    const first = renderPrompt(investigate.prompt, promptVars(builtIn, 0, task));
+    for (const heading of ["## Context", "## Your job", "## Write", "## Rules", "## When done"]) expect(first).toContain(heading);
+    expect(first).toContain('You are working on task A-1: "Health" (step 1 of 2: Điều tra & lên kế hoạch).');
+    expect(first).toContain("Do not change source code.");
     expect(first).toContain("- `.claude/tasks/A-1/02-plan.md`: goal, changes per file");
-    expect(first).toContain("Append a `## <YYYY-MM-DD HH:MM> · Điều tra & lên kế hoạch · Claude` entry to .claude/tasks/A-1/00-history.md");
-    expect(first).toContain("Append only to .claude/tasks/A-1/00-history.md: add new entries at the end with Edit");
+    expect(first).toContain("# A-1 — Kế hoạch\n\n## 1. Mục tiêu");
+    expect(first).toContain("## 5. Cách verify");
+    expect(first).toContain("# A-1 — Điều tra");
+    expect(first).toContain("## <YYYY-MM-DD HH:MM> · Điều tra & lên kế hoạch · Claude\n\n**Quyết định:**");
+    expect(first).toContain("- Append only to .claude/tasks/A-1/00-history.md: add new entries at the end with Edit");
     expect(first).toContain("Write the documents in the same language as the spec.");
     expect(first).not.toMatch(/\{\{/);
-    const second = render(implement.prompt, promptVars(builtIn, 1, task));
-    expect(second).toContain("following .claude/tasks/A-1/02-plan.md");
+    expect(first).not.toMatch(/\n{3}/);
+
+    const second = renderPrompt(implement.prompt, promptVars(builtIn, 1, task));
+    expect(second).toContain("Implement the plan in .claude/tasks/A-1/02-plan.md.");
+    expect(second).toContain("- `.claude/tasks/A-1/01-investigation.md`");
     expect(second).toContain("Keep .claude/tasks/A-1/03-progress.md up to date");
-    expect(second).toContain("write .claude/tasks/A-1/04-summary.md");
-    expect(second).toContain("Do not push or merge.");
-    const reject = render(investigate.onReject!, promptVars(builtIn, 0, task, { feedback: "More tests" }));
-    expect(reject).toContain("More tests");
-    expect(reject).toContain("update .claude/tasks/A-1/02-plan.md (and .claude/tasks/A-1/01-investigation.md if relevant)");
+    expect(second).toContain("# A-1 — Tóm tắt");
+    expect(second).toContain("- [ ] 1. <bước 1 của kế hoạch>");
+    expect(second).toContain("- Do not push or merge.");
+    expect(second).not.toMatch(/\{\{/);
+
+    const reject = renderPrompt(investigate.onReject!, promptVars(builtIn, 0, task, { feedback: "More tests" }));
+    expect(reject).toMatch(/^## Feedback\n\nReviewer feedback on the plan for task A-1: "Health":\n\nMore tests\n/);
+    expect(reject).toContain("Update .claude/tasks/A-1/02-plan.md (and .claude/tasks/A-1/01-investigation.md if relevant)");
+    expect(reject).not.toMatch(/\{\{/);
+    const fix = renderPrompt(implement.onReject!, promptVars(builtIn, 1, task, { feedback: "Fix lint" }));
+    expect(fix).toContain("rewrite .claude/tasks/A-1/04-summary.md so it describes the final state");
+    expect(fix).not.toMatch(/\{\{/);
   });
 });
 

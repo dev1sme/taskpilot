@@ -91,12 +91,32 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
     errors.push(`permission-mode must be one of ${PERMISSION_MODES.join(", ")}`);
   }
 
-  const history = { ...DEFAULT_HISTORY };
+  const used = new Set<string>();
+  /** A prompt or format file next to workflow.yml; it then counts as used. */
+  const loadFile = (where: string, name: unknown, example: string): { text: string; file: string } | null => {
+    if (typeof name !== "string" || !PROMPT_FILE.test(name)) {
+      errors.push(`${where} must be a file name like ${example} (lowercase, next to ${WORKFLOW_FILE})`);
+      return null;
+    }
+    used.add(name);
+    const text = files.get(name);
+    if (text === undefined) {
+      errors.push(`${where}: file not found: ${name}`);
+      return null;
+    }
+    return { text, file: name };
+  };
+  const loadPrompt = (where: string, name: unknown) => loadFile(where, name, "investigate.md");
+  const loadFormat = (where: string, name: unknown) => (name === undefined ? null : loadFile(where, name, "format-plan.md"));
+
+  const history: WorkflowDef["history"] = { ...DEFAULT_HISTORY };
   if (doc.history !== undefined) {
-    if (!isObject(doc.history)) errors.push("history must be {file, entry}");
+    if (!isObject(doc.history)) errors.push("history must be {file, entry, format}");
     else {
       if (doc.history.file !== undefined) history.file = String(doc.history.file);
       if (doc.history.entry !== undefined) history.entry = String(doc.history.entry);
+      const format = loadFormat("history.format", doc.history.format);
+      if (format) Object.assign(history, { format: format.file, formatText: format.text });
     }
   }
   if (!TASK_DOC.test(history.file)) errors.push(`history.file must be a .md file name at the top of the task directory: ${history.file}`);
@@ -107,21 +127,6 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
     if (!Array.isArray(doc.rules) || doc.rules.some((r) => typeof r !== "string")) errors.push("rules must be a list of strings");
     else rules = doc.rules as string[];
   }
-
-  const used = new Set<string>();
-  const loadPrompt = (where: string, name: unknown): { text: string; file: string } | null => {
-    if (typeof name !== "string" || !PROMPT_FILE.test(name)) {
-      errors.push(`${where} must be a prompt file name like investigate.md (lowercase, next to ${WORKFLOW_FILE})`);
-      return null;
-    }
-    used.add(name);
-    const text = files.get(name);
-    if (text === undefined) {
-      errors.push(`${where}: prompt file not found: ${name}`);
-      return null;
-    }
-    return { text, file: name };
-  };
 
   const steps: StepDef[] = [];
   const outputIds = new Set<string>();
@@ -143,7 +148,7 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
     for (const [j, o] of (Array.isArray(raw.outputs) ? raw.outputs : []).entries()) {
       const oat = `${at}.outputs[${j}]`;
       if (!isObject(o)) {
-        errors.push(`${oat} must be {id, file, content}`);
+        errors.push(`${oat} must be {id, file, content, format}`);
         continue;
       }
       const oid = o.id;
@@ -154,7 +159,13 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
       else if (outputFiles.has(file)) errors.push(`${oat}.file ${file} is already used`);
       if (typeof oid === "string") outputIds.add(oid);
       if (typeof file === "string") outputFiles.add(file);
-      outputs.push({ id: String(oid), file: String(file), content: o.content === undefined ? "" : String(o.content) });
+      const format = loadFormat(`${oat}.format`, o.format);
+      outputs.push({
+        id: String(oid),
+        file: String(file),
+        content: o.content === undefined ? "" : String(o.content),
+        ...(format ? { format: format.file, formatText: format.text } : {}),
+      });
     }
 
     const doneWhen = raw["done-when"];
@@ -188,7 +199,7 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
     } else restart = { read: read as string[] };
   }
 
-  checkTemplates(steps, rules, history.entry, outputIds, errors, warnings);
+  checkTemplates(steps, rules, history, outputIds, errors, warnings);
   for (const name of files.keys()) {
     if (name !== WORKFLOW_FILE && !used.has(name)) warnings.push(`${name} is not used by any step`);
   }
@@ -208,7 +219,14 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
 
 const VAR = /\{\{([\w.]+)\}\}/g;
 
-function checkTemplates(steps: StepDef[], rules: string[], entry: string, outputIds: Set<string>, errors: string[], warnings: string[]) {
+function checkTemplates(
+  steps: StepDef[],
+  rules: string[],
+  history: WorkflowDef["history"],
+  outputIds: Set<string>,
+  errors: string[],
+  warnings: string[],
+) {
   const known = new Set<string>(templateVars);
   const check = (where: string, text: string, allowFeedback: boolean) => {
     for (const [, name] of text.matchAll(VAR)) {
@@ -222,7 +240,13 @@ function checkTemplates(steps: StepDef[], rules: string[], entry: string, output
     }
   };
   rules.forEach((r, i) => check(`rules[${i}]`, r, false));
-  check("history.entry", entry, false);
+  check("history.entry", history.entry, false);
+  if (history.format && history.formatText !== undefined) check(history.format, history.formatText, false);
+  const formats = new Set<string>();
+  for (const o of steps.flatMap((s) => s.outputs)) {
+    if (o.format && o.formatText !== undefined && !formats.has(o.format)) check(o.format, o.formatText, false);
+    if (o.format) formats.add(o.format);
+  }
   for (const s of steps) {
     if (s.promptFile) check(s.promptFile, s.prompt, false);
     if (s.onRejectFile && s.onReject !== undefined) check(s.onRejectFile, s.onReject, true);

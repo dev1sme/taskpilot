@@ -3,12 +3,15 @@
 version: 2
 # permission-mode: acceptEdits        # default | acceptEdits | plan | auto
 
-# The task's decision log, and the heading Claude uses for its own entries.
+# The task's decision log: the heading Claude uses for its own entries ({{historyEntry}}) and the
+# skeleton of a whole entry ({{historyFormat}}).
 history:
   file: 00-history.md
   entry: "## <YYYY-MM-DD HH:MM> · {{step}} · Claude"
+  format: format-history.md
 
-# {{language}} and {{rules}} in the prompts below.
+# {{language}} and {{rules}} in the prompts below. Each output's `format` is a skeleton file shown
+# in {{outputs}}: Claude keeps its headings and fills every section.
 language: Write the documents in the same language as the spec.
 rules:
   - "Append only to {{historyFile}}: add new entries at the end with Edit, never rewrite or remove earlier ones."
@@ -27,9 +30,11 @@ steps:
       - id: investigation
         file: 01-investigation.md
         content: scope, related files (with paths), how that part works today, risks
+        format: format-investigation.md
       - id: plan
         file: 02-plan.md
         content: goal, changes per file, ordered steps, risks, how to verify (exact build/test commands), open questions
+        format: format-plan.md
     done-when: plan
     gate: approve
 
@@ -41,8 +46,10 @@ steps:
       - id: progress
         file: 03-progress.md
         content: a checklist of the plan's steps, with notes on blockers; keep it up to date
+        format: format-progress.md
       - id: summary
         file: 04-summary.md
         content: what changed, files touched, build/test results, remaining work, notes for the reviewer
+        format: format-summary.md
     done-when: summary
     gate: approve

@@ -7,7 +7,18 @@ import { get, repo, send, useConfigApp } from "../../helpers/configApp.js";
 useConfigApp();
 
 const dir = () => path.join(repo, ".claude", "taskpilot");
-const BUILT_IN = ["implement.md", "investigate.md", "revise-implementation.md", "revise-plan.md", "workflow.yml"];
+const BUILT_IN = [
+  "format-history.md",
+  "format-investigation.md",
+  "format-plan.md",
+  "format-progress.md",
+  "format-summary.md",
+  "implement.md",
+  "investigate.md",
+  "revise-implementation.md",
+  "revise-plan.md",
+  "workflow.yml",
+];
 
 /** Contents of TaskPilot's own workflow, to prove no route ever writes there. */
 let pristine: Record<string, string>;
@@ -50,7 +61,7 @@ describe("workflow config", () => {
     const view = await get("/api/config/workflow");
     expect(view).toMatchObject({ origin: "repo", dir: ".claude/taskpilot" });
     expect(view.files.every((f: { sameAsDefault: boolean }) => f.sameAsDefault)).toBe(true);
-    expect((await get("/api/backups")).filter((b: { existed: boolean }) => !b.existed)).toHaveLength(5);
+    expect((await get("/api/backups")).filter((b: { existed: boolean }) => !b.existed)).toHaveLength(BUILT_IN.length);
     expect((await send("POST", "/api/config/workflow/override")).statusCode).toBe(409);
   });
 
@@ -107,7 +118,7 @@ describe("workflow config", () => {
     const yml = (await raw("workflow.yml")).content as string;
     await writeFile(path.join(dir(), "workflow.yml"), yml.replace("prompt: implement.md", "prompt: code.md"));
     const view = await get("/api/config/workflow");
-    expect(view.errors[0]).toContain("prompt file not found: code.md");
+    expect(view.errors[0]).toContain("file not found: code.md");
     expect(view.def).toBeNull();
     expect((await put("implement.md", "still broken elsewhere {{outputs}}")).statusCode).toBe(200);
     expect((await send("PUT", "/api/config/workflow/file", { name: "code.md", content: "Code {{outputs}}", baseHash: "absent" })).statusCode).toBe(200);
@@ -116,7 +127,7 @@ describe("workflow config", () => {
 
   it("renders the prompt a step would send, drafts included", async () => {
     const res = await send("POST", "/api/config/workflow/render", { taskKey: "DEMO-1", stepId: "implement", kind: "prompt" });
-    expect(res.json().text).toContain("The plan for DEMO-1 is approved. Implement it now, following .claude/tasks/DEMO-1/02-plan.md.");
+    expect(res.json().text).toContain("Implement the plan in .claude/tasks/DEMO-1/02-plan.md.");
 
     await send("POST", "/api/config/workflow/override");
     const yml = (await raw("workflow.yml")).content as string;

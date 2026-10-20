@@ -1,14 +1,32 @@
-The plan for {{key}} is approved. Implement it now, following {{out.plan}}.
-Read {{historyFile}} first: it records reviewer feedback and the decisions behind the plan.
+## Context
 
-- Keep {{out.progress}} up to date: a checklist of the plan's steps, with notes on blockers.
+The plan for task {{key}}: "{{title}}" is approved (step {{stepNumber}} of {{stepCount}}: {{step}}).
+
+- Decision log: {{historyFile}}. Read it first: it records reviewer feedback and the decisions behind the plan.
+- Documents of the earlier steps, to follow:
+{{inputs}}
+
+## Your job
+
+Implement the plan in {{out.plan}}.
+
+- Keep {{out.progress}} up to date while you work, one checklist line per step of the plan.
 - Run the build and tests named in the plan. Fix failures, or write down why they cannot be fixed.
-- When finished, write {{out.summary}}: what changed, files touched, build/test results,
-  remaining work, notes for the reviewer.
-- Append a `{{historyEntry}}` entry to {{historyFile}}: where you departed from the plan
-  and why, open questions you settled on your own (and the choice you made).
 
-Rules:
+## Write
+
+{{outputs}}
+
+## Rules
+
 {{rules}}
 
-End with a 3–6 line summary.
+{{language}}
+
+## When done
+
+1. Append an entry to {{historyFile}}: where you departed from the plan and why, open questions you settled on your own (and the choice you made). Use this structure:
+
+{{historyFormat}}
+
+2. End your reply with a 3–6 line summary.

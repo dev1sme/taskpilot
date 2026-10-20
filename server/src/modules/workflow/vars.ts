@@ -14,6 +14,7 @@ export const templateVars = [
   "specDir",
   "historyFile",
   "historyEntry",
+  "historyFormat",
   "outputs",
   "inputs",
   "rules",
@@ -50,6 +51,15 @@ export function promptVars(
   const historyFile = `${taskDir}/${def.history.file}`;
   const list = (outs: WorkflowDef["steps"][number]["outputs"]) =>
     outs.map((o) => `- \`${taskDir}/${o.file}\`${o.content ? `: ${o.content}` : ""}`).join("\n");
+  /** Each document of the step, with its skeleton when the workflow gives one. */
+  const documents = (outs: WorkflowDef["steps"][number]["outputs"]) =>
+    outs
+      .map((o) => {
+        const line = `- \`${taskDir}/${o.file}\`${o.content ? `: ${o.content}` : ""}`;
+        if (o.formatText === undefined) return line;
+        return `${line}\n  Follow this structure: keep the headings in this order, fill every section, drop the <!-- --> hints.\n\n${fence(render(o.formatText, base).trim())}`;
+      })
+      .join("\n\n");
 
   const base: Record<string, string> = {
     key: task.key,
@@ -69,11 +79,19 @@ export function promptVars(
   return {
     ...base,
     historyEntry: render(def.history.entry, base),
+    historyFormat: fence(render(def.history.formatText ?? def.history.entry, base).trim()),
     rules: def.rules.map((r) => `- ${render(r, base)}`).join("\n"),
-    outputs: list(step?.outputs ?? []),
+    outputs: documents(step?.outputs ?? []),
     inputs: list(def.steps.slice(0, Math.max(stepIndex, 0)).flatMap((s) => s.outputs)),
     previousRun: previousRun(def, opts.previous, taskDir, historyFile),
   };
+}
+
+/** A markdown code block; the fence grows past any backticks inside. */
+function fence(text: string): string {
+  const longest = Math.max(2, ...[...text.matchAll(/`+/g)].map((m) => m[0].length));
+  const ticks = "`".repeat(longest + 1);
+  return `${ticks}markdown\n${text}\n${ticks}`;
 }
 
 /** Tells a restarted run where the previous run's documents went and which ones to read first. */

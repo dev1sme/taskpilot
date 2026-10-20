@@ -2,6 +2,7 @@ import { X } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import { Markdown } from "../../components/Markdown";
 import "./docs.css";
@@ -9,6 +10,7 @@ import "./docs.css";
 /** Full document in a panel sliding in from the right. Esc or the backdrop closes it. */
 export function DocViewer(props: { taskKey: string; path: string | null; version: number; onClose: () => void }) {
   const { taskKey, path, onClose } = props;
+  const { t } = useTranslation(["docs", "common"]);
   const query = useQuery({
     queryKey: ["doc", taskKey, path, props.version],
     queryFn: () => api.file(taskKey, path!),
@@ -53,7 +55,7 @@ export function DocViewer(props: { taskKey: string; path: string | null; version
           >
             <header className="viewer-head">
               <code id="viewer-title">{path}</code>
-              <button ref={closeRef} type="button" className="viewer-close" onClick={onClose} aria-label="Đóng">
+              <button ref={closeRef} type="button" className="viewer-close" onClick={onClose} aria-label={t("common:close")}>
                 <X weight="bold" />
               </button>
             </header>
@@ -63,7 +65,7 @@ export function DocViewer(props: { taskKey: string; path: string | null; version
                   {error}
                 </p>
               ) : content === null ? (
-                <p className="hint">Đang tải…</p>
+                <p className="hint">{t("loading")}</p>
               ) : (
                 <Markdown source={content} />
               )}

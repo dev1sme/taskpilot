@@ -1,1 +1,18 @@
-{}
+{
+  "terminal": "Terminal",
+  "repoTerminal": "Terminal repo",
+  "repoEmpty": "Chưa có session. Bấm + để mở Claude trong repo, không cần task.",
+  "group": "Session",
+  "running": ", đang chạy",
+  "stopped": ", đã dừng",
+  "waitingPermission": "chờ quyền",
+  "new": "Session mới",
+  "stop": "Dừng",
+  "resume": "Resume",
+  "removeTitle": "Xóa session khỏi {{scope}}",
+  "removeConfirm": "Xác nhận xóa",
+  "remove": "Xóa",
+  "opening": "Đang mở terminal…",
+  "notRunning": "[Session không chạy. Bấm Resume để tiếp tục hội thoại này.]",
+  "disconnected": "[mất kết nối tới server: {{code}}]"
+}

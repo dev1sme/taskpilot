@@ -1,5 +1,6 @@
 import { FolderOpen } from "@phosphor-icons/react";
 import { useEffect, useId, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { RepoInfo } from "../../api/types";
 import { Button } from "../../components/Button";
 import "./repo.css";
@@ -13,6 +14,7 @@ export function RepoPicker({
   onChange: (path: string) => Promise<void>;
   autoFocus?: boolean;
 }) {
+  const { t } = useTranslation("repo");
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export function RepoPicker({
         }
       }}
     >
-      <label htmlFor={inputId}>Đường dẫn repo</label>
+      <label htmlFor={inputId}>{t("path")}</label>
       <input
         id={inputId}
         value={value}
@@ -48,7 +50,7 @@ export function RepoPicker({
         aria-describedby={error ? `${inputId}-error` : undefined}
       />
       <Button type="submit" icon={FolderOpen} busy={busy} disabled={!value.trim() || value === repo?.path}>
-        Mở repo
+        {t("open")}
       </Button>
       {error && (
         <span className="error" id={`${inputId}-error`} role="alert">

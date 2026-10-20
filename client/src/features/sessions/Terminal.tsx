@@ -3,6 +3,7 @@ import { Terminal as XTerm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef } from "react";
 import { api } from "../../api/client";
+import i18n from "../../i18n";
 
 type ServerFrame = { t: "o"; d: string } | { t: "x"; code: number | null };
 
@@ -47,11 +48,11 @@ export function Terminal({ sessionId, onExit }: { sessionId: string; onExit: (co
         return;
       }
       // No scrollback: the session ran under an earlier server process.
-      if (!sawOutput) term.write("\x1b[2m[Session không chạy. Bấm Resume để tiếp tục hội thoại này.]\x1b[0m\r\n");
+      if (!sawOutput) term.write(`\x1b[2m${i18n.t("notRunning", { ns: "sessions" })}\x1b[0m\r\n`);
       onExitRef.current(frame.code);
     };
     ws.onclose = (e) => {
-      if (e.code !== 1000) term.write(`\r\n\x1b[2m[mất kết nối tới server: ${e.code}]\x1b[0m\r\n`);
+      if (e.code !== 1000) term.write(`\r\n\x1b[2m${i18n.t("disconnected", { ns: "sessions", code: e.code })}\x1b[0m\r\n`);
     };
 
     const input = term.onData((d) => send({ t: "i", d }));

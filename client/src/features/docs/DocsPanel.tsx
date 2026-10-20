@@ -1,4 +1,5 @@
 import { CheckCircle, FileText, NotePencil } from "@phosphor-icons/react";
+import { useTranslation } from "react-i18next";
 import type { TaskSummary, WorkflowStep } from "../../api/types";
 import { clockTime } from "../../components/Elapsed";
 import "./docs.css";
@@ -8,6 +9,7 @@ import "./docs.css";
  * order. Files that do not exist yet are listed (greyed) so the user sees what is coming.
  */
 export function DocsPanel(props: { task: TaskSummary; steps: WorkflowStep[]; onOpen: (path: string) => void }) {
+  const { t } = useTranslation("docs");
   const { task } = props;
   const outputs = new Map(task.outputFiles.map((f) => [f.path, f]));
   const expected = props.steps.flatMap((s) => (s.doneFile ? [s.doneFile] : []));
@@ -15,9 +17,9 @@ export function DocsPanel(props: { task: TaskSummary; steps: WorkflowStep[]; onO
 
   return (
     <aside className="docs-panel" aria-labelledby="docs-title">
-      <h3 id="docs-title">Tài liệu</h3>
+      <h3 id="docs-title">{t("title")}</h3>
 
-      <p className="docs-group">Yêu cầu</p>
+      <p className="docs-group">{t("spec")}</p>
       <ul>
         {task.specFiles.map((f) => (
           <li key={f.path}>
@@ -29,7 +31,7 @@ export function DocsPanel(props: { task: TaskSummary; steps: WorkflowStep[]; onO
         ))}
       </ul>
 
-      <p className="docs-group">Claude viết</p>
+      <p className="docs-group">{t("written")}</p>
       <ul>
         {names.map((name) => {
           const file = outputs.get(name);
@@ -45,7 +47,7 @@ export function DocsPanel(props: { task: TaskSummary; steps: WorkflowStep[]; onO
                 <span className="doc-link is-pending">
                   <FileText aria-hidden="true" />
                   <span className="doc-name">{name}</span>
-                  <span className="doc-time">chưa có</span>
+                  <span className="doc-time">{t("notYet")}</span>
                 </span>
               )}
             </li>

@@ -1,6 +1,7 @@
 import { ArrowClockwise, CaretDown, CaretUp, HandPalm, Plus, Stop, TerminalWindow, Trash } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { lazy, Suspense, useId, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { SessionView } from "../../api/types";
 import { Button, SrOnly } from "../../components/Button";
@@ -33,6 +34,7 @@ interface Props {
  * tabs; it opens on demand (or when Claude needs an answer).
  */
 export function TerminalDrawer(props: Props) {
+  const { t } = useTranslation("sessions");
   const { sessions } = props;
   const active = sessions.find((s) => s.id === props.activeId) ?? sessions[sessions.length - 1] ?? null;
   const [busy, setBusy] = useState<string | null>(null);
@@ -40,7 +42,7 @@ export function TerminalDrawer(props: Props) {
   const [generation, setGeneration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const bodyId = useId();
-  const label = props.label ?? "Terminal";
+  const label = props.label ?? t("terminal");
 
   const act = async (name: string, action: () => Promise<unknown>) => {
     setBusy(name);
@@ -70,7 +72,7 @@ export function TerminalDrawer(props: Props) {
           {props.open ? <CaretDown aria-hidden="true" /> : <CaretUp aria-hidden="true" />}
         </button>
 
-        <div className="drawer-sessions" role="group" aria-label="Session">
+        <div className="drawer-sessions" role="group" aria-label={t("group")}>
           {sessions.map((s) => (
             <button
               key={s.id}
@@ -85,11 +87,11 @@ export function TerminalDrawer(props: Props) {
             >
               <span className={`session-dot ${s.status}`} aria-hidden="true" />
               {s.title}
-              <SrOnly>{s.status === "running" ? ", đang chạy" : ", đã dừng"}</SrOnly>
+              <SrOnly>{s.status === "running" ? t("running") : t("stopped")}</SrOnly>
               {s.activity === "permission" && (
                 <span className="drawer-flag">
                   <HandPalm weight="fill" aria-hidden="true" />
-                  chờ quyền
+                  {t("waitingPermission")}
                 </span>
               )}
             </button>
@@ -107,7 +109,7 @@ export function TerminalDrawer(props: Props) {
             }
           >
             <Plus weight="bold" aria-hidden="true" />
-            <SrOnly>Session mới</SrOnly>
+            <SrOnly>{t("new")}</SrOnly>
           </button>
         </div>
 
@@ -115,7 +117,7 @@ export function TerminalDrawer(props: Props) {
           <div className="drawer-actions">
             {active.status === "running" ? (
               <Button icon={Stop} variant="quiet" busy={busy === "stop"} onClick={() => void act("stop", () => api.stopSession(active.id))}>
-                Dừng
+                {t("stop")}
               </Button>
             ) : (
               <>
@@ -130,7 +132,7 @@ export function TerminalDrawer(props: Props) {
                     })
                   }
                 >
-                  Resume
+                  {t("resume")}
                 </Button>
                 {active.id !== props.runSessionId &&
                   (confirmRemove ? (
@@ -138,14 +140,14 @@ export function TerminalDrawer(props: Props) {
                       icon={Trash}
                       variant="danger"
                       busy={busy === "remove"}
-                      title={`Xóa session khỏi ${props.scopeLabel}`}
+                      title={t("removeTitle", { scope: props.scopeLabel })}
                       onClick={() => void act("remove", () => api.forgetSession(active.id))}
                     >
-                      Xác nhận xóa
+                      {t("removeConfirm")}
                     </Button>
                   ) : (
-                    <Button icon={Trash} variant="quiet" title={`Xóa session khỏi ${props.scopeLabel}`} onClick={() => setConfirmRemove(true)}>
-                      Xóa
+                    <Button icon={Trash} variant="quiet" title={t("removeTitle", { scope: props.scopeLabel })} onClick={() => setConfirmRemove(true)}>
+                      {t("remove")}
                     </Button>
                   ))}
               </>
@@ -171,7 +173,7 @@ export function TerminalDrawer(props: Props) {
             transition={{ type: "spring", stiffness: 380, damping: 40 }}
           >
             {active ? (
-              <Suspense fallback={<p className="hint drawer-empty">Đang mở terminal…</p>}>
+              <Suspense fallback={<p className="hint drawer-empty">{t("opening")}</p>}>
                 <Terminal key={`${active.id}-${generation}`} sessionId={active.id} onExit={props.onChanged} />
               </Suspense>
             ) : (

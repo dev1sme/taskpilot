@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { api, takeUrlToken, UNAUTHORIZED } from "../../api/client";
 import type { AuthStatus } from "../../api/types";
 import { LoginScreen } from "./LoginScreen";
@@ -33,6 +34,7 @@ export async function logout(): Promise<void> {
 
 /** Renders the app only for a logged-in browser; otherwise the login screen. */
 export function AuthGate({ children }: { children: ReactNode }) {
+  const { t } = useTranslation("auth");
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,7 +49,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <main className="empty-state">
         <h1>TaskPilot</h1>
-        <p role="alert">Không kết nối được server: {error}</p>
+        <p role="alert">{t("unreachable", { error })}</p>
       </main>
     );
   }
@@ -60,7 +62,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <main className="empty-state">
         <h1>TaskPilot</h1>
-        <p>Chưa đăng nhập. Mở đúng URL mà server in ra khi khởi động (có ?token=…).</p>
+        <p>{t("noSession")}</p>
       </main>
     );
   }

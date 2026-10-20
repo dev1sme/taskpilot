@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import { useWorkspace } from "../../app/workspace";
 import { TerminalDrawer } from "./TerminalDrawer";
@@ -9,6 +10,7 @@ import { useRepoSessions } from "./useSessions";
  * Terminal button opens it. Opens by itself when a repo session asks for permission.
  */
 export function RepoTerminal({ open, onToggle }: { open: boolean; onToggle: (open: boolean) => void }) {
+  const { t } = useTranslation("sessions");
   const { repo } = useWorkspace();
   const { sessions, reload } = useRepoSessions(repo?.path ?? null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -24,9 +26,9 @@ export function RepoTerminal({ open, onToggle }: { open: boolean; onToggle: (ope
   return (
     <div className="repo-terminal">
       <TerminalDrawer
-        label="Terminal repo"
+        label={t("repoTerminal")}
         scopeLabel="repo"
-        emptyHint="Chưa có session. Bấm + để mở Claude trong repo, không cần task."
+        emptyHint={t("repoEmpty")}
         onCreate={api.createRepoSession}
         sessions={sessions}
         activeId={activeId}

@@ -1,11 +1,13 @@
 import { SignIn } from "@phosphor-icons/react";
 import { useId, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import { Button } from "../../components/Button";
 // .brand-mark
 import "../shell/shell.css";
 
 export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
+  const { t } = useTranslation("auth");
   const [user, setUser] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -39,7 +41,7 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
           <h1 id={`${id}-title`}>TaskPilot</h1>
         </div>
 
-        <label htmlFor={`${id}-user`}>Tên đăng nhập</label>
+        <label htmlFor={`${id}-user`}>{t("user")}</label>
         <input
           id={`${id}-user`}
           value={user}
@@ -51,7 +53,7 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
           required
         />
 
-        <label htmlFor={`${id}-password`}>Mật khẩu</label>
+        <label htmlFor={`${id}-password`}>{t("password")}</label>
         <input
           id={`${id}-password`}
           type="password"
@@ -70,7 +72,7 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
         )}
 
         <Button type="submit" variant="primary" size="lg" icon={SignIn} busy={busy} disabled={!user || !password}>
-          Đăng nhập
+          {t("login")}
         </Button>
       </form>
     </main>

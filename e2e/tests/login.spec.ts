@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { E2E_PASSWORD, E2E_USER } from "../playwright.config";
+import { E2E_PASSWORD, E2E_USER } from "../env";
 
 test.use({ storageState: { cookies: [], origins: [] } });
 

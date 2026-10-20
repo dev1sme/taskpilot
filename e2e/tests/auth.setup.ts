@@ -1,5 +1,5 @@
 import { expect, test as setup } from "@playwright/test";
-import { AUTH_FILE, E2E_PASSWORD, E2E_USER } from "../playwright.config";
+import { AUTH_FILE, E2E_PASSWORD, E2E_USER } from "../env";
 
 // Logs in once and saves the session cookie; the chromium project starts every test from it.
 setup("log in", async ({ page }) => {

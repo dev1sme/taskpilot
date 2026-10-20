@@ -1,2 +1,3 @@
+export { workspaceApi } from "./api";
 export { WorkspaceProvider, useWorkspace } from "./WorkspaceProvider";
-export type { RepoInfo, Stage, TaskSummary } from "./types";
+export type { RepoInfo, RunPhase, Stage, TaskSummary } from "./types";

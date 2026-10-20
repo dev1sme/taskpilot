@@ -1,4 +1,4 @@
-export type RunPhase = "starting" | "running" | "waiting" | "gate" | "interrupted" | "done" | "cancelled";
+import type { RunPhase } from "../workspace";
 
 export interface RunState {
   taskKey: string;

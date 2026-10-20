@@ -8,9 +8,9 @@ import { DocsPanel, DocViewer } from "../docs";
 import { TerminalDrawer, useSessions, sessionsApi } from "../sessions";
 import { PageHeader } from "../../shared/ui/PageHeader";
 import { Toolbar } from "../../shared/ui/Toolbar";
-import { GateCard, NowCard, Stepper, ACTIVE_PHASES, useRun, workflowApi, type RunPhase } from "../workflow";
+import { GateCard, NowCard, Stepper, ACTIVE_PHASES, useRun, workflowApi } from "../workflow";
 import "./task.css";
-import type { TaskSummary } from "../workspace";
+import type { RunPhase, TaskSummary } from "../workspace";
 
 type PillPhase = Exclude<RunPhase, "cancelled">;
 

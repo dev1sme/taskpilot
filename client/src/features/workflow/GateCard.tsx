@@ -5,7 +5,7 @@ import { useId, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Button } from "../../shared/ui/Button";
 import { Markdown } from "../../shared/ui/Markdown";
-import { docsApi } from "../docs";
+import { workspaceApi } from "../workspace";
 import { workflowApi } from "./api";
 import type { RunState, WorkflowStep } from "./types";
 import "./gate-card.css";
@@ -27,7 +27,7 @@ export function GateCard(props: {
   const { taskKey, step } = props;
   const docQuery = useQuery({
     queryKey: ["doc", taskKey, step.doneFile, props.docVersion],
-    queryFn: () => docsApi.file(taskKey, step.doneFile!),
+    queryFn: () => workspaceApi.file(taskKey, step.doneFile!),
     enabled: !!step.doneFile,
   });
   const doc = docQuery.data?.content ?? null;

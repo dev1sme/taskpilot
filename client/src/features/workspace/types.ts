@@ -1,6 +1,6 @@
-import type { RunPhase } from "../workflow";
-
 export type Stage = "new" | "investigated" | "planned" | "implementing" | "summarized";
+
+export type RunPhase = "starting" | "running" | "waiting" | "gate" | "interrupted" | "done" | "cancelled";
 
 export interface TaskFile {
   path: string;

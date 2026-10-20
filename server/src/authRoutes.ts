@@ -10,7 +10,7 @@ import {
   type Credentials,
 } from "./auth.js";
 import { tokenMatches } from "./security.js";
-import { t } from "./i18n.js";
+import { t } from "./core/i18n.js";
 
 export interface AuthRoutesOptions {
   sessions: AuthSessions;

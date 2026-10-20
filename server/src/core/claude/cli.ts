@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { HttpError } from "../errors.js";
-import { childEnv } from "../sessions/launch.js";
+import { childEnv } from "./launch.js";
 import { t } from "../i18n.js";
 
 /** Runs `claude <args>` in the repo with the same environment TaskPilot gives its sessions. */

@@ -3,8 +3,8 @@ import { afterAll, afterEach, describe, expect, it } from "vitest";
 import type { AddressInfo } from "node:net";
 import { WebSocket } from "ws";
 import { buildApp } from "../src/app.js";
-import { childEnv, type Launcher } from "../src/sessions/launch.js";
-import { StateStore } from "../src/state.js";
+import { childEnv, type Launcher } from "../src/core/claude/launch.js";
+import { StateStore } from "../src/core/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
 
 const TOKEN = "test-token";

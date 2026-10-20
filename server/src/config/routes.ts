@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { HttpError } from "../errors.js";
+import { HttpError } from "../core/errors.js";
 import type { EnvStore } from "../sessions/envStore.js";
 import { BackupStore } from "./backups.js";
 import { getCodegraphStatus, runCodegraphIndex } from "./codegraph.js";
@@ -14,7 +14,7 @@ import { isObject } from "./fs.js";
 import { claudeJsonEntry } from "./mcp.js";
 import { maskEntry } from "./mcpEdit.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "./writer.js";
-import { locale, t } from "../i18n.js";
+import { locale, t } from "../core/i18n.js";
 
 const SCOPES = ["project", "local", "user"];
 

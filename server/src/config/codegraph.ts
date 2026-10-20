@@ -3,8 +3,8 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, relative, isAbsolute } from "node:path";
-import { HttpError } from "../errors.js";
-import { t } from "../i18n.js";
+import { HttpError } from "../core/errors.js";
+import { t } from "../core/i18n.js";
 
 export interface CodegraphStatus {
   supported: boolean;

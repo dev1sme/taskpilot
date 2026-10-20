@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 const ROOT = path.resolve(import.meta.dirname, "../..");
 
 /** Where Vietnamese text is expected: the resources, and the task log wording (a document, not UI). */
-const ALLOWED = ["client/src/i18n/", "server/src/locales/", "server/src/workflow/history.ts"];
+const ALLOWED = ["client/src/i18n/", "server/src/core/locales/", "server/src/workflow/history.ts"];
 
 /** Lines that hold Vietnamese letters as data rather than text. */
 const ALLOWED_LINES = [/\.replace\(\/đ\/g, "d"\)/];

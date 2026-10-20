@@ -5,10 +5,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { buildApp } from "./app.js";
-import { loadDotEnv } from "./dotenv.js";
+import { loadDotEnv } from "./core/dotenv.js";
 import { tasksRoot } from "./repo/tasks.js";
 import { newToken } from "./security.js";
-import { StateStore } from "./state.js";
+import { StateStore } from "./core/state.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // dist/server/index.js and server/src/index.ts (tsx) both sit two levels below the app root.

@@ -1,6 +1,6 @@
 import path from "node:path";
 import { claudeJson, displayPath, envRefs, isObject, maskValue, readJsonFile, strings } from "./fs.js";
-import { t } from "../i18n.js";
+import { t } from "../core/i18n.js";
 
 export type McpScope = "project" | "local" | "user";
 

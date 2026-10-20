@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { describeTool } from "../src/activity/describe.js";
 import { ActivityStore } from "../src/activity/store.js";
-import type { SessionMeta } from "../src/state.js";
+import type { SessionMeta } from "../src/core/state.js";
 import { cleanupTempDirs, tempDir } from "./fixtures.js";
 
 afterAll(cleanupTempDirs);

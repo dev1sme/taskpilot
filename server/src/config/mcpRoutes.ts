@@ -1,14 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import path from "node:path";
-import { HttpError } from "../errors.js";
+import { HttpError } from "../core/errors.js";
 import type { EnvStore } from "../sessions/envStore.js";
 import type { BackupStore } from "./backups.js";
-import { checkMcp, runClaude } from "./claudeCli.js";
+import { checkMcp, runClaude } from "../core/claude/cli.js";
 import { claudeJson, displayPath, isObject, maskValue } from "./fs.js";
 import { claudeJsonEntry, readMcp } from "./mcp.js";
 import { buildEntry, maskEntry, validateEntry } from "./mcpEdit.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "./writer.js";
-import { t } from "../i18n.js";
+import { t } from "../core/i18n.js";
 
 type McpScope = "project" | "local" | "user";
 

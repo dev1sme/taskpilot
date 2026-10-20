@@ -4,9 +4,9 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
 import { statusLineCommand } from "../src/config/settings.js";
-import type { Launcher } from "../src/sessions/launch.js";
+import type { Launcher } from "../src/core/claude/launch.js";
 import { UsageStore } from "../src/sessions/usage.js";
-import { StateStore } from "../src/state.js";
+import { StateStore } from "../src/core/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
 
 const TOKEN = "test-token";

@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
-import { HttpError } from "../errors.js";
+import { HttpError } from "../core/errors.js";
 import type { StepDef, WorkflowDef } from "./types.js";
 
 /** <package>/workflows/default; three levels up from both server/src/workflow and dist/server/workflow. */

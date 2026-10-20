@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
-import type { Launcher } from "../src/sessions/launch.js";
-import { StateStore } from "../src/state.js";
+import type { Launcher } from "../src/core/claude/launch.js";
+import { StateStore } from "../src/core/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
 
 const TOKEN = "test-token";

@@ -1,7 +1,7 @@
-import { HttpError } from "../errors.js";
+import { HttpError } from "../core/errors.js";
 import { isObject, maskValue } from "./fs.js";
 import { hideUrlCredentials } from "./mcp.js";
-import { t } from "../i18n.js";
+import { t } from "../core/i18n.js";
 
 export interface ValueInput {
   key: string;

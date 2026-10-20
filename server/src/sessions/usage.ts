@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import type { StateStore } from "../state.js";
+import type { StateStore } from "../core/state.js";
 
 export interface UsageWindow {
   /** 0-100. */

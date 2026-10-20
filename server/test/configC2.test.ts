@@ -4,7 +4,7 @@ import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
 import { EnvStore } from "../src/sessions/envStore.js";
-import { StateStore } from "../src/state.js";
+import { StateStore } from "../src/core/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
 
 const TOKEN = "test-token";

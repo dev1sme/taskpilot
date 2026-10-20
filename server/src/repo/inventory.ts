@@ -1,8 +1,8 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { projectMemoryFiles } from "../config/targets.js";
-import { markdownHeadings } from "../markdown.js";
-import { t } from "../i18n.js";
+import { markdownHeadings } from "../core/markdown.js";
+import { t } from "../core/i18n.js";
 
 /** Read-only summary of the repo's Claude Code configuration, for the overview page. */
 export interface Inventory {

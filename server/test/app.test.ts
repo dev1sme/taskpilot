@@ -3,11 +3,11 @@ import type { FastifyInstance } from "fastify";
 import { buildApp } from "../src/app.js";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { loadDotEnv } from "../src/dotenv.js";
-import { childEnv } from "../src/sessions/launch.js";
+import { loadDotEnv } from "../src/core/dotenv.js";
+import { childEnv } from "../src/core/claude/launch.js";
 import type { Credentials } from "../src/auth.js";
 import { hostnameOf, isLoopbackHost } from "../src/security.js";
-import { StateStore } from "../src/state.js";
+import { StateStore } from "../src/core/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
 
 const TOKEN = "test-token";

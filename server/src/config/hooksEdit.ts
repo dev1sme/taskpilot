@@ -1,6 +1,6 @@
-import { HttpError } from "../errors.js";
+import { HttpError } from "../core/errors.js";
 import { isObject } from "./fs.js";
-import { t } from "../i18n.js";
+import { t } from "../core/i18n.js";
 
 export interface HookInput {
   event: string;

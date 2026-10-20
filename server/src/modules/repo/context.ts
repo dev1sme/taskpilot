@@ -1,8 +1,7 @@
 import { HttpError } from "../../core/errors.js";
 import type { EventHub } from "../../core/events.js";
 import type { StateStore } from "../../core/state.js";
-import { resolveRepo } from "../tasks/scan.js";
-import type { TasksWatcher } from "../tasks/watcher.js";
+import { resolveRepo, type TasksWatcher } from "../tasks/index.js";
 
 /** The repo the UI works on: one at a time, remembered in state, watched for task changes. */
 export interface RepoContext {

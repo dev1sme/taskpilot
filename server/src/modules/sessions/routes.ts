@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { HttpError } from "../../core/errors.js";
-import type { RepoContext } from "../repo/context.js";
-import { getTask, REPO_SESSION_KEY } from "../tasks/scan.js";
+import type { RepoContext } from "../repo/index.js";
+import { getTask, REPO_SESSION_KEY } from "../tasks/index.js";
 import type { SessionManager } from "./manager.js";
 
 const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

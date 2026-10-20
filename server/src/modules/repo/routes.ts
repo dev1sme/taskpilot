@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { existsSync } from "node:fs";
 import { claudeVersion } from "../../core/claude/version.js";
 import { HttpError } from "../../core/errors.js";
-import { tasksRoot } from "../tasks/scan.js";
+import { tasksRoot } from "../tasks/index.js";
 import type { RepoContext } from "./context.js";
 import { readInventory } from "./inventory.js";
 

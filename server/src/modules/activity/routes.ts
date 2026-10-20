@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
-import type { RepoContext } from "../repo/context.js";
-import type { SessionManager } from "../sessions/manager.js";
-import { getTask } from "../tasks/scan.js";
+import type { RepoContext } from "../repo/index.js";
+import type { SessionManager } from "../sessions/index.js";
+import { getTask } from "../tasks/index.js";
 import type { ActivityStore } from "./store.js";
 
 /** Activity feed of a task: hook events of all its sessions. */

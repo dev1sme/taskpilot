@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { StateStore } from "../../core/state.js";
-import type { RepoContext } from "../repo/context.js";
-import type { SessionManager } from "../sessions/manager.js";
+import type { RepoContext } from "../repo/index.js";
+import type { SessionManager } from "../sessions/index.js";
 import { getTask, listTasks, readTaskFile } from "./scan.js";
 
 /** Tasks of the current repo, with their run phase and sessions, and the files inside a task. */

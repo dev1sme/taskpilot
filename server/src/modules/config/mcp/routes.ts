@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import path from "node:path";
 import { HttpError } from "../../../core/errors.js";
-import type { EnvStore } from "../../env/store.js";
+import type { EnvStore } from "../../env/index.js";
 import type { BackupStore } from "../backups/store.js";
 import { checkMcp, runClaude } from "../../../core/claude/cli.js";
 import { claudeJson, displayPath, isObject, maskValue } from "../shared/fs.js";

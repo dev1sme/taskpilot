@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { HttpError } from "../../core/errors.js";
-import type { RepoContext } from "../repo/context.js";
-import { getTask } from "../tasks/scan.js";
+import type { RepoContext } from "../repo/index.js";
+import { getTask } from "../tasks/index.js";
 import type { WorkflowEngine } from "./engine.js";
 
 /** Workflow run of a task: view, start, cancel, approve a gate, send feedback, restart, retry. */

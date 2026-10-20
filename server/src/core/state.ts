@@ -1,8 +1,8 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { UsageView } from "../modules/usage/store.js";
-import type { RunState } from "../modules/workflow/types.js";
+import type { UsageView } from "../modules/usage/index.js";
+import type { RunState } from "../modules/workflow/index.js";
 
 export interface SessionMeta {
   /** Also the Claude Code session id (`--session-id` / `--resume`). */

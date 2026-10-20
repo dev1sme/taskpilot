@@ -1,6 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { projectMemoryFiles } from "../config/shared/targets.js";
+import { projectMemoryFiles } from "../config/index.js";
 import { markdownHeadings } from "../../core/markdown.js";
 import { t } from "../../core/i18n.js";
 

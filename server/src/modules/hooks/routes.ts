@@ -1,7 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { HttpError } from "../../core/errors.js";
-import { isHookEvent } from "../sessions/hooks.js";
-import type { SessionManager } from "../sessions/manager.js";
+import { isHookEvent, type SessionManager } from "../sessions/index.js";
 
 /** Callbacks from inside the claude sessions TaskPilot starts: hook events and the status line. */
 export function registerHooksRoutes(app: FastifyInstance, opts: { sessions: SessionManager }) {

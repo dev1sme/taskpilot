@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { EnvStore } from "../env/store.js";
+import type { EnvStore } from "../env/index.js";
 import { registerBackupsRoutes } from "./backups/routes.js";
 import { registerCodegraphRoutes } from "./codegraph/routes.js";
 import { registerConfigHooksRoutes } from "./hooks/routes.js";

@@ -1,5 +1,6 @@
 import { MotionConfig } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ToastHost } from "../components/Toast";
 import { AuthGate } from "../features/auth/AuthGate";
 import { BackupsPage } from "../features/config/BackupsPage";
@@ -30,6 +31,7 @@ export function App() {
 }
 
 function Shell() {
+  const { t } = useTranslation("shell");
   const route = useRoute();
   const { repo, tasks } = useWorkspace();
   const [palette, setPalette] = useState(false);
@@ -59,12 +61,12 @@ function Shell() {
     if (repo && !repo.path) setRepoDialog(true);
   }, [repo]);
 
-  const task = route.page === "task" ? tasks.find((t) => t.key === route.key) : undefined;
+  const task = route.page === "task" ? tasks.find((x) => x.key === route.key) : undefined;
 
   return (
     <div className="shell">
       <a className="skip-link" href="#main">
-        Bỏ qua điều hướng
+        {t("skipNav")}
       </a>
       <Sidebar route={route} onSwitchRepo={() => setRepoDialog(true)} />
       <main id="main" className="main">
@@ -77,8 +79,8 @@ function Shell() {
             <TaskScreen key={task.key} task={task} />
           ) : (
             <div className="empty-state">
-              <h1>Không thấy task {route.key}</h1>
-              <p>Task có thể đã bị xoá hoặc đổi tên trong .claude/tasks.</p>
+              <h1>{t("taskNotFound.title", { key: route.key })}</h1>
+              <p>{t("taskNotFound.body")}</p>
             </div>
           ))}
       </main>

@@ -7,6 +7,7 @@ import "@fontsource/geist-mono/500.css";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import "./i18n";
 import { queryClient } from "./api/queryClient";
 import { App } from "./app/App";
 import "./styles/tokens.css";

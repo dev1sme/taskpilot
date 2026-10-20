@@ -1,0 +1,56 @@
+{
+  "skipNav": "Bỏ qua điều hướng",
+  "taskNotFound": {
+    "title": "Không thấy task {{key}}",
+    "body": "Task có thể đã bị xoá hoặc đổi tên trong .claude/tasks."
+  },
+  "nav": {
+    "label": "Điều hướng",
+    "overview": "Tổng quan",
+    "tasks": "Task",
+    "memory": "CLAUDE.md",
+    "settings": "Settings & quyền",
+    "hooks": "Hooks",
+    "agents": "Agents",
+    "commands": "Commands",
+    "skills": "Skills",
+    "backups": "Lịch sử thay đổi",
+    "mcp": "MCP servers",
+    "codegraph": "Codegraph"
+  },
+  "navGroup": {
+    "workspace": "Workspace",
+    "claude": "Cấu hình Claude",
+    "integrations": "Tích hợp"
+  },
+  "repoSwitch": "Bấm để chọn",
+  "header": {
+    "crumbs": "Vị trí",
+    "search": "Tìm task, trang…"
+  },
+  "palette": {
+    "label": "Tìm nhanh",
+    "placeholder": "Tìm task hoặc trang",
+    "empty": "Không có kết quả cho \"{{query}}\"",
+    "hint": {
+      "page": "Trang",
+      "config": "Cấu hình",
+      "integrations": "Tích hợp",
+      "backup": "Backup"
+    }
+  },
+  "status": {
+    "terminalTitle": "Claude trong repo, không cần task",
+    "terminal": "Terminal",
+    "waitingPermission": "chờ quyền",
+    "sessionsRunning": "{{count}} session đang chạy",
+    "asking": "{{count}} xin quyền",
+    "claudeVersion": "claude {{version}}",
+    "claudeMissing": "không tìm thấy claude",
+    "logout": "Đăng xuất",
+    "usageLabel": "Usage Claude: ",
+    "usageTitle": "Giới hạn gói Claude đã dùng (toàn tài khoản)",
+    "usageReset": "{{window}} reset lúc {{time}}",
+    "usageUpdated": "Cập nhật lúc {{time}}"
+  }
+}

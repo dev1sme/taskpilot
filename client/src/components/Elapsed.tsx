@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { locale } from "../i18n";
 
 /** Live "4m 12s" since `since`; re-renders once a second while mounted. */
 export function Elapsed({ since }: { since: number }) {
@@ -19,5 +20,5 @@ export function formatDuration(ms: number): string {
 }
 
 export function clockTime(at: number): string {
-  return new Date(at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return new Date(at).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }

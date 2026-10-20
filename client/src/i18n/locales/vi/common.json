@@ -1,0 +1,15 @@
+{
+  "close": "Đóng",
+  "save": "Lưu",
+  "unsaved": "chưa lưu",
+  "unsavedTitle": "Có thay đổi chưa lưu",
+  "noRepo": "Chưa chọn repo",
+  "diff": {
+    "summary": "dòng · bản cũ được backup trước khi ghi",
+    "stale": "File đã bị sửa bên ngoài TaskPilot sau khi ba mở. Lưu sẽ bị từ chối; hãy tải lại bản mới nhất.",
+    "loading": "Đang tạo diff…",
+    "unchanged": "Không có thay đổi nào so với file hiện tại.",
+    "label": "Thay đổi",
+    "keepEditing": "Tiếp tục sửa"
+  }
+}

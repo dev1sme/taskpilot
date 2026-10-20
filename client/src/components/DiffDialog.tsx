@@ -1,6 +1,7 @@
 import { FloppyDisk, Warning, X } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "./Button";
 import "./dialog.css";
 
@@ -17,6 +18,7 @@ export function DiffDialog(props: {
   onConfirm: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -54,11 +56,10 @@ export function DiffDialog(props: {
               <div>
                 <h2 id="diff-title">{props.title}</h2>
                 <p className="dialog-sub">
-                  <span className="diff-add">+{added}</span> <span className="diff-del">−{removed}</span> dòng · bản cũ được
-                  backup trước khi ghi
+                  <span className="diff-add">+{added}</span> <span className="diff-del">−{removed}</span> {t("diff.summary")}
                 </p>
               </div>
-              <button ref={closeRef} type="button" className="icon-btn" onClick={props.onClose} aria-label="Đóng">
+              <button ref={closeRef} type="button" className="icon-btn" onClick={props.onClose} aria-label={t("close")}>
                 <X weight="bold" />
               </button>
             </header>
@@ -66,7 +67,7 @@ export function DiffDialog(props: {
             {props.stale && (
               <p className="alert-warn" role="alert">
                 <Warning weight="fill" aria-hidden="true" />
-                <span>File đã bị sửa bên ngoài TaskPilot sau khi ba mở. Lưu sẽ bị từ chối; hãy tải lại bản mới nhất.</span>
+                <span>{t("diff.stale")}</span>
               </p>
             )}
             {props.error && (
@@ -76,11 +77,11 @@ export function DiffDialog(props: {
             )}
 
             {props.diff === null ? (
-              <p className="hint">Đang tạo diff…</p>
+              <p className="hint">{t("diff.loading")}</p>
             ) : props.changed === false ? (
-              <p className="hint">Không có thay đổi nào so với file hiện tại.</p>
+              <p className="hint">{t("diff.unchanged")}</p>
             ) : (
-              <pre className="diff-view" aria-label="Thay đổi">
+              <pre className="diff-view" aria-label={t("diff.label")}>
                 {lines.map((l, i) => (
                   <span
                     key={i}
@@ -95,7 +96,7 @@ export function DiffDialog(props: {
 
             <footer className="dialog-actions">
               <Button variant="quiet" onClick={props.onClose}>
-                Tiếp tục sửa
+                {t("diff.keepEditing")}
               </Button>
               <Button
                 icon={FloppyDisk}
@@ -104,7 +105,7 @@ export function DiffDialog(props: {
                 disabled={props.diff === null || props.changed === false || props.stale}
                 onClick={props.onConfirm}
               >
-                {props.confirmLabel ?? "Lưu"}
+                {props.confirmLabel ?? t("save")}
               </Button>
             </footer>
           </motion.div>

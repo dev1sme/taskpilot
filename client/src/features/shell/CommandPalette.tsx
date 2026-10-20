@@ -1,6 +1,7 @@
 import { ArrowRight, MagnifyingGlass } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { navigate, type Route } from "../../app/router";
 import { useWorkspace } from "../../app/workspace";
 import { sortTasks, statusOf } from "../tasks/taskStatus";
@@ -13,36 +14,39 @@ interface Entry {
   route: Route;
 }
 
-const PAGES: Entry[] = [
-  { id: "p-overview", label: "Tổng quan", hint: "Trang", route: { page: "overview" } },
-  { id: "p-tasks", label: "Task", hint: "Trang", route: { page: "tasks" } },
-  { id: "p-memory", label: "CLAUDE.md", hint: "Cấu hình", route: { page: "config", section: "memory" } },
-  { id: "p-settings", label: "Settings & quyền", hint: "Cấu hình", route: { page: "config", section: "settings" } },
-  { id: "p-hooks", label: "Hooks", hint: "Cấu hình", route: { page: "config", section: "hooks" } },
-  { id: "p-agents", label: "Agents", hint: "Cấu hình", route: { page: "config", section: "agents" } },
-  { id: "p-commands", label: "Commands", hint: "Cấu hình", route: { page: "config", section: "commands" } },
-  { id: "p-skills", label: "Skills", hint: "Cấu hình", route: { page: "config", section: "skills" } },
-  { id: "p-mcp", label: "MCP servers", hint: "Tích hợp", route: { page: "config", section: "mcp" } },
-  { id: "p-backups", label: "Lịch sử thay đổi", hint: "Backup", route: { page: "backups" } },
-];
+/** Pages by their `shell:nav.*` and `shell:palette.hint.*` keys; translated when the palette renders. */
+const PAGES = [
+  { nav: "overview", hint: "page", route: { page: "overview" } },
+  { nav: "tasks", hint: "page", route: { page: "tasks" } },
+  { nav: "memory", hint: "config", route: { page: "config", section: "memory" } },
+  { nav: "settings", hint: "config", route: { page: "config", section: "settings" } },
+  { nav: "hooks", hint: "config", route: { page: "config", section: "hooks" } },
+  { nav: "agents", hint: "config", route: { page: "config", section: "agents" } },
+  { nav: "commands", hint: "config", route: { page: "config", section: "commands" } },
+  { nav: "skills", hint: "config", route: { page: "config", section: "skills" } },
+  { nav: "mcp", hint: "integrations", route: { page: "config", section: "mcp" } },
+  { nav: "backups", hint: "backup", route: { page: "backups" } },
+] as const satisfies ReadonlyArray<{ nav: string; hint: string; route: Route }>;
 
 /** ⌘K / Ctrl+K: jump to any task or page by typing. */
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation("shell");
   const { tasks } = useWorkspace();
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const entries = useMemo(() => {
-    const taskEntries: Entry[] = sortTasks(tasks).map((t) => ({
-      id: `t-${t.key}`,
-      label: t.title === t.key ? t.key : `${t.key} · ${t.title}`,
-      hint: statusOf(t).label,
-      route: { page: "task", key: t.key },
+    const taskEntries: Entry[] = sortTasks(tasks).map((task) => ({
+      id: `t-${task.key}`,
+      label: task.title === task.key ? task.key : `${task.key} · ${task.title}`,
+      hint: statusOf(task).label,
+      route: { page: "task", key: task.key },
     }));
+    const pageEntries: Entry[] = PAGES.map((p) => ({ id: `p-${p.nav}`, label: t(`nav.${p.nav}`), hint: t(`palette.hint.${p.hint}`), route: p.route }));
     const q = fold(query.trim());
-    return [...taskEntries, ...PAGES].filter((e) => !q || fold(`${e.label} ${e.hint}`).includes(q)).slice(0, 12);
-  }, [tasks, query]);
+    return [...taskEntries, ...pageEntries].filter((e) => !q || fold(`${e.label} ${e.hint}`).includes(q)).slice(0, 12);
+  }, [tasks, query, t]);
 
   useEffect(() => {
     if (!open) return;
@@ -76,7 +80,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             className="palette"
             role="dialog"
             aria-modal="true"
-            aria-label="Tìm nhanh"
+            aria-label={t("palette.label")}
             initial={{ opacity: 0, y: -8, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
@@ -98,8 +102,8 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                 ref={inputRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Tìm task hoặc trang"
-                aria-label="Tìm task hoặc trang"
+                placeholder={t("palette.placeholder")}
+                aria-label={t("palette.placeholder")}
                 role="combobox"
                 aria-expanded="true"
                 aria-controls="palette-list"
@@ -108,7 +112,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
               <kbd>Esc</kbd>
             </div>
             <ul id="palette-list" role="listbox" className="palette-list">
-              {entries.length === 0 && <li className="palette-empty">Không có kết quả cho "{query}"</li>}
+              {entries.length === 0 && <li className="palette-empty">{t("palette.empty", { query })}</li>}
               {entries.map((e, i) => (
                 <li
                   key={e.id}

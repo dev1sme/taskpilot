@@ -2,6 +2,7 @@ import { ArrowsOut, ChatText, Check, Diamond } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useId, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { RunState, WorkflowStep } from "../../api/types";
 import { Button } from "../../components/Button";
@@ -20,6 +21,7 @@ export function GateCard(props: {
   onOpenDoc: (path: string) => void;
   onChanged: () => void;
 }) {
+  const { t } = useTranslation("workflow");
   const { taskKey, step } = props;
   const docQuery = useQuery({
     queryKey: ["doc", taskKey, step.doneFile, props.docVersion],
@@ -59,17 +61,17 @@ export function GateCard(props: {
           <Diamond weight="fill" />
         </span>
         <div>
-          <h3 id={`${feedbackId}-title`}>Đến lượt ba duyệt</h3>
+          <h3 id={`${feedbackId}-title`}>{t("gate.title")}</h3>
           <p>
-            Bước <strong>{step.title}</strong> đã xong.
-            {props.isLast ? " Duyệt để hoàn tất quy trình." : " Duyệt để Claude sang bước tiếp theo."}
+            <Trans t={t} i18nKey="gate.body" values={{ step: step.title }} components={{ strong: <strong /> }} />
+            {props.isLast ? t("gate.bodyLast") : t("gate.bodyNext")}
           </p>
         </div>
       </header>
 
       {props.run.lastMessage && (
         <figure className="gate-claude">
-          <figcaption>Claude tóm tắt</figcaption>
+          <figcaption>{t("gate.summary")}</figcaption>
           <Markdown source={props.run.lastMessage} />
         </figure>
       )}
@@ -79,10 +81,10 @@ export function GateCard(props: {
           <div className="gate-doc-head">
             <code>{step.doneFile}</code>
             <Button icon={ArrowsOut} variant="quiet" onClick={() => props.onOpenDoc(step.doneFile!)}>
-              Đọc toàn bộ
+              {t("gate.readAll")}
             </Button>
           </div>
-          <div className="gate-doc-body">{doc !== null ? <Markdown source={doc} /> : <p className="hint">Đang tải…</p>}</div>
+          <div className="gate-doc-body">{doc !== null ? <Markdown source={doc} /> : <p className="hint">{t("gate.loading")}</p>}</div>
         </div>
       )}
 
@@ -101,7 +103,7 @@ export function GateCard(props: {
           disabled={busy !== null}
           onClick={() => void act("approve", () => api.approve(taskKey))}
         >
-          {props.isLast ? "Duyệt và hoàn tất" : "Duyệt, sang bước tiếp"}
+          {props.isLast ? t("gate.approveLast") : t("gate.approveNext")}
         </Button>
         <form
           className="gate-feedback"
@@ -110,17 +112,17 @@ export function GateCard(props: {
             void act("feedback", () => api.feedback(taskKey, feedback));
           }}
         >
-          <label htmlFor={feedbackId}>Hoặc góp ý để Claude sửa lại</label>
+          <label htmlFor={feedbackId}>{t("gate.feedbackLabel")}</label>
           <div className="gate-feedback-row">
             <textarea
               id={feedbackId}
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
-              placeholder="Ví dụ: thêm test cho trường hợp danh sách rỗng"
+              placeholder={t("gate.feedbackPlaceholder")}
               rows={2}
             />
             <Button type="submit" icon={ChatText} busy={busy === "feedback"} disabled={busy !== null || !feedback.trim()}>
-              Gửi góp ý
+              {t("gate.sendFeedback")}
             </Button>
           </div>
         </form>

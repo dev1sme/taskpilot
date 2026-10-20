@@ -22,17 +22,6 @@ const ICONS: Record<ToolCategory, Icon> = {
   other: Wrench,
 };
 
-export const CATEGORY_LABEL: Record<ToolCategory, string> = {
-  read: "Đọc",
-  write: "Ghi",
-  run: "Lệnh",
-  search: "Tìm",
-  web: "Web",
-  agent: "Subagent",
-  plan: "Kế hoạch",
-  other: "Công cụ",
-};
-
 /** Colored icon for a tool category (decorative: the summary text says the same). */
 export function CategoryIcon({ category = "other" }: { category?: ToolCategory }) {
   const Glyph = ICONS[category];

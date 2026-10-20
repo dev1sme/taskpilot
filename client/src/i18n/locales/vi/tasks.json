@@ -1,1 +1,27 @@
-{}
+{
+  "status": {
+    "permission": "Xin quyền",
+    "gate": "Chờ duyệt",
+    "waiting": "Chờ trả lời",
+    "interrupted": "Gián đoạn",
+    "running": "Đang chạy",
+    "done": "Hoàn tất",
+    "new": "Chưa chạy",
+    "investigated": "Đã điều tra",
+    "planned": "Có kế hoạch",
+    "implementing": "Đang code",
+    "summarized": "Có tóm tắt"
+  },
+  "page": {
+    "subtitle": "{{count}} task trong .claude/tasks",
+    "emptyTitle": "Repo chưa có task",
+    "emptyBody": "Tạo thư mục <code>.claude/tasks/&lt;mã task&gt;/spec/</code> và viết yêu cầu vào file <code>.md</code>. TaskPilot tự nhận task mới.",
+    "col": {
+      "status": "Trạng thái",
+      "task": "Task",
+      "docs": "Tài liệu",
+      "updated": "Cập nhật"
+    },
+    "docs": "{{spec}} spec · {{written}} Claude viết"
+  }
+}

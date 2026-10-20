@@ -1,1 +1,20 @@
-{}
+{
+  "phase": {
+    "starting": "Đang khởi động",
+    "running": "Claude đang làm",
+    "waiting": "Chờ ba trả lời",
+    "gate": "Chờ duyệt",
+    "interrupted": "Gián đoạn",
+    "done": "Hoàn tất"
+  },
+  "restartHint": "Session hiện tại sẽ dừng. Bản cũ của tài liệu được lưu vào archive/.",
+  "restartTitle": "Chạy lại quy trình từ bước đầu trong session mới",
+  "restart": "Chạy lại từ đầu",
+  "restartConfirm": "Xác nhận chạy lại",
+  "cancelTitle": "Huỷ quy trình",
+  "cancel": "Huỷ",
+  "source": "Quy trình: {{source}}",
+  "sourceRepo": ".claude/workflow.yml của repo",
+  "sourceDefault": "mặc định của TaskPilot",
+  "terminalEmpty": "Chưa có session. Bắt đầu quy trình hoặc bấm + để mở một session Claude."
+}

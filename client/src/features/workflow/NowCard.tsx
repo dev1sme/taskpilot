@@ -11,6 +11,7 @@ import {
 } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState, type ReactNode } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { ActivityItem, RunState, SessionView, WorkflowStep } from "../../api/types";
 import { Button } from "../../components/Button";
@@ -30,6 +31,7 @@ interface Props {
 
 /** What is happening right now and what the user can do about it. Gates use GateCard instead. */
 export function NowCard(props: Props) {
+  const { t } = useTranslation("workflow");
   const { run, session } = props;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,17 +51,17 @@ export function NowCard(props: Props) {
 
   const retry = (
     <Button icon={ArrowClockwise} variant="attention" busy={busy} onClick={() => void act(() => api.retry(props.taskKey))}>
-      Gửi lại bước
+      {t("now.retry")}
     </Button>
   );
   const restart = (
     <Button icon={ArrowCounterClockwise} variant="quiet" busy={busy} onClick={() => void act(() => api.restartRun(props.taskKey))}>
-      Chạy lại từ đầu
+      {t("now.restart")}
     </Button>
   );
   const openTerminal = (
     <Button icon={TerminalWindow} onClick={props.onOpenTerminal}>
-      Mở terminal
+      {t("now.openTerminal")}
     </Button>
   );
   const step = run ? props.steps[run.stepIndex] : undefined;
@@ -75,24 +77,19 @@ export function NowCard(props: Props) {
     const lastDoc = [...props.steps].reverse().find((s) => s.doneFile)?.doneFile;
     return (
       <Card tone={done ? "done" : "idle"} icon={done ? <CheckCircle weight="fill" /> : <Play weight="fill" />}>
-        <h3>{done ? "Quy trình hoàn tất" : run ? "Quy trình đã huỷ" : "Sẵn sàng chạy quy trình"}</h3>
+        <h3>{done ? t("now.doneTitle") : run ? t("now.cancelledTitle") : t("now.readyTitle")}</h3>
         <p className="now-text">
           {done ? (
-            <>
-              Xong sau <strong>{formatDuration(run.updatedAt - run.startedAt)}</strong>. Mọi bước đã được ba duyệt.
-            </>
+            <Trans t={t} i18nKey="now.doneBody" values={{ duration: formatDuration(run.updatedAt - run.startedAt) }} components={{ strong: <strong /> }} />
           ) : (
-            <>
-              TaskPilot sẽ mở một session Claude mới, gửi lần lượt {props.steps.length} bước và dừng ở mỗi chỗ cần ba
-              duyệt.
-            </>
+            t("now.readyBody", { count: props.steps.length })
           )}
         </p>
         {errorLine}
         <div className="now-actions">
           {done && lastDoc && (
             <Button icon={FileText} variant="primary" size="lg" onClick={() => props.onOpenDoc(lastDoc)}>
-              Đọc {lastDoc}
+              {t("now.readDoc", { file: lastDoc })}
             </Button>
           )}
           <Button
@@ -102,7 +99,7 @@ export function NowCard(props: Props) {
             busy={busy}
             onClick={() => void act(() => (run ? api.restartRun(props.taskKey) : api.startRun(props.taskKey)))}
           >
-            {run ? "Chạy lại từ đầu" : "Bắt đầu quy trình"}
+            {run ? t("now.restart") : t("now.start")}
           </Button>
         </div>
       </Card>
@@ -113,12 +110,12 @@ export function NowCard(props: Props) {
     const ask = [...props.activity].reverse().find((i) => i.kind === "permission");
     return (
       <Card tone="attention" icon={<HandPalm weight="fill" />}>
-        <h3>Claude xin quyền</h3>
-        <p className="now-text">{ask?.summary.replace(/^Xin quyền: /, "") ?? "Claude đang chờ ba cho phép một thao tác."}</p>
-        <p className="now-sub">Trả lời trong terminal: cho phép, cho phép cả session, hoặc từ chối.</p>
+        <h3>{t("now.permissionTitle")}</h3>
+        <p className="now-text">{ask?.summary.replace(/^Xin quyền: /, "") ?? t("now.permissionFallback")}</p>
+        <p className="now-sub">{t("now.permissionHint")}</p>
         <div className="now-actions">
           <Button icon={TerminalWindow} variant="attention" onClick={props.onOpenTerminal}>
-            Mở terminal để trả lời
+            {t("now.permissionAnswer")}
           </Button>
         </div>
       </Card>
@@ -128,7 +125,7 @@ export function NowCard(props: Props) {
   if (run.phase === "waiting") {
     return (
       <Card tone="attention" icon={<ChatCircleDots weight="fill" />}>
-        <h3>Claude đang chờ ba</h3>
+        <h3>{t("now.waitingTitle")}</h3>
         <p className="now-text">{run.message}</p>
         {run.lastMessage && <blockquote className="now-quote">{lastParagraph(run.lastMessage)}</blockquote>}
         {errorLine}
@@ -143,7 +140,7 @@ export function NowCard(props: Props) {
   if (run.phase === "interrupted") {
     return (
       <Card tone="attention" icon={<PlugsConnected weight="fill" />}>
-        <h3>Bước "{step?.title}" bị gián đoạn</h3>
+        <h3>{t("now.interruptedTitle", { step: step?.title })}</h3>
         <p className="now-text">{run.message}</p>
         {errorLine}
         <div className="now-actions">
@@ -160,7 +157,7 @@ export function NowCard(props: Props) {
   return (
     <Card tone="signal" icon={<span className="radar" aria-hidden="true" />}>
       <div className="now-head">
-        <h3>{run.phase === "starting" ? "Đang khởi động Claude" : `Claude đang làm: ${step?.title}`}</h3>
+        <h3>{run.phase === "starting" ? t("now.startingTitle") : t("now.runningTitle", { step: step?.title })}</h3>
         <span className="now-timer">
           <Elapsed since={run.phase === "starting" ? run.updatedAt : run.stepStartedAt} />
         </span>
@@ -181,27 +178,27 @@ export function NowCard(props: Props) {
                 {current.summary}
               </>
             ) : run.phase === "starting" ? (
-              "Nếu Claude hỏi có tin tưởng thư mục này không, hãy trả lời trong terminal."
+              t("now.startingHint")
             ) : (
-              "Claude đang suy nghĩ…"
+              t("now.thinking")
             )}
           </motion.p>
         </AnimatePresence>
       </div>
       {run.phase === "running" && (
-        <ul className="now-counts" aria-label="Thao tác trong bước này">
+        <ul className="now-counts" aria-label={t("now.countsLabel")}>
           <li>
-            <strong>{counts.read}</strong> file đã đọc
+            <Trans t={t} i18nKey="now.counts.read" values={{ count: counts.read }} components={{ strong: <strong /> }} />
           </li>
           <li>
-            <strong>{counts.write}</strong> file đã ghi
+            <Trans t={t} i18nKey="now.counts.write" values={{ count: counts.write }} components={{ strong: <strong /> }} />
           </li>
           <li>
-            <strong>{counts.run}</strong> lệnh đã chạy
+            <Trans t={t} i18nKey="now.counts.run" values={{ count: counts.run }} components={{ strong: <strong /> }} />
           </li>
           {counts.error > 0 && (
             <li className="now-count-error">
-              <strong>{counts.error}</strong> lỗi
+              <Trans t={t} i18nKey="now.counts.error" values={{ count: counts.error }} components={{ strong: <strong /> }} />
             </li>
           )}
         </ul>
@@ -213,10 +210,11 @@ export function NowCard(props: Props) {
 }
 
 function Card(props: { tone: "signal" | "attention" | "done" | "idle"; icon: ReactNode; children: ReactNode }) {
+  const { t } = useTranslation("workflow");
   return (
     <motion.section
       className={`now-card tone-${props.tone}`}
-      aria-label="Trạng thái hiện tại"
+      aria-label={t("now.label")}
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}

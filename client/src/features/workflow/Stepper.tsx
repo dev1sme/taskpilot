@@ -1,5 +1,6 @@
 import { Check } from "@phosphor-icons/react";
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import type { RunState, WorkflowStep } from "../../api/types";
 import { SrOnly } from "../../components/Button";
 
@@ -11,14 +12,10 @@ interface Node {
   state: NodeState;
 }
 
-const STATE_TEXT: Record<Node["kind"], Record<NodeState, string>> = {
-  step: { done: "đã xong", current: "đang làm", pending: "chưa tới" },
-  gate: { done: "đã duyệt", current: "đang chờ ba duyệt", pending: "chưa tới" },
-};
-
 /** Steps as waypoints and approval gates as diamonds, with an animated progress track. */
 export function Stepper({ steps, run }: { steps: WorkflowStep[]; run: RunState | null }) {
-  const nodes = buildNodes(steps, run);
+  const { t } = useTranslation("workflow");
+  const nodes = buildNodes(steps, run, t("stepper.gate"));
   const reached = nodes.reduce((last, n, i) => (n.state !== "pending" ? i : last), -1);
   const progress = nodes.length > 1 ? Math.max(0, reached) / (nodes.length - 1) : 0;
   const working = run?.phase === "running" || run?.phase === "starting";
@@ -33,7 +30,7 @@ export function Stepper({ steps, run }: { steps: WorkflowStep[]; run: RunState |
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
         />
       </div>
-      <ol aria-label="Các bước của quy trình">
+      <ol aria-label={t("stepper.label")}>
         {nodes.map((n) => (
           <li
             key={n.key}
@@ -45,7 +42,7 @@ export function Stepper({ steps, run }: { steps: WorkflowStep[]; run: RunState |
             </span>
             <span className="node-label">
               {n.label}
-              <SrOnly>: {STATE_TEXT[n.kind][n.state]}</SrOnly>
+              <SrOnly>: {t(`stepper.state.${n.kind}.${n.state}`)}</SrOnly>
             </span>
           </li>
         ))}
@@ -54,7 +51,7 @@ export function Stepper({ steps, run }: { steps: WorkflowStep[]; run: RunState |
   );
 }
 
-function buildNodes(steps: WorkflowStep[], run: RunState | null): Node[] {
+function buildNodes(steps: WorkflowStep[], run: RunState | null, gateLabel: string): Node[] {
   const live = run !== null && run.phase !== "cancelled";
   const at = run?.stepIndex ?? -1;
   const finished = run?.phase === "done";
@@ -72,7 +69,7 @@ function buildNodes(steps: WorkflowStep[], run: RunState | null): Node[] {
       nodes.push({
         key: `${step.id}-gate`,
         kind: "gate",
-        label: "Ba duyệt",
+        label: gateLabel,
         state: gateDone ? "done" : live && i === at && run!.phase === "gate" ? "current" : "pending",
       });
     }

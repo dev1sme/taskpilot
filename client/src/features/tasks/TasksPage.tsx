@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from "react-i18next";
 import { href } from "../../app/router";
 import { useWorkspace } from "../../app/workspace";
 import { clockTime } from "../../components/Elapsed";
@@ -10,35 +11,35 @@ const HISTORY_FILE = "00-history.md";
 
 /** Every task of the repo as a table; needs-you first. */
 export function TasksPage() {
+  const { t } = useTranslation("tasks");
   const { tasks, repo } = useWorkspace();
 
   return (
     <div className="page">
-      <PageHeader title="Task" subtitle={`${tasks.length} task trong .claude/tasks`} />
+      <PageHeader title={t("page.col.task")} subtitle={t("page.subtitle", { count: tasks.length })} />
       <div className="page-body">
         {!repo?.tasksDirExists ? (
           <div className="empty">
-            <h2>Repo chưa có task</h2>
+            <h2>{t("page.emptyTitle")}</h2>
             <p>
-              Tạo thư mục <code>.claude/tasks/&lt;mã task&gt;/spec/</code> và viết yêu cầu vào file <code>.md</code>.
-              TaskPilot tự nhận task mới.
+              <Trans t={t} i18nKey="page.emptyBody" components={{ code: <code /> }} />
             </p>
           </div>
         ) : (
           <table className="task-table">
             <thead>
               <tr>
-                <th scope="col">Trạng thái</th>
-                <th scope="col">Task</th>
-                <th scope="col">Tài liệu</th>
-                <th scope="col">Cập nhật</th>
+                <th scope="col">{t("page.col.status")}</th>
+                <th scope="col">{t("page.col.task")}</th>
+                <th scope="col">{t("page.col.docs")}</th>
+                <th scope="col">{t("page.col.updated")}</th>
               </tr>
             </thead>
             <tbody>
-              {sortTasks(tasks).map((t) => {
-                const s = statusOf(t);
+              {sortTasks(tasks).map((task) => {
+                const s = statusOf(task);
                 return (
-                  <tr key={t.key} className={`tone-${s.tone}`}>
+                  <tr key={task.key} className={`tone-${s.tone}`}>
                     <td>
                       <span className="status-chip">
                         <span aria-hidden="true">{s.glyph}</span>
@@ -46,15 +47,15 @@ export function TasksPage() {
                       </span>
                     </td>
                     <td>
-                      <a href={href({ page: "task", key: t.key })} className="task-link">
-                        <span className="mono">{t.key}</span>
-                        {t.title !== t.key && <span className="task-link-title">{t.title}</span>}
+                      <a href={href({ page: "task", key: task.key })} className="task-link">
+                        <span className="mono">{task.key}</span>
+                        {task.title !== task.key && <span className="task-link-title">{task.title}</span>}
                       </a>
                     </td>
                     <td className="muted">
-                      {t.specFiles.length} spec · {t.outputFiles.filter((f) => f.path !== HISTORY_FILE).length} Claude viết
+                      {t("page.docs", { spec: task.specFiles.length, written: task.outputFiles.filter((f) => f.path !== HISTORY_FILE).length })}
                     </td>
-                    <td className="muted mono">{clockTime(t.updatedAt)}</td>
+                    <td className="muted mono">{clockTime(task.updatedAt)}</td>
                   </tr>
                 );
               })}

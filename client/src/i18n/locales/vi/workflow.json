@@ -1,1 +1,54 @@
-{}
+{
+  "stepper": {
+    "label": "Các bước của quy trình",
+    "gate": "Ba duyệt",
+    "state": {
+      "step": { "done": "đã xong", "current": "đang làm", "pending": "chưa tới" },
+      "gate": { "done": "đã duyệt", "current": "đang chờ ba duyệt", "pending": "chưa tới" }
+    }
+  },
+  "now": {
+    "label": "Trạng thái hiện tại",
+    "retry": "Gửi lại bước",
+    "restart": "Chạy lại từ đầu",
+    "openTerminal": "Mở terminal",
+    "doneTitle": "Quy trình hoàn tất",
+    "cancelledTitle": "Quy trình đã huỷ",
+    "readyTitle": "Sẵn sàng chạy quy trình",
+    "doneBody": "Xong sau <strong>{{duration}}</strong>. Mọi bước đã được ba duyệt.",
+    "readyBody": "TaskPilot sẽ mở một session Claude mới, gửi lần lượt {{count}} bước và dừng ở mỗi chỗ cần ba duyệt.",
+    "readDoc": "Đọc {{file}}",
+    "start": "Bắt đầu quy trình",
+    "permissionTitle": "Claude xin quyền",
+    "permissionFallback": "Claude đang chờ ba cho phép một thao tác.",
+    "permissionHint": "Trả lời trong terminal: cho phép, cho phép cả session, hoặc từ chối.",
+    "permissionAnswer": "Mở terminal để trả lời",
+    "waitingTitle": "Claude đang chờ ba",
+    "interruptedTitle": "Bước \"{{step}}\" bị gián đoạn",
+    "startingTitle": "Đang khởi động Claude",
+    "runningTitle": "Claude đang làm: {{step}}",
+    "startingHint": "Nếu Claude hỏi có tin tưởng thư mục này không, hãy trả lời trong terminal.",
+    "thinking": "Claude đang suy nghĩ…",
+    "countsLabel": "Thao tác trong bước này",
+    "counts": {
+      "read": "<strong>{{count}}</strong> file đã đọc",
+      "write": "<strong>{{count}}</strong> file đã ghi",
+      "run": "<strong>{{count}}</strong> lệnh đã chạy",
+      "error": "<strong>{{count}}</strong> lỗi"
+    }
+  },
+  "gate": {
+    "title": "Đến lượt ba duyệt",
+    "body": "Bước <strong>{{step}}</strong> đã xong.",
+    "bodyLast": " Duyệt để hoàn tất quy trình.",
+    "bodyNext": " Duyệt để Claude sang bước tiếp theo.",
+    "summary": "Claude tóm tắt",
+    "readAll": "Đọc toàn bộ",
+    "loading": "Đang tải…",
+    "approveLast": "Duyệt và hoàn tất",
+    "approveNext": "Duyệt, sang bước tiếp",
+    "feedbackLabel": "Hoặc góp ý để Claude sửa lại",
+    "feedbackPlaceholder": "Ví dụ: thêm test cho trường hợp danh sách rỗng",
+    "sendFeedback": "Gửi góp ý"
+  }
+}

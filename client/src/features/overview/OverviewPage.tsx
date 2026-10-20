@@ -1,5 +1,6 @@
 import { ArrowRight, BookOpenText, CheckCircle, Command, Lightning, Plugs, Robot, ShieldCheck, Sparkle } from "@phosphor-icons/react";
 import { motion } from "motion/react";
+import { Trans, useTranslation } from "react-i18next";
 import { href } from "../../app/router";
 import { useWorkspace } from "../../app/workspace";
 import type { ActivityItem, TaskSummary } from "../../api/types";
@@ -7,41 +8,28 @@ import { Elapsed } from "../../components/Elapsed";
 import { CategoryIcon } from "../activity/categories";
 import { useActivity } from "../activity/useActivity";
 import { PageHeader } from "../shell/PageHeader";
-import { sortTasks, statusOf } from "../tasks/taskStatus";
+import { isAttention, sortTasks, statusOf } from "../tasks/taskStatus";
 import "./overview.css";
-
-const CTA: Record<string, string> = {
-  "Xin quyền": "Trả lời",
-  "Chờ duyệt": "Xem & duyệt",
-  "Chờ trả lời": "Trả lời Claude",
-  "Gián đoạn": "Tiếp tục",
-};
-
-const DETAIL: Record<string, string> = {
-  "Xin quyền": "Claude đang chờ ba cho phép một thao tác",
-  "Chờ duyệt": "Một bước đã xong, chờ ba duyệt",
-  "Chờ trả lời": "Claude dừng lại, có thể đang hỏi ba",
-  "Gián đoạn": "Session dừng giữa chừng",
-};
 
 /** Repo dashboard: what needs the user, what is running, and the shape of the Claude config. */
 export function OverviewPage() {
+  const { t } = useTranslation(["overview", "shell", "common"]);
   const { repo, tasks, inventory } = useWorkspace();
   const sorted = sortTasks(tasks);
-  const needs = sorted.filter((t) => statusOf(t).tone === "attention");
-  const running = sorted.filter((t) => statusOf(t).tone === "active");
+  const needs = sorted.filter((task) => statusOf(task).tone === "attention");
+  const running = sorted.filter((task) => statusOf(task).tone === "active");
   const counts = { done: 0, active: 0, attention: 0, idle: 0 };
-  for (const t of tasks) counts[statusOf(t).tone]++;
+  for (const task of tasks) counts[statusOf(task).tone]++;
   const repoName = repo?.path?.split(/[\\/]/).filter(Boolean).pop() ?? "";
 
   return (
     <div className="page">
       <PageHeader
-        title="Tổng quan"
-        subtitle={repo?.path ? <span className="mono path-line" title={repo.path}>{repo.path}</span> : "Chưa chọn repo"}
+        title={t("title")}
+        subtitle={repo?.path ? <span className="mono path-line" title={repo.path}>{repo.path}</span> : t("common:noRepo")}
       />
 
-      <div className="bento" aria-label={`Tổng quan ${repoName}`}>
+      <div className="bento" aria-label={t("label", { repo: repoName })}>
         {/* needs you */}
         <motion.section
           className={`tile tile-hero${needs.length ? " has-needs" : ""}`}
@@ -54,14 +42,14 @@ export function OverviewPage() {
             <>
               <div className="hero-count">
                 <span className="hero-number">{needs.length}</span>
-                <h2 id="needs-title">việc đang chờ ba</h2>
+                <h2 id="needs-title">{t("needs.title")}</h2>
               </div>
               <ul className="needs">
-                {needs.map((t, i) => {
-                  const s = statusOf(t);
+                {needs.map((task, i) => {
+                  const s = statusOf(task);
                   return (
                     <motion.li
-                      key={t.key}
+                      key={task.key}
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.05 * i + 0.1 }}
@@ -71,13 +59,13 @@ export function OverviewPage() {
                       </span>
                       <span className="need-text">
                         <span className="need-title">
-                          <span className="mono">{t.key}</span>
-                          {t.title !== t.key && ` · ${t.title}`}
+                          <span className="mono">{task.key}</span>
+                          {task.title !== task.key && ` · ${task.title}`}
                         </span>
-                        <span className="need-sub">{DETAIL[s.label] ?? s.label}</span>
+                        <span className="need-sub">{isAttention(s.kind) ? t(`needs.detail.${s.kind}`) : s.label}</span>
                       </span>
-                      <a className="btn btn-attention" href={href({ page: "task", key: t.key })}>
-                        <span>{CTA[s.label] ?? "Mở"}</span>
+                      <a className="btn btn-attention" href={href({ page: "task", key: task.key })}>
+                        <span>{isAttention(s.kind) ? t(`needs.cta.${s.kind}`) : t("needs.open")}</span>
                       </a>
                     </motion.li>
                   );
@@ -87,8 +75,8 @@ export function OverviewPage() {
           ) : (
             <div className="hero-calm">
               <CheckCircle weight="fill" aria-hidden="true" />
-              <h2 id="needs-title">Không có việc nào chờ ba</h2>
-              <p>Khi Claude cần ba duyệt, trả lời hoặc cho phép, việc đó sẽ hiện ở đây đầu tiên.</p>
+              <h2 id="needs-title">{t("needs.calmTitle")}</h2>
+              <p>{t("needs.calmBody")}</p>
             </div>
           )}
         </motion.section>
@@ -98,7 +86,7 @@ export function OverviewPage() {
         {/* tasks */}
         <section className="tile" aria-labelledby="tasks-title">
           <h2 id="tasks-title" className="tile-title">
-            Task
+            {t("shell:nav.tasks")}
           </h2>
           <div className="big-number">{tasks.length}</div>
           {tasks.length > 0 && (
@@ -110,7 +98,7 @@ export function OverviewPage() {
             </div>
           )}
           <p className="tile-note">
-            {counts.done} xong · {counts.active} đang chạy · {counts.attention} chờ ba · {counts.idle} chưa chạy
+            {t("tasks.counts", counts)}
           </p>
         </section>
 
@@ -122,7 +110,7 @@ export function OverviewPage() {
           {inventory?.claudeMd.exists ? (
             <>
               <p className="tile-mono">
-                {inventory.claudeMd.lines} dòng · ~{formatTokens(inventory.claudeMd.bytes / 4)} token
+                {t("memory.size", { lines: inventory.claudeMd.lines, tokens: formatTokens(inventory.claudeMd.bytes / 4) })}
               </p>
               <div className="chips">
                 {inventory.claudeMd.headings.slice(0, 3).map((h) => (
@@ -134,10 +122,10 @@ export function OverviewPage() {
               </div>
             </>
           ) : (
-            <p className="tile-note">Repo chưa có CLAUDE.md.</p>
+            <p className="tile-note">{t("memory.missing")}</p>
           )}
           <a className="tile-link" href={href({ page: "config", section: "memory" })}>
-            Mở CLAUDE.md <ArrowRight aria-hidden="true" />
+            {t("memory.open")} <ArrowRight aria-hidden="true" />
           </a>
         </section>
 
@@ -145,7 +133,7 @@ export function OverviewPage() {
         <section className="tile tile-wide" aria-labelledby="mcp-title">
           <div className="tile-head">
             <h2 id="mcp-title" className="tile-title">
-              <Plugs aria-hidden="true" /> MCP servers
+              <Plugs aria-hidden="true" /> {t("shell:nav.mcp")}
             </h2>
             <span className="tile-mono">.mcp.json</span>
           </div>
@@ -164,26 +152,26 @@ export function OverviewPage() {
               ))}
             </ul>
           ) : (
-            !inventory?.mcp.error && <p className="tile-note">Repo chưa khai báo MCP server nào trong .mcp.json.</p>
+            !inventory?.mcp.error && <p className="tile-note">{t("mcp.empty")}</p>
           )}
           <a className="tile-link" href={href({ page: "config", section: "mcp" })}>
-            Quản lý MCP <ArrowRight aria-hidden="true" />
+            {t("mcp.manage")} <ArrowRight aria-hidden="true" />
           </a>
         </section>
 
         {/* .claude */}
         <section className="tile tile-wide" aria-labelledby="dir-title">
           <h2 id="dir-title" className="tile-title">
-            Thư mục .claude
+            {t("dir.title")}
           </h2>
           <div className="inventory">
-            <InvLink icon={Robot} n={inventory?.claudeDir.agents} label="Agents" section="agents" />
-            <InvLink icon={Command} n={inventory?.claudeDir.commands} label="Commands" section="commands" />
-            <InvLink icon={Sparkle} n={inventory?.claudeDir.skills} label="Skills" section="skills" />
-            <InvLink icon={Lightning} n={inventory?.claudeDir.hooks} label="Hooks" section="hooks" />
+            <InvLink icon={Robot} n={inventory?.claudeDir.agents} label={t("shell:nav.agents")} section="agents" />
+            <InvLink icon={Command} n={inventory?.claudeDir.commands} label={t("shell:nav.commands")} section="commands" />
+            <InvLink icon={Sparkle} n={inventory?.claudeDir.skills} label={t("shell:nav.skills")} section="skills" />
+            <InvLink icon={Lightning} n={inventory?.claudeDir.hooks} label={t("shell:nav.hooks")} section="hooks" />
           </div>
           <a className="tile-link" href={href({ page: "config", section: "settings" })}>
-            <ShieldCheck aria-hidden="true" /> {inventory?.claudeDir.allow ?? 0} quyền cho phép · {inventory?.claudeDir.deny ?? 0} bị chặn
+            <ShieldCheck aria-hidden="true" /> {t("dir.permissions", { allow: inventory?.claudeDir.allow ?? 0, deny: inventory?.claudeDir.deny ?? 0 })}
           </a>
         </section>
       </div>
@@ -208,15 +196,16 @@ function InvLink(props: {
 
 /** The first running task, live: current tool, step timer, and a pulse of recent activity. */
 function RunningTile({ tasks }: { tasks: TaskSummary[] }) {
+  const { t } = useTranslation("overview");
   const first = tasks[0];
   return (
     <section className={`tile tile-wide tile-running${first ? " is-live" : ""}`} aria-labelledby="run-title">
       {first ? <Live task={first} others={tasks.length - 1} /> : (
         <>
           <h2 id="run-title" className="tile-title">
-            Đang chạy
+            {t("running.title")}
           </h2>
-          <p className="tile-note">Không có task nào đang chạy. Mở một task và bấm "Bắt đầu quy trình".</p>
+          <p className="tile-note">{t("running.none")}</p>
         </>
       )}
     </section>
@@ -224,6 +213,7 @@ function RunningTile({ tasks }: { tasks: TaskSummary[] }) {
 }
 
 function Live({ task, others }: { task: TaskSummary; others: number }) {
+  const { t } = useTranslation("overview");
   const items = useActivity(task.key);
   const current = [...items].reverse().find((i) => i.kind === "tool");
   return (
@@ -231,8 +221,8 @@ function Live({ task, others }: { task: TaskSummary; others: number }) {
       <div className="tile-head">
         <span className="live-dot" aria-hidden="true" />
         <h2 id="run-title" className="tile-title">
-          Đang chạy · <a href={href({ page: "task", key: task.key })} className="mono">{task.key}</a>
-          {others > 0 && <span className="row-meta"> và {others} task khác</span>}
+          <Trans t={t} i18nKey="running.live" values={{ key: task.key }} components={{ link: <a href={href({ page: "task", key: task.key })} className="mono" /> }} />
+          {others > 0 && <span className="row-meta">{t("running.others", { count: others })}</span>}
         </h2>
         {task.run?.stepStartedAt && (
           <span className="tile-timer">
@@ -247,7 +237,7 @@ function Live({ task, others }: { task: TaskSummary; others: number }) {
             {current.summary}
           </>
         ) : (
-          "Claude đang khởi động…"
+          t("running.starting")
         )}
       </p>
       <Pulse items={items} />
@@ -257,6 +247,7 @@ function Live({ task, others }: { task: TaskSummary; others: number }) {
 
 /** Tool calls per 30 s over the last 12 minutes. */
 function Pulse({ items }: { items: ActivityItem[] }) {
+  const { t } = useTranslation("overview");
   const now = Date.now();
   const buckets = new Array<number>(24).fill(0);
   for (const i of items) {
@@ -266,7 +257,7 @@ function Pulse({ items }: { items: ActivityItem[] }) {
   }
   const max = Math.max(1, ...buckets);
   return (
-    <div className="pulse" role="img" aria-label={`${buckets.reduce((a, b) => a + b, 0)} thao tác trong 12 phút qua`}>
+    <div className="pulse" role="img" aria-label={t("running.pulse", { count: buckets.reduce((a, b) => a + b, 0) })}>
       {buckets.map((n, i) => (
         <motion.span
           key={i}

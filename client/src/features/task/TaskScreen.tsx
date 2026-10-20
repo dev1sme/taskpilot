@@ -1,5 +1,6 @@
 import { ArrowCounterClockwise, CheckCircle, ChatCircleDots, CircleNotch, Diamond, PlugsConnected, X } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { RunPhase, TaskSummary } from "../../api/types";
 import { href } from "../../app/router";
@@ -19,17 +20,21 @@ import { ACTIVE_PHASES, useRun } from "../workflow/useRun";
 import "../workflow/workflow.css";
 import "./task.css";
 
-const PHASE_PILL: Partial<Record<RunPhase, { tone: string; label: string; icon: typeof CheckCircle }>> = {
-  starting: { tone: "signal", label: "Đang khởi động", icon: CircleNotch },
-  running: { tone: "signal", label: "Claude đang làm", icon: CircleNotch },
-  waiting: { tone: "attention", label: "Chờ ba trả lời", icon: ChatCircleDots },
-  gate: { tone: "attention", label: "Chờ duyệt", icon: Diamond },
-  interrupted: { tone: "attention", label: "Gián đoạn", icon: PlugsConnected },
-  done: { tone: "done", label: "Hoàn tất", icon: CheckCircle },
+type PillPhase = Exclude<RunPhase, "cancelled">;
+
+/** Phases with a pill; the label is `task:phase.<phase>`. */
+const PHASE_PILL: Record<PillPhase, { tone: string; icon: typeof CheckCircle }> = {
+  starting: { tone: "signal", icon: CircleNotch },
+  running: { tone: "signal", icon: CircleNotch },
+  waiting: { tone: "attention", icon: ChatCircleDots },
+  gate: { tone: "attention", icon: Diamond },
+  interrupted: { tone: "attention", icon: PlugsConnected },
+  done: { tone: "done", icon: CheckCircle },
 };
 
 /** One task: progress, what is happening now (or the review), docs and activity; terminal on demand. */
 export function TaskScreen({ task }: { task: TaskSummary }) {
+  const { t } = useTranslation(["task", "shell"]);
   const { view, error, reload } = useRun(task.key);
   const { sessions, reload: reloadSessions } = useSessions(task.key);
   const activity = useActivity(task.key);
@@ -70,7 +75,8 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
   };
   const closeDoc = useCallback(() => setDoc(null), []);
 
-  const pill = run ? PHASE_PILL[run.phase] : undefined;
+  const pillPhase = run && run.phase !== "cancelled" ? run.phase : undefined;
+  const pill = pillPhase && PHASE_PILL[pillPhase];
   const PillIcon = pill?.icon;
   const working = run?.phase === "running" || run?.phase === "starting";
   // Interrupted, finished and cancelled runs offer the restart in the card already.
@@ -82,7 +88,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
         <PageHeader
           crumbs={
             <>
-              <a href={href({ page: "overview" })}>Tổng quan</a> / <a href={href({ page: "tasks" })}>Task</a> /{" "}
+              <a href={href({ page: "overview" })}>{t("shell:nav.overview")}</a> / <a href={href({ page: "tasks" })}>{t("shell:nav.tasks")}</a> /{" "}
               <span aria-current="page">{task.key}</span>
             </>
           }
@@ -95,21 +101,22 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
         />
         <Toolbar
           start={
+            pillPhase &&
             pill &&
             PillIcon && (
               <span className={`pill ${pill.tone}`}>
                 <PillIcon weight="bold" className={working ? "spin" : undefined} aria-hidden="true" />
-                {pill.label}
+                {t(`phase.${pillPhase}`)}
               </span>
             )
           }
           actions={
             <>
-              {restart === "confirm" && <span className="toolbar-hint">Session hiện tại sẽ dừng. Bản cũ của tài liệu được lưu vào archive/.</span>}
+              {restart === "confirm" && <span className="toolbar-hint">{t("restartHint")}</span>}
               {toolbarRestart &&
                 (restart === "idle" ? (
-                  <Button icon={ArrowCounterClockwise} variant="quiet" title="Chạy lại quy trình từ bước đầu trong session mới" onClick={() => setRestart("confirm")}>
-                    Chạy lại từ đầu
+                  <Button icon={ArrowCounterClockwise} variant="quiet" title={t("restartTitle")} onClick={() => setRestart("confirm")}>
+                    {t("restart")}
                   </Button>
                 ) : (
                   <Button
@@ -124,7 +131,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                         .finally(() => setRestart("idle"));
                     }}
                   >
-                    Xác nhận chạy lại
+                    {t("restartConfirm")}
                   </Button>
                 ))}
               {active && (
@@ -132,7 +139,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                   icon={X}
                   variant="quiet"
                   busy={cancelling}
-                  title="Huỷ quy trình"
+                  title={t("cancelTitle")}
                   onClick={() => {
                     setCancelling(true);
                     void api
@@ -141,7 +148,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                       .finally(() => setCancelling(false));
                   }}
                 >
-                  Huỷ
+                  {t("cancel")}
                 </Button>
               )}
             </>
@@ -188,7 +195,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
               </div>
             </div>
             <p className="workflow-source" title={view.workflow.source}>
-              Quy trình: {view.workflow.source.endsWith(".claude/workflow.yml") ? ".claude/workflow.yml của repo" : "mặc định của TaskPilot"}
+              {t("source", { source: view.workflow.source.endsWith(".claude/workflow.yml") ? t("sourceRepo") : t("sourceDefault") })}
             </p>
           </div>
         )}
@@ -196,7 +203,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
 
       <TerminalDrawer
         scopeLabel="task"
-        emptyHint="Chưa có session. Bắt đầu quy trình hoặc bấm + để mở một session Claude."
+        emptyHint={t("terminalEmpty")}
         onCreate={() => api.createSession(task.key)}
         sessions={sessions}
         activeId={activeSession}

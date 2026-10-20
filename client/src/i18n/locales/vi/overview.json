@@ -1,1 +1,46 @@
-{}
+{
+  "title": "Tổng quan",
+  "label": "Tổng quan {{repo}}",
+  "needs": {
+    "title": "việc đang chờ ba",
+    "calmTitle": "Không có việc nào chờ ba",
+    "calmBody": "Khi Claude cần ba duyệt, trả lời hoặc cho phép, việc đó sẽ hiện ở đây đầu tiên.",
+    "open": "Mở",
+    "cta": {
+      "permission": "Trả lời",
+      "gate": "Xem & duyệt",
+      "waiting": "Trả lời Claude",
+      "interrupted": "Tiếp tục"
+    },
+    "detail": {
+      "permission": "Claude đang chờ ba cho phép một thao tác",
+      "gate": "Một bước đã xong, chờ ba duyệt",
+      "waiting": "Claude dừng lại, có thể đang hỏi ba",
+      "interrupted": "Session dừng giữa chừng"
+    }
+  },
+  "tasks": {
+    "counts": "{{done}} xong · {{active}} đang chạy · {{attention}} chờ ba · {{idle}} chưa chạy"
+  },
+  "memory": {
+    "size": "{{lines}} dòng · ~{{tokens}} token",
+    "missing": "Repo chưa có CLAUDE.md.",
+    "open": "Mở CLAUDE.md"
+  },
+  "mcp": {
+    "empty": "Repo chưa khai báo MCP server nào trong .mcp.json.",
+    "manage": "Quản lý MCP"
+  },
+  "dir": {
+    "title": "Thư mục .claude",
+    "permissions": "{{allow}} quyền cho phép · {{deny}} bị chặn"
+  },
+  "running": {
+    "title": "Đang chạy",
+    "live": "Đang chạy · <link>{{key}}</link>",
+    "others": " và {{count}} task khác",
+    "none": "Không có task nào đang chạy. Mở một task và bấm \"Bắt đầu quy trình\".",
+    "starting": "Claude đang khởi động…",
+    "pulse": "{{count}} thao tác trong 12 phút qua"
+  }
+}

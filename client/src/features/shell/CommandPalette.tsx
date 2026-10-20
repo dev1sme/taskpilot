@@ -2,7 +2,7 @@ import { ArrowRight, MagnifyingGlass } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { navigate, type Route } from "../../app/router";
+import { navigate, type Route } from "../../shared/router";
 import { useWorkspace } from "../../app/workspace";
 import { sortTasks, statusOf } from "../tasks/taskStatus";
 import "./shell.css";

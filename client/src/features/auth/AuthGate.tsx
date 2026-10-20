@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { api, takeUrlToken, UNAUTHORIZED } from "../../api/client";
+import { api } from "../../api/client";
+import { takeUrlToken, UNAUTHORIZED } from "../../shared/api/http";
 import type { AuthStatus } from "../../api/types";
 import { LoginScreen } from "./LoginScreen";
 import "./auth.css";

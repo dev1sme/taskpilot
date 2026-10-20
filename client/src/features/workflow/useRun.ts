@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api/client";
-import { useInvalidateOnTaskEvent } from "../../api/useInvalidateOnEvent";
+import { useInvalidateOnTaskEvent } from "../../shared/api/useInvalidateOnEvent";
 import type { RunPhase } from "../../api/types";
 
 export const ACTIVE_PHASES: RunPhase[] = ["starting", "running", "waiting", "gate", "interrupted"];

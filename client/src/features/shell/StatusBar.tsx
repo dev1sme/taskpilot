@@ -1,7 +1,7 @@
 import { Gauge, HandPalm, SignOut, TerminalWindow } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import type { UsageView } from "../../api/types";
-import { href } from "../../app/router";
+import { href } from "../../shared/router";
 import { useWorkspace } from "../../app/workspace";
 import { locale } from "../../i18n";
 import { logout, useAuthMode } from "../auth/AuthGate";

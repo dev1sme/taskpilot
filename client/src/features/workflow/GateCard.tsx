@@ -5,8 +5,8 @@ import { useId, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { RunState, WorkflowStep } from "../../api/types";
-import { Button } from "../../components/Button";
-import { Markdown } from "../../components/Markdown";
+import { Button } from "../../shared/ui/Button";
+import { Markdown } from "../../shared/ui/Markdown";
 
 /**
  * The approval gate, front and center: what Claude produced (file preview + its closing message)

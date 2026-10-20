@@ -2,7 +2,7 @@ import { FolderOpen } from "@phosphor-icons/react";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { RepoInfo } from "../../api/types";
-import { Button } from "../../components/Button";
+import { Button } from "../../shared/ui/Button";
 import "./repo.css";
 
 export function RepoPicker({

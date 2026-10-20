@@ -1,13 +1,13 @@
 import { ArrowRight, BookOpenText, CheckCircle, Command, Lightning, Plugs, Robot, ShieldCheck, Sparkle } from "@phosphor-icons/react";
 import { motion } from "motion/react";
 import { Trans, useTranslation } from "react-i18next";
-import { href } from "../../app/router";
+import { href } from "../../shared/router";
 import { useWorkspace } from "../../app/workspace";
 import type { ActivityItem, TaskSummary } from "../../api/types";
-import { Elapsed } from "../../components/Elapsed";
+import { Elapsed } from "../../shared/ui/Elapsed";
 import { CategoryIcon } from "../activity/categories";
 import { useActivity } from "../activity/useActivity";
-import { PageHeader } from "../shell/PageHeader";
+import { PageHeader } from "../../shared/ui/PageHeader";
 import { isAttention, sortTasks, statusOf } from "../tasks/taskStatus";
 import "./overview.css";
 

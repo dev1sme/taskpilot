@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, type ReactNode } from "react";
 import { api } from "../api/client";
-import { queryClient } from "../api/queryClient";
-import { useInvalidateOnEvent } from "../api/useInvalidateOnEvent";
+import { queryClient } from "../shared/api/queryClient";
+import { useInvalidateOnEvent } from "../shared/api/useInvalidateOnEvent";
 import type { Info, Inventory, RepoInfo, TaskSummary } from "../api/types";
 
 interface Workspace {

@@ -15,7 +15,7 @@ import {
 } from "@phosphor-icons/react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { href, type Route } from "../../app/router";
+import { href, type Route } from "../../shared/router";
 import { useWorkspace } from "../../app/workspace";
 import { useDrafts } from "../config/drafts";
 import { sortTasks, statusOf } from "../tasks/taskStatus";

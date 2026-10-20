@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api/client";
-import { useInvalidateOnEvent } from "../../api/useInvalidateOnEvent";
+import { useInvalidateOnEvent } from "../../shared/api/useInvalidateOnEvent";
 
 /** Plan usage (5h / 7d), live; null until a session has reported it. */
 export function useUsage() {

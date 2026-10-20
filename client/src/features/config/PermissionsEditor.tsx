@@ -3,7 +3,7 @@ import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { Permissions, Scope } from "../../api/types";
-import { toast } from "../../components/Toast";
+import { toast } from "../../shared/ui/Toast";
 import { clearDraft, setDraft } from "./drafts";
 import { RuleChip } from "./parts";
 import { useSaveFlow } from "./useSaveFlow";

@@ -4,7 +4,7 @@ import { lazy, Suspense, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { SessionView } from "../../api/types";
-import { Button, SrOnly } from "../../components/Button";
+import { Button, SrOnly } from "../../shared/ui/Button";
 import "./sessions.css";
 
 // xterm.js is loaded when the drawer first opens.

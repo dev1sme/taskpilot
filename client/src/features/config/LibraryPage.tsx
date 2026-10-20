@@ -5,17 +5,17 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { LibraryItem, LibraryKind } from "../../api/types";
 import { useWorkspace } from "../../app/workspace";
-import { Button } from "../../components/Button";
-import { DiffDialog } from "../../components/DiffDialog";
+import { Button } from "../../shared/ui/Button";
+import { DiffDialog } from "../../shared/ui/DiffDialog";
 import i18n from "../../i18n";
-import { Markdown } from "../../components/Markdown";
-import { toast } from "../../components/Toast";
+import { Markdown } from "../../shared/ui/Markdown";
+import { toast } from "../../shared/ui/Toast";
 import { clearDraft, getDraft, setDraft, useDrafts } from "./drafts";
 import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs, ScopeTag } from "./parts";
 import { shadowedBy } from "./precedence";
 import { useConfig } from "./useConfig";
 import { useSaveFlow } from "./useSaveFlow";
-import "../../components/dialog.css";
+import "../../shared/ui/dialog.css";
 
 const MarkdownEditor = lazy(() => import("./MarkdownEditor").then((m) => ({ default: m.MarkdownEditor })));
 

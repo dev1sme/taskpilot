@@ -1,7 +1,7 @@
 import { CheckCircle, FileText, NotePencil } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import type { TaskSummary, WorkflowStep } from "../../api/types";
-import { clockTime } from "../../components/Elapsed";
+import { clockTime } from "../../shared/ui/Elapsed";
 import "./docs.css";
 
 /**

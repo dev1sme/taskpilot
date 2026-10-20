@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api/client";
 import { REPO_SESSION_KEY } from "../../api/types";
-import { useInvalidateOnTaskEvent } from "../../api/useInvalidateOnEvent";
+import { useInvalidateOnTaskEvent } from "../../shared/api/useInvalidateOnEvent";
 
 export function useSessions(taskKey: string) {
   const queryKey = ["sessions", taskKey];

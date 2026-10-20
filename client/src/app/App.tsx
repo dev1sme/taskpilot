@@ -1,7 +1,7 @@
 import { MotionConfig } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ToastHost } from "../components/Toast";
+import { ToastHost } from "../shared/ui/Toast";
 import { AuthGate } from "../features/auth/AuthGate";
 import { BackupsPage } from "../features/config/BackupsPage";
 import { ConfigPage } from "../features/config/ConfigPage";
@@ -9,12 +9,12 @@ import { OverviewPage } from "../features/overview/OverviewPage";
 import { RepoTerminal } from "../features/sessions/RepoTerminal";
 import { RepoDialog } from "../features/repo/RepoDialog";
 import { CommandPalette } from "../features/shell/CommandPalette";
-import { OPEN_PALETTE } from "../features/shell/PageHeader";
+import { OPEN_PALETTE } from "../shared/ui/PageHeader";
 import { Sidebar } from "../features/shell/Sidebar";
 import { StatusBar } from "../features/shell/StatusBar";
 import { TaskScreen } from "../features/task/TaskScreen";
 import { TasksPage } from "../features/tasks/TasksPage";
-import { useRoute } from "./router";
+import { useRoute } from "../shared/router";
 import { useWorkspace, WorkspaceProvider } from "./workspace";
 import "./app.css";
 

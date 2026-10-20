@@ -2,7 +2,7 @@ import { SignIn } from "@phosphor-icons/react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
-import { Button } from "../../components/Button";
+import { Button } from "../../shared/ui/Button";
 // .brand-mark
 import "../shell/shell.css";
 

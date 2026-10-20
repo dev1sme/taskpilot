@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
-import { Markdown } from "../../components/Markdown";
+import { Markdown } from "../../shared/ui/Markdown";
 import "./docs.css";
 
 /** Full document in a panel sliding in from the right. Esc or the backdrop closes it. */

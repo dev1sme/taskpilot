@@ -4,9 +4,9 @@ import { Trans, useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { api } from "../../api/client";
 import type { McpEntryForm, McpEntryInput, Scope } from "../../api/types";
-import { Button } from "../../components/Button";
-import { DiffDialog } from "../../components/DiffDialog";
-import { toast } from "../../components/Toast";
+import { Button } from "../../shared/ui/Button";
+import { DiffDialog } from "../../shared/ui/DiffDialog";
+import { toast } from "../../shared/ui/Toast";
 import { ScopeTag } from "./parts";
 import { useSaveFlow } from "./useSaveFlow";
 

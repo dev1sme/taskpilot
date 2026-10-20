@@ -1,4 +1,4 @@
-import type { ConfigSection } from "../../app/router";
+import type { ConfigSection } from "../../shared/router";
 import { CodegraphPage } from "./CodegraphPage";
 import { HooksPage } from "./HooksPage";
 import { LibraryPage } from "./LibraryPage";

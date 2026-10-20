@@ -2,7 +2,7 @@ import { Check } from "@phosphor-icons/react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import type { RunState, WorkflowStep } from "../../api/types";
-import { SrOnly } from "../../components/Button";
+import { SrOnly } from "../../shared/ui/Button";
 
 type NodeState = "done" | "current" | "pending";
 interface Node {

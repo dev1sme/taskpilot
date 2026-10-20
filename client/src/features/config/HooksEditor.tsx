@@ -2,8 +2,8 @@ import { Plus, Trash } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { HookInput, Scope } from "../../api/types";
-import { Button } from "../../components/Button";
-import { toast } from "../../components/Toast";
+import { Button } from "../../shared/ui/Button";
+import { toast } from "../../shared/ui/Toast";
 import { clearDraft, setDraft } from "./drafts";
 import { useSaveFlow } from "./useSaveFlow";
 

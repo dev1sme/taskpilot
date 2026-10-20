@@ -94,7 +94,11 @@ export class AuthSessions {
   }
 }
 
-/** Locks a client out for `windowMs` after `max` failed logins. In memory: a restart clears it. */
+/**
+ * Locks a client out for `windowMs` after `max` failed logins. In memory: a restart clears it.
+ * Not @fastify/rate-limit: it counts every request and cannot reset a client on a good login,
+ * and the Retry-After header it would add is already sent by the login route.
+ */
 export class LoginLimiter {
   private failures = new Map<string, { count: number; first: number }>();
 

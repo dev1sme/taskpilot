@@ -4,7 +4,7 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { basicSetup } from "codemirror";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type MutableRefObject } from "react";
 
 /** Colors come from the app's CSS variables, so the editor follows the light/dark theme. */
 const theme = EditorView.theme({
@@ -28,7 +28,13 @@ const highlight = HighlightStyle.define([
   { tag: tags.quote, color: "var(--muted)" },
 ]);
 
-export function MarkdownEditor(props: { value: string; onChange: (value: string) => void; label: string }) {
+/** `insertRef` receives a function that types text at the cursor (e.g. a template variable). */
+export function MarkdownEditor(props: {
+  value: string;
+  onChange: (value: string) => void;
+  label: string;
+  insertRef?: MutableRefObject<((text: string) => void) | null>;
+}) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const onChange = useRef(props.onChange);
@@ -53,6 +59,14 @@ export function MarkdownEditor(props: { value: string; onChange: (value: string)
       }),
     });
     view.current.focus();
+    if (props.insertRef) {
+      props.insertRef.current = (text) => {
+        const v = view.current;
+        if (!v) return;
+        v.dispatch(v.state.replaceSelection(text));
+        v.focus();
+      };
+    }
     return () => view.current?.destroy();
     // The editor owns the document after mount; `value` only seeds it.
     // eslint-disable-next-line react-hooks/exhaustive-deps

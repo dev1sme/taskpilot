@@ -1,0 +1,302 @@
+/* ------------------------------------------------------------------ workflow page */
+
+.wf-page {
+  display: grid;
+  gap: 14px;
+}
+
+.wf-origin {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.wf-origin-repo {
+  color: var(--signal-text);
+  background: var(--signal-soft);
+  border-color: var(--signal);
+}
+
+.wf-intro p {
+  margin: 6px 0 10px;
+}
+
+.wf-ok {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted);
+}
+
+.wf-ok svg {
+  color: var(--done);
+}
+
+.wf-checks-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wf-checks-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.wf-checks-list svg {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.wf-checks-list .check-error svg {
+  color: var(--danger);
+}
+
+.wf-checks-list .check-warn svg {
+  color: var(--attention);
+}
+
+.wf-nav {
+  display: grid;
+  gap: 12px;
+}
+
+.wf-nav-step .pane-label {
+  margin-bottom: 2px;
+}
+
+.wf-step-meta {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.wf-tag {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.wf-tag.is-changed {
+  color: var(--signal-text);
+}
+
+.wf-main {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.wf-file .code-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.wf-file .code-meta {
+  flex: 1;
+}
+
+.wf-var {
+  color: var(--cat-run);
+  font-weight: 600;
+}
+
+.wf-editor .lib-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.wf-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+
+.wf-chips .pane-label {
+  margin: 0 4px 0 0;
+}
+
+.wf-chip {
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--cat-run);
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+
+.wf-chip:hover {
+  border-color: var(--line-strong);
+}
+
+.wf-form {
+  display: grid;
+  gap: 12px;
+}
+
+.wf-section {
+  display: grid;
+  gap: 8px;
+}
+
+.wf-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.wf-rows {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wf-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wf-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.wf-output input:nth-child(1) {
+  flex: 0 1 120px;
+}
+
+.wf-output input:nth-child(2) {
+  flex: 0 1 200px;
+}
+
+.wf-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.wf-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wf-step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wf-step-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.wf-new {
+  display: grid;
+  gap: 6px;
+}
+
+.wf-preview-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.wf-preview-controls select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.wf-rendered {
+  max-height: 480px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--sunken);
+  border-radius: var(--r-md);
+}
+
+@media (max-width: 760px) {
+  .wf-output {
+    flex-wrap: wrap;
+  }
+
+  .wf-output input:nth-child(1),
+  .wf-output input:nth-child(2) {
+    flex: 1 1 140px;
+  }
+}
+
+/* Fields outside .form-grid (rule and output rows, preview pickers) look like the form's own. */
+.wf-row input,
+.wf-new input,
+.wf-preview-controls select {
+  height: 36px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--sunken);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+}
+
+.wf-row input.mono,
+.wf-new input {
+  font-family: var(--mono);
+}
+
+.wf-form .form-grid {
+  grid-template-columns: 150px minmax(0, 1fr);
+}
+
+.wf-field {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.wf-field .field-help {
+  grid-column: auto;
+  margin: 0;
+}
+
+.wf-section > .field-help,
+.wf-preview > .field-help,
+.wf-new .field-help {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+@media (max-width: 760px) {
+  .wf-form .form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

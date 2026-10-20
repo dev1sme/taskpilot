@@ -3,28 +3,33 @@ import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import Fastify, { LogController, type FastifyInstance } from "fastify";
 import { existsSync } from "node:fs";
-import { HttpError } from "./core/errors.js";
 import path from "node:path";
-import { ActivityStore } from "./modules/activity/store.js";
+import type { Launcher } from "./core/claude/launch.js";
+import { HttpError } from "./core/errors.js";
 import { EventHub } from "./core/events.js";
-import { getTask, listTasks, readTaskFile, REPO_SESSION_KEY, resolveRepo, tasksRoot } from "./modules/tasks/scan.js";
-import { BackupStore } from "./modules/config/backups/store.js";
-import { registerConfigRoutes } from "./modules/config/routes.js";
-import { registerEnvRoutes } from "./modules/env/routes.js";
-import { EnvStore } from "./modules/env/store.js";
-import { readInventory } from "./modules/repo/inventory.js";
-import { TasksWatcher } from "./modules/tasks/watcher.js";
-import { AuthSessions, type Credentials } from "./modules/auth/sessions.js";
+import type { StateStore } from "./core/state.js";
+import { registerActivityRoutes } from "./modules/activity/routes.js";
+import { ActivityStore } from "./modules/activity/store.js";
 import { registerAuthRoutes } from "./modules/auth/routes.js";
 import { registerSecurity } from "./modules/auth/security.js";
-import { isHookEvent } from "./modules/sessions/hooks.js";
-import type { Launcher } from "./core/claude/launch.js";
-import { claudeVersion } from "./core/claude/version.js";
-import { SessionManager } from "./modules/sessions/manager.js";
-import { UsageStore } from "./modules/usage/store.js";
+import { AuthSessions, type Credentials } from "./modules/auth/sessions.js";
+import { BackupStore } from "./modules/config/backups/store.js";
+import { registerConfigRoutes } from "./modules/config/routes.js";
 import { statusLineCommand } from "./modules/config/settings/read.js";
-import type { StateStore } from "./core/state.js";
+import { registerEnvRoutes } from "./modules/env/routes.js";
+import { EnvStore } from "./modules/env/store.js";
+import { registerEventsRoutes } from "./modules/events/routes.js";
+import { registerHooksRoutes } from "./modules/hooks/routes.js";
+import { createRepoContext } from "./modules/repo/context.js";
+import { registerRepoRoutes } from "./modules/repo/routes.js";
+import { SessionManager } from "./modules/sessions/manager.js";
+import { registerSessionsRoutes } from "./modules/sessions/routes.js";
+import { registerTasksRoutes } from "./modules/tasks/routes.js";
+import { TasksWatcher } from "./modules/tasks/watcher.js";
+import { registerUsageRoutes } from "./modules/usage/routes.js";
+import { UsageStore } from "./modules/usage/store.js";
 import { WorkflowEngine } from "./modules/workflow/engine.js";
+import { registerWorkflowRoutes } from "./modules/workflow/routes.js";
 import type { WorkflowDef } from "./modules/workflow/types.js";
 
 export interface AppOptions {
@@ -54,8 +59,6 @@ function hookHost(address: string): string {
   if (address === "0.0.0.0" || address === "::") return "127.0.0.1";
   return address.includes(":") ? `[${address}]` : address;
 }
-
-const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   const loginSecret = opts.login ? `password\0${opts.login.user}\0${opts.login.password}` : opts.token && `token\0${opts.token}`;
@@ -99,33 +102,12 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   engine.on("change", (run) => hub.publish("run", { taskKey: run.taskKey }));
   engine.on("warning", logError);
   await engine.recover();
-  let repo: string | null = null;
-
-  async function setRepo(input: string): Promise<string> {
-    const resolved = await resolveRepo(input);
-    repo = resolved;
-    await watcher.watch(resolved);
-    await opts.state.update((s) => {
-      s.lastRepo = resolved;
-    });
-    hub.publish("repo", { path: resolved });
-    return resolved;
-  }
-
-  function requireRepo(): string {
-    if (!repo) throw new HttpError(409, "No repo selected");
-    return repo;
-  }
-
-  function sessionId(id: string): string {
-    if (!SESSION_ID.test(id)) throw new HttpError(400, "Invalid session id");
-    return id;
-  }
+  const repo = createRepoContext({ watcher, state: opts.state, hub });
 
   const initial = opts.repo ?? (await opts.state.load()).lastRepo;
   if (initial) {
     try {
-      await setRepo(initial);
+      await repo.set(initial);
     } catch (e) {
       app.log.warn(`Ignoring repo ${initial}: ${(e as Error).message}`);
     }
@@ -143,154 +125,16 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   });
 
   registerAuthRoutes(app, { sessions: authSessions, login: opts.login, token: opts.token });
-
-  app.get("/api/repo", async () => ({
-    path: repo,
-    tasksDir: repo ? tasksRoot(repo) : null,
-    tasksDirExists: repo ? existsSync(tasksRoot(repo)) : false,
-  }));
-
-  app.put<{ Body: { path?: unknown } }>("/api/repo", async (req) => {
-    if (typeof req.body?.path !== "string") throw new HttpError(400, "Body must be {\"path\": string}");
-    const resolved = await setRepo(req.body.path);
-    return { path: resolved, tasksDir: tasksRoot(resolved), tasksDirExists: existsSync(tasksRoot(resolved)) };
-  });
-
-  app.get("/api/info", async () => ({ claudeVersion: await claudeVersion() }));
-
-  app.get("/api/inventory", async () => readInventory(requireRepo()));
-
-  app.get("/api/usage", async () => usage.view());
-
-  registerConfigRoutes(app, { requireRepo, envStore, backups: new BackupStore(path.join(opts.state.dir, "backups")) });
-  registerEnvRoutes(app, { requireRepo, envStore });
-
-  app.get("/api/tasks", async () => {
-    const current = requireRepo();
-    const { runs } = await opts.state.load();
-    return Promise.all(
-      (await listTasks(current)).map(async (task) => {
-        const run = runs.find((r) => r.repo === current && r.taskKey === task.key);
-        const list = await sessions.list(current, task.key);
-        return {
-          ...task,
-          run: run ? { phase: run.phase, stepIndex: run.stepIndex, stepStartedAt: run.stepStartedAt } : null,
-          waitingPermission: list.some((s) => s.activity === "permission"),
-          sessionsRunning: list.filter((s) => s.status === "running").length,
-        };
-      }),
-    );
-  });
-
-  app.get<{ Params: { key: string } }>("/api/tasks/:key", async (req) => getTask(requireRepo(), req.params.key));
-
-  app.get<{ Params: { key: string }; Querystring: { path?: string } }>("/api/tasks/:key/file", async (req) => {
-    const rel = req.query.path ?? "";
-    return { path: rel, content: await readTaskFile(requireRepo(), req.params.key, rel) };
-  });
-
-  app.get<{ Params: { key: string } }>("/api/tasks/:key/sessions", async (req) => {
-    const task = await getTask(requireRepo(), req.params.key);
-    return sessions.list(requireRepo(), task.key);
-  });
-
-  app.post<{ Params: { key: string } }>("/api/tasks/:key/sessions", async (req) => {
-    const task = await getTask(requireRepo(), req.params.key);
-    return sessions.create(requireRepo(), task.key);
-  });
-
-  // Repo sessions: Claude in the repo without a task (the footer terminal). Not part of any workflow run.
-  app.get("/api/repo/sessions", async () => sessions.list(requireRepo(), REPO_SESSION_KEY));
-
-  app.post("/api/repo/sessions", async () => sessions.create(requireRepo(), REPO_SESSION_KEY));
-
-  app.post<{ Params: { id: string } }>("/api/sessions/:id/resume", async (req) =>
-    sessions.resume(sessionId(req.params.id)),
-  );
-
-  app.post<{ Params: { id: string } }>("/api/sessions/:id/stop", async (req) => {
-    await sessions.stop(sessionId(req.params.id));
-    return { ok: true };
-  });
-
-  app.delete<{ Params: { id: string } }>("/api/sessions/:id", async (req) => {
-    const id = sessionId(req.params.id);
-    if (await engine.usesSession(id)) throw new HttpError(409, "Session belongs to an active workflow run; cancel the run first");
-    await sessions.forget(id);
-    return { ok: true };
-  });
-
-  app.get<{ Params: { key: string }; Querystring: { limit?: string } }>("/api/tasks/:key/activity", async (req) => {
-    const task = await getTask(requireRepo(), req.params.key);
-    const ids = (await sessions.list(requireRepo(), task.key)).map((s) => s.id);
-    const limit = Math.min(Math.max(Number(req.query.limit) || 200, 1), 400);
-    return activity.list(ids, limit);
-  });
-
-  app.get<{ Params: { key: string } }>("/api/tasks/:key/run", async (req) =>
-    engine.view(requireRepo(), (await getTask(requireRepo(), req.params.key)).key),
-  );
-
-  app.post<{ Params: { key: string } }>("/api/tasks/:key/run", async (req) =>
-    engine.start(requireRepo(), (await getTask(requireRepo(), req.params.key)).key),
-  );
-
-  app.delete<{ Params: { key: string } }>("/api/tasks/:key/run", async (req) =>
-    engine.cancel(requireRepo(), req.params.key),
-  );
-
-  app.post<{ Params: { key: string } }>("/api/tasks/:key/run/approve", async (req) =>
-    engine.approve(requireRepo(), req.params.key),
-  );
-
-  app.post<{ Params: { key: string }; Body: { text?: unknown } }>("/api/tasks/:key/run/feedback", async (req) => {
-    if (typeof req.body?.text !== "string") throw new HttpError(400, "Body must be {\"text\": string}");
-    return engine.feedback(requireRepo(), req.params.key, req.body.text);
-  });
-
-  app.post<{ Params: { key: string } }>("/api/tasks/:key/run/restart", async (req) =>
-    engine.restart(requireRepo(), (await getTask(requireRepo(), req.params.key)).key),
-  );
-
-  app.post<{ Params: { key: string } }>("/api/tasks/:key/run/retry", async (req) =>
-    engine.retry(requireRepo(), req.params.key),
-  );
-
-  // Called by the hook commands injected into every session (see modules/sessions/hooks.ts). Not under /api:
-  // authenticated by the per-session hook token instead of the UI token.
-  app.post<{ Params: { event: string }; Body: unknown }>(
-    "/hook/:event",
-    { bodyLimit: 16 * 1024 * 1024 },
-    async (req, reply) => {
-      const token = req.headers["x-taskpilot-hook-token"];
-      if (!isHookEvent(req.params.event)) throw new HttpError(404, "Unknown hook event");
-      const payload = (typeof req.body === "object" && req.body !== null ? req.body : {}) as Record<string, unknown>;
-      if (typeof token !== "string" || !(await sessions.handleHook(token, req.params.event, payload))) {
-        return reply.code(403).send({ error: "Invalid hook token" });
-      }
-      return { ok: true };
-    },
-  );
-
-  // The status line installed with the hooks reports plan usage here; same per-session token.
-  app.post("/hook/statusline", { bodyLimit: 1024 * 1024 }, async (req, reply) => {
-    const token = req.headers["x-taskpilot-hook-token"];
-    const payload = (typeof req.body === "object" && req.body !== null ? req.body : {}) as Record<string, unknown>;
-    if (typeof token !== "string" || !(await sessions.handleStatusLine(token, payload))) {
-      return reply.code(403).send({ error: "Invalid hook token" });
-    }
-    return { ok: true };
-  });
-
-  app.get<{ Params: { id: string } }>("/api/sessions/:id/pty", { websocket: true }, (socket, req) => {
-    if (!SESSION_ID.test(req.params.id)) {
-      socket.close(4400, "Invalid session id");
-      return;
-    }
-    void sessions.attach(req.params.id, socket);
-  });
-
-  app.get("/api/events", async (_req, reply) => hub.serve(reply));
+  registerRepoRoutes(app, { repo });
+  registerUsageRoutes(app, { usage });
+  registerConfigRoutes(app, { requireRepo: repo.require, envStore, backups: new BackupStore(path.join(opts.state.dir, "backups")) });
+  registerEnvRoutes(app, { requireRepo: repo.require, envStore });
+  registerTasksRoutes(app, { repo, state: opts.state, sessions });
+  registerSessionsRoutes(app, { repo, sessions, runs: engine });
+  registerActivityRoutes(app, { repo, sessions, activity });
+  registerWorkflowRoutes(app, { repo, engine });
+  registerHooksRoutes(app, { sessions });
+  registerEventsRoutes(app, { hub });
 
   if (opts.clientDir && existsSync(opts.clientDir)) {
     await app.register(fastifyStatic, { root: opts.clientDir });

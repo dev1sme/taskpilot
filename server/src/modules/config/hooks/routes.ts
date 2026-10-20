@@ -8,7 +8,7 @@ import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer
 import { applyHooks, readHookInputs, readHooksBlock, validateHooks } from "./edit.js";
 
 /** Command hooks of each settings file. */
-export function registerHooksRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {
+export function registerConfigHooksRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {
   const { requireRepo, backups } = opts;
 
   app.get("/api/config/hooks", async () => readHooks(requireRepo()));

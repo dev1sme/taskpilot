@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { EnvStore } from "../env/store.js";
 import { registerBackupsRoutes } from "./backups/routes.js";
 import { registerCodegraphRoutes } from "./codegraph/routes.js";
-import { registerHooksRoutes } from "./hooks/routes.js";
+import { registerConfigHooksRoutes } from "./hooks/routes.js";
 import { registerLibraryRoutes } from "./library/routes.js";
 import { registerMcpRoutes } from "./mcp/routes.js";
 import { registerMemoryRoutes } from "./memory/routes.js";
@@ -14,7 +14,7 @@ export function registerConfigRoutes(app: FastifyInstance, opts: ConfigRouteOpti
   registerMcpRoutes(app, opts);
   registerMemoryRoutes(app, opts);
   registerSettingsRoutes(app, opts);
-  registerHooksRoutes(app, opts);
+  registerConfigHooksRoutes(app, opts);
   registerLibraryRoutes(app, opts);
   registerCodegraphRoutes(app, opts);
   registerBackupsRoutes(app, opts);

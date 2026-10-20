@@ -86,6 +86,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   });
   sessions.on("exit", (meta) => void engine.onExit(meta).catch(logError));
   engine.on("change", (run) => hub.publish("run", { taskKey: run.taskKey }));
+  engine.on("warning", logError);
   await engine.recover();
   let repo: string | null = null;
 

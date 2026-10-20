@@ -1,4 +1,4 @@
-import { mkdir, utimes, writeFile } from "node:fs/promises";
+import { mkdir, readFile, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { SessionView } from "../src/sessions/manager.js";
@@ -7,6 +7,7 @@ import type { SessionMeta } from "../src/state.js";
 import { StateStore } from "../src/state.js";
 import { loadWorkflow, parseWorkflow, render, DEFAULT_WORKFLOW_DIR } from "../src/workflow/definition.js";
 import { WorkflowEngine, type SessionPort } from "../src/workflow/engine.js";
+import { formatEntry, HISTORY_FILE } from "../src/workflow/history.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
 
 afterAll(cleanupTempDirs);
@@ -184,10 +185,53 @@ describe("workflow engine", () => {
     await expect(engine.retry(repo, "DEMO-1")).rejects.toMatchObject({ status: 409 });
   });
 
+  it("logs feedback verbatim, approvals and cancel to the task's history", async () => {
+    await engine.start(repo, "DEMO-1");
+    await hook("SessionStart");
+    expect(fake.pasted[0]).toContain(`.claude/tasks/DEMO-1/${HISTORY_FILE}`);
+    expect(fake.pasted[0]).toContain("· Điều tra & lên kế hoạch · Claude");
+    await write("02-plan.md");
+    await hook("Stop");
+    await engine.feedback(repo, "DEMO-1", "Tách task riêng\n\nThêm 00-history.md");
+    await write("02-plan.md");
+    await hook("Stop");
+    await engine.approve(repo, "DEMO-1");
+    await engine.cancel(repo, "DEMO-1");
+
+    const log = await readFile(path.join(taskDir(), HISTORY_FILE), "utf8");
+    expect(log.startsWith("# DEMO-1 — Lịch sử quyết định\n\n## ")).toBe(true);
+    expect(log).toContain("· Điều tra & lên kế hoạch · Bắt đầu quy trình\n\nQuy trình: mặc định của TaskPilot, 2 bước.");
+    expect(log).toContain("· Điều tra & lên kế hoạch · Ba góp ý\n\n> Tách task riêng\n>\n> Thêm 00-history.md\n");
+    expect(log).toContain("· Điều tra & lên kế hoạch · Ba duyệt");
+    expect(log).toContain("· Implement · Huỷ quy trình");
+    expect(log.indexOf("Ba góp ý")).toBeLessThan(log.indexOf("Ba duyệt"));
+  });
+
+  it("appends to a history the task already has and logs interruptions", async () => {
+    await writeFile(path.join(taskDir(), HISTORY_FILE), "# Viết tay\n\n- quyết định cũ\n");
+    const run = await engine.start(repo, "DEMO-1");
+    await hook("SessionStart");
+    fake.exit(run.sessionId);
+    await engine.onExit(fake.meta(run.sessionId));
+
+    const log = await readFile(path.join(taskDir(), HISTORY_FILE), "utf8");
+    expect(log.startsWith("# Viết tay\n\n- quyết định cũ\n\n## ")).toBe(true);
+    expect(log).toContain("· Gián đoạn\n\nSession dừng giữa bước.");
+  });
+
   it("marks active runs interrupted after a restart", async () => {
     await engine.start(repo, "DEMO-1");
     await hook("SessionStart");
     await new WorkflowEngine(state, fake).recover();
     expect((await state.load()).runs[0]).toMatchObject({ phase: "interrupted" });
+  });
+});
+
+describe("history entry", () => {
+  it("formats a heading, a quote and a body", () => {
+    const at = new Date(2026, 9, 20, 14, 3).getTime();
+    expect(formatEntry({ at, step: "Implement", source: "Ba góp ý", quote: "a\nb", body: "c" })).toBe(
+      "## 2026-10-20 14:03 · Implement · Ba góp ý\n\n> a\n> b\n\nc\n",
+    );
   });
 });

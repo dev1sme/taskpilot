@@ -6,7 +6,8 @@ import { getTask, SPEC_DIR, TASKS_DIR } from "../repo/tasks.js";
 import type { HookEvent } from "../sessions/hooks.js";
 import type { SessionView } from "../sessions/manager.js";
 import type { SessionMeta, StateStore } from "../state.js";
-import { loadWorkflow, render } from "./definition.js";
+import { loadWorkflow, render, REPO_WORKFLOW_FILE } from "./definition.js";
+import { appendHistory, HISTORY_FILE } from "./history.js";
 import type { RunState, StepDef, WorkflowDef } from "./types.js";
 
 /** The parts of SessionManager the engine uses. */
@@ -32,7 +33,7 @@ const ACTIVE: ReadonlyArray<RunState["phase"]> = ["starting", "running", "waitin
  * Drives one workflow run per task: sends each step's prompt into the run's Claude session,
  * advances on the Stop hook when the step's done-when file was written, and stops at gates.
  */
-export class WorkflowEngine extends EventEmitter<{ change: [run: RunState] }> {
+export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warning: [error: unknown] }> {
   private queue: Promise<unknown> = Promise.resolve();
 
   constructor(
@@ -72,6 +73,8 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState] }> {
         startedAt: now,
         updatedAt: now,
       };
+      const source = def.source.endsWith(REPO_WORKFLOW_FILE) ? REPO_WORKFLOW_FILE : "mặc định của TaskPilot";
+      await this.log(run, "Bắt đầu quy trình", { body: `Quy trình: ${source}, ${def.steps.length} bước.` });
       await this.deliver(run, await this.prompt(run, def.steps[0].prompt));
       return run;
     });
@@ -81,7 +84,9 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState] }> {
     return this.serial(async () => {
       const run = await this.require(repo, taskKey, ["gate"]);
       const def = await this.loadDef(repo);
-      if (run.stepIndex + 1 >= def.steps.length) {
+      const last = run.stepIndex + 1 >= def.steps.length;
+      await this.log(run, "Ba duyệt", last ? { body: "Quy trình hoàn tất." } : {});
+      if (last) {
         return this.save(run, { phase: "done", message: "Quy trình hoàn tất." });
       }
       run.stepIndex += 1;
@@ -96,6 +101,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState] }> {
       const run = await this.require(repo, taskKey, ["gate"]);
       const step = (await this.loadDef(repo)).steps[run.stepIndex];
       const template = step.onReject ?? "{{feedback}}";
+      await this.log(run, "Ba góp ý", { quote: text.trim() });
       await this.deliver(run, await this.prompt(run, template, { feedback: text.trim() }));
       return run;
     });
@@ -118,6 +124,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState] }> {
   cancel(repo: string, taskKey: string): Promise<RunState> {
     return this.serial(async () => {
       const run = await this.require(repo, taskKey, ACTIVE);
+      await this.log(run, "Huỷ quy trình");
       return this.save(run, { phase: "cancelled", message: "Đã huỷ quy trình. Session vẫn giữ nguyên.", pendingPrompt: undefined });
     });
   }
@@ -132,6 +139,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState] }> {
     return this.serial(async () => {
       for (const run of (await this.state.load()).runs) {
         if (["starting", "running", "waiting"].includes(run.phase)) {
+          await this.log(run, "Gián đoạn", { body: "TaskPilot khởi động lại giữa bước." });
           await this.save(run, {
             phase: "interrupted",
             message: "TaskPilot đã khởi động lại. Bấm \"Gửi lại bước\" để resume session và chạy tiếp.",
@@ -162,6 +170,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState] }> {
     return this.serial(async () => {
       const run = await this.bySession(meta.id);
       if (!run || !["starting", "running", "waiting"].includes(run.phase)) return;
+      await this.log(run, "Gián đoạn", { body: "Session dừng giữa bước." });
       await this.save(run, {
         phase: "interrupted",
         message: "Session đã dừng giữa chừng. Bấm \"Gửi lại bước\" để resume session và chạy tiếp bước này.",
@@ -222,23 +231,36 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState] }> {
 
   private async prompt(run: RunState, template: string, extra: Record<string, string> = {}): Promise<string> {
     const task = await getTask(run.repo, run.taskKey);
+    const step = (await this.loadDef(run.repo)).steps[run.stepIndex];
     const taskDir = path.posix.join(TASKS_DIR.split(path.sep).join("/"), run.taskKey);
     return render(template, {
       key: task.key,
       title: task.title,
+      step: step?.title ?? "",
       taskDir,
       specDir: `${taskDir}/${SPEC_DIR}`,
+      historyFile: `${taskDir}/${HISTORY_FILE}`,
       ...extra,
     });
   }
 
   private async writtenSince(run: RunState, file: string): Promise<boolean> {
     try {
-      const s = await stat(path.join(run.repo, TASKS_DIR, run.taskKey, file));
+      const s = await stat(path.join(taskDirOf(run), file));
       // File timestamps come from the kernel's coarse clock and can trail Date.now() by a few ms.
       return s.mtimeMs >= run.stepStartedAt - MTIME_SLACK_MS;
     } catch {
       return false;
+    }
+  }
+
+  /** Appends to the task's decision log; a failed write is reported but never blocks the run. */
+  private async log(run: RunState, source: string, extra: { body?: string; quote?: string } = {}): Promise<void> {
+    try {
+      const step = (await this.loadDef(run.repo)).steps[run.stepIndex];
+      await appendHistory(taskDirOf(run), run.taskKey, { at: Date.now(), step: step?.title ?? "", source, ...extra });
+    } catch (e) {
+      this.emit("warning", e);
     }
   }
 
@@ -273,4 +295,8 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState] }> {
     this.queue = next.catch(() => undefined);
     return next;
   }
+}
+
+function taskDirOf(run: RunState): string {
+  return path.join(run.repo, TASKS_DIR, run.taskKey);
 }

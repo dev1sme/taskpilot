@@ -145,6 +145,18 @@ describe("sessions", () => {
     expect(code).toBe(4404);
   });
 
+  it("lets a session cookie through to the PTY socket", async () => {
+    const { app } = await start();
+    const login = await app.inject({ method: "POST", url: "/api/login", headers: { host: ok.host }, payload: { token: TOKEN } });
+    const cookie = String(login.headers["set-cookie"]).split(";")[0];
+    await app.listen({ host: "127.0.0.1", port: 0 });
+    const { port } = app.server.address() as AddressInfo;
+    // Unknown session: 4404 means the upgrade got past the login check.
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/api/sessions/00000000-0000-4000-8000-000000000000/pty`, { headers: { cookie } });
+    const code = await new Promise<number>((resolve) => ws.on("close", resolve));
+    expect(code).toBe(4404);
+  });
+
   it("refuses cross-site WebSocket origins even with a token", async () => {
     const { app } = await start();
     const res = await app.inject({

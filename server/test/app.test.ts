@@ -5,7 +5,7 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadDotEnv } from "../src/dotenv.js";
 import { childEnv } from "../src/sessions/launch.js";
-import type { Credentials } from "../src/auth.js";
+import { AuthSessions, type Credentials } from "../src/auth.js";
 import { hostnameOf, isLoopbackHost } from "../src/security.js";
 import { StateStore } from "../src/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
@@ -27,6 +27,12 @@ async function start(repo?: string, allowedHosts?: string[], login?: Credentials
 /** The session cookie from a login response, as a Cookie header value. */
 function cookieOf(res: { headers: Record<string, unknown> }): string {
   return String(res.headers["set-cookie"]).split(";")[0];
+}
+
+/** Set-Cookie attributes by lowercase name ("" for flags); the order is up to the cookie library. */
+function cookieAttrs(res: { headers: Record<string, unknown> }): Record<string, string> {
+  const [, ...attrs] = String(res.headers["set-cookie"]).split(";").map((a) => a.trim());
+  return Object.fromEntries(attrs.map((a) => [a.split("=")[0].toLowerCase(), a.split("=")[1] ?? ""]));
 }
 
 describe("security", () => {
@@ -84,8 +90,8 @@ describe("security", () => {
 
     const res = await post(login);
     expect(res.statusCode).toBe(200);
-    const setCookie = String(res.headers["set-cookie"]);
-    expect(setCookie).toMatch(/^taskpilot_session=[\w-]{40,}; Path=\/; HttpOnly; SameSite=Strict; Max-Age=604800$/);
+    expect(cookieOf(res)).toMatch(/^taskpilot_session=[\w-]{40,}$/);
+    expect(cookieAttrs(res)).toEqual({ path: "/", httponly: "", samesite: "Strict", "max-age": "604800" });
     const cookie = cookieOf(res);
     expect((await app!.inject({ url: "/api/repo", headers: { ...host, cookie } })).statusCode).toBe(200);
     expect((await app!.inject({ url: "/api/auth", headers: { ...host, cookie } })).json()).toMatchObject({ authenticated: true });
@@ -103,11 +109,27 @@ describe("security", () => {
     const { app } = await start(undefined, [], { user: "u", password: "p" });
     const headers = { host: ok.host, "x-forwarded-proto": "https" };
     const res = await app.inject({ method: "POST", url: "/api/login", headers, payload: { user: "u", password: "p" } });
-    expect(String(res.headers["set-cookie"])).toMatch(/; Secure$/);
+    expect(cookieAttrs(res)).toMatchObject({ secure: "", httponly: "", samesite: "Strict" });
     const cookie = cookieOf(res);
     const out = await app.inject({ method: "POST", url: "/api/logout", headers: { ...headers, cookie } });
-    expect(String(out.headers["set-cookie"])).toMatch(/^taskpilot_session=; .*Max-Age=0/);
+    expect(cookieOf(out)).toBe("taskpilot_session=");
+    expect(cookieAttrs(out)).toMatchObject({ "max-age": "0", path: "/" });
     expect((await app.inject({ url: "/api/repo", headers: { ...headers, cookie } })).statusCode).toBe(401);
+  });
+
+  it("accepts a session issued before the cookie plugin, among other cookies", async () => {
+    const login = { user: "u", password: "p" };
+    const { state } = await start(undefined, [], login);
+    // What the hand-written cookie code issued: the raw base64url id, hashed into auth-sessions.json.
+    const old = new AuthSessions(path.join(state.dir, "auth-sessions.json"), `password\0${login.user}\0${login.password}`);
+    await old.load();
+    const { id } = await old.create();
+    await app!.close();
+    app = await buildApp({ state, login });
+    const get = (cookie: string) => app!.inject({ url: "/api/repo", headers: { host: ok.host, cookie } });
+    expect((await get(`taskpilot_session=${id}`)).statusCode).toBe(200);
+    expect((await get(`a=1; taskpilot_session=${id}; b="x y"`)).statusCode).toBe(200);
+    expect((await get(`taskpilot_session=${id}x`)).statusCode).toBe(401);
   });
 
   it("locks login out after repeated failures", async () => {

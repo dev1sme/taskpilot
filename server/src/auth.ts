@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { FastifyRequest } from "fastify";
+import type { FastifyReply, FastifyRequest } from "fastify";
 
 export interface Credentials {
   user: string;
@@ -125,23 +125,20 @@ export class LoginLimiter {
   }
 }
 
+/** Needs @fastify/cookie registered before any hook that calls it. */
 export function sessionCookie(req: FastifyRequest): string | undefined {
-  for (const part of (req.headers.cookie ?? "").split(";")) {
-    const eq = part.indexOf("=");
-    if (eq > 0 && part.slice(0, eq).trim() === SESSION_COOKIE) return part.slice(eq + 1).trim();
-  }
-  return undefined;
+  return req.cookies[SESSION_COOKIE];
 }
 
 /** `Secure` whenever the browser is on https, including behind a TLS-terminating proxy. */
-export function setCookieHeader(req: FastifyRequest, value: string, maxAgeMs: number): string {
+export function setSessionCookie(req: FastifyRequest, reply: FastifyReply, value: string, maxAgeMs: number): FastifyReply {
+  // The plugin's `secure: "auto"` only sees req.protocol, which ignores x-forwarded-proto without trustProxy.
   const secure = req.protocol === "https" || req.headers["x-forwarded-proto"] === "https";
-  return [
-    `${SESSION_COOKIE}=${value}`,
-    "Path=/",
-    "HttpOnly",
-    "SameSite=Strict",
-    `Max-Age=${Math.floor(maxAgeMs / 1000)}`,
-    ...(secure ? ["Secure"] : []),
-  ].join("; ");
+  return reply.setCookie(SESSION_COOKIE, value, {
+    path: "/",
+    httpOnly: true,
+    sameSite: "strict",
+    maxAge: Math.floor(maxAgeMs / 1000),
+    secure,
+  });
 }

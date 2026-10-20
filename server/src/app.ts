@@ -1,3 +1,4 @@
+import fastifyCookie from "@fastify/cookie";
 import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import Fastify, { LogController, type FastifyInstance } from "fastify";
@@ -120,6 +121,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     }
   }
 
+  // Parses cookies in an onRequest hook, which must run before the session check registerSecurity adds.
+  await app.register(fastifyCookie);
   registerSecurity(app, { extraHosts: opts.allowedHosts, apiToken: opts.token, sessions: authSessions });
   await app.register(fastifyWebsocket);
 

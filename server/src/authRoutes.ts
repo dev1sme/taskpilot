@@ -3,7 +3,7 @@ import {
   credentialsMatch,
   LoginLimiter,
   sessionCookie,
-  setCookieHeader,
+  setSessionCookie,
   type AuthMode,
   type AuthSessions,
   type Credentials,
@@ -44,11 +44,12 @@ export function registerAuthRoutes(app: FastifyInstance, opts: AuthRoutesOptions
     }
     limiter.succeed(req.ip);
     const session = await opts.sessions.create();
-    return reply.header("set-cookie", setCookieHeader(req, session.id, session.maxAgeMs)).send({ ok: true });
+    return setSessionCookie(req, reply, session.id, session.maxAgeMs).send({ ok: true });
   });
 
   app.post("/api/logout", async (req, reply) => {
     await opts.sessions.revoke(sessionCookie(req));
-    return reply.header("set-cookie", setCookieHeader(req, "", 0)).send({ ok: true });
+    // Max-Age=0 rather than clearCookie(), which only sets an Expires date in the past.
+    return setSessionCookie(req, reply, "", 0).send({ ok: true });
   });
 }

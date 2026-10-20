@@ -1,4 +1,4 @@
-import { CheckCircle, ChatCircleDots, CircleNotch, Diamond, PlugsConnected, X } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, CheckCircle, ChatCircleDots, CircleNotch, Diamond, PlugsConnected, X } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api/client";
 import type { RunPhase, TaskSummary } from "../../api/types";
@@ -37,6 +37,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
   const [activeSession, setActiveSession] = useState<string | null>(null);
   const [doc, setDoc] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [restart, setRestart] = useState<"idle" | "confirm" | "busy">("idle");
 
   const run = view?.run ?? null;
   const steps = view?.workflow.steps ?? [];
@@ -60,6 +61,9 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
     if (run?.sessionId) setActiveSession(run.sessionId);
   }, [run?.sessionId]);
 
+  // A confirmation asked in one phase does not carry over to the next.
+  useEffect(() => setRestart("idle"), [run?.phase, run?.stepIndex]);
+
   const openTerminal = () => {
     if (run) setActiveSession(run.sessionId);
     setDrawerOpen(true);
@@ -69,6 +73,8 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
   const pill = run ? PHASE_PILL[run.phase] : undefined;
   const PillIcon = pill?.icon;
   const working = run?.phase === "running" || run?.phase === "starting";
+  // Interrupted, finished and cancelled runs offer the restart in the card already.
+  const toolbarRestart = run !== null && !["interrupted", "done", "cancelled"].includes(run.phase);
 
   return (
     <div className="task-screen">
@@ -98,23 +104,47 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
             )
           }
           actions={
-            active && (
-              <Button
-                icon={X}
-                variant="quiet"
-                busy={cancelling}
-                title="Huỷ quy trình"
-                onClick={() => {
-                  setCancelling(true);
-                  void api
-                    .cancelRun(task.key)
-                    .then(changed)
-                    .finally(() => setCancelling(false));
-                }}
-              >
-                Huỷ
-              </Button>
-            )
+            <>
+              {restart === "confirm" && <span className="toolbar-hint">Session hiện tại sẽ dừng. Bản cũ của tài liệu được lưu vào archive/.</span>}
+              {toolbarRestart &&
+                (restart === "idle" ? (
+                  <Button icon={ArrowCounterClockwise} variant="quiet" title="Chạy lại quy trình từ bước đầu trong session mới" onClick={() => setRestart("confirm")}>
+                    Chạy lại từ đầu
+                  </Button>
+                ) : (
+                  <Button
+                    icon={ArrowCounterClockwise}
+                    variant="attention"
+                    busy={restart === "busy"}
+                    onClick={() => {
+                      setRestart("busy");
+                      void api
+                        .restartRun(task.key)
+                        .then(changed)
+                        .finally(() => setRestart("idle"));
+                    }}
+                  >
+                    Xác nhận chạy lại
+                  </Button>
+                ))}
+              {active && (
+                <Button
+                  icon={X}
+                  variant="quiet"
+                  busy={cancelling}
+                  title="Huỷ quy trình"
+                  onClick={() => {
+                    setCancelling(true);
+                    void api
+                      .cancelRun(task.key)
+                      .then(changed)
+                      .finally(() => setCancelling(false));
+                  }}
+                >
+                  Huỷ
+                </Button>
+              )}
+            </>
           }
         />
 

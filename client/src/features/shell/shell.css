@@ -597,6 +597,11 @@ a.status-item.is-warn {
   margin-left: auto;
 }
 
+.toolbar-hint {
+  font-size: 13px;
+  color: var(--muted);
+}
+
 /* Mount point for actions a child component portals into the toolbar. */
 .toolbar-slot {
   display: contents;

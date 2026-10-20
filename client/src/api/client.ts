@@ -132,6 +132,7 @@ export const api = {
   approve: (key: string) => call<RunState>("POST", `${task(key)}/run/approve`),
   feedback: (key: string, text: string) => call<RunState>("POST", `${task(key)}/run/feedback`, { text }),
   retry: (key: string) => call<RunState>("POST", `${task(key)}/run/retry`),
+  restartRun: (key: string) => call<RunState>("POST", `${task(key)}/run/restart`),
 
   ptyUrl: (id: string) => {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";

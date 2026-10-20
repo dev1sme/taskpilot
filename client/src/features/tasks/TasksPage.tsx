@@ -5,6 +5,9 @@ import { PageHeader } from "../shell/PageHeader";
 import { sortTasks, statusOf } from "./taskStatus";
 import "./tasks.css";
 
+/** The decision log is kept by TaskPilot and Claude together; it is not one of Claude's documents. */
+const HISTORY_FILE = "00-history.md";
+
 /** Every task of the repo as a table; needs-you first. */
 export function TasksPage() {
   const { tasks, repo } = useWorkspace();
@@ -49,7 +52,7 @@ export function TasksPage() {
                       </a>
                     </td>
                     <td className="muted">
-                      {t.specFiles.length} spec · {t.outputFiles.length} Claude viết
+                      {t.specFiles.length} spec · {t.outputFiles.filter((f) => f.path !== HISTORY_FILE).length} Claude viết
                     </td>
                     <td className="muted mono">{clockTime(t.updatedAt)}</td>
                   </tr>

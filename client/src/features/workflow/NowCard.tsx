@@ -1,5 +1,6 @@
 import {
   ArrowClockwise,
+  ArrowCounterClockwise,
   ChatCircleDots,
   CheckCircle,
   FileText,
@@ -51,6 +52,11 @@ export function NowCard(props: Props) {
       Gửi lại bước
     </Button>
   );
+  const restart = (
+    <Button icon={ArrowCounterClockwise} variant="quiet" busy={busy} onClick={() => void act(() => api.restartRun(props.taskKey))}>
+      Chạy lại từ đầu
+    </Button>
+  );
   const openTerminal = (
     <Button icon={TerminalWindow} onClick={props.onOpenTerminal}>
       Mở terminal
@@ -94,7 +100,7 @@ export function NowCard(props: Props) {
             variant={done ? "default" : "primary"}
             size={done ? "md" : "lg"}
             busy={busy}
-            onClick={() => void act(() => api.startRun(props.taskKey))}
+            onClick={() => void act(() => (run ? api.restartRun(props.taskKey) : api.startRun(props.taskKey)))}
           >
             {run ? "Chạy lại từ đầu" : "Bắt đầu quy trình"}
           </Button>
@@ -140,7 +146,10 @@ export function NowCard(props: Props) {
         <h3>Bước "{step?.title}" bị gián đoạn</h3>
         <p className="now-text">{run.message}</p>
         {errorLine}
-        <div className="now-actions">{retry}</div>
+        <div className="now-actions">
+          {retry}
+          {restart}
+        </div>
       </Card>
     );
   }

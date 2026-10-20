@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import "../../app/layout/shell.css";
+import "./toolbar.css";
 
 /**
  * Row under the page header: what the page shows on the left (tabs, status…), the actions on what

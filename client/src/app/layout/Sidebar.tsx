@@ -19,7 +19,8 @@ import { href, type Route } from "../../shared/router";
 import { useWorkspace } from "../../features/workspace";
 import { useDrafts } from "../../features/config";
 import { sortTasks, statusOf } from "../../features/tasks";
-import "./shell.css";
+import "../../shared/ui/brand-mark.css";
+import "./sidebar.css";
 
 interface NavItem {
   label: string;

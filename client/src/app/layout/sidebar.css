@@ -1,0 +1,237 @@
+/* ------------------------------------------------------------------ sidebar */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 16px 12px;
+  overflow: auto;
+  background: var(--sidebar);
+  border-right: 1px solid var(--line);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.repo-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  text-align: left;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  transition: border-color var(--fast) var(--ease-out);
+}
+
+.repo-switch:hover {
+  border-color: var(--line-strong);
+}
+
+.repo-switch > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+.repo-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--hover);
+  border-radius: 7px;
+}
+
+.repo-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.repo-name {
+  font-weight: 600;
+}
+
+.repo-path {
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+.nav-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav-label {
+  padding: 0 10px 6px;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 7px 10px;
+  color: var(--muted);
+  text-decoration: none;
+  border-radius: var(--r-sm);
+  transition: color var(--fast) var(--ease-out), background-color var(--fast) var(--ease-out);
+}
+
+.nav-item:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.nav-item[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.nav-active {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--hover);
+  border-radius: var(--r-sm);
+}
+
+.nav-icon,
+.nav-text,
+.nav-badge,
+.nav-dirty {
+  position: relative;
+  z-index: 1;
+}
+
+.nav-dirty {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--attention);
+}
+
+.nav-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.nav-text {
+  flex: 1;
+}
+
+.nav-badge {
+  min-width: 22px;
+  padding: 1px 7px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--muted);
+  background: var(--line);
+  border-radius: 999px;
+}
+
+.nav-badge.is-warn {
+  color: var(--on-attention);
+  background: var(--attention);
+}
+
+.nav-tasks {
+  margin: 2px 0 6px 18px !important;
+  padding-left: 8px !important;
+  border-left: 1px solid var(--line);
+}
+
+.nav-task {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 5px 8px;
+  color: var(--ink);
+  text-decoration: none;
+  border-radius: var(--r-sm);
+  transition: background-color var(--fast) var(--ease-out);
+}
+
+.nav-task:hover,
+.nav-task[aria-current="page"] {
+  background: var(--hover);
+}
+
+.nav-task-glyph {
+  flex: none;
+  width: 18px;
+  text-align: center;
+  color: var(--faint);
+}
+
+.nav-task.tone-attention .nav-task-glyph {
+  color: var(--attention);
+}
+
+.nav-task.tone-active .nav-task-glyph {
+  color: var(--signal);
+  animation: blink 1.6s ease-in-out infinite;
+}
+
+.nav-task.tone-done .nav-task-glyph {
+  color: var(--done);
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.nav-task-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nav-task-key {
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-task-title {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

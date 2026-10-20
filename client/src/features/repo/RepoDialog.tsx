@@ -4,6 +4,9 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useWorkspace } from "../workspace";
 import { RepoPicker } from "./RepoPicker";
+import "../../shared/ui/overlay.css";
+import "../../shared/ui/icon-button.css";
+import "./repo-dialog.css";
 
 /** Switch repo: a small dialog around the path form. */
 export function RepoDialog({ open, onClose }: { open: boolean; onClose: () => void }) {

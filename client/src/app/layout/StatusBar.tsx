@@ -6,7 +6,7 @@ import { locale } from "../../i18n";
 import { logout, useAuthMode } from "../../features/auth";
 import { useRepoSessions } from "../../features/sessions";
 import { useUsage, type UsageView } from "../../features/usage";
-import "./shell.css";
+import "./status-bar.css";
 
 /** Live, repo-wide counters at the bottom of every page. */
 export function StatusBar(props: { terminalOpen: boolean; onToggleTerminal: (open: boolean) => void }) {

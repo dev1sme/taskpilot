@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "./Button";
 import "./dialog.css";
+import "./icon-button.css";
 
 /** Unified diff review before a save. Lines are colored; the file header lines are dropped. */
 export function DiffDialog(props: {

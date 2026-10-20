@@ -17,6 +17,7 @@ import "../../../shared/ui/dialog.css";
 import { libraryApi } from "./api";
 import type { LibraryItem, LibraryKind } from "./types";
 import "../shared/library-view.css";
+import "../../../shared/ui/icon-button.css";
 
 const MarkdownEditor = lazy(() => import("../shared/MarkdownEditor").then((m) => ({ default: m.MarkdownEditor })));
 

@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import { navigate, type Route } from "../../shared/router";
 import { useWorkspace } from "../../features/workspace";
 import { sortTasks, statusOf } from "../../features/tasks";
-import "./shell.css";
+import "../../shared/ui/overlay.css";
+import "./palette.css";
 
 interface Entry {
   id: string;

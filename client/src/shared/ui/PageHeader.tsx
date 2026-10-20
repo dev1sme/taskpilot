@@ -1,7 +1,7 @@
 import { MagnifyingGlass } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import "../../app/layout/shell.css";
+import "./page-header.css";
 
 /** Window event that opens the command palette (handled in App). */
 export const OPEN_PALETTE = "taskpilot:palette";

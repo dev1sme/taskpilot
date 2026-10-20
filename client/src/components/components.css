@@ -134,6 +134,12 @@
 .markdown {
   max-width: 78ch;
   line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.markdown img {
+  max-width: 100%;
+  height: auto;
 }
 
 .markdown > :first-child {
@@ -176,7 +182,11 @@
   background: none;
 }
 
+/* Wide tables scroll on their own instead of widening the page. */
 .markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
   border-collapse: collapse;
 }
 

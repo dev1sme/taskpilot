@@ -61,3 +61,18 @@ test("link styled as a button is not underlined", async ({ page }) => {
   });
   await expect(page.locator("#btn-link-probe")).toHaveCSS("text-decoration-line", "none");
 });
+
+// Wide code blocks, tables and long URLs in a skill stay inside the detail card.
+for (const width of [1440, 390]) {
+  test(`#/skills content stays inside its card at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/#/skills");
+    const card = page.locator(".library-detail");
+    await expect(card.locator("h2")).toHaveText("long-skill");
+    const [scroll, client] = await card.evaluate((el) => [el.scrollWidth, el.clientWidth]);
+    expect(scroll).toBeLessThanOrEqual(client);
+    const main = page.locator("main");
+    const [mainScroll, mainClient] = await main.evaluate((el) => [el.scrollWidth, el.clientWidth]);
+    expect(mainScroll).toBeLessThanOrEqual(mainClient);
+  });
+}

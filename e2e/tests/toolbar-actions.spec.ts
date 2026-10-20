@@ -26,3 +26,19 @@ test("mcp form saves and cancels from the toolbar", async ({ page }) => {
   await toolbar.getByRole("button", { name: "Huỷ" }).click();
   await expect(page.locator(".mcp-form")).toHaveCount(0);
 });
+
+// Action buttons say only what they do; the full name is in the tooltip.
+test("action buttons use short labels", async ({ page }) => {
+  await page.goto("/#/skills");
+  const add = page.locator(".toolbar").getByRole("button", { name: "Thêm", exact: true });
+  await expect(add).toHaveAttribute("title", "Thêm skill");
+  const card = page.locator(".library-detail");
+  await expect(card.getByRole("button", { name: "Sửa", exact: true })).toBeVisible();
+  await card.getByRole("button", { name: "Xóa", exact: true }).click();
+  await expect(card.getByRole("button", { name: "Xác nhận xóa" })).toBeVisible();
+
+  await page.goto("/#/settings");
+  await expect(page.locator(".toolbar").getByRole("button", { name: "Sửa", exact: true })).toBeVisible();
+  await page.goto("/#/hooks");
+  await expect(page.locator(".toolbar").getByRole("button", { name: "Sửa", exact: true })).toBeVisible();
+});

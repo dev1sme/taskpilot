@@ -102,8 +102,8 @@ export function CodegraphPage() {
                   <h2>Dùng trong Claude</h2>
                 </header>
                 <p className="hint">Thêm server MCP "codegraph" vào .mcp.json để Claude tự gọi công cụ codegraph trong repo này.</p>
-                <Button icon={Plugs} onClick={() => void startAddMcp()}>
-                  Thêm MCP server
+                <Button icon={Plugs} title='Thêm MCP server "codegraph" vào .mcp.json' onClick={() => void startAddMcp()}>
+                  Thêm
                 </Button>
               </section>
             )}

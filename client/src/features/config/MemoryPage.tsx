@@ -71,8 +71,14 @@ export function MemoryPage() {
     </>
   ) : (
     file && (
-      <Button icon={file.exists ? PencilSimple : Plus} variant="primary" busy={opening} onClick={() => void startEditing()}>
-        {file.exists ? "Sửa" : "Tạo file"}
+      <Button
+        icon={file.exists ? PencilSimple : Plus}
+        variant="primary"
+        busy={opening}
+        title={`${file.exists ? "Sửa" : "Tạo"} ${file.path}`}
+        onClick={() => void startEditing()}
+      >
+        {file.exists ? "Sửa" : "Thêm"}
       </Button>
     )
   );

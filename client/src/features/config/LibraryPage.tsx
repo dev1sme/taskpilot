@@ -125,8 +125,8 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
               </Button>
             </>
           ) : (
-            <Button icon={Plus} variant="primary" onClick={() => setCreating(true)}>
-              Tạo {copy.one}
+            <Button icon={Plus} variant="primary" title={`Thêm ${copy.one}`} onClick={() => setCreating(true)}>
+              Thêm
             </Button>
           )
         }
@@ -228,23 +228,23 @@ function LibraryDetail({ item, prefix, onEdit, onDeleted }: { item: LibraryItem;
         </h2>
         <ScopeTag scope={item.scope} />
         <div className="lib-actions">
-          <Button icon={PencilSimple} onClick={onEdit}>
+          <Button icon={PencilSimple} title={`Sửa ${item.path}`} onClick={onEdit}>
             Sửa
           </Button>
           {confirmDelete ? (
-            <Button icon={Trash} variant="danger" busy={busy} onClick={() => void remove()}>
-              {item.kind === "skills" ? "Xoá SKILL.md" : "Xác nhận xoá"}
+            <Button icon={Trash} variant="danger" busy={busy} title={`Xóa ${item.path}`} onClick={() => void remove()}>
+              Xác nhận xóa
             </Button>
           ) : (
-            <Button icon={Trash} variant="quiet" onClick={() => setConfirmDelete(true)}>
-              Xoá
+            <Button icon={Trash} variant="quiet" title={`Xóa ${item.path}`} onClick={() => setConfirmDelete(true)}>
+              Xóa
             </Button>
           )}
         </div>
       </header>
       <p className="mono lib-path">{item.path}</p>
       {confirmDelete && item.kind === "skills" && item.files && item.files.length > 0 && (
-        <p className="hint">Chỉ xoá SKILL.md; {item.files.length} file khác trong thư mục giữ nguyên.</p>
+        <p className="hint">Chỉ xóa SKILL.md; {item.files.length} file khác trong thư mục giữ nguyên.</p>
       )}
       {item.error && (
         <p className="error" role="alert">

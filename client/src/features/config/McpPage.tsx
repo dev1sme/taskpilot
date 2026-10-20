@@ -58,7 +58,7 @@ export function McpPage() {
           ) : (
             <>
               <span className="scope-hint" aria-hidden="true">
-                Thêm vào:
+                Thêm:
               </span>
               <div className="segmented" role="group" aria-label="Thêm server vào">
                 {(["project", "local", "user"] as Scope[]).map((s) => (
@@ -199,11 +199,11 @@ function McpDetail({ server, source, onEdit, onChanged }: { server: McpServer; s
           </Button>
           {confirmDelete ? (
             <Button icon={Trash} variant="danger" busy={deleting} onClick={() => void remove()}>
-              Xác nhận xoá
+              Xác nhận xóa
             </Button>
           ) : (
             <Button icon={Trash} variant="quiet" onClick={() => setConfirmDelete(true)}>
-              Xoá
+              Xóa
             </Button>
           )}
         </div>

@@ -59,8 +59,14 @@ export function SettingsPage() {
   ) : (
     file &&
     !file.error && (
-      <Button icon={file.exists ? PencilSimple : Plus} variant="primary" busy={opening} onClick={() => void startEditing()}>
-        {file.exists ? "Sửa quyền" : "Thêm quyền"}
+      <Button
+        icon={file.exists ? PencilSimple : Plus}
+        variant="primary"
+        busy={opening}
+        title={`${file.exists ? "Sửa" : "Thêm"} quyền trong ${file.path}`}
+        onClick={() => void startEditing()}
+      >
+        {file.exists ? "Sửa" : "Thêm"}
       </Button>
     )
   );

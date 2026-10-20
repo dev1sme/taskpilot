@@ -63,8 +63,14 @@ export function HooksPage() {
     </>
   ) : (
     data && (
-      <Button icon={hasHooks ? PencilSimple : Plus} variant="primary" busy={opening} onClick={() => void startEditing()}>
-        {hasHooks ? "Sửa hooks" : "Thêm hook"}
+      <Button
+        icon={hasHooks ? PencilSimple : Plus}
+        variant="primary"
+        busy={opening}
+        title={`${hasHooks ? "Sửa hooks" : "Thêm hook"} trong ${data.path}`}
+        onClick={() => void startEditing()}
+      >
+        {hasHooks ? "Sửa" : "Thêm"}
       </Button>
     )
   );

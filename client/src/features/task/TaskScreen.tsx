@@ -103,6 +103,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                 icon={X}
                 variant="quiet"
                 busy={cancelling}
+                title="Huỷ quy trình"
                 onClick={() => {
                   setCancelling(true);
                   void api
@@ -111,7 +112,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                     .finally(() => setCancelling(false));
                 }}
               >
-                Huỷ quy trình
+                Huỷ
               </Button>
             )
           }

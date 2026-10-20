@@ -22,7 +22,7 @@ test("settings shows one file per scope tab", async ({ page }) => {
 test("settings edit opens from the toolbar and cancels", async ({ page }) => {
   await page.goto("/#/settings");
   const toolbar = page.locator(".config-toolbar");
-  await toolbar.getByRole("button", { name: "Sửa quyền" }).click();
+  await toolbar.getByRole("button", { name: "Sửa", exact: true }).click();
   await expect(page.locator(".perm-editor")).toBeVisible();
   await expect(toolbar.getByRole("button", { name: "Xem thay đổi & lưu" })).toBeVisible();
   await toolbar.getByRole("button", { name: "Huỷ" }).click();
@@ -37,7 +37,7 @@ test("hooks shows the JSON block of the file and edits from the toolbar", async 
   await expect(page.getByRole("navigation", { name: "Sự kiện" })).toContainText("PostToolUse");
 
   const toolbar = page.locator(".config-toolbar");
-  await toolbar.getByRole("button", { name: "Sửa hooks" }).click();
+  await toolbar.getByRole("button", { name: "Sửa", exact: true }).click();
   await expect(page.locator(".hooks-editor")).toBeVisible();
   await expect(page.getByText("Chưa lưu")).toHaveCount(0);
   await toolbar.getByRole("button", { name: "Huỷ" }).click();
@@ -48,7 +48,7 @@ test("hooks tab of a file without hooks offers to add one", async ({ page }) => 
   await page.goto("/#/hooks");
   await page.getByRole("tab", { name: ".claude/settings.local.json" }).click();
   await expect(page.getByText(".claude/settings.local.json chưa có hook nào")).toBeVisible();
-  await page.locator(".config-toolbar").getByRole("button", { name: "Thêm hook" }).click();
+  await page.locator(".config-toolbar").getByRole("button", { name: "Thêm", exact: true }).click();
   await expect(page.locator(".hook-row")).toHaveCount(1);
   // The empty starter row alone is not an unsaved change.
   await expect(page.getByText("Chưa lưu")).toHaveCount(0);

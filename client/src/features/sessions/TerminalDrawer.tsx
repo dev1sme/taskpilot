@@ -129,13 +129,14 @@ export function TerminalDrawer(props: Props) {
                       icon={Trash}
                       variant="danger"
                       busy={busy === "remove"}
+                      title="Xóa session khỏi task"
                       onClick={() => void act("remove", () => api.forgetSession(active.id))}
                     >
-                      Xoá khỏi task
+                      Xác nhận xóa
                     </Button>
                   ) : (
-                    <Button icon={Trash} variant="quiet" onClick={() => setConfirmRemove(true)}>
-                      Xoá
+                    <Button icon={Trash} variant="quiet" title="Xóa session khỏi task" onClick={() => setConfirmRemove(true)}>
+                      Xóa
                     </Button>
                   ))}
               </>

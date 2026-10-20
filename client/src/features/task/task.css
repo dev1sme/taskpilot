@@ -82,3 +82,15 @@
     margin: 0;
   }
 }
+
+.workflow-source a {
+  color: inherit;
+}
+
+.workflow-source a:hover {
+  color: var(--muted);
+}
+
+.workflow-outdated {
+  color: var(--attention);
+}

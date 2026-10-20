@@ -187,7 +187,10 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
               </div>
             </div>
             <p className="workflow-source" title={view.workflow.source}>
-              {t("source", { source: view.workflow.source.endsWith(".claude/workflow.yml") ? t("sourceRepo") : t("sourceDefault") })}
+              <a href={href({ page: "config", section: "workflow" })}>
+                {t("source", { source: view.workflow.origin === "repo" ? t("sourceRepo") : t("sourceDefault") })}
+              </a>
+              {view.workflow.outdated && <span className="workflow-outdated"> · {t("outdated")}</span>}
             </p>
           </div>
         )}

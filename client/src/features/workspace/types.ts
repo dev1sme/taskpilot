@@ -1,4 +1,10 @@
-export type Stage = "new" | "investigated" | "planned" | "implementing" | "summarized";
+/** How far a task got, read by the server from the documents its workflow declares. */
+export interface Stage {
+  done: number;
+  total: number;
+  /** Title of the furthest step done; null when none is. */
+  step: string | null;
+}
 
 export type RunPhase = "starting" | "running" | "waiting" | "gate" | "interrupted" | "done" | "cancelled";
 
@@ -12,6 +18,8 @@ export interface TaskSummary {
   key: string;
   title: string;
   stage: Stage;
+  /** The decision log's file name, from the workflow. */
+  historyFile: string;
   specFiles: TaskFile[];
   outputFiles: TaskFile[];
   updatedAt: number;

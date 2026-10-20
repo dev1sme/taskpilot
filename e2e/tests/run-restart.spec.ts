@@ -16,12 +16,30 @@ async function fakeRun(page: Page, phase: string) {
     updatedAt: now,
   };
   const steps = [
-    { id: "investigate", title: "Điều tra & lên kế hoạch", gate: "approve", doneFile: "02-plan.md" },
-    { id: "implement", title: "Implement", gate: "approve", doneFile: "04-summary.md" },
+    {
+      id: "investigate",
+      title: "Điều tra & lên kế hoạch",
+      gate: "approve",
+      doneFile: "02-plan.md",
+      outputs: [
+        { id: "investigation", file: "01-investigation.md" },
+        { id: "plan", file: "02-plan.md" },
+      ],
+    },
+    {
+      id: "implement",
+      title: "Implement",
+      gate: "approve",
+      doneFile: "04-summary.md",
+      outputs: [
+        { id: "progress", file: "03-progress.md" },
+        { id: "summary", file: "04-summary.md" },
+      ],
+    },
   ];
   const restarts: string[] = [];
   await page.route("**/api/tasks/PROJ-1/run", (route) =>
-    route.request().method() === "GET" ? route.fulfill({ json: { workflow: { source: "default", steps }, run } }) : route.fallback(),
+    route.request().method() === "GET" ? route.fulfill({ json: { workflow: { source: "default", origin: "default", historyFile: "00-history.md", steps, outdated: false }, run } }) : route.fallback(),
   );
   await page.route("**/api/tasks/PROJ-1/run/restart", (route) => {
     restarts.push(route.request().method());

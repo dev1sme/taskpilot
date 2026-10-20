@@ -7,10 +7,7 @@ import { sortTasks, statusOf } from "./taskStatus";
 import "../../shared/ui/table.css";
 import "./tasks.css";
 
-/** The decision log is kept by TaskPilot and Claude together; it is not one of Claude's documents. */
-const HISTORY_FILE = "00-history.md";
-
-/** Every task of the repo as a table; needs-you first. */
+/** Every task of the repo as a table; needs-you first. The decision log is not counted among Claude's documents. */
 export function TasksPage() {
   const { t } = useTranslation("tasks");
   const { tasks, repo } = useWorkspace();
@@ -54,7 +51,7 @@ export function TasksPage() {
                       </a>
                     </td>
                     <td className="muted">
-                      {t("page.docs", { spec: task.specFiles.length, written: task.outputFiles.filter((f) => f.path !== HISTORY_FILE).length })}
+                      {t("page.docs", { spec: task.specFiles.length, written: task.outputFiles.filter((f) => f.path !== task.historyFile).length })}
                     </td>
                     <td className="muted mono">{clockTime(task.updatedAt)}</td>
                   </tr>

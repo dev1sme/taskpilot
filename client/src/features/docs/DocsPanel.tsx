@@ -13,7 +13,7 @@ export function DocsPanel(props: { task: TaskSummary; steps: WorkflowStep[]; onO
   const { t } = useTranslation("docs");
   const { task } = props;
   const outputs = new Map(task.outputFiles.map((f) => [f.path, f]));
-  const expected = props.steps.flatMap((s) => (s.doneFile ? [s.doneFile] : []));
+  const expected = props.steps.flatMap((s) => s.outputs.map((o) => o.file));
   const names = [...new Set([...task.outputFiles.map((f) => f.path), ...expected])].sort();
 
   return (

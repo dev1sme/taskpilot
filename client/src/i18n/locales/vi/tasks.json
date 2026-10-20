@@ -7,10 +7,8 @@
     "running": "Đang chạy",
     "done": "Hoàn tất",
     "new": "Chưa chạy",
-    "investigated": "Đã điều tra",
-    "planned": "Có kế hoạch",
-    "implementing": "Đang code",
-    "summarized": "Có tóm tắt"
+    "progress": "Xong {{step}} ({{done}}/{{total}})",
+    "complete": "Xong cả {{total}} bước"
   },
   "page": {
     "subtitle": "{{count}} task trong .claude/tasks",

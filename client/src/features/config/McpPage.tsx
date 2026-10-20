@@ -6,7 +6,7 @@ import { useWorkspace } from "../../app/workspace";
 import { Button } from "../../components/Button";
 import { toast } from "../../components/Toast";
 import { McpForm } from "./McpForm";
-import { ConfigHeader, EmptyCard, LoadError, ScopeTag, SCOPE_LABEL } from "./parts";
+import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError, ScopeTag, SCOPE_LABEL } from "./parts";
 import { useConfig } from "./useConfig";
 
 type Editing = { scope: Scope; base: McpEntryForm | null; baseHash: string } | null;
@@ -46,9 +46,8 @@ export function McpPage() {
 
   return (
     <div className="page">
-      <ConfigHeader
-        title="MCP servers"
-        subtitle="Server Claude dùng để gọi công cụ bên ngoài, gộp từ .mcp.json và ~/.claude.json"
+      <ConfigHeader title="MCP servers" subtitle="Server Claude dùng để gọi công cụ bên ngoài, gộp từ .mcp.json và ~/.claude.json" />
+      <ConfigToolbar
         loading={loading}
         onReload={refresh}
         actions={

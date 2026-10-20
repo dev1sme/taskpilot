@@ -7,7 +7,7 @@ import { DiffDialog } from "../../components/DiffDialog";
 import { clockTime } from "../../components/Elapsed";
 import { toast } from "../../components/Toast";
 import { clearDraft, getDraft, isDirty, setDraft, useDrafts } from "./drafts";
-import { ConfigHeader, DraftControls, EmptyCard, LoadError, SCOPE_HINT } from "./parts";
+import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs } from "./parts";
 import { useConfig } from "./useConfig";
 import { useSaveFlow } from "./useSaveFlow";
 
@@ -79,34 +79,22 @@ export function MemoryPage() {
 
   return (
     <div className="page">
-      <ConfigHeader
-        title="CLAUDE.md"
-        subtitle="Hướng dẫn Claude đọc ở đầu mỗi session trong repo này"
+      <ConfigHeader title="CLAUDE.md" subtitle="Hướng dẫn Claude đọc ở đầu mỗi session trong repo này" />
+      <ConfigToolbar
+        start={
+          <ScopeTabs
+            value={scope}
+            onChange={setScope}
+            label="File memory"
+            labels={TAB_LABEL}
+            isMissing={(s) => data?.find((x) => x.scope === s)?.exists === false && !getDraft(draftKey(s))}
+            isDirty={(s) => isDirty(draftKey(s))}
+          />
+        }
         loading={loading}
         onReload={() => void reload()}
         actions={actions}
       />
-      <div className="segmented memory-tabs" role="tablist" aria-label="File memory">
-        {(["project", "local", "user"] as Scope[]).map((s) => {
-          const f = data?.find((x) => x.scope === s);
-          const editing = Boolean(getDraft(draftKey(s)));
-          const dirty = isDirty(draftKey(s));
-          return (
-            <button
-              key={s}
-              type="button"
-              role="tab"
-              aria-selected={s === scope}
-              title={SCOPE_HINT[s]}
-              onClick={() => setScope(s)}
-              className={f && !f.exists && !editing ? "is-missing" : undefined}
-            >
-              {TAB_LABEL[s]}
-              {dirty && <span className="tab-dirty" aria-label="chưa lưu" />}
-            </button>
-          );
-        })}
-      </div>
       <LoadError error={error} />
       {draft ? (
         <div className="memory is-editing">

@@ -26,33 +26,69 @@ export function ScopeTag({ scope }: { scope: Scope }) {
   );
 }
 
-/** Header shared by the config pages: page actions (or a read-only marker) and a reload button. */
-export function ConfigHeader(props: {
-  title: ReactNode;
-  subtitle?: ReactNode;
+/** Header shared by the config pages: title and subtitle only; file actions go in `ConfigToolbar`. */
+export function ConfigHeader(props: { title: ReactNode; subtitle?: ReactNode }) {
+  return <PageHeader title={props.title} subtitle={props.subtitle} />;
+}
+
+/**
+ * Row under the page header: what the page shows on the left (scope tabs…), reload and the actions
+ * on what is shown on the right. `readOnly` pages get a marker in place of actions.
+ */
+export function ConfigToolbar(props: {
+  start?: ReactNode;
+  actions?: ReactNode;
+  readOnly?: boolean;
   loading: boolean;
   onReload: () => void;
-  /** Edit actions; without them the page is marked read-only. */
-  actions?: ReactNode;
 }) {
   return (
-    <PageHeader
-      title={props.title}
-      subtitle={props.subtitle}
-      actions={
-        <>
-          {props.actions ?? (
-            <span className="readonly-pill" title="Trang này chưa sửa được trong TaskPilot">
-              <LockSimple weight="bold" aria-hidden="true" />
-              Chỉ xem
-            </span>
-          )}
-          <Button icon={ArrowClockwise} variant="quiet" busy={props.loading} onClick={props.onReload}>
-            Tải lại
-          </Button>
-        </>
-      }
-    />
+    <div className="config-toolbar">
+      <div className="toolbar-start">{props.start}</div>
+      <div className="toolbar-actions">
+        <Button icon={ArrowClockwise} variant="quiet" className="btn-icon-only" title="Tải lại" busy={props.loading} onClick={props.onReload}>
+          <span className="sr-only">Tải lại</span>
+        </Button>
+        {props.readOnly && (
+          <span className="readonly-pill" title="Trang này chưa sửa được trong TaskPilot">
+            <LockSimple weight="bold" aria-hidden="true" />
+            Chỉ xem
+          </span>
+        )}
+        {props.actions}
+      </div>
+    </div>
+  );
+}
+
+export const SCOPES: Scope[] = ["project", "local", "user"];
+
+/** One tab per settings scope; a dot marks a scope with unsaved edits. */
+export function ScopeTabs(props: {
+  value: Scope;
+  onChange: (scope: Scope) => void;
+  label: string;
+  labels: Record<Scope, string>;
+  isMissing?: (scope: Scope) => boolean;
+  isDirty?: (scope: Scope) => boolean;
+}) {
+  return (
+    <div className="segmented scope-tabs" role="tablist" aria-label={props.label}>
+      {SCOPES.map((s) => (
+        <button
+          key={s}
+          type="button"
+          role="tab"
+          aria-selected={s === props.value}
+          title={SCOPE_HINT[s]}
+          onClick={() => props.onChange(s)}
+          className={props.isMissing?.(s) ? "is-missing" : undefined}
+        >
+          {props.labels[s]}
+          {props.isDirty?.(s) && <span className="tab-dirty" aria-label="chưa lưu" />}
+        </button>
+      ))}
+    </div>
   );
 }
 

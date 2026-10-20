@@ -6,7 +6,7 @@ import { Button } from "../../components/Button";
 import { DiffDialog } from "../../components/DiffDialog";
 import { toast } from "../../components/Toast";
 import { useWorkspace } from "../../app/workspace";
-import { ConfigHeader, EmptyCard, LoadError } from "./parts";
+import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "./parts";
 import { useConfig } from "./useConfig";
 import "../tasks/tasks.css";
 
@@ -49,13 +49,8 @@ export function BackupsPage() {
 
   return (
     <div className="page">
-      <ConfigHeader
-        title="Lịch sử thay đổi"
-        subtitle="Bản sao TaskPilot lưu ngay trước mỗi lần ghi file cấu hình (~/.taskpilot/backups)"
-        loading={loading}
-        onReload={() => void reload()}
-        actions={<span />}
-      />
+      <ConfigHeader title="Lịch sử thay đổi" subtitle="Bản sao TaskPilot lưu ngay trước mỗi lần ghi file cấu hình (~/.taskpilot/backups)" />
+      <ConfigToolbar loading={loading} onReload={() => void reload()} />
       <LoadError error={error} />
       <div className="page-body">
         {data && data.length === 0 ? (

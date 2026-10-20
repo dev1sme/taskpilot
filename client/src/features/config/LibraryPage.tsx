@@ -9,7 +9,7 @@ import { DiffDialog } from "../../components/DiffDialog";
 import { Markdown } from "../../components/Markdown";
 import { toast } from "../../components/Toast";
 import { clearDraft, getDraft, setDraft, useDrafts } from "./drafts";
-import { ConfigHeader, DraftControls, EmptyCard, LoadError, ScopeTag } from "./parts";
+import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTag } from "./parts";
 import { useConfig } from "./useConfig";
 import { useSaveFlow } from "./useSaveFlow";
 import "../../components/dialog.css";
@@ -100,9 +100,8 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
 
   return (
     <div className="page">
-      <ConfigHeader
-        title={copy.title}
-        subtitle={copy.subtitle}
+      <ConfigHeader title={copy.title} subtitle={copy.subtitle} />
+      <ConfigToolbar
         loading={loading}
         onReload={refresh}
         actions={

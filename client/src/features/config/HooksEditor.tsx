@@ -1,11 +1,9 @@
-import { Eye, Plus, Trash } from "@phosphor-icons/react";
+import { Plus, Trash } from "@phosphor-icons/react";
 import { api } from "../../api/client";
 import type { HookInput, Scope } from "../../api/types";
 import { Button } from "../../components/Button";
-import { DiffDialog } from "../../components/DiffDialog";
 import { toast } from "../../components/Toast";
 import { clearDraft, setDraft } from "./drafts";
-import { DraftControls } from "./parts";
 import { useSaveFlow } from "./useSaveFlow";
 
 export interface HooksDraft {
@@ -15,7 +13,7 @@ export interface HooksDraft {
   path: string;
 }
 
-export const HOOKS_DRAFT = "hooks";
+export const hooksKey = (scope: Scope) => `hooks:${scope}`;
 
 /** Hook events in the Claude Code hooks reference, the common ones first. */
 export const EVENTS = [
@@ -54,25 +52,31 @@ export const EVENTS = [
   "ElicitationResult",
 ];
 
+/** Row added by "Thêm hook". */
+export const EMPTY_HOOK: HookInput = { event: "PostToolUse", matcher: "", command: "" };
+
 function extraText(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
-/** Command hooks of one settings file as editable rows. */
-export function HooksEditor({ draft, onSaved }: { draft: HooksDraft; onSaved: () => void }) {
-  const setHooks = (hooks: HookInput[]) => setDraft(HOOKS_DRAFT, { ...draft, hooks });
-  const update = (i: number, patch: Partial<HookInput>) => setHooks(draft.hooks.map((h, j) => (j === i ? { ...h, ...patch } : h)));
-
-  const flow = useSaveFlow({
-    title: `Lưu hooks vào ${draft.path}`,
-    preview: () => api.hooksPreview(draft.scope, draft.hooks, draft.baseHash),
-    save: () => api.hooksSave(draft.scope, draft.hooks, draft.baseHash),
+/** Review-then-save of a hooks draft; the page places the buttons and the dialog. */
+export function useHooksSave(draft: HooksDraft | undefined, onSaved: () => void) {
+  return useSaveFlow({
+    title: `Lưu hooks vào ${draft?.path ?? ""}`,
+    preview: () => api.hooksPreview(draft!.scope, draft!.hooks, draft!.baseHash),
+    save: () => api.hooksSave(draft!.scope, draft!.hooks, draft!.baseHash),
     onSaved: () => {
-      toast(`Đã lưu hooks vào ${draft.path}. Bản cũ nằm trong Lịch sử thay đổi.`);
-      clearDraft(HOOKS_DRAFT);
+      toast(`Đã lưu hooks vào ${draft?.path}. Bản cũ nằm trong Lịch sử thay đổi.`);
+      clearDraft(hooksKey(draft!.scope));
       onSaved();
     },
   });
+}
+
+/** Command hooks of one settings file as editable rows. */
+export function HooksEditor({ draft }: { draft: HooksDraft }) {
+  const setHooks = (hooks: HookInput[]) => setDraft(hooksKey(draft.scope), { ...draft, hooks });
+  const update = (i: number, patch: Partial<HookInput>) => setHooks(draft.hooks.map((h, j) => (j === i ? { ...h, ...patch } : h)));
 
   return (
     <section className="card hooks-editor" aria-label={`Sửa hooks trong ${draft.path}`}>
@@ -128,15 +132,10 @@ export function HooksEditor({ draft, onSaved }: { draft: HooksDraft; onSaved: ()
         ))}
       </ol>
       <div className="perm-actions">
-        <Button icon={Plus} variant="quiet" className="add-hook" onClick={() => setHooks([...draft.hooks, { event: "PostToolUse", matcher: "", command: "" }])}>
+        <Button icon={Plus} variant="quiet" className="add-hook" onClick={() => setHooks([...draft.hooks, EMPTY_HOOK])}>
           Thêm hook
         </Button>
-        <DraftControls draftKey={HOOKS_DRAFT} />
-        <Button icon={Eye} variant="primary" onClick={() => void flow.review()}>
-          Xem thay đổi &amp; lưu
-        </Button>
       </div>
-      <DiffDialog {...flow.dialog} confirmLabel="Lưu hooks" />
     </section>
   );
 }

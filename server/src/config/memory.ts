@@ -1,5 +1,6 @@
 import os from "node:os";
 import path from "node:path";
+import { markdownHeadings } from "../markdown.js";
 import { claudeHome, displayPath, fileInfo, readJsonFile, readText, isObject } from "./fs.js";
 import { projectMemoryFiles } from "./targets.js";
 
@@ -70,13 +71,7 @@ async function readOne(scope: MemoryScope, file: string, repo: string, scripts: 
   }
 
   const lines = content.split("\n");
-  const headings: MemoryFile["headings"] = [];
-  let inFence = false;
-  lines.forEach((l, i) => {
-    if (/^\s*```/.test(l)) inFence = !inFence;
-    const h = !inFence && /^(#{1,4})\s+(.+)$/.exec(l);
-    if (h) headings.push({ level: h[1].length, text: h[2].trim(), line: i + 1 });
-  });
+  const headings = markdownHeadings(content, 4);
 
   const imports: MemoryImport[] = [];
   await collectImports(content, path.dirname(file), 1, imports, new Set([path.resolve(file)]), repo);

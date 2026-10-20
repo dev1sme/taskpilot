@@ -36,6 +36,12 @@ beforeAll(async () => {
       "@inside/code.md",
       "```",
       "token sk-abcdefghijklmnopqrstuvwxyz123",
+      "",
+      "Setext title",
+      "===",
+      "~~~",
+      "## Not a heading",
+      "~~~",
     ].join("\n"),
   );
   await writeFile(path.join(home, "CLAUDE.md"), "# Global\n");
@@ -85,7 +91,11 @@ afterAll(async () => {
 describe("readMemory", () => {
   it("lists headings, resolves imports recursively and flags problems", async () => {
     const [project, local, user] = await readMemory(repo);
-    expect(project.headings.map((h) => h.text)).toEqual(["Repo", "Testing"]);
+    expect(project.headings).toEqual([
+      { level: 1, text: "Repo", line: 1 },
+      { level: 2, text: "Testing", line: 2 },
+      { level: 1, text: "Setext title", line: 11 },
+    ]);
     expect(project.imports.map((i) => [i.ref, i.exists, i.depth])).toEqual([
       ["docs/testing.md", true, 1],
       ["../nested.md", true, 2],

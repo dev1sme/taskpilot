@@ -10,7 +10,7 @@ describe("readInventory", () => {
   it("summarizes CLAUDE.md, .mcp.json and .claude/", async () => {
     const repo = await makeRepo();
     const claude = path.join(repo, ".claude");
-    await writeFile(path.join(repo, "CLAUDE.md"), "# Repo\n\n## 1. Identity\nx\n\n## Git\ny\n");
+    await writeFile(path.join(repo, "CLAUDE.md"), "# Repo\n\n## 1. Identity\nx\n\n## Git\ny\n\n```md\n## Not a heading\n```\n");
     await writeFile(
       path.join(repo, ".mcp.json"),
       JSON.stringify({ mcpServers: { github: { type: "http", url: "https://x" }, pg: { command: "npx" } } }),
@@ -32,7 +32,7 @@ describe("readInventory", () => {
     );
 
     expect(await readInventory(repo)).toEqual({
-      claudeMd: expect.objectContaining({ exists: true, lines: 8, headings: ["Identity", "Git"] }),
+      claudeMd: expect.objectContaining({ exists: true, lines: 12, headings: ["Identity", "Git"] }),
       claudeLocalMd: false,
       mcp: { exists: true, servers: [{ name: "github", type: "http" }, { name: "pg", type: "stdio" }] },
       claudeDir: { agents: 1, commands: 2, skills: 1, hooks: 2, allow: 2, deny: 1 },

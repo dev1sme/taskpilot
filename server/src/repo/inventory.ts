@@ -1,6 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { projectMemoryFiles } from "../config/targets.js";
+import { markdownHeadings } from "../markdown.js";
 
 /** Read-only summary of the repo's Claude Code configuration, for the overview page. */
 export interface Inventory {
@@ -46,10 +47,9 @@ export async function readInventory(repo: string): Promise<Inventory> {
 async function readClaudeMd(file: string): Promise<Inventory["claudeMd"]> {
   try {
     const [text, s] = await Promise.all([readFile(file, "utf8"), stat(file)]);
-    const headings = text
-      .split("\n")
-      .filter((l) => /^##\s+/.test(l))
-      .map((l) => l.replace(/^##\s+/, "").replace(/^\d+\.\s*/, "").trim());
+    const headings = markdownHeadings(text)
+      .filter((h) => h.level === 2)
+      .map((h) => h.text.replace(/^\d+\.\s*/, ""));
     return { exists: true, lines: text.split("\n").length, bytes: s.size, mtime: s.mtimeMs, headings };
   } catch {
     return { exists: false, lines: 0, bytes: 0, mtime: null, headings: [] };

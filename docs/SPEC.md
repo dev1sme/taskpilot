@@ -15,10 +15,12 @@ in a normal terminal session. The user can type into the terminal at any time.
 <repo>/.claude/tasks/<key>/
   spec/                  # INPUT: requirements written by the user (read-only for the app)
     *.md
+  00-history.md          # decision log: start, feedback, approvals, cancel, restart (append-only)
   01-investigation.md    # OUTPUT written by Claude
   02-plan.md
   03-progress.md
   04-summary.md
+  archive/<stamp>/       # 01-04 from before a restart; Claude rewrites them at the top level
 ```
 
 A directory is a task when `<key>/spec/` contains at least one `.md` file.
@@ -46,6 +48,13 @@ A directory is a task when `<key>/spec/` contains at least one `.md` file.
   the session and re-sends the step.
 - One task can have many sessions (tabs). The app records task ↔ session ids and can resume
   (`claude --resume <id>`).
+- The engine appends to the task's decision log (`00-history.md`, §2) on start, reviewer feedback
+  (quoted verbatim), approvals, cancel and restart; the built-in prompts read it first and append
+  their own entry (`{{historyFile}}`, §4). A failed write only logs a warning; it never blocks the run.
+- "Chạy lại từ đầu" (`POST /api/tasks/:key/run/restart`) starts over from step 1 in a new session,
+  from any phase: a running session is stopped first (it stays listed, resumable), the task's `*.md`
+  files are copied to `archive/<stamp>/` (not the decision log or `spec/`), then step 1 runs again
+  and Claude rewrites them in place.
 
 ## 4. Workflow definition
 
@@ -57,7 +66,7 @@ permission-mode: acceptEdits      # optional: default | acceptEdits | plan | aut
 steps:
   - id: investigate
     title: Điều tra & lên kế hoạch
-    prompt: investigate.md        # vars: {{key}} {{title}} {{taskDir}} {{specDir}}
+    prompt: investigate.md        # vars: {{key}} {{title}} {{step}} {{taskDir}} {{specDir}} {{historyFile}}
     done-when: { file: 02-plan.md }   # must be written after the prompt was sent
     gate: approve                 # approve | none (none = advance automatically)
     on-reject: revise-plan.md     # var: {{feedback}}
@@ -93,6 +102,38 @@ server/ — Node 24 + TypeScript + Fastify + @fastify/websocket
   (plan usage `rate_limits`, shown in the footer) and then runs the user's own status line, passed in
   `$TASKPILOT_STATUSLINE_CMD`: a `--settings` status line replaces the user's instead of merging.
 - The child env must drop every `CLAUDE*` variable (see §7).
+- Repo terminal: a Claude session with no task, under the reserved key `@repo`
+  (`GET`/`POST /api/repo/sessions`); excluded from task lists, workflow runs and the activity feed.
+- i18n: client strings are i18next/react-i18next resources, one JSON file per feature namespace
+  (`client/src/i18n/locales/vi/`); strings the server itself sends to the UI (toasts, errors, …) go
+  through a second i18next instance (`server/src/core/i18n.ts`, `server/src/core/locales/vi.ts`).
+  Only `vi` exists; `npm run i18n:lint` and a vitest scan guard against literal Vietnamese outside
+  those resources and `modules/workflow/history.ts` (the decision log is a document Claude reads
+  back, not UI).
+- Config precedence: agents/commands/skills and MCP pages split into one tab per folder/scope;
+  `client/src/features/config/shared/precedence.ts` flags an item shadowed by the same name in a
+  higher-precedence scope, following Claude Code's own precedence (MCP local > project > user,
+  agents project > user, skills and commands user > project).
+
+### Server modules
+
+| Module | Routes | Main files |
+|---|---|---|
+| `auth` | `/api/auth`, `/api/login`, `/api/logout` (+ Host/Origin/session guard) | `sessions.ts`, `security.ts` |
+| `repo` | `/api/repo`, `/api/inventory`, `/api/info` | `context.ts` (selected repo), `inventory.ts` |
+| `tasks` | `/api/tasks`, `/api/tasks/:key`, `/api/tasks/:key/file` | `scan.ts`, `watcher.ts` |
+| `sessions` | `/api/tasks/:key/sessions`, `/api/repo/sessions`, `/api/sessions/:id/*` (+ PTY WebSocket) | `manager.ts`, `hooks.ts` |
+| `hooks` | `/hook/:event`, `/hook/statusline` | `routes.ts` |
+| `env` | `/api/env`, `/api/env/:key` | `store.ts` |
+| `usage` | `/api/usage` | `store.ts` |
+| `activity` | `/api/tasks/:key/activity` | `store.ts`, `describe.ts` |
+| `workflow` | `/api/tasks/:key/run*` | `engine.ts`, `definition.ts`, `history.ts`, `archive.ts` |
+| `events` | `/api/events` (SSE) | hub in `core/events.ts` |
+| `config` | `/api/config/*`, `/api/backups*` | one sub-folder per group: `memory`, `settings`, `hooks`, `library`, `mcp`, `backups`, `codegraph`, `shared` |
+
+`app.ts` creates the services, wires their events (hook → activity + engine, exit → engine,
+status line → usage, changes → SSE) and registers each module's routes; the code layout and import
+rules are in [DEVELOP.md](DEVELOP.md).
 
 ## 6. Security
 
@@ -165,5 +206,26 @@ The embedded terminal is shell-equivalent access to the machine.
   `features/*`, `styles/`.
 - **M4** polish — done: `web/` renamed `client/`, `taskpilot` CLI (cwd as repo, `--open`, port errors),
   flight-strip UI (state bands, workflow drawn as a route), README, review fixes.
+- **TPL-001/002/003** toolbars & scope tabs — done: every config page's file actions moved from the
+  page header into a toolbar below it (`ConfigToolbar`, then the shared `Toolbar` for Task, MCP and
+  Agents/Commands/Skills); Settings and Hooks show one file per scope tab. Agents, commands and
+  skills split into one tab per folder (`.claude/<kind>` / `~/.claude/<kind>`); MCP into one tab per
+  scope (`.mcp.json`, `~/.claude.json` for this repo, `~/.claude.json`), both like the CLAUDE.md
+  page; an item shadowed by another scope is flagged (§5). Session cookie moved to
+  `@fastify/cookie`; CLAUDE.md and outline heading parsing moved to `marked.lexer()`
+  (`server/src/core/markdown.ts`).
+- **TPL-002** decision log & restart — done: see §3 and §5; the engine appends to `00-history.md`
+  and "Chạy lại từ đầu" restarts a run from step 1 in a new session, archiving the previous
+  documents first.
+- **TPL-004** repo terminal & usage footer — done: see §5 and the spike table (§7); a `@repo`
+  session reachable from the status bar on every page, next to Claude's plan-usage readout.
+- **TPL-005** i18n — done: see §5; UI strings moved into i18next resources on the client and the
+  server, guarded by `npm run i18n:lint` and a vitest scan for stray Vietnamese literals.
+- **TPL-007** code layout — done: server modules + core, client features with entry points +
+  shared, tests mirror the source tree, import rules checked by a test (§5, "Server modules").
+- **Docs split** — done: README trimmed to the pitch, requirements and install/run; everything else
+  moved into `docs/GUIDE.md` (daily use), `docs/CONFIGURATION.md` (Claude config, custom workflow),
+  `docs/DEPLOY.md` (service, reverse proxy, security) and `docs/DEVELOP.md` (dev commands, layout,
+  i18n), linked from a `## Documentation` section in the README.
 
 The legacy Java/Backlog implementation was removed from this branch; it remains in git history (`995f4e0`).

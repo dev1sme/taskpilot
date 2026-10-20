@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import {
   credentialsMatch,
   LoginLimiter,
+  SESSION_COOKIE,
   sessionCookie,
   setSessionCookie,
   type AuthMode,
@@ -49,7 +50,6 @@ export function registerAuthRoutes(app: FastifyInstance, opts: AuthRoutesOptions
 
   app.post("/api/logout", async (req, reply) => {
     await opts.sessions.revoke(sessionCookie(req));
-    // Max-Age=0 rather than clearCookie(), which only sets an Expires date in the past.
-    return setSessionCookie(req, reply, "", 0).send({ ok: true });
+    return reply.clearCookie(SESSION_COOKIE).send({ ok: true });
   });
 }

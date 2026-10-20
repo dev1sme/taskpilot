@@ -3,12 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useWorkspace } from "../../app/workspace";
 
 /** Loads one config view, keyed by `key`; refetches when the repo changes or on demand. */
-export function useConfig<T>(key: QueryKey, load: () => Promise<T>, enabled = true) {
+export function useConfig<T>(key: QueryKey, load: () => Promise<T>) {
   const { repo } = useWorkspace();
   const query = useQuery({
     queryKey: [...key, repo?.path],
     queryFn: load,
-    enabled: enabled && !!repo?.path,
+    enabled: !!repo?.path,
   });
 
   return {

@@ -5,7 +5,7 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadDotEnv } from "../src/dotenv.js";
 import { childEnv } from "../src/sessions/launch.js";
-import { AuthSessions, type Credentials } from "../src/auth.js";
+import type { Credentials } from "../src/auth.js";
 import { hostnameOf, isLoopbackHost } from "../src/security.js";
 import { StateStore } from "../src/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
@@ -95,6 +95,7 @@ describe("security", () => {
     const cookie = cookieOf(res);
     expect((await app!.inject({ url: "/api/repo", headers: { ...host, cookie } })).statusCode).toBe(200);
     expect((await app!.inject({ url: "/api/auth", headers: { ...host, cookie } })).json()).toMatchObject({ authenticated: true });
+    expect((await app!.inject({ url: "/api/repo", headers: { ...host, cookie: `a=1; ${cookie}; b=2` } })).statusCode).toBe(200);
 
     // Survives a restart with the same password, not with a changed one.
     await app!.close();
@@ -115,21 +116,6 @@ describe("security", () => {
     expect(cookieOf(out)).toBe("taskpilot_session=");
     expect(cookieAttrs(out)).toMatchObject({ "max-age": "0", path: "/" });
     expect((await app.inject({ url: "/api/repo", headers: { ...headers, cookie } })).statusCode).toBe(401);
-  });
-
-  it("accepts a session issued before the cookie plugin, among other cookies", async () => {
-    const login = { user: "u", password: "p" };
-    const { state } = await start(undefined, [], login);
-    // What the hand-written cookie code issued: the raw base64url id, hashed into auth-sessions.json.
-    const old = new AuthSessions(path.join(state.dir, "auth-sessions.json"), `password\0${login.user}\0${login.password}`);
-    await old.load();
-    const { id } = await old.create();
-    await app!.close();
-    app = await buildApp({ state, login });
-    const get = (cookie: string) => app!.inject({ url: "/api/repo", headers: { host: ok.host, cookie } });
-    expect((await get(`taskpilot_session=${id}`)).statusCode).toBe(200);
-    expect((await get(`a=1; taskpilot_session=${id}; b="x y"`)).statusCode).toBe(200);
-    expect((await get(`taskpilot_session=${id}x`)).statusCode).toBe(401);
   });
 
   it("locks login out after repeated failures", async () => {

@@ -10,7 +10,7 @@ import { Markdown } from "../../components/Markdown";
 import { toast } from "../../components/Toast";
 import { clearDraft, getDraft, setDraft, useDrafts } from "./drafts";
 import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs, ScopeTag } from "./parts";
-import { precedenceHint, shadowOf } from "./precedence";
+import { shadowedBy } from "./precedence";
 import { useConfig } from "./useConfig";
 import { useSaveFlow } from "./useSaveFlow";
 import "../../components/dialog.css";
@@ -76,8 +76,6 @@ const draftKey = (kind: LibraryKind) => `library:${kind}`;
 /** Agents, commands or skills: list + detail, with create, edit (diff review) and delete (backed up). */
 export function LibraryPage({ kind }: { kind: LibraryKind }) {
   const { data, error, loading, reload } = useConfig(["library", kind], () => api.library(kind));
-  // A skill hides a command of the same name, so the commands page needs the skills too.
-  const skills = useConfig(["library", "skills"], () => api.library("skills"), kind === "commands");
   const { reloadInventory } = useWorkspace();
   const [scope, setScope] = useState<LibraryScope>("project");
   const [query, setQuery] = useState("");
@@ -92,13 +90,12 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
     const q = query.trim().toLowerCase();
     return inScope.filter((i) => !q || `${i.name} ${i.description}`.toLowerCase().includes(q));
   }, [inScope, query]);
-  const shadow = (i: LibraryItem) => shadowOf(kind, i, data ?? [], kind === "commands" ? (skills.data ?? []) : []);
+
   const keyOf = (i: LibraryItem) => `${i.scope}:${i.rel}`;
   const current = items.find((i) => keyOf(i) === picked) ?? items[0];
 
   const refresh = () => {
     void reload();
-    if (kind === "commands") void skills.reload();
     void reloadInventory();
   };
 
@@ -166,7 +163,6 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
         ) : (
           <div className="library">
             <div className="library-list">
-              <p className="hint precedence-hint">{precedenceHint(kind)}</p>
               <label className="filter">
                 <MagnifyingGlass aria-hidden="true" />
                 <span className="sr-only">Lọc</span>
@@ -174,7 +170,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
               </label>
               <ul>
                 {items.map((i) => {
-                  const hidden = shadow(i);
+                  const hidden = shadowedBy(kind, i, data ?? []);
                   return (
                     <li key={keyOf(i)}>
                       <button
@@ -188,8 +184,8 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
                           {i.name}
                         </span>
                         {hidden && (
-                          <span className="shadow-pill" title={hidden.long}>
-                            {hidden.short}
+                          <span className="shadow-pill" title={`Claude dùng bản cùng tên ở ${hidden}`}>
+                            Bị {hidden} che
                           </span>
                         )}
                         {i.description && <span className="lib-desc">{i.description}</span>}
@@ -204,7 +200,6 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
                 key={keyOf(current)}
                 item={current}
                 prefix={copy.prefix}
-                shadow={shadow(current)?.long ?? null}
                 onEdit={() => void startEdit(current)}
                 onDeleted={refresh}
               />
@@ -244,8 +239,7 @@ function LibraryEditor({ draft }: { draft: LibraryDraft }) {
   );
 }
 
-function LibraryDetail(props: { item: LibraryItem; prefix: string; shadow: string | null; onEdit: () => void; onDeleted: () => void }) {
-  const { item, prefix, onEdit, onDeleted } = props;
+function LibraryDetail({ item, prefix, onEdit, onDeleted }: { item: LibraryItem; prefix: string; onEdit: () => void; onDeleted: () => void }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -288,11 +282,6 @@ function LibraryDetail(props: { item: LibraryItem; prefix: string; shadow: strin
         </div>
       </header>
       <p className="mono lib-path">{item.path}</p>
-      {props.shadow && (
-        <p className="alert-warn" role="note">
-          {props.shadow}
-        </p>
-      )}
       {confirmDelete && item.kind === "skills" && item.files && item.files.length > 0 && (
         <p className="hint">Chỉ xóa SKILL.md; {item.files.length} file khác trong thư mục giữ nguyên.</p>
       )}

@@ -68,7 +68,6 @@ test("agents show one tab per folder and mark the agent another scope hides", as
   await expect(list.getByText("Review của ba")).toBeVisible();
   await expect(list.getByText("Review của repo")).toHaveCount(0);
   await expect(list.locator(".shadow-pill")).toHaveText("Bị Project che");
-  await expect(page.locator(".library-detail .alert-warn")).toContainText("scope Project được ưu tiên");
 });
 
 test("new item goes to the folder of the open tab", async ({ page }) => {
@@ -86,7 +85,6 @@ test("mcp shows three scope tabs and marks the server a local one hides", async 
   const list = page.locator(".mcp-list");
   await expect(list.locator(".mcp-item")).toHaveCount(1);
   await expect(list.locator(".shadow-pill")).toHaveText("Bị Local che");
-  await expect(page.getByText("Trùng tên: Local > Project > User.")).toBeVisible();
 
   await tabs.getByRole("tab", { name: "~/.claude.json · repo này" }).click();
   await expect(list.locator(".shadow-pill")).toHaveCount(0);

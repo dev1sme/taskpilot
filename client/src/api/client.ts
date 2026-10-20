@@ -26,6 +26,7 @@ import type {
   RunView,
   Scope,
   SessionView,
+  UsageView,
   SettingsFile,
   TaskSummary,
 } from "./types";
@@ -127,6 +128,7 @@ export const api = {
   forgetSession: (id: string) => call<{ ok: true }>("DELETE", `/api/sessions/${id}`),
   repoSessions: () => call<SessionView[]>("GET", "/api/repo/sessions"),
   createRepoSession: () => call<SessionView>("POST", "/api/repo/sessions"),
+  usage: () => call<UsageView | null>("GET", "/api/usage"),
 
   run: (key: string) => call<RunView>("GET", `${task(key)}/run`),
   startRun: (key: string) => call<RunState>("POST", `${task(key)}/run`),

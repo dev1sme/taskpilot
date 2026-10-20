@@ -89,6 +89,9 @@ server/ — Node 24 + TypeScript + Fastify + @fastify/websocket
 - Hooks are passed with `--settings` (inline JSON); the user's `~/.claude/settings.json` is never touched.
   Each hook command curls `$TASKPILOT_HOOK_URL/<event>` with `$TASKPILOT_HOOK_TOKEN`, both set in the
   child env per spawn. Hooks need `curl` on `PATH`.
+- The same `--settings` sets a `statusLine` that posts its input to `$TASKPILOT_HOOK_URL/statusline`
+  (plan usage `rate_limits`, shown in the footer) and then runs the user's own status line, passed in
+  `$TASKPILOT_STATUSLINE_CMD`: a `--settings` status line replaces the user's instead of merging.
 - The child env must drop every `CLAUDE*` variable (see §7).
 
 ## 6. Security
@@ -107,6 +110,7 @@ The embedded terminal is shell-equivalent access to the machine.
 | `--session-id <uuid>` | Honoured; hook payload `session_id` matches. |
 | `--settings` hooks merge with global settings? | **Merge.** Global `SessionStart`, `UserPromptSubmit`, `PostToolUse` hooks ran alongside the injected `Stop` hook. |
 | Stop hook payload | JSON on stdin: `session_id`, `transcript_path`, `cwd`, `permission_mode`, `last_assistant_message`, … |
+| `--settings` statusLine (TPL-004, claude 2.1.304) | **Replaces** the user's status line. Input has `session_id`, `cost`; `rate_limits.five_hour`/`seven_day` (`used_percentage`, `resets_at` epoch s) only after the first API response. |
 | `--resume <id>` | Keeps the same session id (a new id only with `--fork-session`); history is restored. |
 | Bracketed paste, multi-line prompt | Arrives as **one** user message with newlines intact. |
 | Writing into `.claude/tasks/` | `permission_mode: auto` → no prompt. `default` → prompt *"Do you want to create 02-plan.md?"* with option 2 *"allow Claude to edit files in this project's .claude folder for this session"*. |

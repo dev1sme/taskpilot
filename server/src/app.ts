@@ -20,6 +20,8 @@ import { isHookEvent } from "./sessions/hooks.js";
 import type { Launcher } from "./sessions/launch.js";
 import { claudeVersion } from "./sessions/version.js";
 import { SessionManager } from "./sessions/manager.js";
+import { UsageStore } from "./sessions/usage.js";
+import { statusLineCommand } from "./config/settings.js";
 import type { StateStore } from "./state.js";
 import { WorkflowEngine } from "./workflow/engine.js";
 import type { WorkflowDef } from "./workflow/types.js";
@@ -70,7 +72,11 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   const envStore = new EnvStore(opts.state.dir);
   const sessions = new SessionManager(opts.state, {
     launcher: opts.launcher,
-    extraEnv: (repo) => envStore.forRepo(repo),
+    extraEnv: async (repo) => {
+      // The status line TaskPilot installs runs the user's own one after reporting usage.
+      const statusLine = await statusLineCommand(repo).catch(() => null);
+      return { ...(await envStore.forRepo(repo)), ...(statusLine ? { TASKPILOT_STATUSLINE_CMD: statusLine } : {}) };
+    },
     hookUrl: () => {
       const addr = app.server.address();
       return addr && typeof addr === "object" ? `http://${hookHost(addr.address)}:${addr.port}/hook` : null;
@@ -86,6 +92,9 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     void engine.onHook(meta, event, payload).catch(logError);
   });
   sessions.on("exit", (meta) => void engine.onExit(meta).catch(logError));
+  const usage = new UsageStore(opts.state);
+  sessions.on("statusline", (_meta, payload) => void usage.apply(payload).catch(logError));
+  usage.on("change", (view) => hub.publish("usage", view));
   engine.on("change", (run) => hub.publish("run", { taskKey: run.taskKey }));
   engine.on("warning", logError);
   await engine.recover();
@@ -149,6 +158,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   app.get("/api/info", async () => ({ claudeVersion: await claudeVersion() }));
 
   app.get("/api/inventory", async () => readInventory(requireRepo()));
+
+  app.get("/api/usage", async () => usage.view());
 
   registerConfigRoutes(app, { requireRepo, envStore, backups: new BackupStore(path.join(opts.state.dir, "backups")) });
 
@@ -258,6 +269,16 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
       return { ok: true };
     },
   );
+
+  // The status line installed with the hooks reports plan usage here; same per-session token.
+  app.post("/hook/statusline", { bodyLimit: 1024 * 1024 }, async (req, reply) => {
+    const token = req.headers["x-taskpilot-hook-token"];
+    const payload = (typeof req.body === "object" && req.body !== null ? req.body : {}) as Record<string, unknown>;
+    if (typeof token !== "string" || !(await sessions.handleStatusLine(token, payload))) {
+      return reply.code(403).send({ error: "Invalid hook token" });
+    }
+    return { ok: true };
+  });
 
   app.get<{ Params: { id: string } }>("/api/sessions/:id/pty", { websocket: true }, (socket, req) => {
     if (!SESSION_ID.test(req.params.id)) {

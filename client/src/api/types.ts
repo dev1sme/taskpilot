@@ -56,6 +56,20 @@ export interface RunView {
   run: RunState | null;
 }
 
+export interface UsageWindow {
+  usedPercentage: number;
+  /** Epoch ms. */
+  resetsAt: number | null;
+}
+
+/** Plan usage last reported by a session's status line; mirrors server/src/sessions/usage.ts. */
+export interface UsageView {
+  fiveHour?: UsageWindow;
+  sevenDay?: UsageWindow;
+  spend?: { usedPercentage: number };
+  updatedAt: number;
+}
+
 /** Session key of the repo terminal (sessions without a task); mirrors server/src/repo/tasks.ts. */
 export const REPO_SESSION_KEY = "@repo";
 

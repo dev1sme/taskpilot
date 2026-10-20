@@ -73,6 +73,19 @@ export async function readSettings(repo: string): Promise<SettingsFile[]> {
   );
 }
 
+/** The user's own status line command (local, then project, then user settings), or null. */
+export async function statusLineCommand(repo: string): Promise<string | null> {
+  const files = settingsFiles(repo);
+  const byPriority = [files[1], files[0], files[2]];
+  for (const [, file] of byPriority) {
+    const json = await readJsonFile(file);
+    if (!json.exists || "error" in json || !isObject(json.data)) continue;
+    const line = json.data.statusLine;
+    if (isObject(line) && line.type === "command" && typeof line.command === "string" && line.command.trim()) return line.command;
+  }
+  return null;
+}
+
 /** Every hook command configured in the settings files, flattened. */
 export async function readHooks(repo: string): Promise<HookEntry[]> {
   const out: HookEntry[] = [];

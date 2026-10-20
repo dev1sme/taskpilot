@@ -29,8 +29,18 @@ export function hookSettings(): string {
     `-H "content-type: application/json" --data-binary @- "$TASKPILOT_HOOK_URL/${event}" >/dev/null 2>&1 || true`;
   const hooks: Record<string, unknown> = {};
   for (const event of HOOK_EVENTS) hooks[event] = [{ hooks: [{ type: "command", command: command(event) }] }];
-  return JSON.stringify({ hooks });
+  return JSON.stringify({ hooks, statusLine: { type: "command", command: STATUS_LINE_COMMAND } });
 }
+
+/**
+ * Status line of every session: posts its input (plan usage) to TaskPilot in the background, then
+ * runs the user's own status line, which --settings would otherwise replace (verified on claude
+ * 2.1.304). The user's command comes from the child's environment, so it needs no escaping here.
+ */
+const STATUS_LINE_COMMAND =
+  `input=$(cat); printf '%s' "$input" | curl -sS -m 2 -o /dev/null -X POST -H "x-taskpilot-hook-token: $TASKPILOT_HOOK_TOKEN" ` +
+  `-H "content-type: application/json" --data-binary @- "$TASKPILOT_HOOK_URL/statusline" >/dev/null 2>&1 & ` +
+  `if [ -n "$TASKPILOT_STATUSLINE_CMD" ]; then printf '%s' "$input" | sh -c "$TASKPILOT_STATUSLINE_CMD"; fi`;
 
 /** Next activity after a hook event. A permission prompt is cleared once a tool runs or the turn ends. */
 export function nextActivity(event: HookEvent): Activity {

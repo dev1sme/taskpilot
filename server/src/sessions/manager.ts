@@ -46,6 +46,8 @@ export interface SessionEvents {
   /** Status or activity changed; for UI refresh. */
   change: [meta: SessionMeta];
   hook: [meta: SessionMeta, event: HookEvent, payload: Record<string, unknown>];
+  /** Input of the session's status line (plan usage, cost). */
+  statusline: [meta: SessionMeta, payload: Record<string, unknown>];
   exit: [meta: SessionMeta];
 }
 
@@ -144,6 +146,15 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       this.emit("change", meta);
     }
     this.emit("hook", meta, event, payload);
+    return true;
+  }
+
+  /** Applies a status line callback; same token check as hooks. */
+  async handleStatusLine(token: string, payload: Record<string, unknown>): Promise<boolean> {
+    const id = this.byHookToken.get(token);
+    if (!id || !this.live.has(id)) return false;
+    if (typeof payload.session_id === "string" && payload.session_id !== id) return false;
+    this.emit("statusline", await this.find(id), payload);
     return true;
   }
 

@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import type { UsageView } from "./sessions/usage.js";
 import type { RunState } from "./workflow/types.js";
 
 export interface SessionMeta {
@@ -19,6 +20,8 @@ export interface AppState {
   sessions: SessionMeta[];
   /** Latest workflow run per (repo, taskKey). */
   runs: RunState[];
+  /** Plan usage last reported by a session's status line. */
+  usage?: UsageView;
 }
 
 /**

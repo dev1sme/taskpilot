@@ -384,7 +384,8 @@ kbd {
 }
 
 a.status-item.is-warn,
-.status-terminal.is-warn {
+.status-terminal.is-warn,
+.status-usage.is-warn {
   font-weight: 600;
   color: var(--attention);
   text-decoration: none;

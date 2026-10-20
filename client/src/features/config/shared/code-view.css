@@ -1,0 +1,129 @@
+/* ------------------------------------------------------------------ memory */
+
+.memory {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr) 300px;
+  min-height: calc(100vh - 186px);
+}
+
+.memory > * {
+  min-width: 0;
+}
+
+.memory.hooks-view {
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.memory-outline {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 18px 12px;
+  border-right: 1px solid var(--line);
+}
+
+.outline-item {
+  padding: 6px 8px;
+  font-size: 13px;
+  text-align: left;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outline-item:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.outline-item.level-1 {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.outline-item.level-3,
+.outline-item.level-4 {
+  padding-left: 20px;
+}
+
+.outline-item.mono {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--cat-search);
+}
+
+.outline-item.is-missing {
+  color: var(--danger);
+  text-decoration: line-through;
+}
+
+.code-view {
+  display: flex;
+  flex-direction: column;
+  background: var(--sunken);
+}
+
+.code-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 16px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--line);
+}
+
+.code-meta {
+  color: var(--muted);
+}
+
+.code-lines {
+  margin: 0;
+  padding: 12px 0;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.75;
+  list-style: none;
+}
+
+.code-lines li {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  scroll-margin: 80px;
+}
+
+.code-lines .ln {
+  padding-right: 14px;
+  text-align: right;
+  color: var(--faint);
+  user-select: none;
+}
+
+.code-lines .lt {
+  padding-right: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.code-lines .is-heading .lt {
+  font-weight: 500;
+  color: var(--signal-text);
+}
+
+.code-lines .is-import .lt {
+  color: var(--cat-search);
+}
+
+.code-lines .is-warn {
+  background: var(--attention-soft);
+  box-shadow: inset 2px 0 0 var(--attention);
+}
+
+.code-lines .is-warn .lt {
+  text-decoration: underline wavy var(--attention);
+  text-underline-offset: 4px;
+}

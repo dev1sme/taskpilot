@@ -10,6 +10,7 @@ import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "../shared/par
 import { useConfig } from "../shared/useConfig";
 import { codegraphApi } from "./api";
 import { mcpApi } from "../mcp/api";
+import "../hooks/hooks.css";
 
 type Adding = { baseHash: string } | null;
 

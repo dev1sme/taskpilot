@@ -1,0 +1,40 @@
+/* ------------------------------------------------------------------ hooks */
+
+.hooks {
+  display: grid;
+  gap: 16px;
+}
+
+/* Card heading, also used by the codegraph page. */
+.hook-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  margin-bottom: 10px;
+}
+
+.hook-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--signal-text);
+}
+
+.hook-event {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: normal;
+}
+
+.hook-event .mono {
+  font-size: 12.5px;
+  color: var(--signal-text);
+}
+
+.hook-event-hint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--faint);
+}

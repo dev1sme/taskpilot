@@ -8,6 +8,7 @@ import { useSaveFlow } from "../shared/useSaveFlow";
 import { settingsApi } from "./api";
 import type { Permissions } from "./types";
 import type { Scope } from "../shared/types";
+import "./settings.css";
 
 export interface PermissionsDraft {
   permissions: Permissions;

@@ -1,0 +1,81 @@
+.memory-side {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 18px;
+  border-left: 1px solid var(--line);
+}
+
+.big-stat {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.big-stat span {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.legend {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.legend li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.legend-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.legend-value {
+  color: var(--muted);
+}
+
+.checks {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.checks li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+}
+
+.checks svg {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.check-ok svg {
+  color: var(--done);
+}
+
+.check-warn svg {
+  color: var(--attention);
+}

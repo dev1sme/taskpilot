@@ -5,6 +5,8 @@ import { LibraryPage } from "./library/LibraryPage";
 import { McpPage } from "./mcp/McpPage";
 import { MemoryPage } from "./memory/MemoryPage";
 import { SettingsPage } from "./settings/SettingsPage";
+// After the pages: the narrow-screen rules override their layouts.
+import "./shared/responsive.css";
 
 /** Claude configuration pages (read-only in phase B). */
 export function ConfigPage({ section }: { section: ConfigSection }) {

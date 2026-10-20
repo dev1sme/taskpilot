@@ -16,6 +16,7 @@ import { useSaveFlow } from "../shared/useSaveFlow";
 import "../../../shared/ui/dialog.css";
 import { libraryApi } from "./api";
 import type { LibraryItem, LibraryKind } from "./types";
+import "../shared/library-view.css";
 
 const MarkdownEditor = lazy(() => import("../shared/MarkdownEditor").then((m) => ({ default: m.MarkdownEditor })));
 

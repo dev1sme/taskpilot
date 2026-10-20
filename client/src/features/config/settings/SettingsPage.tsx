@@ -11,6 +11,7 @@ import { useConfig } from "../shared/useConfig";
 import { settingsApi } from "./api";
 import type { SettingsFile } from "./types";
 import type { Scope } from "../shared/types";
+import "./settings.css";
 
 /** Modes with a description in `config:settings.modeLabel`. */
 const MODES = ["default", "acceptEdits", "plan", "auto", "bypassPermissions"] as const;

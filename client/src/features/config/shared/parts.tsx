@@ -6,7 +6,9 @@ import i18n from "../../../i18n";
 import { PageHeader } from "../../../shared/ui/PageHeader";
 import { Toolbar } from "../../../shared/ui/Toolbar";
 import { clearDraft, isDirty } from "./drafts";
-import "./config.css";
+import "./controls.css";
+import "./forms.css";
+import "./cards.css";
 import type { Scope } from "./types";
 
 export const scopeLabel = (scope: Scope) => i18n.t(`scope.label.${scope}`, { ns: "config" });

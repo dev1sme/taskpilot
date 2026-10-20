@@ -11,6 +11,8 @@ import { useConfig } from "../shared/useConfig";
 import { hooksApi } from "./api";
 import type { HooksFile } from "./types";
 import type { Scope } from "../shared/types";
+import "../shared/code-view.css";
+import "./hooks.css";
 
 /** Events with a one-line explanation in `config:hooks.event`. */
 const HINTED_EVENTS = [

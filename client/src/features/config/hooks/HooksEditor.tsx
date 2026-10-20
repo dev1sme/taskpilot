@@ -7,6 +7,7 @@ import { useSaveFlow } from "../shared/useSaveFlow";
 import { hooksApi } from "./api";
 import type { HookInput } from "./types";
 import type { Scope } from "../shared/types";
+import "../settings/settings.css";
 
 export interface HooksDraft {
   scope: Scope;

@@ -11,6 +11,8 @@ import { useConfig } from "../shared/useConfig";
 import { mcpApi } from "./api";
 import type { McpCheck, McpEntryForm, McpServer } from "./types";
 import type { Scope } from "../shared/types";
+import "../shared/library-view.css";
+import "./mcp.css";
 
 type Editing = { scope: Scope; base: McpEntryForm | null; baseHash: string } | null;
 

@@ -12,6 +12,8 @@ import { useSaveFlow } from "../shared/useSaveFlow";
 import { memoryApi } from "./api";
 import type { MemoryFile } from "./types";
 import type { Scope } from "../shared/types";
+import "../shared/code-view.css";
+import "./memory.css";
 
 // CodeMirror is only needed once the user starts editing.
 const MarkdownEditor = lazy(() => import("../shared/MarkdownEditor").then((m) => ({ default: m.MarkdownEditor })));

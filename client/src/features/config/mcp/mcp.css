@@ -1,0 +1,121 @@
+/* ------------------------------------------------------------------ mcp editing */
+
+.mcp-form {
+  align-self: start;
+  max-width: 900px;
+}
+
+.value-rows {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.value-rows legend {
+  padding: 0 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.value-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.value-row input[type="text"],
+.value-row input[type="password"],
+.value-row input:not([type]) {
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--sunken);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+}
+
+.value-row input:disabled {
+  color: var(--muted);
+}
+
+.secret-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.check-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.check-result svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
+.check-result.is-connected svg {
+  color: var(--done);
+}
+
+.check-result.is-failed svg {
+  color: var(--danger);
+}
+
+.check-result.is-pending svg,
+.check-result.is-auth svg,
+.check-result.is-unknown svg {
+  color: var(--attention);
+}
+
+.check-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.missing-var {
+  align-items: flex-start;
+}
+
+.missing-body {
+  display: grid;
+  flex: 1;
+  gap: 8px;
+}
+
+.missing-row {
+  display: flex;
+  gap: 8px;
+}
+
+.missing-row input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  font-family: var(--mono);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+}

@@ -10,6 +10,8 @@ import { useSaveFlow } from "../shared/useSaveFlow";
 import { mcpApi } from "./api";
 import type { McpEntryForm, McpEntryInput } from "./types";
 import type { Scope } from "../shared/types";
+import "../shared/library-view.css";
+import "./mcp.css";
 
 interface Row {
   key: string;

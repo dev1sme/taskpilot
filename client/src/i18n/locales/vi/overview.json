@@ -37,7 +37,7 @@
   },
   "running": {
     "title": "Đang chạy",
-    "live": "Đang chạy · <link>{{key}}</link>",
+    "live": "Đang chạy · <taskLink>{{task}}</taskLink>",
     "others": " và {{count}} task khác",
     "none": "Không có task nào đang chạy. Mở một task và bấm \"Bắt đầu quy trình\".",
     "starting": "Claude đang khởi động…",

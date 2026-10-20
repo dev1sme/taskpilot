@@ -109,7 +109,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                 aria-controls="palette-list"
                 aria-activedescendant={entries[index]?.id}
               />
-              <kbd>Esc</kbd>
+              <kbd>{t("palette.escape")}</kbd>
             </div>
             <ul id="palette-list" role="listbox" className="palette-list">
               {entries.length === 0 && <li className="palette-empty">{t("palette.empty", { query })}</li>}

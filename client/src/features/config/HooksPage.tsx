@@ -136,9 +136,7 @@ function HooksView({ file }: { file: HooksFile }) {
 
       <section className="code-view" aria-label={t("hooks.codeLabel", { path: file.path })}>
         <div className="code-head">
-          <span className="mono">
-            {file.path} › hooks
-          </span>
+          <span className="mono">{`${file.path} › hooks`}</span>
           <span className="code-meta">{t("hooks.lines", { count: lines.length })}</span>
         </div>
         <ol className="code-lines">

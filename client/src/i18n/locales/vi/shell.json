@@ -37,7 +37,8 @@
       "config": "Cấu hình",
       "integrations": "Tích hợp",
       "backup": "Backup"
-    }
+    },
+    "escape": "Esc"
   },
   "status": {
     "terminalTitle": "Claude trong repo, không cần task",

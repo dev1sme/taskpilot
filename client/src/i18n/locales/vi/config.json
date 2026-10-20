@@ -301,6 +301,7 @@
     "modified": " · sửa lúc {{time}}",
     "loads": "Claude sẽ nạp",
     "checks": "Kiểm tra",
-    "line": "dòng {{line}}"
+    "line": "dòng {{line}}",
+    "tokenUnit": "token"
   }
 }

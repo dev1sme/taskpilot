@@ -13,7 +13,7 @@ import "./overview.css";
 
 /** Repo dashboard: what needs the user, what is running, and the shape of the Claude config. */
 export function OverviewPage() {
-  const { t } = useTranslation(["overview", "shell", "common"]);
+  const { t } = useTranslation(["overview", "shell", "config", "common"]);
   const { repo, tasks, inventory } = useWorkspace();
   const sorted = sortTasks(tasks);
   const needs = sorted.filter((task) => statusOf(task).tone === "attention");
@@ -105,7 +105,7 @@ export function OverviewPage() {
         {/* CLAUDE.md */}
         <section className="tile" aria-labelledby="mem-title">
           <h2 id="mem-title" className="tile-title">
-            <BookOpenText aria-hidden="true" /> CLAUDE.md
+            <BookOpenText aria-hidden="true" /> {t("shell:nav.memory")}
           </h2>
           {inventory?.claudeMd.exists ? (
             <>
@@ -135,7 +135,7 @@ export function OverviewPage() {
             <h2 id="mcp-title" className="tile-title">
               <Plugs aria-hidden="true" /> {t("shell:nav.mcp")}
             </h2>
-            <span className="tile-mono">.mcp.json</span>
+            <span className="tile-mono">{t("config:mcp.tab.project")}</span>
           </div>
           {inventory?.mcp.error && (
             <p className="error" role="alert">
@@ -221,7 +221,7 @@ function Live({ task, others }: { task: TaskSummary; others: number }) {
       <div className="tile-head">
         <span className="live-dot" aria-hidden="true" />
         <h2 id="run-title" className="tile-title">
-          <Trans t={t} i18nKey="running.live" values={{ key: task.key }} components={{ link: <a href={href({ page: "task", key: task.key })} className="mono" /> }} />
+          <Trans t={t} i18nKey="running.live" values={{ task: task.key }} components={{ taskLink: <a href={href({ page: "task", key: task.key })} className="mono" /> }} />
           {others > 0 && <span className="row-meta">{t("running.others", { count: others })}</span>}
         </h2>
         {task.run?.stepStartedAt && (

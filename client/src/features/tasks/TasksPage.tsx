@@ -22,7 +22,7 @@ export function TasksPage() {
           <div className="empty">
             <h2>{t("page.emptyTitle")}</h2>
             <p>
-              <Trans t={t} i18nKey="page.emptyBody" components={{ code: <code /> }} />
+              <Trans t={t} i18nKey="page.emptyBody" values={{ taskKey: t("page.taskKeyPlaceholder") }} components={{ code: <code /> }} />
             </p>
           </div>
         ) : (

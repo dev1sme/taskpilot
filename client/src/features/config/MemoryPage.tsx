@@ -191,7 +191,7 @@ function MemoryView({ file }: { file: MemoryFile }) {
         <section className="card">
           <h2 className="card-title">{t("memory.loads")}</h2>
           <div className="big-stat">
-            ~{formatTokens(total / 4)} <span>token</span>
+            ~{formatTokens(total / 4)} <span>{t("memory.tokenUnit")}</span>
           </div>
           <div className="stack-bar" aria-hidden="true">
             {parts.map((p, i) => (

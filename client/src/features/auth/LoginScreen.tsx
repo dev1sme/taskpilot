@@ -7,7 +7,7 @@ import { Button } from "../../components/Button";
 import "../shell/shell.css";
 
 export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
-  const { t } = useTranslation("auth");
+  const { t } = useTranslation(["auth", "common"]);
   const [user, setUser] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -38,7 +38,7 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
               <path d="M3 12l18-8-8 18-2-8-8-2z" />
             </svg>
           </span>
-          <h1 id={`${id}-title`}>TaskPilot</h1>
+          <h1 id={`${id}-title`}>{t("common:appName")}</h1>
         </div>
 
         <label htmlFor={`${id}-user`}>{t("user")}</label>

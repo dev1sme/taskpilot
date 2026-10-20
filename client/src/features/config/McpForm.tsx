@@ -19,6 +19,9 @@ interface Row {
   secret: boolean;
 }
 
+/** Example arguments, one per line (not translated: it is a command line). */
+const ARGS_EXAMPLE = "-y\n@modelcontextprotocol/server-github";
+
 const toRows = (values: McpEntryForm["env"]): Row[] =>
   values.map((v) => ({ key: v.key, value: "", existing: true, masked: v.value, secret: !v.reference }));
 
@@ -127,7 +130,7 @@ export function McpForm(props: {
             <label htmlFor={ids.command}>{t("mcpForm.command")}</label>
             <input id={ids.command} value={command} onChange={(e) => setCommand(e.target.value)} placeholder="npx" spellCheck={false} />
             <label htmlFor={ids.args}>{t("mcpForm.args")}</label>
-            <textarea id={ids.args} value={args} onChange={(e) => setArgs(e.target.value)} rows={3} placeholder={"-y\n@modelcontextprotocol/server-github"} spellCheck={false} />
+            <textarea id={ids.args} value={args} onChange={(e) => setArgs(e.target.value)} rows={3} placeholder={ARGS_EXAMPLE} spellCheck={false} />
             <span className="field-help">{t("mcpForm.argsHelp")}</span>
           </>
         ) : (

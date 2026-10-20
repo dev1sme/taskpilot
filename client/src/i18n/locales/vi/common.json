@@ -11,5 +11,6 @@
     "unchanged": "Không có thay đổi nào so với file hiện tại.",
     "label": "Thay đổi",
     "keepEditing": "Tiếp tục sửa"
-  }
+  },
+  "appName": "TaskPilot"
 }

@@ -90,7 +90,7 @@ export function Sidebar({ route, onSwitchRepo }: { route: Route; onSwitchRepo: (
             <path d="M3 12l18-8-8 18-2-8-8-2z" />
           </svg>
         </span>
-        TaskPilot
+        {t("common:appName")}
       </a>
 
       <button type="button" className="repo-switch" onClick={onSwitchRepo}>

@@ -15,7 +15,8 @@
   "page": {
     "subtitle": "{{count}} task trong .claude/tasks",
     "emptyTitle": "Repo chưa có task",
-    "emptyBody": "Tạo thư mục <code>.claude/tasks/&lt;mã task&gt;/spec/</code> và viết yêu cầu vào file <code>.md</code>. TaskPilot tự nhận task mới.",
+    "emptyBody": "Tạo thư mục <code>.claude/tasks/{{taskKey}}/spec/</code> và viết yêu cầu vào file <code>.md</code>. TaskPilot tự nhận task mới.",
+    "taskKeyPlaceholder": "<mã task>",
     "col": {
       "status": "Trạng thái",
       "task": "Task",

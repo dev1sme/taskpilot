@@ -8,7 +8,7 @@ import type { SessionView } from "../sessions/manager.js";
 import type { SessionMeta, StateStore } from "../state.js";
 import { loadWorkflow, render, REPO_WORKFLOW_FILE } from "./definition.js";
 import { archiveOutputs } from "./archive.js";
-import { appendHistory, HISTORY_FILE } from "./history.js";
+import { appendHistory, HISTORY_FILE, HISTORY_TEXT } from "./history.js";
 import type { RunState, StepDef, WorkflowDef } from "./types.js";
 import { t } from "../i18n.js";
 
@@ -78,8 +78,8 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       const old = await this.sessions.get(existing.sessionId).catch(() => null);
       if (old?.status === "running") await this.sessions.stop(existing.sessionId);
       const { dir, files } = await archiveOutputs(taskDirOf(existing), new Date());
-      await this.log(existing, "Chạy lại từ đầu", {
-        body: files.length ? `Bản cũ: ${dir}/ (${files.join(", ")})` : "Chưa có tài liệu nào để lưu bản cũ.",
+      await this.log(existing, HISTORY_TEXT.restart, {
+        body: files.length ? HISTORY_TEXT.archived(dir, files) : HISTORY_TEXT.nothingArchived,
       });
       return this.begin(repo, taskKey);
     });
@@ -101,8 +101,8 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       startedAt: now,
       updatedAt: now,
     };
-    const source = def.source.endsWith(REPO_WORKFLOW_FILE) ? REPO_WORKFLOW_FILE : "mặc định của TaskPilot";
-    await this.log(run, "Bắt đầu quy trình", { body: `Quy trình: ${source}, ${def.steps.length} bước.` });
+    const source = def.source.endsWith(REPO_WORKFLOW_FILE) ? REPO_WORKFLOW_FILE : HISTORY_TEXT.defaultSource;
+    await this.log(run, HISTORY_TEXT.start, { body: HISTORY_TEXT.startBody(source, def.steps.length) });
     await this.deliver(run, await this.prompt(run, def.steps[0].prompt));
     return run;
   }
@@ -112,7 +112,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       const run = await this.require(repo, taskKey, ["gate"]);
       const def = await this.loadDef(repo);
       const last = run.stepIndex + 1 >= def.steps.length;
-      await this.log(run, "Ba duyệt", last ? { body: "Quy trình hoàn tất." } : {});
+      await this.log(run, HISTORY_TEXT.approve, last ? { body: HISTORY_TEXT.done } : {});
       if (last) {
         return this.save(run, { phase: "done", message: t("run.done") });
       }
@@ -128,7 +128,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       const run = await this.require(repo, taskKey, ["gate"]);
       const step = (await this.loadDef(repo)).steps[run.stepIndex];
       const template = step.onReject ?? "{{feedback}}";
-      await this.log(run, "Ba góp ý", { quote: text.trim() });
+      await this.log(run, HISTORY_TEXT.feedback, { quote: text.trim() });
       await this.deliver(run, await this.prompt(run, template, { feedback: text.trim() }));
       return run;
     });
@@ -151,7 +151,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   cancel(repo: string, taskKey: string): Promise<RunState> {
     return this.serial(async () => {
       const run = await this.require(repo, taskKey, ACTIVE);
-      await this.log(run, "Huỷ quy trình");
+      await this.log(run, HISTORY_TEXT.cancel);
       return this.save(run, { phase: "cancelled", message: t("run.cancelled"), pendingPrompt: undefined });
     });
   }
@@ -166,7 +166,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     return this.serial(async () => {
       for (const run of (await this.state.load()).runs) {
         if (["starting", "running", "waiting"].includes(run.phase)) {
-          await this.log(run, "Gián đoạn", { body: "TaskPilot khởi động lại giữa bước." });
+          await this.log(run, HISTORY_TEXT.interrupted, { body: HISTORY_TEXT.serverRestarted });
           await this.save(run, {
             phase: "interrupted",
             message: t("run.restarted"),
@@ -197,7 +197,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     return this.serial(async () => {
       const run = await this.bySession(meta.id);
       if (!run || !["starting", "running", "waiting"].includes(run.phase)) return;
-      await this.log(run, "Gián đoạn", { body: "Session dừng giữa bước." });
+      await this.log(run, HISTORY_TEXT.interrupted, { body: HISTORY_TEXT.sessionStopped });
       await this.save(run, {
         phase: "interrupted",
         message: t("run.sessionStopped"),

@@ -54,30 +54,19 @@ A directory is a task when `<key>/spec/` contains at least one `.md` file.
 - "Chạy lại từ đầu" (`POST /api/tasks/:key/run/restart`) starts over from step 1 in a new session,
   from any phase: a running session is stopped first (it stays listed, resumable), the task's `*.md`
   files are copied to `archive/<stamp>/` (not the decision log or `spec/`), then step 1 runs again
-  and Claude rewrites them in place.
+  and Claude rewrites them in place; its prompt (`{{previousRun}}`) lists the archived documents to
+  read first (`restart.read` in the workflow).
 
 ## 4. Workflow definition
 
-Built-in default in `workflows/default/`; a repo may override it with `.claude/workflow.yml`.
-Prompt files are looked up next to that file first, then in the defaults.
+Built-in default in `workflows/default/`; a repo overrides it with its own copy in
+`.claude/taskpilot/` (`workflow.yml` + prompt files, created from the Workflow page). Format
+(`version: 2`), template variables and checks: [CONFIGURATION.md](CONFIGURATION.md#custom-workflow).
+Each step declares its output documents; prompts are templates filled from the workflow (outputs,
+shared rules, language, history file). A run keeps a snapshot of the workflow it started with;
+after a restart `{{previousRun}}` points Claude at the archived documents.
 
-```yaml
-permission-mode: acceptEdits      # optional: default | acceptEdits | plan | auto; absent = user's own
-steps:
-  - id: investigate
-    title: Điều tra & lên kế hoạch
-    prompt: investigate.md        # vars: {{key}} {{title}} {{step}} {{taskDir}} {{specDir}} {{historyFile}}
-    done-when: { file: 02-plan.md }   # must be written after the prompt was sent
-    gate: approve                 # approve | none (none = advance automatically)
-    on-reject: revise-plan.md     # var: {{feedback}}
-  - id: implement
-    prompt: implement.md
-    done-when: { file: 04-summary.md }
-    gate: approve
-    on-reject: revise-implementation.md
-```
-
-`bypassPermissions` is not accepted from a repo file.
+`bypassPermissions` is not accepted from a workflow file.
 
 ## 5. Architecture
 
@@ -127,9 +116,9 @@ server/ — Node 24 + TypeScript + Fastify + @fastify/websocket
 | `env` | `/api/env`, `/api/env/:key` | `store.ts` |
 | `usage` | `/api/usage` | `store.ts` |
 | `activity` | `/api/tasks/:key/activity` | `store.ts`, `describe.ts` |
-| `workflow` | `/api/tasks/:key/run*` | `engine.ts`, `definition.ts`, `history.ts`, `archive.ts` |
+| `workflow` | `/api/tasks/:key/run*` | `engine.ts`, `definition.ts`, `vars.ts`, `stage.ts`, `history.ts`, `archive.ts` |
 | `events` | `/api/events` (SSE) | hub in `core/events.ts` |
-| `config` | `/api/config/*`, `/api/backups*` | one sub-folder per group: `memory`, `settings`, `hooks`, `library`, `mcp`, `backups`, `codegraph`, `shared` |
+| `config` | `/api/config/*`, `/api/backups*` | one sub-folder per group: `memory`, `settings`, `hooks`, `library`, `mcp`, `workflow` (`/api/config/workflow*`), `backups`, `codegraph`, `shared` |
 
 `app.ts` creates the services, wires their events (hook → activity + engine, exit → engine,
 status line → usage, changes → SSE) and registers each module's routes; the code layout and import

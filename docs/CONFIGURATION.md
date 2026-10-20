@@ -26,24 +26,63 @@ servers whose variables are not set are flagged.
 
 ## Custom workflow
 
-Put `.claude/workflow.yml` in the repo to replace the built-in one (`workflows/default/`):
+A repo uses TaskPilot's built-in workflow (`workflows/default/`) until it has an override in
+`.claude/taskpilot/`. The *Workflow* page shows the workflow in use. The built-in one is read only
+there; **Thêm config override** copies it (`workflow.yml` and its prompt files) into
+`.claude/taskpilot/`, where every file can then be edited, checked, compared with the built-in
+file and previewed as the exact prompt a task would get. **Xoá override** goes back to the
+built-in workflow (every file is backed up first). TaskPilot only ever writes inside
+`.claude/taskpilot/`, never `workflows/default/`. The old `.claude/workflow.yml` is no longer read.
+
+The override is complete on its own: prompt files are looked up next to its `workflow.yml` only,
+never in the built-in workflow.
 
 ```yaml
-permission-mode: acceptEdits     # optional: default | acceptEdits | plan | auto
+version: 2
+permission-mode: acceptEdits        # optional: default | acceptEdits | plan | auto
+history:
+  file: 00-history.md               # the task's decision log
+  entry: "## <YYYY-MM-DD HH:MM> · {{step}} · Claude"
+language: Write the documents in the same language as the spec.
+rules:                              # shared by every prompt through {{rules}}
+  - "Append only to {{historyFile}}: add new entries at the end with Edit, never rewrite or remove earlier ones."
+  - Do not push or merge.
+restart:
+  read: [plan, summary, progress]   # output ids a restarted run must read from the archive first
 steps:
   - id: investigate
     title: Điều tra & lên kế hoạch
-    prompt: investigate.md       # looked up next to workflow.yml, then in workflows/default/
-    done-when: { file: 02-plan.md }
-    gate: approve                # or none: continue without stopping
-    on-reject: revise-plan.md
-  - id: implement
-    prompt: implement.md
-    done-when: { file: 04-summary.md }
-    gate: approve
+    prompt: investigate.md          # a file next to workflow.yml
+    on-reject: revise-plan.md       # optional; without it the feedback is sent as it is
+    outputs:                        # the documents this step writes in the task directory
+      - id: investigation
+        file: 01-investigation.md
+        content: scope, related files (with paths), how that part works today, risks
+      - id: plan
+        file: 02-plan.md
+        content: goal, changes per file, ordered steps, risks, how to verify, open questions
+    done-when: plan                 # an output id of this step
+    gate: approve                   # or none: continue without stopping
 ```
 
-Prompt templates can use `{{key}}`, `{{title}}`, `{{step}}`, `{{taskDir}}`, `{{specDir}}`,
-`{{historyFile}}` (the task's decision log, `<taskDir>/00-history.md`) and, in `on-reject` prompts,
-`{{feedback}}`. A step counts as done only when its `done-when` file was written after the step's
-prompt was sent.
+Prompt files are templates. Variables:
+
+| Variable | Value |
+|---|---|
+| `{{key}}`, `{{title}}`, `{{step}}`, `{{stepNumber}}`, `{{stepCount}}` | the task and the step |
+| `{{taskDir}}`, `{{specDir}}` | `.claude/tasks/<KEY>` and its `spec/` |
+| `{{historyFile}}`, `{{historyEntry}}` | the decision log and the heading Claude uses in it |
+| `{{outputs}}` | this step's documents with what each must contain |
+| `{{inputs}}` | the documents of earlier steps |
+| `{{out.<id>}}` | the path of one document, e.g. `{{out.plan}}` |
+| `{{rules}}`, `{{language}}` | `rules` and `language` from `workflow.yml` |
+| `{{previousRun}}`, `{{archiveDir}}` | after *Chạy lại từ đầu*: which archived documents to read first; empty otherwise |
+| `{{feedback}}` | the reviewer's feedback, in `on-reject` prompts only |
+
+A save is refused when it makes the workflow invalid (a `done-when` naming no output of its step,
+a prompt file that does not exist, `{{out.x}}` for an unknown output, `{{feedback}}` outside an
+`on-reject` prompt…). Unknown variables, unused prompt files and a first prompt without
+`{{previousRun}}` are only warnings. A step counts as done only when its `done-when` file was
+written after the step's prompt was sent; the task list reads how far a task got from the
+declared outputs. A run keeps the workflow it started with: edits apply to new runs and to
+*Chạy lại từ đầu*.

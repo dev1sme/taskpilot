@@ -32,7 +32,8 @@ task's documents like the others, but it doesn't count in the task list's "N Cla
 5. **Chạy lại từ đầu** restarts the whole workflow in a new session at step 1, from any phase —
    running, interrupted, done or cancelled. A confirmation step warns that the current session
    stops (it's kept, not deleted; resume it from its tab) and that the task's `*.md` documents are
-   copied to `archive/<stamp>/` before Claude writes them again.
+   copied to `archive/<stamp>/` before Claude writes them again. The new run's first prompt tells
+   Claude which archived documents to read first, so it knows what was done before.
 
 Every one of these events — start, your feedback (quoted verbatim), approvals, cancel, restart — is
 appended to `00-history.md`, and the built-in prompts read it before writing anything, so it stays

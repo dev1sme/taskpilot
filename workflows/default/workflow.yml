@@ -1,0 +1,15 @@
+# Built-in TaskPilot workflow. A repo can replace it with .claude/workflow.yml;
+# prompt files are looked up next to that file first, then here.
+steps:
+  - id: investigate
+    title: Điều tra & lên kế hoạch
+    prompt: investigate.md
+    done-when: { file: 02-plan.md }
+    gate: approve
+    on-reject: revise-plan.md
+  - id: implement
+    title: Implement
+    prompt: implement.md
+    done-when: { file: 04-summary.md }
+    gate: approve
+    on-reject: revise-implementation.md

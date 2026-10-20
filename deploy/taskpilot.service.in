@@ -1,0 +1,20 @@
+# systemd user unit, rendered by `make service-install` (@...@ filled from the current shell).
+# A user unit, not a system one: claude needs this user's HOME (~/.claude login, settings, hooks).
+# Settings come from the app's .env; see .env.example.
+
+[Unit]
+Description=TaskPilot
+# Keep retrying: TASKPILOT_HOST may be a docker0 address that only exists once Docker is up.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+# Not the app dir: a cwd with .claude/tasks would override the last repo opened.
+WorkingDirectory=%h
+Environment=PATH=@PATH@
+ExecStart=@NODE@ @APP_DIR@/dist/server/index.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

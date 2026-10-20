@@ -1,0 +1,416 @@
+/* ------------------------------------------------------------------ stepper */
+
+.stepper {
+  position: relative;
+  padding: 4px 0 0;
+}
+
+/* Track runs between the centers of the first and last markers. */
+.stepper-track {
+  position: absolute;
+  top: 17px;
+  left: calc(100% / var(--nodes, 4) / 2);
+  right: calc(100% / var(--nodes, 4) / 2);
+  height: 3px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.stepper-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--signal), var(--done));
+  transform-origin: left center;
+}
+
+.stepper ol {
+  position: relative;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.node-marker {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  color: var(--on-signal);
+  background: var(--surface);
+  border: 2px solid var(--line-strong);
+  border-radius: 50%;
+  transition:
+    background-color 300ms var(--ease-out),
+    border-color 300ms var(--ease-out),
+    box-shadow 300ms var(--ease-out);
+}
+
+.node.gate .node-marker {
+  width: 24px;
+  height: 24px;
+  margin: 3px;
+  border-radius: 4px;
+  transform: rotate(45deg);
+}
+
+.node-check {
+  width: 15px;
+  height: 15px;
+}
+
+.node.gate .node-check {
+  transform: rotate(-45deg);
+}
+
+.node.done .node-marker {
+  background: var(--done);
+  border-color: var(--done);
+}
+
+.node.step.done .node-marker {
+  background: var(--signal);
+  border-color: var(--signal);
+}
+
+.node.current .node-marker {
+  border-color: var(--signal);
+  box-shadow: 0 0 0 5px var(--signal-soft);
+}
+
+.node.current.working .node-marker {
+  background: var(--signal);
+  animation: beacon 1.8s var(--ease-out) infinite;
+}
+
+.node.gate.current .node-marker {
+  background: var(--attention);
+  border-color: var(--attention);
+  box-shadow: 0 0 0 6px var(--attention-soft);
+  animation: gate-glow 2.2s ease-in-out infinite;
+}
+
+@keyframes beacon {
+  0% {
+    box-shadow: 0 0 0 0 var(--signal-soft), 0 0 0 0 var(--signal-soft);
+  }
+  100% {
+    box-shadow: 0 0 0 10px transparent, 0 0 0 4px var(--signal-soft);
+  }
+}
+
+@keyframes gate-glow {
+  50% {
+    box-shadow: 0 0 0 10px var(--attention-soft);
+  }
+}
+
+.node-label {
+  max-width: 16ch;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.node.current .node-label {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.node.gate.current .node-label {
+  color: var(--attention);
+}
+
+/* ------------------------------------------------------------------ now card */
+
+.now-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
+  padding: 20px 22px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+
+.now-card.tone-signal {
+  background: linear-gradient(135deg, var(--signal-soft), transparent 55%), var(--surface);
+}
+
+.now-card.tone-attention {
+  border-color: var(--attention-line);
+  background: var(--attention-soft);
+}
+
+.now-card.tone-done {
+  background: linear-gradient(135deg, var(--done-soft), transparent 55%), var(--surface);
+}
+
+.now-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+  border-radius: 12px;
+  color: var(--muted);
+  background: var(--raised);
+}
+
+.tone-signal .now-icon {
+  color: var(--signal);
+  background: var(--signal-soft);
+}
+
+.tone-attention .now-icon {
+  color: var(--attention);
+  background: var(--attention-soft);
+}
+
+.tone-done .now-icon {
+  color: var(--done);
+  background: var(--done-soft);
+}
+
+.now-body h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.now-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+
+.now-timer {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--signal);
+}
+
+.now-text {
+  margin: 6px 0 0;
+  max-width: 72ch;
+}
+
+.now-sub {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.now-live {
+  min-height: 30px;
+}
+
+.now-tool {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 14px;
+}
+
+.now-quote {
+  margin: 10px 0 0;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--muted);
+  background: var(--raised);
+  border-left: 3px solid var(--attention);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+
+.now-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.now-counts strong {
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--ink);
+}
+
+.now-count-error strong {
+  color: var(--danger);
+}
+
+.now-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+/* Radar: Claude is working. */
+.radar {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--signal);
+}
+
+.radar::before,
+.radar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--signal);
+  animation: ping 2s var(--ease-out) infinite;
+}
+
+.radar::after {
+  animation-delay: 1s;
+}
+
+@keyframes ping {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+/* ------------------------------------------------------------------ gate card */
+
+.gate-card {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+  background: var(--attention-soft);
+  border: 1px solid var(--attention-line);
+  border-radius: var(--r-lg);
+}
+
+.gate-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.gate-head h3 {
+  margin: 0;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+
+.gate-head p {
+  margin: 2px 0 0;
+  color: var(--muted);
+}
+
+.gate-badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+  color: var(--on-attention);
+  background: var(--attention);
+  border-radius: 12px;
+}
+
+.gate-claude {
+  margin: 0;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.gate-claude figcaption {
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.gate-claude .markdown {
+  font-size: 14px;
+}
+
+.gate-doc {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.gate-doc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 6px 6px 14px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--line);
+}
+
+.gate-doc-body {
+  position: relative;
+  max-height: 320px;
+  padding: 14px 16px;
+  overflow: auto;
+}
+
+.gate-decide {
+  display: grid;
+  gap: 14px;
+}
+
+.gate-decide > .btn {
+  justify-self: start;
+}
+
+.gate-feedback label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.gate-feedback-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.gate-feedback textarea {
+  flex: 1;
+  min-width: 240px;
+  padding: 8px 12px;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  resize: vertical;
+}

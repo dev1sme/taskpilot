@@ -1,0 +1,148 @@
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 8vh 16px 16px;
+  overflow: auto;
+  background: rgba(5, 6, 8, 0.6);
+}
+
+.dialog {
+  display: grid;
+  gap: 14px;
+  width: min(560px, 100%);
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+}
+
+.dialog-wide {
+  width: min(900px, 100%);
+}
+
+.dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dialog-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.dialog-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.diff-add {
+  font-weight: 600;
+  color: var(--done);
+}
+
+.diff-del {
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.diff-view {
+  max-height: 55vh;
+  margin: 0;
+  padding: 12px 0;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.diff-view span {
+  display: block;
+  padding: 0 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diff-view .is-add {
+  color: var(--done);
+  background: var(--done-soft);
+}
+
+.diff-view .is-del {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.diff-view .is-hunk {
+  margin-top: 6px;
+  color: var(--signal-text);
+}
+
+.alert-warn {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  line-height: 1.5;
+  background: var(--attention-soft);
+  border: 1px solid var(--attention-line);
+  border-radius: var(--r-md);
+}
+
+.alert-warn svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  color: var(--attention);
+}
+
+/* ------------------------------------------------------------------ toast */
+
+.toast-stack {
+  position: fixed;
+  right: 20px;
+  bottom: 48px;
+  z-index: 80;
+  display: grid;
+  gap: 8px;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 420px;
+  padding: 12px 16px;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.toast svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--done);
+}
+
+.toast.is-error svg {
+  color: var(--danger);
+}

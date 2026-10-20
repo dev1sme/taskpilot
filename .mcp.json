@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "codegraph": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "-w",
+        "/home/thomson/dev/project/dev1sme/taskpilot",
+        "env-codegraph",
+        "codegraph",
+        "serve",
+        "--mcp"
+      ]
+    },
+    "claude-code-docs": {
+      "type": "http",
+      "url": "https://code.claude.com/docs/mcp"
+    }
+  }
+}

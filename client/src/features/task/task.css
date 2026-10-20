@@ -1,0 +1,84 @@
+.task-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.task-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.title-key {
+  margin-right: 12px;
+  font-family: var(--mono);
+  font-size: 0.8em;
+  font-weight: 500;
+  color: var(--signal-text);
+}
+
+.task-error {
+  margin: 12px 28px 0;
+}
+
+.task-content {
+  padding: 22px 28px 24px;
+}
+
+.task-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  align-items: start;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.task-main {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.task-side {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* Grid children default to min-width:auto; long nowrap file names would widen the column. */
+.task-main > *,
+.task-side > * {
+  min-width: 0;
+}
+
+.task-side .activity {
+  max-height: 520px;
+}
+
+.workflow-source {
+  margin: 18px 0 0;
+  font-size: 13px;
+  color: var(--faint);
+}
+
+.task-screen > .drawer {
+  margin: 0 16px;
+}
+
+@media (max-width: 1180px) {
+  .task-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .task-content {
+    padding: 16px;
+  }
+
+  .task-screen > .drawer {
+    margin: 0;
+  }
+}

@@ -41,6 +41,10 @@
   color: var(--muted);
 }
 
+.task-table td:nth-child(3) {
+  white-space: nowrap;
+}
+
 .status-chip {
   display: inline-flex;
   align-items: center;

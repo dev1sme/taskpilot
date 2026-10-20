@@ -6,7 +6,7 @@ import { Button } from "../../components/Button";
 import { DiffDialog } from "../../components/DiffDialog";
 import { toast } from "../../components/Toast";
 import { clearDraft, setDraft } from "./drafts";
-import { RuleChip, UnsavedPill } from "./parts";
+import { DraftControls, RuleChip } from "./parts";
 import { useSaveFlow } from "./useSaveFlow";
 
 export interface PermissionsDraft {
@@ -33,7 +33,6 @@ const COLUMNS: Array<{ key: "allow" | "ask" | "deny"; title: string; example: st
 
 /** Edits allow/ask/deny rules and the default mode of one settings file. */
 export function PermissionsEditor({ scope, draft, onSaved }: { scope: Scope; draft: PermissionsDraft; onSaved: () => void }) {
-  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const modeId = useId();
   const update = (p: Partial<Permissions>) => setDraft(permissionsKey(scope), { ...draft, permissions: { ...draft.permissions, ...p } });
 
@@ -75,16 +74,7 @@ export function PermissionsEditor({ scope, draft, onSaved }: { scope: Scope; dra
       </div>
 
       <div className="perm-actions">
-        <UnsavedPill />
-        {confirmDiscard ? (
-          <Button icon={X} variant="danger" onClick={() => clearDraft(permissionsKey(scope))}>
-            Bỏ thay đổi
-          </Button>
-        ) : (
-          <Button icon={X} variant="quiet" onClick={() => setConfirmDiscard(true)}>
-            Huỷ
-          </Button>
-        )}
+        <DraftControls draftKey={permissionsKey(scope)} />
         <Button icon={Eye} variant="primary" onClick={() => void flow.review()}>
           Xem thay đổi &amp; lưu
         </Button>

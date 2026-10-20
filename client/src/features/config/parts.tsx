@@ -1,8 +1,9 @@
-import { ArrowClockwise, LockSimple } from "@phosphor-icons/react";
-import type { ReactNode } from "react";
+import { ArrowClockwise, LockSimple, X } from "@phosphor-icons/react";
+import { useState, type ReactNode } from "react";
 import type { Scope } from "../../api/types";
 import { Button } from "../../components/Button";
 import { PageHeader } from "../shell/PageHeader";
+import { clearDraft, isDirty } from "./drafts";
 import "./config.css";
 
 export const SCOPE_LABEL: Record<Scope, string> = {
@@ -31,7 +32,6 @@ export function ConfigHeader(props: {
   subtitle?: ReactNode;
   loading: boolean;
   onReload: () => void;
-  extra?: ReactNode;
   /** Edit actions; without them the page is marked read-only. */
   actions?: ReactNode;
 }) {
@@ -41,7 +41,6 @@ export function ConfigHeader(props: {
       subtitle={props.subtitle}
       actions={
         <>
-          {props.extra}
           {props.actions ?? (
             <span className="readonly-pill" title="Trang này chưa sửa được trong TaskPilot">
               <LockSimple weight="bold" aria-hidden="true" />
@@ -57,13 +56,36 @@ export function ConfigHeader(props: {
   );
 }
 
-/** "● Chưa lưu" marker shown while a draft exists. */
-export function UnsavedPill() {
+/**
+ * "● Chưa lưu" marker and the cancel button of an open draft. Cancelling asks again only when the
+ * draft has unsaved changes.
+ */
+export function DraftControls({ draftKey }: { draftKey: string }) {
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const dirty = isDirty(draftKey);
+  const discard = () => {
+    clearDraft(draftKey);
+    setConfirmDiscard(false);
+  };
+
   return (
-    <span className="unsaved-pill">
-      <span aria-hidden="true" />
-      Chưa lưu
-    </span>
+    <>
+      {dirty && (
+        <span className="unsaved-pill">
+          <span aria-hidden="true" />
+          Chưa lưu
+        </span>
+      )}
+      {dirty && confirmDiscard ? (
+        <Button icon={X} variant="danger" onClick={discard}>
+          Bỏ thay đổi
+        </Button>
+      ) : (
+        <Button icon={X} variant="quiet" onClick={() => (dirty ? setConfirmDiscard(true) : discard())}>
+          Huỷ
+        </Button>
+      )}
+    </>
   );
 }
 

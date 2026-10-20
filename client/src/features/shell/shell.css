@@ -230,9 +230,12 @@
 }
 
 .nav-task-key {
+  overflow: hidden;
   font-family: var(--mono);
   font-size: 13px;
   font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nav-task-title {
@@ -312,7 +315,9 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
+  max-width: 100%;
 }
 
 .search-trigger {

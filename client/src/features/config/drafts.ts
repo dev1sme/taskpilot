@@ -5,6 +5,8 @@ import { useSyncExternalStore } from "react";
  * Keys look like "memory:project" or "settings:local".
  */
 const drafts = new Map<string, unknown>();
+/** What each draft started as (serialized): a draft equal to it has no unsaved changes. */
+const baselines = new Map<string, string>();
 const listeners = new Set<() => void>();
 let version = 0;
 
@@ -17,20 +19,31 @@ export function getDraft<T>(key: string): T | undefined {
   return drafts.get(key) as T | undefined;
 }
 
-export function setDraft(key: string, value: unknown): void {
+/**
+ * Opening a draft (first set for a key) records `baseline` as its starting point; it defaults to the
+ * value itself. Pass `null` for content that is not on disk yet, so it counts as unsaved from the start.
+ */
+export function setDraft(key: string, value: unknown, baseline: unknown = value): void {
+  if (!drafts.has(key)) baselines.set(key, JSON.stringify(baseline));
   drafts.set(key, value);
   changed();
 }
 
 export function clearDraft(key: string): void {
+  baselines.delete(key);
   if (drafts.delete(key)) changed();
 }
 
-export function draftKeys(): string[] {
-  return [...drafts.keys()];
+/** The draft differs from what it was opened with. */
+export function isDirty(key: string): boolean {
+  return drafts.has(key) && JSON.stringify(drafts.get(key)) !== baselines.get(key);
 }
 
-/** Re-renders when any draft is added or removed. */
+export function dirtyKeys(): string[] {
+  return [...drafts.keys()].filter(isDirty);
+}
+
+/** Re-renders when any draft changes; returns the keys with unsaved changes. */
 export function useDrafts(): string[] {
   useSyncExternalStore(
     (l) => {
@@ -39,10 +52,10 @@ export function useDrafts(): string[] {
     },
     () => version,
   );
-  return draftKeys();
+  return dirtyKeys();
 }
 
 // Closing the tab with unsaved edits asks first.
 window.addEventListener("beforeunload", (e) => {
-  if (drafts.size > 0) e.preventDefault();
+  if (dirtyKeys().length > 0) e.preventDefault();
 });

@@ -1,4 +1,4 @@
-import { CheckCircle, Eye, PencilSimple, Plus, Warning, X } from "@phosphor-icons/react";
+import { CheckCircle, Eye, PencilSimple, Plus, Warning } from "@phosphor-icons/react";
 import { lazy, Suspense, useState } from "react";
 import { api } from "../../api/client";
 import type { MemoryFile, Scope } from "../../api/types";
@@ -6,8 +6,8 @@ import { Button } from "../../components/Button";
 import { DiffDialog } from "../../components/DiffDialog";
 import { clockTime } from "../../components/Elapsed";
 import { toast } from "../../components/Toast";
-import { clearDraft, getDraft, setDraft, useDrafts } from "./drafts";
-import { ConfigHeader, EmptyCard, LoadError, SCOPE_HINT, UnsavedPill } from "./parts";
+import { clearDraft, getDraft, isDirty, setDraft, useDrafts } from "./drafts";
+import { ConfigHeader, DraftControls, EmptyCard, LoadError, SCOPE_HINT } from "./parts";
 import { useConfig } from "./useConfig";
 import { useSaveFlow } from "./useSaveFlow";
 
@@ -35,7 +35,6 @@ export function MemoryPage() {
   const { data, error, loading, reload } = useConfig(["memory"], api.memory);
   const [scope, setScope] = useState<Scope>("project");
   const [opening, setOpening] = useState(false);
-  const [confirmDiscard, setConfirmDiscard] = useState(false);
   useDrafts();
   const draft = getDraft<MemoryDraft>(draftKey(scope));
   const file = data?.find((f) => f.scope === scope);
@@ -65,23 +64,7 @@ export function MemoryPage() {
 
   const actions = draft ? (
     <>
-      <UnsavedPill />
-      {confirmDiscard ? (
-        <Button
-          icon={X}
-          variant="danger"
-          onClick={() => {
-            clearDraft(draftKey(scope));
-            setConfirmDiscard(false);
-          }}
-        >
-          Bỏ thay đổi
-        </Button>
-      ) : (
-        <Button icon={X} variant="quiet" onClick={() => setConfirmDiscard(true)}>
-          Huỷ
-        </Button>
-      )}
+      <DraftControls key={scope} draftKey={draftKey(scope)} />
       <Button icon={Eye} variant="primary" onClick={() => void flow.review()}>
         Xem thay đổi &amp; lưu
       </Button>
@@ -102,32 +85,28 @@ export function MemoryPage() {
         loading={loading}
         onReload={() => void reload()}
         actions={actions}
-        extra={
-          <div className="segmented" role="tablist" aria-label="File memory">
-            {(["project", "local", "user"] as Scope[]).map((s) => {
-              const f = data?.find((x) => x.scope === s);
-              const dirty = Boolean(getDraft(draftKey(s)));
-              return (
-                <button
-                  key={s}
-                  type="button"
-                  role="tab"
-                  aria-selected={s === scope}
-                  title={SCOPE_HINT[s]}
-                  onClick={() => {
-                    setScope(s);
-                    setConfirmDiscard(false);
-                  }}
-                  className={f && !f.exists && !dirty ? "is-missing" : undefined}
-                >
-                  {TAB_LABEL[s]}
-                  {dirty && <span className="tab-dirty" aria-label="chưa lưu" />}
-                </button>
-              );
-            })}
-          </div>
-        }
       />
+      <div className="segmented memory-tabs" role="tablist" aria-label="File memory">
+        {(["project", "local", "user"] as Scope[]).map((s) => {
+          const f = data?.find((x) => x.scope === s);
+          const editing = Boolean(getDraft(draftKey(s)));
+          const dirty = isDirty(draftKey(s));
+          return (
+            <button
+              key={s}
+              type="button"
+              role="tab"
+              aria-selected={s === scope}
+              title={SCOPE_HINT[s]}
+              onClick={() => setScope(s)}
+              className={f && !f.exists && !editing ? "is-missing" : undefined}
+            >
+              {TAB_LABEL[s]}
+              {dirty && <span className="tab-dirty" aria-label="chưa lưu" />}
+            </button>
+          );
+        })}
+      </div>
       <LoadError error={error} />
       {draft ? (
         <div className="memory is-editing">

@@ -1,12 +1,11 @@
-import { Eye, Plus, Trash, X } from "@phosphor-icons/react";
-import { useState } from "react";
+import { Eye, Plus, Trash } from "@phosphor-icons/react";
 import { api } from "../../api/client";
 import type { HookInput, Scope } from "../../api/types";
 import { Button } from "../../components/Button";
 import { DiffDialog } from "../../components/DiffDialog";
 import { toast } from "../../components/Toast";
 import { clearDraft, setDraft } from "./drafts";
-import { UnsavedPill } from "./parts";
+import { DraftControls } from "./parts";
 import { useSaveFlow } from "./useSaveFlow";
 
 export interface HooksDraft {
@@ -61,7 +60,6 @@ function extraText(value: unknown): string {
 
 /** Command hooks of one settings file as editable rows. */
 export function HooksEditor({ draft, onSaved }: { draft: HooksDraft; onSaved: () => void }) {
-  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const setHooks = (hooks: HookInput[]) => setDraft(HOOKS_DRAFT, { ...draft, hooks });
   const update = (i: number, patch: Partial<HookInput>) => setHooks(draft.hooks.map((h, j) => (j === i ? { ...h, ...patch } : h)));
 
@@ -133,16 +131,7 @@ export function HooksEditor({ draft, onSaved }: { draft: HooksDraft; onSaved: ()
         <Button icon={Plus} variant="quiet" className="add-hook" onClick={() => setHooks([...draft.hooks, { event: "PostToolUse", matcher: "", command: "" }])}>
           Thêm hook
         </Button>
-        <UnsavedPill />
-        {confirmDiscard ? (
-          <Button icon={X} variant="danger" onClick={() => clearDraft(HOOKS_DRAFT)}>
-            Bỏ thay đổi
-          </Button>
-        ) : (
-          <Button icon={X} variant="quiet" onClick={() => setConfirmDiscard(true)}>
-            Huỷ
-          </Button>
-        )}
+        <DraftControls draftKey={HOOKS_DRAFT} />
         <Button icon={Eye} variant="primary" onClick={() => void flow.review()}>
           Xem thay đổi &amp; lưu
         </Button>

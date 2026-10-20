@@ -8,6 +8,9 @@ export const OUTPUT_FILES = ["01-investigation.md", "02-plan.md", "03-progress.m
 
 const TASK_KEY = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
+/** Session key of the repo terminal (sessions without a task). Never matches TASK_KEY, so no task can clash. */
+export const REPO_SESSION_KEY = "@repo";
+
 /** Derived from which output files exist; the workflow engine (M3) will own the real run state. */
 export type Stage = "new" | "investigated" | "planned" | "implementing" | "summarized";
 

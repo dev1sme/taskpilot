@@ -25,6 +25,8 @@ export const SERVER_ENV: Record<string, string> = {
   TASKPILOT_AUTH_USER: E2E_USER,
   TASKPILOT_AUTH_PASSWORD: E2E_PASSWORD,
   TASKPILOT_TOKEN: "e2e-token",
+  // Sessions started by a test run a stand-in, never the real claude.
+  TASKPILOT_CLAUDE: path.join(E2E_DIR, "fake-claude.sh"),
 };
 
 export const CLIENT_ENV: Record<string, string> = { TASKPILOT_PORT: String(SERVER_PORT) };

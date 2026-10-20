@@ -166,3 +166,52 @@ describe("sessions", () => {
     expect(res.statusCode).toBe(403);
   });
 });
+
+describe("repo sessions", () => {
+  it("runs Claude in the repo without a task", async () => {
+    const { app } = await start();
+    const created = await app.inject({ method: "POST", url: "/api/repo/sessions", headers: ok });
+    expect(created.statusCode).toBe(200);
+    const s = created.json();
+    expect(s).toMatchObject({ taskKey: "@repo", title: "Session 1", status: "running" });
+
+    const term = await connect(app, s.id);
+    await term.until(() => term.output().includes(`new ${s.id}`));
+    await app.inject({ method: "POST", url: `/api/sessions/${s.id}/stop`, headers: ok });
+    await term.until(term.exited);
+    expect((await app.inject({ method: "DELETE", url: `/api/sessions/${s.id}`, headers: ok })).statusCode).toBe(200);
+    expect((await app.inject({ url: "/api/repo/sessions", headers: ok })).json()).toEqual([]);
+    term.ws.close();
+  });
+
+  it("keeps repo and task sessions apart", async () => {
+    const { app } = await start();
+    const repoSession = (await app.inject({ method: "POST", url: "/api/repo/sessions", headers: ok })).json();
+    const taskSession = (await app.inject({ method: "POST", url: "/api/tasks/DEMO-1/sessions", headers: ok })).json();
+    expect(taskSession.title).toBe("Session 1");
+
+    const repoList = (await app.inject({ url: "/api/repo/sessions", headers: ok })).json();
+    expect(repoList.map((s: { id: string }) => s.id)).toEqual([repoSession.id]);
+    const taskList = (await app.inject({ url: "/api/tasks/DEMO-1/sessions", headers: ok })).json();
+    expect(taskList.map((s: { id: string }) => s.id)).toEqual([taskSession.id]);
+
+    const tasks = (await app.inject({ url: "/api/tasks", headers: ok })).json();
+    const running = Object.fromEntries(tasks.map((t: { key: string; sessionsRunning: number }) => [t.key, t.sessionsRunning]));
+    expect(running).toEqual({ "DEMO-1": 1, "DEMO-2": 0 });
+    // The reserved key is not a task key, so task routes cannot reach repo sessions.
+    expect((await app.inject({ url: "/api/tasks/@repo/sessions", headers: ok })).statusCode).toBe(400);
+  });
+
+  it("goes through the login and Host checks", async () => {
+    const { app } = await start();
+    expect((await app.inject({ method: "POST", url: "/api/repo/sessions", headers: { host: ok.host } })).statusCode).toBe(401);
+    const evil = await app.inject({ method: "POST", url: "/api/repo/sessions", headers: { ...ok, host: "evil.example" } });
+    expect(evil.statusCode).toBe(403);
+  });
+
+  it("needs a repo", async () => {
+    const state = new StateStore(await tempDir("taskpilot-state-"));
+    app = await buildApp({ token: TOKEN, state, launcher: fakeClaude });
+    expect((await app.inject({ url: "/api/repo/sessions", headers: ok })).statusCode).toBe(409);
+  });
+});

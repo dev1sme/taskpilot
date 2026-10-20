@@ -1,6 +1,6 @@
 import { ArrowClockwise, CaretDown, CaretUp, HandPalm, Plus, Stop, TerminalWindow, Trash } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useId, useState } from "react";
 import { api } from "../../api/client";
 import type { SessionView } from "../../api/types";
 import { Button, SrOnly } from "../../components/Button";
@@ -10,7 +10,14 @@ import "./sessions.css";
 const Terminal = lazy(() => import("./Terminal").then((m) => ({ default: m.Terminal })));
 
 interface Props {
-  taskKey: string;
+  /** Toggle text and section name; tells the repo terminal from a task's on the task screen. */
+  label?: string;
+  /** What a removed session leaves, for the remove button's tooltip: "task", "repo". */
+  scopeLabel: string;
+  /** Hint shown while there is no session yet. */
+  emptyHint: string;
+  /** Starts a new session in this drawer's scope. */
+  onCreate: () => Promise<SessionView>;
   sessions: SessionView[];
   activeId: string | null;
   open: boolean;
@@ -32,6 +39,8 @@ export function TerminalDrawer(props: Props) {
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [generation, setGeneration] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const bodyId = useId();
+  const label = props.label ?? "Terminal";
 
   const act = async (name: string, action: () => Promise<unknown>) => {
     setBusy(name);
@@ -47,17 +56,17 @@ export function TerminalDrawer(props: Props) {
   };
 
   return (
-    <section className={`drawer${props.open ? " is-open" : ""}`} aria-label="Terminal">
+    <section className={`drawer${props.open ? " is-open" : ""}`} aria-label={label}>
       <div className="drawer-bar">
         <button
           type="button"
           className="drawer-toggle"
           aria-expanded={props.open}
-          aria-controls="drawer-body"
+          aria-controls={bodyId}
           onClick={() => props.onToggle(!props.open)}
         >
           <TerminalWindow weight="bold" aria-hidden="true" />
-          Terminal
+          {label}
           {props.open ? <CaretDown aria-hidden="true" /> : <CaretUp aria-hidden="true" />}
         </button>
 
@@ -91,7 +100,7 @@ export function TerminalDrawer(props: Props) {
             disabled={busy === "create"}
             onClick={() =>
               void act("create", async () => {
-                const s = await api.createSession(props.taskKey);
+                const s = await props.onCreate();
                 props.onSelect(s.id);
                 props.onToggle(true);
               })
@@ -129,13 +138,13 @@ export function TerminalDrawer(props: Props) {
                       icon={Trash}
                       variant="danger"
                       busy={busy === "remove"}
-                      title="Xóa session khỏi task"
+                      title={`Xóa session khỏi ${props.scopeLabel}`}
                       onClick={() => void act("remove", () => api.forgetSession(active.id))}
                     >
                       Xác nhận xóa
                     </Button>
                   ) : (
-                    <Button icon={Trash} variant="quiet" title="Xóa session khỏi task" onClick={() => setConfirmRemove(true)}>
+                    <Button icon={Trash} variant="quiet" title={`Xóa session khỏi ${props.scopeLabel}`} onClick={() => setConfirmRemove(true)}>
                       Xóa
                     </Button>
                   ))}
@@ -154,7 +163,7 @@ export function TerminalDrawer(props: Props) {
       <AnimatePresence initial={false}>
         {props.open && (
           <motion.div
-            id="drawer-body"
+            id={bodyId}
             className="drawer-body"
             initial={{ height: 0 }}
             animate={{ height: "auto" }}
@@ -166,7 +175,7 @@ export function TerminalDrawer(props: Props) {
                 <Terminal key={`${active.id}-${generation}`} sessionId={active.id} onExit={props.onChanged} />
               </Suspense>
             ) : (
-              <p className="hint drawer-empty">Chưa có session. Bắt đầu quy trình hoặc bấm + để mở một session Claude.</p>
+              <p className="hint drawer-empty">{props.emptyHint}</p>
             )}
           </motion.div>
         )}

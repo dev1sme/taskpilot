@@ -195,7 +195,9 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
       </div>
 
       <TerminalDrawer
-        taskKey={task.key}
+        scopeLabel="task"
+        emptyHint="Chưa có session. Bắt đầu quy trình hoặc bấm + để mở một session Claude."
+        onCreate={() => api.createSession(task.key)}
         sessions={sessions}
         activeId={activeSession}
         open={drawerOpen}

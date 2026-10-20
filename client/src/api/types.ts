@@ -56,6 +56,9 @@ export interface RunView {
   run: RunState | null;
 }
 
+/** Session key of the repo terminal (sessions without a task); mirrors server/src/repo/tasks.ts. */
+export const REPO_SESSION_KEY = "@repo";
+
 export interface SessionView {
   id: string;
   taskKey: string;

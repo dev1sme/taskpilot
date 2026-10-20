@@ -125,6 +125,8 @@ export const api = {
   resumeSession: (id: string) => call<SessionView>("POST", `/api/sessions/${id}/resume`),
   stopSession: (id: string) => call<{ ok: true }>("POST", `/api/sessions/${id}/stop`),
   forgetSession: (id: string) => call<{ ok: true }>("DELETE", `/api/sessions/${id}`),
+  repoSessions: () => call<SessionView[]>("GET", "/api/repo/sessions"),
+  createRepoSession: () => call<SessionView>("POST", "/api/repo/sessions"),
 
   run: (key: string) => call<RunView>("GET", `${task(key)}/run`),
   startRun: (key: string) => call<RunState>("POST", `${task(key)}/run`),

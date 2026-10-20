@@ -5,6 +5,7 @@ import { AuthGate } from "../features/auth/AuthGate";
 import { BackupsPage } from "../features/config/BackupsPage";
 import { ConfigPage } from "../features/config/ConfigPage";
 import { OverviewPage } from "../features/overview/OverviewPage";
+import { RepoTerminal } from "../features/sessions/RepoTerminal";
 import { RepoDialog } from "../features/repo/RepoDialog";
 import { CommandPalette } from "../features/shell/CommandPalette";
 import { OPEN_PALETTE } from "../features/shell/PageHeader";
@@ -33,6 +34,7 @@ function Shell() {
   const { repo, tasks } = useWorkspace();
   const [palette, setPalette] = useState(false);
   const [repoDialog, setRepoDialog] = useState(false);
+  const [terminal, setTerminal] = useState(false);
   const closePalette = useCallback(() => setPalette(false), []);
   const closeRepo = useCallback(() => setRepoDialog(false), []);
 
@@ -80,7 +82,8 @@ function Shell() {
             </div>
           ))}
       </main>
-      <StatusBar />
+      <RepoTerminal open={terminal} onToggle={setTerminal} />
+      <StatusBar terminalOpen={terminal} onToggleTerminal={setTerminal} />
       <CommandPalette open={palette} onClose={closePalette} />
       <RepoDialog open={repoDialog} onClose={closeRepo} />
       <ToastHost />

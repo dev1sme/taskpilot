@@ -7,7 +7,7 @@ import { HttpError } from "./errors.js";
 import path from "node:path";
 import { ActivityStore } from "./activity/store.js";
 import { EventHub } from "./events.js";
-import { getTask, listTasks, readTaskFile, resolveRepo, tasksRoot } from "./repo/tasks.js";
+import { getTask, listTasks, readTaskFile, REPO_SESSION_KEY, resolveRepo, tasksRoot } from "./repo/tasks.js";
 import { BackupStore } from "./config/backups.js";
 import { registerConfigRoutes } from "./config/routes.js";
 import { EnvStore } from "./sessions/envStore.js";
@@ -185,6 +185,11 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     const task = await getTask(requireRepo(), req.params.key);
     return sessions.create(requireRepo(), task.key);
   });
+
+  // Repo sessions: Claude in the repo without a task (the footer terminal). Not part of any workflow run.
+  app.get("/api/repo/sessions", async () => sessions.list(requireRepo(), REPO_SESSION_KEY));
+
+  app.post("/api/repo/sessions", async () => sessions.create(requireRepo(), REPO_SESSION_KEY));
 
   app.post<{ Params: { id: string } }>("/api/sessions/:id/resume", async (req) =>
     sessions.resume(sessionId(req.params.id)),

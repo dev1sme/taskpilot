@@ -1,4 +1,4 @@
-.PHONY: install dev build start typecheck test link clean run \
+.PHONY: install dev build start typecheck test e2e link clean run \
 	service-install service-uninstall service-restart service-status service-logs
 
 UNIT_DIR := $(HOME)/.config/systemd/user
@@ -24,6 +24,9 @@ typecheck:
 
 test:
 	npm test
+
+e2e:
+	npm run e2e
 
 link:
 	npm link

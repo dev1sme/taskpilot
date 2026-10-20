@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { markdownHeadings } from "../src/core/markdown.js";
+import { markdownHeadings } from "../../src/core/markdown.js";
 
 describe("markdownHeadings", () => {
   it("reads ATX and setext headings with their line numbers", () => {

@@ -1,8 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { getTask, listTasks, readTaskFile, resolveRepo } from "../src/modules/tasks/scan.js";
-import { cleanupTempDirs, makeRepo } from "./fixtures.js";
+import { getTask, listTasks, readTaskFile, resolveRepo } from "../../../src/modules/tasks/scan.js";
+import { cleanupTempDirs, makeRepo } from "../../helpers/fixtures.js";
 
 afterAll(cleanupTempDirs);
 

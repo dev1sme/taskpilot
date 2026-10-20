@@ -1,13 +1,11 @@
 import type { FastifyInstance } from "fastify";
-import { mkdir, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { buildApp } from "../src/app.js";
-import { statusLineCommand } from "../src/modules/config/settings/read.js";
-import type { Launcher } from "../src/core/claude/launch.js";
-import { UsageStore } from "../src/modules/usage/store.js";
-import { StateStore } from "../src/core/state.js";
-import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
+import { buildApp } from "../../../src/app.js";
+import type { Launcher } from "../../../src/core/claude/launch.js";
+import { StateStore } from "../../../src/core/state.js";
+import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
 const TOKEN = "test-token";
 const ok = { host: "127.0.0.1:8790", "x-taskpilot-token": TOKEN };
@@ -97,50 +95,5 @@ describe("status line relay", () => {
     expect(res.statusCode).toBe(403);
     expect((await app.inject({ url: "/api/usage", headers: ok })).json()).toBeNull();
     expect((await app.inject({ url: "/api/usage", headers: { host: ok.host } })).statusCode).toBe(401);
-  });
-});
-
-describe("statusLineCommand", () => {
-  it("prefers local, then project, then user settings", async () => {
-    const repo = await makeRepo();
-    await writeFile(path.join(home, "settings.json"), JSON.stringify({ statusLine: { type: "command", command: "user" } }));
-    expect(await statusLineCommand(repo)).toBe("user");
-    await mkdir(path.join(repo, ".claude"), { recursive: true });
-    await writeFile(path.join(repo, ".claude", "settings.json"), JSON.stringify({ statusLine: { type: "command", command: "project" } }));
-    expect(await statusLineCommand(repo)).toBe("project");
-    await writeFile(path.join(repo, ".claude", "settings.local.json"), JSON.stringify({ statusLine: { type: "command", command: "local" } }));
-    expect(await statusLineCommand(repo)).toBe("local");
-  });
-
-  it("returns null without a command status line", async () => {
-    const repo = await makeRepo();
-    await writeFile(path.join(home, "settings.json"), JSON.stringify({ statusLine: { type: "static" } }));
-    expect(await statusLineCommand(repo)).toBeNull();
-  });
-});
-
-describe("UsageStore", () => {
-  it("keeps the last numbers when input has no rate limits, and ignores bad values", async () => {
-    const store = new UsageStore(new StateStore(await tempDir("taskpilot-state-")));
-    await store.apply({ rate_limits: RATE_LIMITS });
-    await store.apply({});
-    await store.apply({ rate_limits: { five_hour: { used_percentage: "90" }, seven_day: { used_percentage: 140 } } });
-    expect(await store.view()).toMatchObject({ fiveHour: { usedPercentage: 85 }, sevenDay: { usedPercentage: 39 } });
-  });
-
-  it("publishes only when the numbers change", async () => {
-    const store = new UsageStore(new StateStore(await tempDir("taskpilot-state-")));
-    const seen: number[] = [];
-    store.on("change", (u) => seen.push(u.fiveHour!.usedPercentage));
-    await store.apply({ rate_limits: RATE_LIMITS });
-    await store.apply({ rate_limits: RATE_LIMITS });
-    await store.apply({ rate_limits: { ...RATE_LIMITS, five_hour: { used_percentage: 86, resets_at: 1792477800 } } });
-    expect(seen).toEqual([85, 86]);
-  });
-
-  it("reads gateway spend", async () => {
-    const store = new UsageStore(new StateStore(await tempDir("taskpilot-state-")));
-    await store.apply({ rate_limits: { spend_limit: { used_percentage: 63 } } });
-    expect(await store.view()).toMatchObject({ spend: { usedPercentage: 63 } });
   });
 });

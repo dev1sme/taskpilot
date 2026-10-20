@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
-import { buildApp } from "../src/app.js";
-import type { Launcher } from "../src/core/claude/launch.js";
-import { StateStore } from "../src/core/state.js";
-import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
+import { buildApp } from "../../../src/app.js";
+import type { Launcher } from "../../../src/core/claude/launch.js";
+import { StateStore } from "../../../src/core/state.js";
+import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
 const TOKEN = "test-token";
 const ok = { host: "127.0.0.1:8790", "x-taskpilot-token": TOKEN };

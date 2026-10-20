@@ -2,10 +2,10 @@ import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import type { AddressInfo } from "node:net";
 import { WebSocket } from "ws";
-import { buildApp } from "../src/app.js";
-import { childEnv, type Launcher } from "../src/core/claude/launch.js";
-import { StateStore } from "../src/core/state.js";
-import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
+import { buildApp } from "../../../src/app.js";
+import { type Launcher } from "../../../src/core/claude/launch.js";
+import { StateStore } from "../../../src/core/state.js";
+import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
 const TOKEN = "test-token";
 const ok = { host: "127.0.0.1:8790", "x-taskpilot-token": TOKEN };
@@ -57,14 +57,6 @@ async function connect(app: FastifyInstance, id: string) {
   ws.send(JSON.stringify({ t: "r", cols: 80, rows: 24 }));
   return { ws, ...c };
 }
-
-describe("childEnv", () => {
-  it("drops CLAUDE* variables so the child writes its transcript", () => {
-    const env = childEnv({ PATH: "/bin", CLAUDECODE: "1", CLAUDE_CODE_CHILD_SESSION: "1", HOME: "/h" });
-    expect(env).toMatchObject({ PATH: "/bin", HOME: "/h" });
-    expect(Object.keys(env).filter((k) => k.startsWith("CLAUDE"))).toEqual([]);
-  });
-});
 
 describe("sessions", () => {
   it("creates a session, streams output and accepts input", async () => {

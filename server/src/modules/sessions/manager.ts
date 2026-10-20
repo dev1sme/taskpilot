@@ -2,10 +2,10 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import * as pty from "node-pty";
 import type { WebSocket } from "ws";
-import { HttpError } from "../core/errors.js";
-import type { SessionMeta, StateStore } from "../core/state.js";
+import { HttpError } from "../../core/errors.js";
+import type { SessionMeta, StateStore } from "../../core/state.js";
 import { hookSettings, nextActivity, type Activity, type HookEvent } from "./hooks.js";
-import { childEnv, claudeLauncher, type Launcher } from "../core/claude/launch.js";
+import { childEnv, claudeLauncher, type Launcher } from "../../core/claude/launch.js";
 
 export type SessionStatus = "running" | "exited";
 

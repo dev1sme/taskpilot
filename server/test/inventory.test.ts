@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { readInventory } from "../src/repo/inventory.js";
+import { readInventory } from "../src/modules/repo/inventory.js";
 import { cleanupTempDirs, makeRepo } from "./fixtures.js";
 
 afterAll(cleanupTempDirs);

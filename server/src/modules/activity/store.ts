@@ -2,9 +2,9 @@ import { appendFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { EventEmitter } from "node:events";
 import type { HookEvent } from "../sessions/hooks.js";
-import type { SessionMeta } from "../core/state.js";
+import type { SessionMeta } from "../../core/state.js";
 import { describeTool, firstLine, type ToolCategory } from "./describe.js";
-import { t } from "../core/i18n.js";
+import { t } from "../../core/i18n.js";
 
 export type ActivityKind = "session" | "prompt" | "tool" | "permission" | "stop";
 

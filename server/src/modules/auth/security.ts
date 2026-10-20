@@ -1,6 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { FastifyInstance } from "fastify";
-import { sessionCookie, type AuthSessions } from "./auth.js";
+import { sessionCookie, type AuthSessions } from "./sessions.js";
 
 export const TOKEN_HEADER = "x-taskpilot-token";
 

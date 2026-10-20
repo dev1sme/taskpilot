@@ -5,26 +5,26 @@ import Fastify, { LogController, type FastifyInstance } from "fastify";
 import { existsSync } from "node:fs";
 import { HttpError } from "./core/errors.js";
 import path from "node:path";
-import { ActivityStore } from "./activity/store.js";
+import { ActivityStore } from "./modules/activity/store.js";
 import { EventHub } from "./core/events.js";
-import { getTask, listTasks, readTaskFile, REPO_SESSION_KEY, resolveRepo, tasksRoot } from "./repo/tasks.js";
+import { getTask, listTasks, readTaskFile, REPO_SESSION_KEY, resolveRepo, tasksRoot } from "./modules/tasks/scan.js";
 import { BackupStore } from "./config/backups.js";
 import { registerConfigRoutes } from "./config/routes.js";
-import { EnvStore } from "./sessions/envStore.js";
-import { readInventory } from "./repo/inventory.js";
-import { TasksWatcher } from "./repo/watcher.js";
-import { AuthSessions, type Credentials } from "./auth.js";
-import { registerAuthRoutes } from "./authRoutes.js";
-import { registerSecurity } from "./security.js";
-import { isHookEvent } from "./sessions/hooks.js";
+import { EnvStore } from "./modules/env/store.js";
+import { readInventory } from "./modules/repo/inventory.js";
+import { TasksWatcher } from "./modules/tasks/watcher.js";
+import { AuthSessions, type Credentials } from "./modules/auth/sessions.js";
+import { registerAuthRoutes } from "./modules/auth/routes.js";
+import { registerSecurity } from "./modules/auth/security.js";
+import { isHookEvent } from "./modules/sessions/hooks.js";
 import type { Launcher } from "./core/claude/launch.js";
 import { claudeVersion } from "./core/claude/version.js";
-import { SessionManager } from "./sessions/manager.js";
-import { UsageStore } from "./sessions/usage.js";
+import { SessionManager } from "./modules/sessions/manager.js";
+import { UsageStore } from "./modules/usage/store.js";
 import { statusLineCommand } from "./config/settings.js";
 import type { StateStore } from "./core/state.js";
-import { WorkflowEngine } from "./workflow/engine.js";
-import type { WorkflowDef } from "./workflow/types.js";
+import { WorkflowEngine } from "./modules/workflow/engine.js";
+import type { WorkflowDef } from "./modules/workflow/types.js";
 
 export interface AppOptions {
   /**
@@ -254,7 +254,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     engine.retry(requireRepo(), req.params.key),
   );
 
-  // Called by the hook commands injected into every session (see sessions/hooks.ts). Not under /api:
+  // Called by the hook commands injected into every session (see modules/sessions/hooks.ts). Not under /api:
   // authenticated by the per-session hook token instead of the UI token.
   app.post<{ Params: { event: string }; Body: unknown }>(
     "/hook/:event",

@@ -1,6 +1,6 @@
 import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
-import { HttpError } from "../core/errors.js";
+import { HttpError } from "../../core/errors.js";
 
 export const TASKS_DIR = path.join(".claude", "tasks");
 export const SPEC_DIR = "spec";

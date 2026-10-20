@@ -5,8 +5,8 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadDotEnv } from "../src/core/dotenv.js";
 import { childEnv } from "../src/core/claude/launch.js";
-import type { Credentials } from "../src/auth.js";
-import { hostnameOf, isLoopbackHost } from "../src/security.js";
+import type { Credentials } from "../src/modules/auth/sessions.js";
+import { hostnameOf, isLoopbackHost } from "../src/modules/auth/security.js";
 import { StateStore } from "../src/core/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
 

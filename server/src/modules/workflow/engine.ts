@@ -1,16 +1,16 @@
 import { EventEmitter } from "node:events";
 import { stat } from "node:fs/promises";
 import path from "node:path";
-import { HttpError } from "../core/errors.js";
-import { getTask, SPEC_DIR, TASKS_DIR } from "../repo/tasks.js";
+import { HttpError } from "../../core/errors.js";
+import { getTask, SPEC_DIR, TASKS_DIR } from "../tasks/scan.js";
 import type { HookEvent } from "../sessions/hooks.js";
 import type { SessionView } from "../sessions/manager.js";
-import type { SessionMeta, StateStore } from "../core/state.js";
+import type { SessionMeta, StateStore } from "../../core/state.js";
 import { loadWorkflow, render, REPO_WORKFLOW_FILE } from "./definition.js";
 import { archiveOutputs } from "./archive.js";
 import { appendHistory, HISTORY_FILE, HISTORY_TEXT } from "./history.js";
 import type { RunState, StepDef, WorkflowDef } from "./types.js";
-import { t } from "../core/i18n.js";
+import { t } from "../../core/i18n.js";
 
 /** The parts of SessionManager the engine uses. */
 export interface SessionPort {

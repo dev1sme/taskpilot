@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { HttpError } from "../core/errors.js";
-import type { EnvStore } from "../sessions/envStore.js";
+import type { EnvStore } from "../modules/env/store.js";
 import { BackupStore } from "./backups.js";
 import { getCodegraphStatus, runCodegraphIndex } from "./codegraph.js";
 import { applyHooks, readHookInputs, readHooksBlock, validateHooks } from "./hooksEdit.js";

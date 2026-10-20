@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
 import { statusLineCommand } from "../src/config/settings.js";
 import type { Launcher } from "../src/core/claude/launch.js";
-import { UsageStore } from "../src/sessions/usage.js";
+import { UsageStore } from "../src/modules/usage/store.js";
 import { StateStore } from "../src/core/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
 

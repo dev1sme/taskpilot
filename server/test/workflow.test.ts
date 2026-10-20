@@ -1,13 +1,13 @@
 import { mkdir, readdir, readFile, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import type { SessionView } from "../src/sessions/manager.js";
-import { hookSettings, HOOK_EVENTS } from "../src/sessions/hooks.js";
+import type { SessionView } from "../src/modules/sessions/manager.js";
+import { hookSettings, HOOK_EVENTS } from "../src/modules/sessions/hooks.js";
 import type { SessionMeta } from "../src/core/state.js";
 import { StateStore } from "../src/core/state.js";
-import { loadWorkflow, parseWorkflow, render, DEFAULT_WORKFLOW_DIR } from "../src/workflow/definition.js";
-import { WorkflowEngine, type SessionPort } from "../src/workflow/engine.js";
-import { formatEntry, HISTORY_FILE } from "../src/workflow/history.js";
+import { loadWorkflow, parseWorkflow, render, DEFAULT_WORKFLOW_DIR } from "../src/modules/workflow/definition.js";
+import { WorkflowEngine, type SessionPort } from "../src/modules/workflow/engine.js";
+import { formatEntry, HISTORY_FILE } from "../src/modules/workflow/history.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "./fixtures.js";
 
 afterAll(cleanupTempDirs);

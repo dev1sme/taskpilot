@@ -1,5 +1,5 @@
 import path from "node:path";
-import { t } from "../core/i18n.js";
+import { t } from "../../core/i18n.js";
 
 /** What a tool call does, for icon and color in the feed. */
 export type ToolCategory = "read" | "write" | "run" | "search" | "web" | "agent" | "plan" | "other";

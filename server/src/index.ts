@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { buildApp } from "./app.js";
 import { loadDotEnv } from "./core/dotenv.js";
-import { tasksRoot } from "./repo/tasks.js";
-import { newToken } from "./security.js";
+import { tasksRoot } from "./modules/tasks/scan.js";
+import { newToken } from "./modules/auth/security.js";
 import { StateStore } from "./core/state.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));

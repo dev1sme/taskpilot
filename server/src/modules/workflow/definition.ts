@@ -3,11 +3,11 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
-import { HttpError } from "../core/errors.js";
+import { HttpError } from "../../core/errors.js";
 import type { StepDef, WorkflowDef } from "./types.js";
 
-/** <package>/workflows/default; three levels up from both server/src/workflow and dist/server/workflow. */
-export const DEFAULT_WORKFLOW_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../workflows/default");
+/** <package>/workflows/default; four levels up from both server/src/modules/workflow and dist/server/modules/workflow. */
+export const DEFAULT_WORKFLOW_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../workflows/default");
 export const REPO_WORKFLOW_FILE = path.join(".claude", "workflow.yml");
 
 /** bypassPermissions is deliberately not accepted from a repo file. */

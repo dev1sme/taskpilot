@@ -1,6 +1,6 @@
 import { watch, type FSWatcher } from "chokidar";
 import { existsSync } from "node:fs";
-import { tasksRoot } from "./tasks.js";
+import { tasksRoot } from "./scan.js";
 
 /** Watches <repo>/.claude/tasks and calls `onChange` (debounced) when any file under it changes. */
 export class TasksWatcher {

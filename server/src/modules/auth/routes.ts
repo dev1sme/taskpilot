@@ -8,9 +8,9 @@ import {
   type AuthMode,
   type AuthSessions,
   type Credentials,
-} from "./auth.js";
+} from "./sessions.js";
 import { tokenMatches } from "./security.js";
-import { t } from "./core/i18n.js";
+import { t } from "../../core/i18n.js";
 
 export interface AuthRoutesOptions {
   sessions: AuthSessions;

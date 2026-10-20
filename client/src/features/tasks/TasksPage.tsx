@@ -4,6 +4,7 @@ import { useWorkspace } from "../workspace";
 import { clockTime } from "../../shared/ui/Elapsed";
 import { PageHeader } from "../../shared/ui/PageHeader";
 import { sortTasks, statusOf } from "./taskStatus";
+import "../../shared/ui/table.css";
 import "./tasks.css";
 
 /** The decision log is kept by TaskPilot and Claude together; it is not one of Claude's documents. */

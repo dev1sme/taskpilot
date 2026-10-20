@@ -8,6 +8,7 @@ import { Markdown } from "../../shared/ui/Markdown";
 import { docsApi } from "../docs";
 import { workflowApi } from "./api";
 import type { RunState, WorkflowStep } from "./types";
+import "./gate-card.css";
 
 /**
  * The approval gate, front and center: what Claude produced (file preview + its closing message)

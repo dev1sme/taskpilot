@@ -1,0 +1,116 @@
+/* ------------------------------------------------------------------ gate card */
+
+.gate-card {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+  background: var(--attention-soft);
+  border: 1px solid var(--attention-line);
+  border-radius: var(--r-lg);
+}
+
+.gate-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.gate-head h3 {
+  margin: 0;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+
+.gate-head p {
+  margin: 2px 0 0;
+  color: var(--muted);
+}
+
+.gate-badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+  color: var(--on-attention);
+  background: var(--attention);
+  border-radius: 12px;
+}
+
+.gate-claude {
+  margin: 0;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.gate-claude figcaption {
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.gate-claude .markdown {
+  font-size: 14px;
+}
+
+.gate-doc {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.gate-doc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 6px 6px 14px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--line);
+}
+
+.gate-doc-body {
+  position: relative;
+  max-height: 320px;
+  padding: 14px 16px;
+  overflow: auto;
+}
+
+.gate-decide {
+  display: grid;
+  gap: 14px;
+}
+
+.gate-decide > .btn {
+  justify-self: start;
+}
+
+.gate-feedback label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.gate-feedback-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.gate-feedback textarea {
+  flex: 1;
+  min-width: 240px;
+  padding: 8px 12px;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  resize: vertical;
+}

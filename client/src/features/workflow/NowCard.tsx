@@ -18,6 +18,7 @@ import { CategoryIcon, type ActivityItem } from "../activity";
 import { workflowApi } from "./api";
 import type { SessionView } from "../sessions";
 import type { RunState, WorkflowStep } from "./types";
+import "./now-card.css";
 
 interface Props {
   taskKey: string;

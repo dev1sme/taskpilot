@@ -1,0 +1,45 @@
+/* ------------------------------------------------------------------ inventory */
+
+.inventory {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.inv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 12px;
+  color: var(--ink);
+  text-decoration: none;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  transition:
+    border-color var(--fast) var(--ease-out),
+    transform var(--fast) var(--ease-out);
+}
+
+.inv:hover {
+  border-color: var(--line-strong);
+  transform: translateY(-1px);
+}
+
+.inv svg {
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+}
+
+.inv-n {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.inv-label {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  color: var(--muted);
+}

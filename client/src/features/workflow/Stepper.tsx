@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { SrOnly } from "../../shared/ui/Button";
 import type { RunState, WorkflowStep } from "./types";
+import "./stepper.css";
 
 type NodeState = "done" | "current" | "pending";
 interface Node {

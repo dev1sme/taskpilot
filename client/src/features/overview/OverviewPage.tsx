@@ -8,6 +8,11 @@ import { CategoryIcon, useActivity, type ActivityItem } from "../activity";
 import { PageHeader } from "../../shared/ui/PageHeader";
 import { isAttention, sortTasks, statusOf } from "../tasks";
 import "./overview.css";
+import "./hero.css";
+import "./running.css";
+import "./inventory.css";
+// Last: the narrow-screen rules override the tiles above.
+import "./responsive.css";
 
 /** Repo dashboard: what needs the user, what is running, and the shape of the Claude config. */
 export function OverviewPage() {

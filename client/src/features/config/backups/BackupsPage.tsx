@@ -8,7 +8,7 @@ import { useWorkspace } from "../../workspace";
 import { locale } from "../../../i18n";
 import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "../shared/parts";
 import { useConfig } from "../shared/useConfig";
-import "../../tasks/tasks.css";
+import "../../../shared/ui/table.css";
 import { backupsApi } from "./api";
 import type { BackupEntry } from "../shared/types";
 

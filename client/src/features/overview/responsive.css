@@ -1,0 +1,25 @@
+@media (max-width: 1100px) {
+  .bento {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tile-hero {
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 700px) {
+  .bento {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px;
+  }
+
+  .tile-wide,
+  .tile-hero {
+    grid-column: auto;
+  }
+
+  .inventory {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

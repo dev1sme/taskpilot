@@ -5,10 +5,11 @@ import type { SessionView } from "../../../src/modules/sessions/manager.js";
 import type { SessionMeta } from "../../../src/core/state.js";
 import { StateStore } from "../../../src/core/state.js";
 import { WorkflowEngine, type SessionPort } from "../../../src/modules/workflow/engine.js";
-import { HISTORY_FILE } from "../../../src/modules/workflow/history.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
 afterAll(cleanupTempDirs);
+
+const HISTORY_FILE = "00-history.md";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -202,6 +203,56 @@ describe("workflow engine", () => {
     const log = await readFile(path.join(taskDir(), HISTORY_FILE), "utf8");
     expect(log).toContain(`· Implement · Chạy lại từ đầu\n\nBản cũ: archive/${stamp}/ (02-plan.md, 03-progress.md)`);
     expect(log.lastIndexOf("Bắt đầu quy trình")).toBeGreaterThan(log.indexOf("Chạy lại từ đầu"));
+
+    // The new run's first prompt sends Claude to the archived plan and progress first.
+    expect(run.previous).toEqual({ dir: `archive/${stamp}`, files: ["02-plan.md", "03-progress.md"] });
+    await hook("SessionStart");
+    const prompt = fake.pasted.at(-1)!;
+    expect(prompt).toContain("This task was restarted from the first step.");
+    expect(prompt).toContain(`- .claude/tasks/DEMO-1/archive/${stamp}/02-plan.md\n- .claude/tasks/DEMO-1/archive/${stamp}/03-progress.md\n`);
+    expect(prompt).not.toMatch(/\n{3}/);
+    expect(fake.pasted[0]).not.toContain("restarted");
+  });
+
+  it("keeps a run on the workflow it started with; a restart picks up edits", async () => {
+    const dir = path.join(repo, ".claude", "taskpilot");
+    await mkdir(dir, { recursive: true });
+    const yml = (prompt: string, steps: string) =>
+      `version: 2\nhistory: {file: log.md}\nsteps:\n${steps}`.replace("PROMPT", prompt);
+    await writeFile(path.join(dir, "one.md"), "First {{key}} {{outputs}} {{previousRun}}");
+    await writeFile(path.join(dir, "two.md"), "Second {{out.plan}}");
+    await writeFile(
+      path.join(dir, "workflow.yml"),
+      yml("", "  - {id: a, prompt: one.md, outputs: [{id: plan, file: ke-hoach.md}], done-when: plan}\n  - {id: b, prompt: two.md}\n"),
+    );
+    await engine.start(repo, "DEMO-1");
+    await hook("SessionStart");
+    expect(fake.pasted[0]).toContain("First DEMO-1 - `.claude/tasks/DEMO-1/ke-hoach.md`");
+
+    // Edited mid-run: one step only, another prompt text.
+    await writeFile(path.join(dir, "one.md"), "Edited {{previousRun}} {{outputs}}");
+    await writeFile(path.join(dir, "workflow.yml"), yml("", "  - {id: a, prompt: one.md, outputs: [{id: plan, file: ke-hoach.md}]}\n"));
+    expect((await engine.view(repo, "DEMO-1")).workflow).toMatchObject({ origin: "repo", outdated: true, historyFile: "log.md" });
+    expect((await engine.view(repo, "DEMO-1")).workflow.steps).toHaveLength(2);
+    expect((await engine.view(repo, "DEMO-1")).run).not.toHaveProperty("workflow");
+
+    await write("ke-hoach.md");
+    await hook("Stop");
+    expect(fake.pasted[1]).toBe("Second .claude/tasks/DEMO-1/ke-hoach.md");
+    expect(await hook("Stop")).toMatchObject({ phase: "done" });
+    expect(await readFile(path.join(taskDir(), "log.md"), "utf8")).toContain("Quy trình: .claude/taskpilot/, 2 bước.");
+
+    await engine.restart(repo, "DEMO-1");
+    await hook("SessionStart");
+    expect(fake.pasted.at(-1)).toMatch(/^Edited This task was restarted/);
+    expect((await engine.view(repo, "DEMO-1")).workflow).toMatchObject({ outdated: false });
+  });
+
+  it("follows the current workflow for runs saved before snapshots existed", async () => {
+    await engine.start(repo, "DEMO-1");
+    await state.update((s) => void delete s.runs[0].workflow);
+    await hook("SessionStart");
+    expect(fake.pasted[0]).toContain('task DEMO-1: "Health endpoint"');
   });
 
   it("stops the session of a run that is still working before restarting", async () => {

@@ -2,13 +2,14 @@ import { EventEmitter } from "node:events";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import { HttpError } from "../../core/errors.js";
-import { getTask, SPEC_DIR, TASKS_DIR } from "../tasks/index.js";
+import { getTask, TASKS_DIR } from "../tasks/index.js";
 import type { HookEvent, SessionView } from "../sessions/index.js";
 import type { SessionMeta, StateStore } from "../../core/state.js";
-import { loadWorkflow, render, REPO_WORKFLOW_FILE } from "./definition.js";
+import { loadWorkflow, OVERRIDE_DIR } from "./definition.js";
 import { archiveOutputs } from "./archive.js";
-import { appendHistory, HISTORY_FILE, HISTORY_TEXT } from "./history.js";
+import { appendHistory, HISTORY_TEXT } from "./history.js";
 import type { RunState, StepDef, WorkflowDef } from "./types.js";
+import { promptVars, render } from "./vars.js";
 import { t } from "../../core/i18n.js";
 
 /** The parts of SessionManager the engine uses. */
@@ -23,9 +24,20 @@ export interface SessionPort {
 export interface RunView {
   workflow: {
     source: string;
-    steps: Array<{ id: string; title: string; gate: StepDef["gate"]; doneFile: string | null }>;
+    origin: WorkflowDef["origin"];
+    historyFile: string;
+    steps: Array<{
+      id: string;
+      title: string;
+      gate: StepDef["gate"];
+      doneFile: string | null;
+      outputs: Array<{ id: string; file: string }>;
+    }>;
+    /** The run follows the workflow as it was when it started, which has been edited since. */
+    outdated: boolean;
   };
-  run: RunState | null;
+  /** Without the workflow snapshot, which only the engine needs. */
+  run: Omit<RunState, "workflow"> | null;
 }
 
 const MTIME_SLACK_MS = 100;
@@ -46,14 +58,30 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     super();
   }
 
+  /** The active run's workflow snapshot, else the workflow a new run would get. */
   async view(repo: string, taskKey: string): Promise<RunView> {
-    const def = await this.loadDef(repo);
+    const run = await this.find(repo, taskKey);
+    const pinned = run && ACTIVE.includes(run.phase) ? run.workflow : undefined;
+    const current = await this.loadDef(repo).catch((e: unknown) => {
+      if (pinned) return null;
+      throw e;
+    });
+    const def = pinned ?? current!;
     return {
       workflow: {
         source: def.source,
-        steps: def.steps.map((s) => ({ id: s.id, title: s.title, gate: s.gate, doneFile: s.doneWhen?.file ?? null })),
+        origin: def.origin,
+        historyFile: def.history.file,
+        steps: def.steps.map((s) => ({
+          id: s.id,
+          title: s.title,
+          gate: s.gate,
+          doneFile: s.doneWhen?.file ?? null,
+          outputs: s.outputs.map((o) => ({ id: o.id, file: o.file })),
+        })),
+        outdated: !!pinned && JSON.stringify(pinned) !== JSON.stringify(current),
       },
-      run: (await this.find(repo, taskKey)) ?? null,
+      run: run ? withoutSnapshot(run) : null,
     };
   }
 
@@ -76,16 +104,20 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       if (!existing) throw new HttpError(409, "No workflow run to restart; start one first");
       const old = await this.sessions.get(existing.sessionId).catch(() => null);
       if (old?.status === "running") await this.sessions.stop(existing.sessionId);
-      const { dir, files } = await archiveOutputs(taskDirOf(existing), new Date());
+      const before = await this.defOf(existing);
+      const previous = await archiveOutputs(taskDirOf(existing), before.history.file, new Date());
       await this.log(existing, HISTORY_TEXT.restart, {
-        body: files.length ? HISTORY_TEXT.archived(dir, files) : HISTORY_TEXT.nothingArchived,
+        body: previous.files.length ? HISTORY_TEXT.archived(previous.dir, previous.files) : HISTORY_TEXT.nothingArchived,
       });
-      return this.begin(repo, taskKey);
+      return this.begin(repo, taskKey, previous);
     });
   }
 
-  /** A new run on a new session at step 1; callers hold the queue. */
-  private async begin(repo: string, taskKey: string): Promise<RunState> {
+  /**
+   * A new run on a new session at step 1, pinned to the workflow as it is now; callers hold the
+   * queue. `previous` is what a restart archived, for {{previousRun}}.
+   */
+  private async begin(repo: string, taskKey: string, previous?: RunState["previous"]): Promise<RunState> {
     const def = await this.loadDef(repo);
     const session = await this.sessions.create(repo, taskKey, { permissionMode: def.permissionMode });
     const now = Date.now();
@@ -97,10 +129,12 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       phase: "starting",
       stepStartedAt: now,
       message: "",
+      workflow: def,
+      ...(previous ? { previous } : {}),
       startedAt: now,
       updatedAt: now,
     };
-    const source = def.source.endsWith(REPO_WORKFLOW_FILE) ? REPO_WORKFLOW_FILE : HISTORY_TEXT.defaultSource;
+    const source = def.origin === "repo" ? `${OVERRIDE_DIR.split(path.sep).join("/")}/` : HISTORY_TEXT.defaultSource;
     await this.log(run, HISTORY_TEXT.start, { body: HISTORY_TEXT.startBody(source, def.steps.length) });
     await this.deliver(run, await this.prompt(run, def.steps[0].prompt));
     return run;
@@ -109,7 +143,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   approve(repo: string, taskKey: string): Promise<RunState> {
     return this.serial(async () => {
       const run = await this.require(repo, taskKey, ["gate"]);
-      const def = await this.loadDef(repo);
+      const def = await this.defOf(run);
       const last = run.stepIndex + 1 >= def.steps.length;
       await this.log(run, HISTORY_TEXT.approve, last ? { body: HISTORY_TEXT.done } : {});
       if (last) {
@@ -125,7 +159,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     return this.serial(async () => {
       if (!text.trim()) throw new HttpError(400, "Feedback is empty");
       const run = await this.require(repo, taskKey, ["gate"]);
-      const step = (await this.loadDef(repo)).steps[run.stepIndex];
+      const step = (await this.defOf(run)).steps[run.stepIndex];
       const template = step.onReject ?? "{{feedback}}";
       await this.log(run, HISTORY_TEXT.feedback, { quote: text.trim() });
       await this.deliver(run, await this.prompt(run, template, { feedback: text.trim() }));
@@ -141,7 +175,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       if (session.status === "running" && session.activity === "busy") {
         throw new HttpError(409, "Claude is still working; wait for it or stop it in the terminal");
       }
-      const step = (await this.loadDef(repo)).steps[run.stepIndex];
+      const step = (await this.defOf(run)).steps[run.stepIndex];
       await this.deliver(run, run.pendingPrompt ?? (await this.prompt(run, step.prompt)), { force: true });
       return run;
     });
@@ -205,7 +239,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   }
 
   private async onStop(run: RunState): Promise<void> {
-    const def = await this.loadDef(run.repo);
+    const def = await this.defOf(run);
     const step = def.steps[run.stepIndex];
     if (step.doneWhen && !(await this.writtenSince(run, step.doneWhen.file))) {
       await this.save(run, {
@@ -245,7 +279,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   }
 
   private async send(run: RunState, text: string): Promise<void> {
-    const step = (await this.loadDef(run.repo)).steps[run.stepIndex];
+    const step = (await this.defOf(run)).steps[run.stepIndex];
     this.sessions.paste(run.sessionId, text);
     await this.save(run, {
       phase: "running",
@@ -255,19 +289,16 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     });
   }
 
-  private async prompt(run: RunState, template: string, extra: Record<string, string> = {}): Promise<string> {
+  private async prompt(run: RunState, template: string, extra: { feedback?: string } = {}): Promise<string> {
     const task = await getTask(run.repo, run.taskKey);
-    const step = (await this.loadDef(run.repo)).steps[run.stepIndex];
-    const taskDir = path.posix.join(TASKS_DIR.split(path.sep).join("/"), run.taskKey);
-    return render(template, {
-      key: task.key,
-      title: task.title,
-      step: step?.title ?? "",
-      taskDir,
-      specDir: `${taskDir}/${SPEC_DIR}`,
-      historyFile: `${taskDir}/${HISTORY_FILE}`,
-      ...extra,
-    });
+    const text = render(template, promptVars(await this.defOf(run), run.stepIndex, task, { previous: run.previous, ...extra }));
+    // Variables that render empty (e.g. {{previousRun}} on a first run) leave runs of blank lines.
+    return text.replace(/\n{3,}/g, "\n\n");
+  }
+
+  /** The workflow the run started with; runs saved before snapshots existed follow the current one. */
+  private defOf(run: RunState): Promise<WorkflowDef> {
+    return run.workflow ? Promise.resolve(run.workflow) : this.loadDef(run.repo);
   }
 
   private async writtenSince(run: RunState, file: string): Promise<boolean> {
@@ -283,8 +314,9 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   /** Appends to the task's decision log; a failed write is reported but never blocks the run. */
   private async log(run: RunState, source: string, extra: { body?: string; quote?: string } = {}): Promise<void> {
     try {
-      const step = (await this.loadDef(run.repo)).steps[run.stepIndex];
-      await appendHistory(taskDirOf(run), run.taskKey, { at: Date.now(), step: step?.title ?? "", source, ...extra });
+      const def = await this.defOf(run);
+      const step = def.steps[run.stepIndex];
+      await appendHistory(taskDirOf(run), def.history.file, run.taskKey, { at: Date.now(), step: step?.title ?? "", source, ...extra });
     } catch (e) {
       this.emit("warning", e);
     }
@@ -321,6 +353,11 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     this.queue = next.catch(() => undefined);
     return next;
   }
+}
+
+function withoutSnapshot(run: RunState): Omit<RunState, "workflow"> {
+  const { workflow: _workflow, ...rest } = run;
+  return rest;
 }
 
 function taskDirOf(run: RunState): string {

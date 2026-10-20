@@ -1,19 +1,44 @@
+/** A document a step writes into the task directory. */
+export interface OutputDef {
+  id: string;
+  /** File name inside the task directory. */
+  file: string;
+  /** What the document must contain; listed in the prompt through {{outputs}}. */
+  content: string;
+}
+
 export interface StepDef {
   id: string;
   title: string;
   /** Prompt template text, already loaded. */
   prompt: string;
-  /** The step is complete when this file (relative to the task dir) was written during the step. */
-  doneWhen?: { file: string };
+  /** Prompt file name, inside the workflow directory. */
+  promptFile: string;
+  outputs: OutputDef[];
+  /** The step is complete when this output (relative to the task dir) was written during the step. */
+  doneWhen?: { output: string; file: string };
   gate: "approve" | "none";
   /** Template sent with the reviewer's feedback when a gate is rejected. */
   onReject?: string;
+  onRejectFile?: string;
 }
 
 export interface WorkflowDef {
-  /** Where it was loaded from, for display. */
+  /** Absolute path of workflow.yml, for display. */
   source: string;
+  /** The repo's override in .claude/taskpilot/, or TaskPilot's built-in workflow. */
+  origin: "repo" | "default";
+  /** Directory holding workflow.yml and its prompt files. */
+  dir: string;
   permissionMode?: string;
+  /** The task's decision log: file name in the task dir, and the heading Claude uses for its entries. */
+  history: { file: string; entry: string };
+  /** Sentence about the documents' language, available as {{language}}. */
+  language: string;
+  /** Rules shared by every prompt, available as {{rules}}. */
+  rules: string[];
+  /** Output ids Claude must read from the archive after "Chạy lại từ đầu"; all archived files when absent. */
+  restart?: { read: string[] };
   steps: StepDef[];
 }
 
@@ -39,6 +64,10 @@ export interface RunState {
   lastMessage?: string;
   /** Prompt to send once the session reports SessionStart. */
   pendingPrompt?: string;
+  /** The workflow as it was when the run started; later edits apply to new runs only. */
+  workflow?: WorkflowDef;
+  /** Documents archived by "Chạy lại từ đầu" right before this run; `dir` is relative to the task dir. */
+  previous?: { dir: string; files: string[] };
   startedAt: number;
   updatedAt: number;
 }

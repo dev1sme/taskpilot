@@ -18,7 +18,7 @@ import { createRepoContext, registerRepoRoutes } from "./modules/repo/index.js";
 import { SessionManager, registerSessionsRoutes } from "./modules/sessions/index.js";
 import { registerTasksRoutes, TasksWatcher } from "./modules/tasks/index.js";
 import { registerUsageRoutes, UsageStore } from "./modules/usage/index.js";
-import { WorkflowEngine, registerWorkflowRoutes, type WorkflowDef } from "./modules/workflow/index.js";
+import { WorkflowEngine, loadWorkflow, registerWorkflowRoutes, stageOf, type WorkflowDef } from "./modules/workflow/index.js";
 
 export interface AppOptions {
   /**
@@ -74,7 +74,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
       return addr && typeof addr === "object" ? `http://${hookHost(addr.address)}:${addr.port}/hook` : null;
     },
   });
-  const engine = new WorkflowEngine(opts.state, sessions, opts.loadWorkflow);
+  const loadDef = opts.loadWorkflow ?? loadWorkflow;
+  const engine = new WorkflowEngine(opts.state, sessions, loadDef);
   const logError = (e: unknown) => app.log.error(e);
   sessions.on("change", (meta) => hub.publish("sessions", { taskKey: meta.taskKey }));
   const activity = new ActivityStore(path.join(opts.state.dir, "activity"));
@@ -117,7 +118,15 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   registerUsageRoutes(app, { usage });
   registerConfigRoutes(app, { requireRepo: repo.require, envStore, backups: new BackupStore(path.join(opts.state.dir, "backups")) });
   registerEnvRoutes(app, { requireRepo: repo.require, envStore });
-  registerTasksRoutes(app, { repo, state: opts.state, sessions });
+  registerTasksRoutes(app, {
+    repo,
+    state: opts.state,
+    sessions,
+    describe: async (r) => {
+      const def = await loadDef(r);
+      return { stageOf: (files) => stageOf(def, files), historyFile: def.history.file };
+    },
+  });
   registerSessionsRoutes(app, { repo, sessions, runs: engine });
   registerActivityRoutes(app, { repo, sessions, activity });
   registerWorkflowRoutes(app, { repo, engine });

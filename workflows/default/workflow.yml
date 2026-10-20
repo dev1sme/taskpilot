@@ -1,15 +1,48 @@
-# Built-in TaskPilot workflow. A repo can replace it with .claude/workflow.yml;
-# prompt files are looked up next to that file first, then here.
+# Built-in TaskPilot workflow. A repo replaces it with its own copy in .claude/taskpilot/
+# (Workflow page → "Thêm config override"); this directory is never edited from the UI.
+version: 2
+# permission-mode: acceptEdits        # default | acceptEdits | plan | auto
+
+# The task's decision log, and the heading Claude uses for its own entries.
+history:
+  file: 00-history.md
+  entry: "## <YYYY-MM-DD HH:MM> · {{step}} · Claude"
+
+# {{language}} and {{rules}} in the prompts below.
+language: Write the documents in the same language as the spec.
+rules:
+  - "Append only to {{historyFile}}: add new entries at the end with Edit, never rewrite or remove earlier ones."
+  - Do not push or merge.
+
+# After "Chạy lại từ đầu", {{previousRun}} asks Claude to read these archived documents first.
+restart:
+  read: [plan, summary, progress]
+
 steps:
   - id: investigate
     title: Điều tra & lên kế hoạch
     prompt: investigate.md
-    done-when: { file: 02-plan.md }
-    gate: approve
     on-reject: revise-plan.md
+    outputs:
+      - id: investigation
+        file: 01-investigation.md
+        content: scope, related files (with paths), how that part works today, risks
+      - id: plan
+        file: 02-plan.md
+        content: goal, changes per file, ordered steps, risks, how to verify (exact build/test commands), open questions
+    done-when: plan
+    gate: approve
+
   - id: implement
     title: Implement
     prompt: implement.md
-    done-when: { file: 04-summary.md }
-    gate: approve
     on-reject: revise-implementation.md
+    outputs:
+      - id: progress
+        file: 03-progress.md
+        content: a checklist of the plan's steps, with notes on blockers; keep it up to date
+      - id: summary
+        file: 04-summary.md
+        content: what changed, files touched, build/test results, remaining work, notes for the reviewer
+    done-when: summary
+    gate: approve

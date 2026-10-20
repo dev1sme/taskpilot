@@ -13,22 +13,20 @@ describe("listTasks", () => {
     expect(keys).toEqual(["DEMO-1", "DEMO-2"]);
   });
 
-  it("derives title, stage and files", async () => {
+  it("derives title and files", async () => {
     const repo = await makeRepo();
     const demo1 = await getTask(repo, "DEMO-1");
     expect(demo1.title).toBe("Health endpoint");
-    expect(demo1.stage).toBe("planned");
     // The escaping symlink is not a regular file, so it is not listed.
     expect(demo1.specFiles.map((f) => f.path)).toEqual(["spec/req.md"]);
     expect(demo1.outputFiles.map((f) => f.path)).toEqual(["02-plan.md"]);
 
     const demo2 = await getTask(repo, "DEMO-2");
     expect(demo2.title).toBe("DEMO-2");
-    expect(demo2.stage).toBe("new");
     expect(demo2.specFiles.map((f) => f.path)).toEqual(["spec/ui/screen.md"]);
   });
 
-  it("lists the decision log but not archived documents, and keeps the stage", async () => {
+  it("lists the decision log but not archived documents", async () => {
     const repo = await makeRepo();
     const dir = path.join(repo, ".claude", "tasks", "DEMO-1");
     await writeFile(path.join(dir, "00-history.md"), "# log\n");
@@ -36,7 +34,6 @@ describe("listTasks", () => {
     await writeFile(path.join(dir, "archive", "20261020-150000", "04-summary.md"), "# old\n");
     const demo1 = await getTask(repo, "DEMO-1");
     expect(demo1.outputFiles.map((f) => f.path)).toEqual(["00-history.md", "02-plan.md"]);
-    expect(demo1.stage).toBe("planned");
   });
 
   it("returns an empty list when .claude/tasks is missing", async () => {

@@ -4,15 +4,11 @@ import { HttpError } from "../../core/errors.js";
 
 export const TASKS_DIR = path.join(".claude", "tasks");
 export const SPEC_DIR = "spec";
-export const OUTPUT_FILES = ["01-investigation.md", "02-plan.md", "03-progress.md", "04-summary.md"] as const;
 
 const TASK_KEY = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 /** Session key of the repo terminal (sessions without a task). Never matches TASK_KEY, so no task can clash. */
 export const REPO_SESSION_KEY = "@repo";
-
-/** Derived from which output files exist; the workflow engine (M3) will own the real run state. */
-export type Stage = "new" | "investigated" | "planned" | "implementing" | "summarized";
 
 export interface TaskFile {
   /** Relative to the task directory, always with forward slashes. */
@@ -24,7 +20,6 @@ export interface TaskFile {
 export interface TaskSummary {
   key: string;
   title: string;
-  stage: Stage;
   specFiles: TaskFile[];
   outputFiles: TaskFile[];
   updatedAt: number;
@@ -96,20 +91,10 @@ async function loadTask(repo: string, key: string): Promise<TaskSummary | null> 
   return {
     key,
     title: (await firstHeading(dir, specFiles)) ?? key,
-    stage: stageOf(outputFiles),
     specFiles,
     outputFiles,
     updatedAt: Math.max(...all.map((f) => f.mtime)),
   };
-}
-
-function stageOf(outputs: TaskFile[]): Stage {
-  const has = (name: string) => outputs.some((f) => f.path === name);
-  if (has("04-summary.md")) return "summarized";
-  if (has("03-progress.md")) return "implementing";
-  if (has("02-plan.md")) return "planned";
-  if (has("01-investigation.md")) return "investigated";
-  return "new";
 }
 
 async function listMarkdown(dir: string, sub: string, recursive: boolean): Promise<TaskFile[]> {

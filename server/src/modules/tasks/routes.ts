@@ -2,22 +2,45 @@ import type { FastifyInstance } from "fastify";
 import type { StateStore } from "../../core/state.js";
 import type { RepoContext } from "../repo/index.js";
 import type { SessionManager } from "../sessions/index.js";
-import { getTask, listTasks, readTaskFile } from "./scan.js";
+import { getTask, listTasks, readTaskFile, type TaskSummary } from "./scan.js";
+
+/** How far a task got, as the repo's workflow reads its documents. */
+export interface TaskStage {
+  done: number;
+  total: number;
+  step: string | null;
+}
+
+/** What the repo's workflow says about task documents; supplied by the app so tasks does not depend on workflow. */
+export type DescribeTasks = (repo: string) => Promise<{ stageOf: (files: string[]) => TaskStage; historyFile: string }>;
+
+const UNKNOWN = { stageOf: () => ({ done: 0, total: 0, step: null }), historyFile: "" };
 
 /** Tasks of the current repo, with their run phase and sessions, and the files inside a task. */
-export function registerTasksRoutes(app: FastifyInstance, opts: { repo: RepoContext; state: StateStore; sessions: SessionManager }) {
+export function registerTasksRoutes(
+  app: FastifyInstance,
+  opts: { repo: RepoContext; state: StateStore; sessions: SessionManager; describe?: DescribeTasks },
+) {
   const { sessions } = opts;
   const requireRepo = opts.repo.require;
+  // A broken workflow file must not hide the task list.
+  const describe = (repo: string) => opts.describe?.(repo).catch(() => UNKNOWN) ?? Promise.resolve(UNKNOWN);
+  const withStage = (task: TaskSummary, d: Awaited<ReturnType<typeof describe>>) => ({
+    ...task,
+    stage: d.stageOf(task.outputFiles.map((f) => f.path)),
+    historyFile: d.historyFile,
+  });
 
   app.get("/api/tasks", async () => {
     const current = requireRepo();
     const { runs } = await opts.state.load();
+    const d = await describe(current);
     return Promise.all(
       (await listTasks(current)).map(async (task) => {
         const run = runs.find((r) => r.repo === current && r.taskKey === task.key);
         const list = await sessions.list(current, task.key);
         return {
-          ...task,
+          ...withStage(task, d),
           run: run ? { phase: run.phase, stepIndex: run.stepIndex, stepStartedAt: run.stepStartedAt } : null,
           waitingPermission: list.some((s) => s.activity === "permission"),
           sessionsRunning: list.filter((s) => s.status === "running").length,
@@ -26,7 +49,10 @@ export function registerTasksRoutes(app: FastifyInstance, opts: { repo: RepoCont
     );
   });
 
-  app.get<{ Params: { key: string } }>("/api/tasks/:key", async (req) => getTask(requireRepo(), req.params.key));
+  app.get<{ Params: { key: string } }>("/api/tasks/:key", async (req) => {
+    const repo = requireRepo();
+    return withStage(await getTask(repo, req.params.key), await describe(repo));
+  });
 
   app.get<{ Params: { key: string }; Querystring: { path?: string } }>("/api/tasks/:key/file", async (req) => {
     const rel = req.query.path ?? "";

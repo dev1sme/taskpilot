@@ -1,52 +1,102 @@
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { hookSettings, HOOK_EVENTS } from "../../../src/modules/sessions/hooks.js";
-import { loadWorkflow, parseWorkflow, render, DEFAULT_WORKFLOW_DIR } from "../../../src/modules/workflow/definition.js";
-import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
+import {
+  DEFAULT_WORKFLOW_DIR,
+  loadWorkflow,
+  parseWorkflowFiles,
+  readWorkflowDir,
+} from "../../../src/modules/workflow/definition.js";
+import { cleanupTempDirs, makeRepo } from "../../helpers/fixtures.js";
 
 afterAll(cleanupTempDirs);
 
+const where = { dir: "/wf", origin: "repo" as const };
+
+/** A one-step workflow whose yml is `yml`, with a prompt file p.md that names its output. */
+function parse(yml: string, extra: Record<string, string> = {}) {
+  const files = new Map(Object.entries({ "workflow.yml": yml, "p.md": "{{previousRun}} Write {{outputs}}", ...extra }));
+  return parseWorkflowFiles(files, where);
+}
+
+const ONE_STEP = "version: 2\nsteps:\n  - id: a\n    prompt: p.md\n    outputs: [{id: doc, file: doc.md}]\n    done-when: doc\n";
+
+async function writeOverride(repo: string, files: Record<string, string>) {
+  const dir = path.join(repo, ".claude", "taskpilot");
+  await mkdir(dir, { recursive: true });
+  for (const [name, text] of Object.entries(files)) await writeFile(path.join(dir, name), text);
+}
+
 describe("workflow definition", () => {
-  it("loads the built-in workflow with its prompts", async () => {
+  it("loads the built-in workflow with its outputs and prompts, without warnings", async () => {
     const def = await loadWorkflow(await makeRepo());
-    expect(def.source).toBe(path.join(DEFAULT_WORKFLOW_DIR, "workflow.yml"));
-    expect(def.steps.map((s) => [s.id, s.gate, s.doneWhen?.file])).toEqual([
-      ["investigate", "approve", "02-plan.md"],
-      ["implement", "approve", "04-summary.md"],
+    expect(def).toMatchObject({ origin: "default", source: path.join(DEFAULT_WORKFLOW_DIR, "workflow.yml") });
+    expect(def.history).toEqual({ file: "00-history.md", entry: "## <YYYY-MM-DD HH:MM> · {{step}} · Claude" });
+    expect(def.restart).toEqual({ read: ["plan", "summary", "progress"] });
+    expect(def.steps.map((s) => [s.id, s.gate, s.doneWhen?.file, s.outputs.map((o) => o.file)])).toEqual([
+      ["investigate", "approve", "02-plan.md", ["01-investigation.md", "02-plan.md"]],
+      ["implement", "approve", "04-summary.md", ["03-progress.md", "04-summary.md"]],
     ]);
-    expect(def.steps[0].prompt).toContain("{{specDir}}");
+    expect(def.steps[0].prompt).toContain("{{outputs}}");
     expect(def.steps[0].onReject).toContain("{{feedback}}");
+    const { warnings } = parseWorkflowFiles(await readWorkflowDir(DEFAULT_WORKFLOW_DIR), { dir: DEFAULT_WORKFLOW_DIR, origin: "default" });
+    expect(warnings).toEqual([]);
   });
 
-  it("prefers .claude/workflow.yml and falls back to default prompts", async () => {
+  it("uses the repo's .claude/taskpilot/ override and ignores the old .claude/workflow.yml", async () => {
     const repo = await makeRepo();
-    await writeFile(path.join(repo, ".claude", "custom.md"), "Custom {{key}}");
-    await writeFile(
-      path.join(repo, ".claude", "workflow.yml"),
-      "permission-mode: acceptEdits\nsteps:\n  - id: one\n    prompt: custom.md\n  - id: two\n    prompt: implement.md\n",
-    );
+    await writeFile(path.join(repo, ".claude", "workflow.yml"), "steps: []\n");
+    await writeOverride(repo, { "workflow.yml": `permission-mode: acceptEdits\n${ONE_STEP}`, "p.md": "Custom {{key}}" });
     const def = await loadWorkflow(repo);
-    expect(def.permissionMode).toBe("acceptEdits");
-    expect(def.steps[0]).toMatchObject({ id: "one", title: "one", gate: "none", prompt: "Custom {{key}}" });
-    expect(def.steps[1].prompt).toContain("approved");
+    expect(def).toMatchObject({ origin: "repo", permissionMode: "acceptEdits", dir: path.join(repo, ".claude", "taskpilot") });
+    expect(def.steps[0]).toMatchObject({ id: "a", title: "a", gate: "none", prompt: "Custom {{key}}", doneWhen: { output: "doc", file: "doc.md" } });
+  });
+
+  it("never falls back to a built-in prompt the override does not have", async () => {
+    const repo = await makeRepo();
+    await writeOverride(repo, { "workflow.yml": "version: 2\nsteps:\n  - {id: a, prompt: implement.md}\n" });
+    await expect(loadWorkflow(repo)).rejects.toThrow("prompt file not found: implement.md");
   });
 
   it.each([
-    ["steps: []", "non-empty"],
-    ["permission-mode: bypassPermissions\nsteps:\n  - {id: a, prompt: implement.md}", "permission-mode"],
-    ["steps:\n  - {id: a, prompt: implement.md}\n  - {id: a, prompt: implement.md}", "duplicate"],
-    ["steps:\n  - {id: a, prompt: ../../etc/passwd}", "relative"],
-    ["steps:\n  - {id: a, prompt: missing.md}", "not found"],
-    ["steps:\n  - {id: a, prompt: implement.md, gate: maybe}", "gate"],
-  ])("rejects %j", async (yaml, message) => {
-    const dir = await tempDir("taskpilot-wf-");
-    await writeFile(path.join(dir, "workflow.yml"), yaml);
-    await expect(parseWorkflow(path.join(dir, "workflow.yml"), [dir, DEFAULT_WORKFLOW_DIR])).rejects.toThrow(message);
+    ["steps: []", "version must be 2"],
+    ["version: 2\nsteps: []", "non-empty"],
+    ["version: 2\npermission-mode: bypassPermissions\nsteps:\n  - {id: a, prompt: p.md}", "permission-mode"],
+    ["version: 2\nsteps:\n  - {id: a, prompt: p.md}\n  - {id: a, prompt: p.md}", "duplicate step id"],
+    ["version: 2\nsteps:\n  - {id: a, prompt: ../../etc/passwd}", "prompt file name"],
+    ["version: 2\nsteps:\n  - {id: a, prompt: sub/p.md}", "prompt file name"],
+    ["version: 2\nsteps:\n  - {id: a, prompt: missing.md}", "not found"],
+    ["version: 2\nsteps:\n  - {id: a, prompt: p.md, gate: maybe}", "gate"],
+    ["version: 2\nsteps:\n  - {id: a, prompt: p.md, done-when: nope}", "done-when"],
+    ["version: 2\nsteps:\n  - {id: a, prompt: p.md, outputs: [{id: x, file: ../x.md}]}", "file must be"],
+    ["version: 2\nsteps:\n  - {id: a, prompt: p.md, outputs: [{id: x, file: spec/x.md}]}", "file must be"],
+    ["version: 2\nsteps:\n  - {id: a, prompt: p.md, outputs: [{id: x, file: 00-history.md}]}", "already used"],
+    ["version: 2\nsteps:\n  - {id: a, prompt: p.md, outputs: [{id: x, file: a.md}, {id: x, file: b.md}]}", "duplicate output id"],
+    ["version: 2\nrestart: {read: [nope]}\nsteps:\n  - {id: a, prompt: p.md}", "restart.read"],
+    ["version: 2\nrules: [1, 2]\nsteps:\n  - {id: a, prompt: p.md}", "rules"],
+    ["version: 2\nsteps:\n  - {id: a, prompt: bad.md}", "{{out.missing}} names no output"],
+    ["version: 2\nsteps:\n  - {id: a, prompt: fb.md}", "only available in on-reject"],
+  ])("rejects %j", (yml, message) => {
+    const { def, errors } = parse(yml, { "bad.md": "{{out.missing}}", "fb.md": "{{feedback}}" });
+    expect(def).toBeNull();
+    expect(errors.join("\n")).toContain(message);
   });
 
-  it("renders known variables and leaves unknown ones visible", () => {
-    expect(render("{{key}} {{nope}}", { key: "A-1" })).toBe("A-1 {{nope}}");
+  it("accepts {{feedback}} in on-reject prompts", () => {
+    const { errors } = parse(`${ONE_STEP}    on-reject: r.md\n`, { "r.md": "{{feedback}} {{out.doc}}" });
+    expect(errors).toEqual([]);
+  });
+
+  it("warns about unknown variables, unused files, unnamed outputs and a missing {{previousRun}}", () => {
+    const { def, warnings } = parse(ONE_STEP, { "p.md": "Write {{specdir}}", "old.md": "" });
+    expect(def).not.toBeNull();
+    expect(warnings).toEqual([
+      "p.md: unknown variable {{specdir}} is sent as it is",
+      "p.md: step a has outputs but its prompt names none of them ({{outputs}} or {{out.<id>}})",
+      "p.md: without {{previousRun}}, a restarted run is not told to read the archived documents",
+      "old.md is not used by any step",
+    ]);
   });
 
   it("injects every hook through curl with the session's env", () => {

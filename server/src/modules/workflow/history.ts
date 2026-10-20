@@ -1,9 +1,6 @@
 import { appendFile, stat } from "node:fs/promises";
 import path from "node:path";
 
-/** Decision log of a task, next to its other documents; entries are only ever appended. */
-export const HISTORY_FILE = "00-history.md";
-
 export interface HistoryEntry {
   at: number;
   /** Title of the workflow step the entry belongs to. */
@@ -47,9 +44,12 @@ export function formatEntry(entry: HistoryEntry): string {
   return `${parts.join("\n\n")}\n`;
 }
 
-/** Appends one entry to `<taskDir>/00-history.md`, starting the file with its title on first use. */
-export async function appendHistory(taskDir: string, taskKey: string, entry: HistoryEntry): Promise<void> {
-  const file = path.join(taskDir, HISTORY_FILE);
+/**
+ * Appends one entry to the task's decision log (`<taskDir>/<name>`, named by the workflow), starting
+ * the file with its title on first use. Entries are only ever appended.
+ */
+export async function appendHistory(taskDir: string, name: string, taskKey: string, entry: HistoryEntry): Promise<void> {
+  const file = path.join(taskDir, name);
   const exists = await stat(file).then(
     () => true,
     () => false,

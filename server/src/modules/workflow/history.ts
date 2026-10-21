@@ -25,6 +25,7 @@ export const HISTORY_TEXT = {
   approve: "Ba duyệt",
   done: "Quy trình hoàn tất.",
   feedback: "Ba góp ý",
+  reply: "Ba trả lời",
   cancel: "Huỷ quy trình",
   restart: "Chạy lại từ đầu",
   archived: (dir: string, files: string[]) => `Bản cũ: ${dir}/ (${files.join(", ")})`,

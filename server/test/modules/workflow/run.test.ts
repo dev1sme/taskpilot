@@ -102,6 +102,14 @@ describe("workflow run end to end", () => {
     expect(sessions).toHaveLength(2);
   });
 
+  it("checks the bodies of approve and reply, and answers only a waiting run", async () => {
+    const app = await start();
+    const post = (url: string, payload: unknown) => app.inject({ method: "POST", url, headers: ok, payload: payload as object });
+    expect((await post("/api/tasks/DEMO-1/run/approve", { note: 5 })).statusCode).toBe(400);
+    expect((await post("/api/tasks/DEMO-1/run/reply", {})).statusCode).toBe(400);
+    expect((await post("/api/tasks/DEMO-1/run/reply", { text: "Có" })).statusCode).toBe(404);
+  });
+
   it("rejects hook calls without a valid session token", async () => {
     const app = await start();
     const bad = await app.inject({

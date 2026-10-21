@@ -135,6 +135,25 @@ describe("workflow engine", () => {
     ]);
   });
 
+  it("answers Claude while it waits and approves a gate with answers, both logged", async () => {
+    await engine.start(repo, "DEMO-1");
+    await hook("SessionStart");
+    await expect(engine.reply(repo, "DEMO-1", "Có")).rejects.toMatchObject({ status: 409 });
+    expect(await hook("Stop")).toMatchObject({ phase: "waiting" });
+    await expect(engine.reply(repo, "DEMO-1", "  ")).rejects.toMatchObject({ status: 400 });
+
+    expect(await engine.reply(repo, "DEMO-1", "1. Dùng Redis?\n   → Theo đề xuất: không")).toMatchObject({ phase: "running" });
+    expect(fake.pasted.at(-1)).toBe("1. Dùng Redis?\n   → Theo đề xuất: không");
+
+    await write("02-plan.md");
+    expect(await hook("Stop")).toMatchObject({ phase: "gate" });
+    expect(await engine.approve(repo, "DEMO-1", "1. Tách task?\n   → Không")).toMatchObject({ phase: "running", stepIndex: 1 });
+
+    const log = await readFile(path.join(taskDir(), HISTORY_FILE), "utf8");
+    expect(log).toContain("· Điều tra & lên kế hoạch · Ba trả lời\n\n> 1. Dùng Redis?\n>    → Theo đề xuất: không\n");
+    expect(log).toContain("· Điều tra & lên kế hoạch · Ba duyệt\n\n> 1. Tách task?\n>    → Không\n");
+  });
+
   it("resumes an exited session on retry and sends the step again after SessionStart", async () => {
     const run = await engine.start(repo, "DEMO-1");
     await hook("SessionStart");

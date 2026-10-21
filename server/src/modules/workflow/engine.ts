@@ -155,12 +155,16 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     return run;
   }
 
-  approve(repo: string, taskKey: string): Promise<RunState> {
+  /**
+   * Approves the gate. `note` (e.g. answers to Claude's open questions) is quoted in the decision
+   * log, which the next step's prompt has Claude read first.
+   */
+  approve(repo: string, taskKey: string, note = ""): Promise<RunState> {
     return this.serial(async () => {
       const run = await this.require(repo, taskKey, ["gate"]);
       const def = await this.defOf(run);
       const last = run.stepIndex + 1 >= def.steps.length;
-      await this.log(run, HISTORY_TEXT.approve, last ? { body: HISTORY_TEXT.done } : {});
+      await this.log(run, HISTORY_TEXT.approve, { ...(note.trim() ? { quote: note.trim() } : {}), ...(last ? { body: HISTORY_TEXT.done } : {}) });
       if (last) {
         return this.save(run, { phase: "done", message: t("run.done") });
       }
@@ -178,6 +182,21 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       const template = step.onReject ?? "{{feedback}}";
       await this.log(run, HISTORY_TEXT.feedback, { quote: text.trim() });
       await this.deliver(run, await this.prompt(run, template, { feedback: text.trim() }));
+      return run;
+    });
+  }
+
+  /** Answers Claude while it waits (it ended its turn without the step's document): logged, then pasted as it is. */
+  reply(repo: string, taskKey: string, text: string): Promise<RunState> {
+    return this.serial(async () => {
+      if (!text.trim()) throw new HttpError(400, "Reply is empty");
+      const run = await this.require(repo, taskKey, ["waiting"]);
+      const session = await this.sessions.get(run.sessionId);
+      if (session.status === "running" && session.activity === "busy") {
+        throw new HttpError(409, "Claude is still working; wait for it or stop it in the terminal");
+      }
+      await this.log(run, HISTORY_TEXT.reply, { quote: text.trim() });
+      await this.deliver(run, text.trim());
       return run;
     });
   }

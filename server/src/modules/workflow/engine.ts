@@ -16,7 +16,7 @@ import { t } from "../../core/i18n.js";
 
 /** The parts of SessionManager the engine uses. */
 export interface SessionPort {
-  create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent }): Promise<SessionView>;
+  create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent; title?: string }): Promise<SessionView>;
   resume(id: string): Promise<SessionView>;
   stop(id: string): Promise<void>;
   get(id: string): Promise<SessionView>;

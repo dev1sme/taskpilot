@@ -306,7 +306,7 @@
   },
   "workflow": {
     "title": "Workflow",
-    "subtitle": "Các bước TaskPilot chạy cho mỗi task: tài liệu Claude phải viết và prompt gửi vào",
+    "subtitle": "Các bước TaskPilot chạy cho mỗi task: agent chạy bước, tài liệu phải viết và prompt gửi vào",
     "originDefault": "Mặc định của TaskPilot",
     "originRepo": "Override của repo · {{dir}}/",
     "defaultTitle": "Repo đang dùng workflow mặc định của TaskPilot",

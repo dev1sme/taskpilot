@@ -75,6 +75,7 @@ With Copilot installed and logged in, the same button adds `Copilot 42%`: the sh
 account's budget used (AI credits, or premium requests on the legacy plans), read from Copilot when
 a Copilot session is ready, while it works and when it ends a turn, at most once a minute. An
 account without a limit of its own (e.g. Copilot Business on AI credits) shows `Copilot ∞`. It needs
-the hooks TaskPilot installs, which Copilot loads only in a trusted folder: with
-`permission-mode: auto` in the workflow, or after "Yes, and remember" at the trust question. When a
-Copilot step gets no hook for a minute, the run says so; fix the trust and use "Gửi lại bước".
+the hooks TaskPilot installs in `~/.copilot/hooks/taskpilot.json`; they do not depend on the trust
+question. When a Copilot step gets no hook for a minute, the run says so and offers "Đánh dấu xong"
+(it asks for a confirmation, and only works once the step's file is written); TaskPilot also takes
+the end of a turn from Copilot's transcript after 15 s of quiet.

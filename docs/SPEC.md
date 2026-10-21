@@ -148,8 +148,8 @@ server/ — Node 24 + TypeScript + Fastify + @fastify/websocket
   `prepare` for a file), an optional `readyMarker` (terminal text that stands in for a SessionStart
   the agent fires late) and `normalize` (payload → Claude's hook fields, or null to drop it).
   Everything past the backend — `/hook/:event`, the engine, the activity feed — reads Claude's
-  event names and payload fields. Copilot's backend writes `.github/copilot/settings.local.json`
-  (§7, Copilot table). To add an agent (e.g. Codex): add it to `AGENTS` (TypeScript then asks for
+  event names and payload fields. Copilot's backend writes `~/.copilot/hooks/taskpilot.json`
+  (§7, Copilot table); it also has `finishedTurn` to read a finished turn from the transcript. To add an agent (e.g. Codex): add it to `AGENTS` (TypeScript then asks for
   its entry in `BACKENDS` and in `/api/info`'s versions), write `core/<agent>/launch.ts` and
   `version.ts` and `modules/sessions/backends/<agent>.ts`, add it to `client/src/shared/agents.ts`,
   and spike its hooks first (§7).
@@ -217,7 +217,7 @@ The embedded terminal is shell-equivalent access to the machine.
 | Question | Result |
 |---|---|
 | `--session-id <uuid>` | Creates the session with that id, and resumes it on a later start (context kept, `SessionStart.source: "resume"`). No separate resume flag needed. |
-| Hook config | No `--settings` flag. Hooks in `.github/copilot/settings.local.json`, flat entries `{type: "command", bash, timeoutSec}`. Declared with **PascalCase** names (`Stop`…) Copilot sends Claude-style snake_case payloads (`session_id`, `tool_name` as Claude's `Bash`/`Read`/`Edit`, `tool_input`, `transcript_path`); camelCase names get camelCase payloads. |
+| Hook config | No `--settings` flag. Hooks in `~/.copilot/hooks/taskpilot.json` (`{version:1, hooks}`; TPL-017, repo hooks are dropped in untrusted folders), flat entries `{type: "command", bash, timeoutSec}`. Declared with **PascalCase** names (`Stop`…) Copilot sends Claude-style snake_case payloads (`session_id`, `tool_name` as Claude's `Bash`/`Read`/`Edit`, `tool_input`, `transcript_path`); camelCase names get camelCase payloads. |
 | `PermissionRequest` | Still camelCase despite the PascalCase name: `sessionId`, `toolName: "bash"`, `toolInput`. Fires before Copilot decides, also for calls it then allows on its own (read-only commands, `--allow-tool` writes), and can arrive after the call's `PostToolUse`. TaskPilot holds it for 1.5 s and drops it when that call finishes (`permissionGraceMs`). |
 | `SessionStart` | **Not at startup**: fires only with the first prompt, next to `UserPromptSubmit`. TaskPilot treats the input box footer `/ commands` in the terminal output as SessionStart and drops Copilot's late one. **Checked on 1.0.101; check again after every Copilot upgrade** (a changed footer leaves runs in `starting`; "Gửi lại bước" still pastes). |
 | Tool hooks | No `tool_use_id`, no `duration_ms`; parallel calls share a timestamp. A shell command exiting non-zero is a `PostToolUse` (`result_type: "success"`), not `PostToolUseFailure`. |
@@ -226,7 +226,7 @@ The embedded terminal is shell-equivalent access to the machine.
 | Bracketed paste, multi-line | One prompt with newlines intact, submitted by `\r` 200 ms later. |
 | `statusLine` | Runs only from `~/.copilot/settings.json`, not from the repo's `settings.local.json`. Input: `session_id`, `model`, `cost.total_premium_requests`, `ai_used`, `context_window`; **no account quota**; the footer reads it with `account.getQuota` instead (next row). |
 | `account.getQuota` (TPL-010, SDK 1.0.24 / copilot 1.0.101) | `copilot --headless --stdio` answers JSON-RPC (`Content-Length` frames, protocol 3) without a `connect` first; start + reply ≈0.4-0.55 s, ~250 MB RSS. `quotaSnapshots.premium_interactions` is the main budget on both billing models: `tokenBasedBilling: true` → AI credits, otherwise premium requests. Fields beyond the SDK type: `hasQuota`, `tokenBasedBilling`, `overageEntitlement`. A Business account on AI credits reads unlimited (`isUnlimitedEntitlement`, 100 % remaining, `resetDate` = time of the call). Logged out: error `-32603 … Not authenticated`. Each start writes a log file (even `--log-level none`), hence `--log-dir`. |
-| Hooks need a trusted folder (TPL-014, copilot 1.0.101) | Every hook run writes `hook.start`/`hook.end` to the session's `events.jsonl`; sessions in this repo had 0 (hooks never ran: no footer, run stuck after the step), `/tmp` spikes 12–34. `-p` without `--trust-folder`: 0 hooks; with it, all six. `~/.copilot/config.json` `trustedFolders` is where "remember" is stored. Env **`COPILOT_ALLOW_ALL=true`**: all tools allowed, folder trusted, hooks load, `ls /tmp` not asked; **`=1`: 0 hooks**. `permission-mode: auto` sets it (`core/copilot/launch.ts`); other modes get a run warning when no hook arrives within 60 s of the prompt. The interactive run through TaskPilot's terminal is to be checked by hand (open item). |
+| Hooks need a trusted folder (TPL-014, copilot 1.0.101) | Every hook run writes `hook.start`/`hook.end` to the session's `events.jsonl`; sessions in this repo had 0 (hooks never ran: no footer, run stuck after the step), `/tmp` spikes 12–34. `-p` without `--trust-folder`: 0 hooks; with it, all six. `~/.copilot/config.json` `trustedFolders` is where "remember" is stored. Env **`COPILOT_ALLOW_ALL=true`**: all tools allowed, folder trusted, hooks load, `ls /tmp` not asked; **`=1`: 0 hooks**. `permission-mode: auto` sets it (`core/copilot/launch.ts`). **TPL-017**: the cause is that Copilot drops *repo* hooks when it reloads plugins in an untrusted folder (log: `Reloaded hooks after plugin change`); `trustedFolders` does not help, hooks in `~/.copilot/hooks/*.json` survive, so TaskPilot installs there and no longer needs `auto` for hooks. A run warns when no hook arrives within 60 s of the prompt. |
 | Settings files | JSONC (comments). Precedence: user < `.github/copilot/settings.json` < `settings.local.json` < env < flags. Copilot also runs hooks from `.claude/settings.json` and `.claude/settings.local.json`. |
 
 ## 8. Open items
@@ -241,10 +241,10 @@ The embedded terminal is shell-equivalent access to the machine.
 - TPL-011 leader-driven runs are implemented (§3 Dispatch). Not yet checked with real claude +
   copilot sessions; after a TaskPilot restart a dispatching run whose subtasks are all pending or
   done (none active) stays `running` until a subtask is retried.
-- TPL-014: `COPILOT_ALLOW_ALL=true` was verified in prompt mode (`-p`) only; check a Copilot step with
-  `permission-mode: auto` interactively in TaskPilot (no trust prompt, `hook.start` in `events.jsonl`,
-  no `human_response` permissions). Re-check after every Copilot upgrade. Outside `auto`, a run with
-  no hooks only warns; reading `events.jsonl` instead of the Stop hook is a possible follow-up.
+- TPL-014/TPL-017: hooks are installed at user level (`~/.copilot/hooks/taskpilot.json`), verified
+  with copilot 1.0.101 in the taskpilot repo in default mode: all six events arrive once each.
+  Re-check after every Copilot upgrade (that user hooks survive the plugin reload). When no hook
+  arrives, `finishedTurn` reads the end of the turn from `events.jsonl` and the run offers "Đánh dấu xong".
 - Follow-up tasks from TPL-009: **TPL-012** Codex backend, **TPL-013** Copilot config pages (`.github/copilot/*`, `copilot mcp`).
 
 ## 9. Milestones

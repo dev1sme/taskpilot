@@ -21,8 +21,8 @@ spec/*.md ──▶ Investigate ──▶ ◆ you approve 02-plan.md ──▶ I
 - `curl` on `PATH`: session hooks use it to report back to TaskPilot
 - Optional: GitHub Copilot CLI (`copilot`, `npm install -g @github/copilot`) on `PATH`, signed in,
   to run steps or sessions with Copilot (see [docs/CONFIGURATION.md](docs/CONFIGURATION.md#agents-claude-and-copilot)).
-  TaskPilot writes its hooks into the repo's `.github/copilot/settings.local.json`; add that file
-  to `.gitignore` yourself if the repo should not share it.
+  TaskPilot writes its hooks into `~/.copilot/hooks/taskpilot.json`; they act only in sessions
+  TaskPilot starts.
 
 ## Install and run
 

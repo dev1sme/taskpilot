@@ -56,29 +56,31 @@ starts over with the first step's agent. The built-in workflow investigates and 
 | `default` / absent | no flag: Copilot asks before writes and commands |
 | `acceptEdits` | `--allow-tool=write` |
 | `plan` | `--mode plan` |
-| `auto` | env `COPILOT_ALLOW_ALL=true`: allows every tool and **trusts the folder without asking**, so the repo's hooks (and MCP servers, skills, plugins) load. Not `--yolo`/`--allow-all-paths`/`--allow-all-urls`. |
+| `auto` | env `COPILOT_ALLOW_ALL=true`: allows every tool and trusts the folder without asking. Not `--yolo`/`--allow-all-paths`/`--allow-all-urls`. |
 
-A Copilot step needs `permission-mode: auto` to run unattended: set it in the repo's override
-(`.taskpilot/`), since the built-in workflow has none. It also becomes Claude's
-`--permission-mode auto`. In the other modes Copilot loads the repo's hooks only once you trust
-the folder **permanently** (option 2, "Yes, and remember"; "this session" does not reliably load
-them). Without hooks TaskPilot never hears that Copilot finished: the run says so after a minute
-without any hook (use "Gửi lại bước" after fixing the trust) and the footer has no Copilot usage.
+`auto` is for unattended Copilot steps: set it in the repo's override (`.taskpilot/`), since the
+built-in workflow has none. It also becomes Claude's `--permission-mode auto`. Hooks do **not**
+depend on it or on the folder's trust: they are installed at user level (below). If a Copilot step
+still gets no hook for a minute, the run says so; TaskPilot then takes the end of the turn from
+Copilot's transcript (`events.jsonl`) once it has been quiet for 15 s, and the "Đánh dấu xong"
+button on the step (or subtask) ends it by hand once its file is written.
 
 How TaskPilot drives Copilot (copilot 1.0.100, see
 [hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference) and
 [config directory reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference)):
 
-- Copilot has no `--settings` flag, so TaskPilot writes its seven hooks into the repo's
-  `.github/copilot/settings.local.json` before every Copilot session, under Claude's event names
-  (`SessionStart`, `Stop`…): with those names Copilot sends Claude-style payloads. Only entries that
-  post to `$TASKPILOT_HOOK_URL` are TaskPilot's; your keys and hooks in the file are kept (comments
-  are dropped when the file is rewritten, which happens only when TaskPilot's entries change). The
-  hooks do nothing in a `copilot` you start yourself. The file is not added to `.gitignore`: do it
-  if the repo should not share it.
+- Copilot has no `--settings` flag, so TaskPilot writes its seven hooks into
+  `~/.copilot/hooks/taskpilot.json` (or `$COPILOT_HOME/hooks/`) before every Copilot session, under
+  Claude's event names (`SessionStart`, `Stop`…): with those names Copilot sends Claude-style
+  payloads. Why not the repo: in a folder Copilot does not trust it drops repo hooks when it
+  reloads plugins at start (TPL-017), user-level hooks survive. Each command exits at once unless
+  `TASKPILOT_HOOK_AGENT=copilot` and the token are set, so a `copilot` you start yourself is not
+  affected. TaskPilot also removes its own entries from an older repo
+  `.github/copilot/settings.local.json` (and the file, if nothing else is left in it); your own keys
+  stay.
 - Without `permission-mode: auto`, Copilot asks whether you trust the folder on its first start in a
-  repo (or every start, if you trust it for the session only). Answer in the terminal; the step's prompt is sent once Copilot's
-  input box is ready, never into that question.
+  repo. Answer in the terminal; the step's prompt is sent once Copilot's input box is ready, never
+  into that question.
 - Copilot also runs the hooks in the repo's `.claude/settings.json` and `.claude/settings.local.json`.
 - The footer's plan usage is Claude's only: Copilot's status line input has no account quota.
 

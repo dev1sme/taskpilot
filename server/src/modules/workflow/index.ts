@@ -9,6 +9,7 @@ export {
   overrideDir,
   parseWorkflowFiles,
   readWorkflowDir,
+  reportOf,
   type ParseResult,
 } from "./definition.js";
 export { WorkflowEngine } from "./engine.js";

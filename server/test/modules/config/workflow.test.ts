@@ -1,7 +1,7 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { DEFAULT_WORKFLOW_DIR } from "../../../src/modules/workflow/definition.js";
+import { DEFAULT_WORKFLOW_DIR, LEADER_WORKFLOW_DIR } from "../../../src/modules/workflow/definition.js";
 import { get, repo, send, useConfigApp } from "../../helpers/configApp.js";
 
 useConfigApp();
@@ -63,6 +63,29 @@ describe("workflow config", () => {
     expect(view.files.every((f: { sameAsDefault: boolean }) => f.sameAsDefault)).toBe(true);
     expect((await get("/api/backups")).filter((b: { existed: boolean }) => !b.existed)).toHaveLength(BUILT_IN.length);
     expect((await send("POST", "/api/config/workflow/override")).statusCode).toBe(409);
+  });
+
+  it("creates the override from the leader template, and shows its dispatch step and subtask prompt", async () => {
+    expect((await send("POST", "/api/config/workflow/override", { template: "other" })).statusCode).toBe(400);
+    const res = await send("POST", "/api/config/workflow/override", { template: "leader" });
+    expect(res.statusCode).toBe(200);
+    expect((await readdir(dir())).sort()).toEqual((await readdir(LEADER_WORKFLOW_DIR)).sort());
+
+    const view = await get("/api/config/workflow");
+    expect(view).toMatchObject({ origin: "repo", errors: [], warnings: [] });
+    expect(view.def.steps.map((s: { id: string }) => s.id)).toEqual(["investigate", "dispatch", "review"]);
+    expect(view.def.steps[1].dispatch).toMatchObject({ from: "plan", promptFile: "subtask.md", report: "03-viec-{{n}}.md", format: "format-subtask.md", parallel: 1 });
+    const used = (name: string) => view.files.find((f: { name: string }) => f.name === name).usedBy;
+    expect(used("subtask.md")).toEqual([view.def.steps[1].title]);
+    expect(used("format-subtask.md")).toEqual(["03-viec-{{n}}.md"]);
+
+    const text = (await send("POST", "/api/config/workflow/render", { stepId: "dispatch", kind: "subtask" })).json().text;
+    expect(text).toContain("Tên việc mẫu");
+    expect(text).toContain("03-viec-1.md");
+    expect((await send("POST", "/api/config/workflow/render", { stepId: "dispatch", kind: "prompt" })).statusCode).toBe(404);
+    expect((await send("POST", "/api/config/workflow/render", { stepId: "review", kind: "subtask" })).statusCode).toBe(404);
+    expect((await send("POST", "/api/config/workflow/render", { stepId: "review", kind: "prompt" })).statusCode).toBe(200);
+    await builtInUnchanged();
   });
 
   it("refuses to create the override over files already in .claude/taskpilot/", async () => {

@@ -54,7 +54,7 @@ async function start(opts: { implementWith?: "copilot" } = {}) {
     if (opts.implementWith) def.steps[1].agent = opts.implementWith;
     return def;
   };
-  app = await buildApp({ token: TOKEN, state, repo: await makeRepo(), launcher: hookedClaude, launchers: { copilot: hookedCopilot }, loadWorkflow: loadDef });
+  app = await buildApp({ token: TOKEN, state, repo: await makeRepo(), launcher: hookedClaude, launchers: { copilot: hookedCopilot }, loadWorkflow: loadDef, copilotQuota: async () => ({ ok: false, reason: "missing" }) });
   // Hooks need a real port to call back to.
   await app.listen({ host: "127.0.0.1", port: 0 });
   return app;

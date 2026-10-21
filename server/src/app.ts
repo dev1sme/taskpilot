@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import type { Agent } from "./core/agents.js";
 import type { Launcher } from "./core/claude/launch.js";
+import type { CopilotQuotaResult } from "./core/copilot/quota.js";
 import { HttpError } from "./core/errors.js";
 import { EventHub } from "./core/events.js";
 import type { StateStore } from "./core/state.js";
@@ -18,7 +19,7 @@ import { registerHooksRoutes } from "./modules/hooks/index.js";
 import { createRepoContext, registerRepoRoutes } from "./modules/repo/index.js";
 import { SessionManager, registerSessionsRoutes } from "./modules/sessions/index.js";
 import { registerTasksRoutes, TasksWatcher } from "./modules/tasks/index.js";
-import { registerUsageRoutes, UsageStore } from "./modules/usage/index.js";
+import { CopilotQuotaPoller, registerUsageRoutes, UsageStore } from "./modules/usage/index.js";
 import { WorkflowEngine, loadWorkflow, registerWorkflowRoutes, stageOf, type WorkflowDef } from "./modules/workflow/index.js";
 
 export interface AppOptions {
@@ -43,6 +44,8 @@ export interface AppOptions {
   launchers?: Partial<Record<Agent, Launcher>>;
   /** Overrides workflow loading (tests). */
   loadWorkflow?: (repo: string) => Promise<WorkflowDef>;
+  /** Overrides reading Copilot's account quota (tests). */
+  copilotQuota?: () => Promise<CopilotQuotaResult>;
 }
 
 /** Address hook callbacks reach the server on: the listen address, or loopback when listening on all. */
@@ -91,9 +94,14 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   sessions.on("exit", (meta) => void engine.onExit(meta).catch(logError));
   sessions.on("warning", logError);
   const usage = new UsageStore(opts.state);
-  // Plan usage comes from Claude's status line only; copilot's input has no account quota (TPL-009 spike).
+  // Claude's plan usage comes from its status line; copilot's status line input has no account
+  // quota (TPL-009 spike), so copilot's is read from its runtime when a turn ends.
   sessions.on("statusline", (meta, payload) => {
     if ((meta.agent ?? "claude") === "claude") void usage.apply(payload).catch(logError);
+  });
+  const copilotQuota = new CopilotQuotaPoller(usage, opts.copilotQuota, logError);
+  sessions.on("hook", (meta, event) => {
+    if (meta.agent === "copilot" && event === "Stop") copilotQuota.request();
   });
   usage.on("change", (view) => hub.publish("usage", view));
   engine.on("change", (run) => hub.publish("run", { taskKey: run.taskKey }));
@@ -146,6 +154,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   }
 
   app.addHook("onClose", async () => {
+    copilotQuota.stop();
     sessions.closeAll();
     hub.close();
     await watcher.close();

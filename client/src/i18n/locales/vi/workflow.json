@@ -2,6 +2,7 @@
   "stepper": {
     "label": "Các bước của quy trình",
     "gate": "Ba duyệt",
+    "dispatchCount": "{{label}} ({{done}}/{{total}})",
     "state": {
       "step": { "done": "đã xong", "current": "đang làm", "pending": "chưa tới" },
       "gate": { "done": "đã duyệt", "current": "đang chờ ba duyệt", "pending": "chưa tới" }
@@ -57,6 +58,19 @@
     "approveNextAnswered": "Duyệt kèm trả lời, sang bước tiếp",
     "approveLastAnswered": "Duyệt kèm trả lời và hoàn tất",
     "feedbackLabelAnswered": "Hoặc gửi các câu trả lời như góp ý để {{agent}} sửa lại (thêm ý nếu cần)"
+  },
+  "subtasks": {
+    "title": "{{step}}: {{done}}/{{total}} việc xong",
+    "progress": "{{done}}/{{total}} việc xong",
+    "previewLabel": "Các việc con của kế hoạch",
+    "previewTitle_one": "Duyệt xong, Claude giao {{count}} việc con (chạy tối đa {{parallel}} việc cùng lúc)",
+    "previewTitle_other": "Duyệt xong, Claude giao {{count}} việc con (chạy tối đa {{parallel}} việc cùng lúc)",
+    "invalid": "Bảng phân công trong kế hoạch chưa chạy được. Gửi góp ý để Claude sửa lại:",
+    "after": "sau việc {{list}}",
+    "permission": "xin quyền",
+    "readReport": "Đọc {{file}}",
+    "retry": "Gửi lại việc",
+    "phase": { "pending": "chờ tới lượt", "starting": "đang khởi động", "running": "đang làm", "waiting": "đang chờ ba", "done": "xong", "interrupted": "bị gián đoạn" }
   },
   "questions": {
     "title_one": "{{agent}} hỏi {{count}} câu",

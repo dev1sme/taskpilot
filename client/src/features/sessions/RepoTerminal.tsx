@@ -33,7 +33,7 @@ export function RepoTerminal({ open, onToggle }: { open: boolean; onToggle: (ope
         sessions={sessions}
         activeId={activeId}
         open
-        runSessionId={null}
+        runSessionIds={[]}
         onSelect={setActiveId}
         onToggle={onToggle}
         onChanged={() => void reload()}

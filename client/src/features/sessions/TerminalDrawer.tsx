@@ -24,8 +24,8 @@ interface Props {
   sessions: SessionView[];
   activeId: string | null;
   open: boolean;
-  /** Session driven by the workflow run; it cannot be removed while the run is active. */
-  runSessionId: string | null;
+  /** Sessions driven by the workflow run (the leader's and its subtasks'); they cannot be removed while the run is active. */
+  runSessionIds: string[];
   onSelect: (id: string) => void;
   onToggle: (open: boolean) => void;
   onChanged: () => void;
@@ -166,7 +166,7 @@ export function TerminalDrawer(props: Props) {
                 >
                   {t("resume")}
                 </Button>
-                {active.id !== props.runSessionId &&
+                {!props.runSessionIds.includes(active.id) &&
                   (confirmRemove ? (
                     <Button
                       icon={Trash}

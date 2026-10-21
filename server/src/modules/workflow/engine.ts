@@ -10,7 +10,7 @@ import { loadWorkflow, OVERRIDE_DIR } from "./definition.js";
 import { archiveOutputs } from "./archive.js";
 import { appendHistory, HISTORY_TEXT } from "./history.js";
 import { parseQuestions, type Question } from "./questions.js";
-import type { RunState, StepDef, WorkflowDef } from "./types.js";
+import type { RunPhase, RunState, StepDef, SubtaskPhase, WorkflowDef } from "./types.js";
 import { promptVars, renderPrompt } from "./vars.js";
 import { t } from "../../core/i18n.js";
 
@@ -43,6 +43,19 @@ export interface RunView {
   run: Omit<RunState, "workflow"> | null;
   /** Claude's numbered questions for the reviewer, at a gate or while it waits for an answer. */
   questions: Question[];
+}
+
+/**
+ * What the engine drives in one session: the run itself (the leader) or one of its subtasks. Both
+ * hold the same fields, so delivering a prompt and reading a hook work the same way for either.
+ */
+interface Lane {
+  sessionId?: string;
+  phase: RunPhase | SubtaskPhase;
+  stepStartedAt?: number;
+  pendingPrompt?: string;
+  sentPrompt?: { stepIndex: number; text: string; at: number };
+  lastMessage?: string;
 }
 
 const MTIME_SLACK_MS = 100;
@@ -315,33 +328,38 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
    * the session; SessionStart then delivers it. `force` pastes even before SessionStart was seen
    * (manual retry when hooks did not arrive).
    */
-  private async deliver(run: RunState, text: string, opts: { force?: boolean } = {}): Promise<void> {
-    const session = await this.sessions.get(run.sessionId);
+  private async deliver(run: RunState, text: string, opts: { force?: boolean; lane?: Lane } = {}): Promise<void> {
+    const lane = opts.lane ?? run;
+    const session = await this.sessions.get(lane.sessionId!);
     if (session.status !== "running") {
-      await this.save(run, { phase: "starting", message: t("run.resuming"), pendingPrompt: text });
-      await this.sessions.resume(run.sessionId);
+      await this.saveLane(run, lane, { phase: "starting", pendingPrompt: text }, t("run.resuming"));
+      await this.sessions.resume(lane.sessionId!);
     } else if (session.activity === "starting" && !opts.force) {
-      await this.save(run, {
-        phase: "starting",
-        message: t("run.starting", { agent: agentLabel(run) }),
-        pendingPrompt: text,
-      });
+      await this.saveLane(run, lane, { phase: "starting", pendingPrompt: text }, t("run.starting", { agent: agentLabel(run) }));
     } else {
-      await this.send(run, text);
+      await this.send(run, text, lane);
     }
   }
 
-  private async send(run: RunState, text: string): Promise<void> {
+  private async send(run: RunState, text: string, lane: Lane = run): Promise<void> {
     const step = (await this.defOf(run)).steps[run.stepIndex];
-    this.sessions.paste(run.sessionId, text);
+    this.sessions.paste(lane.sessionId!, text);
     const now = Date.now();
-    await this.save(run, {
-      phase: "running",
-      stepStartedAt: now,
-      sentPrompt: { stepIndex: run.stepIndex, text, at: now },
-      message: t("run.step", { step: step.title, agent: agentLabel(run) }),
-      pendingPrompt: undefined,
-    });
+    await this.saveLane(
+      run,
+      lane,
+      { phase: "running", stepStartedAt: now, sentPrompt: { stepIndex: run.stepIndex, text, at: now }, pendingPrompt: undefined },
+      t("run.step", { step: step.title, agent: agentLabel(run) }),
+    );
+  }
+
+  /** Saves a lane's change: the run's own fields with `message`, or a subtask's with the run's phase following. */
+  private async saveLane(run: RunState, lane: Lane, patch: Partial<Lane>, message: string): Promise<void> {
+    if (lane === run) await this.save(run, { ...patch, message } as Partial<RunState>);
+    else {
+      Object.assign(lane, patch);
+      await this.save(run, {});
+    }
   }
 
   private async prompt(run: RunState, template: string, extra: { feedback?: string } = {}): Promise<string> {
@@ -354,11 +372,11 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     return run.workflow ? Promise.resolve(run.workflow) : this.loadDef(run.repo);
   }
 
-  private async writtenSince(run: RunState, file: string): Promise<boolean> {
+  private async writtenSince(run: RunState, file: string, since: number = run.stepStartedAt): Promise<boolean> {
     try {
       const s = await stat(path.join(taskDirOf(run), file));
       // File timestamps come from the kernel's coarse clock and can trail Date.now() by a few ms.
-      return s.mtimeMs >= run.stepStartedAt - MTIME_SLACK_MS;
+      return s.mtimeMs >= since - MTIME_SLACK_MS;
     } catch {
       return false;
     }

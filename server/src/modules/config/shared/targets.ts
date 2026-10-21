@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { claudeHome, displayPath } from "./fs.js";
 import { HttpError } from "../../../core/errors.js";
-import { overrideDir, PROMPT_FILE, WORKFLOW_FILE } from "../../workflow/index.js";
+import { overrideDir, PROMPT_FILE, SETTINGS_FILE, WORKFLOW_FILE } from "../../workflow/index.js";
 import type { LibraryKind, LibraryScope } from "../library/read.js";
 import type { MemoryScope } from "../memory/read.js";
 import type { SettingsScope } from "../settings/read.js";
@@ -66,6 +66,12 @@ export function workflowTarget(repo: string, name: string): FileTarget {
   return { abs, display: displayPath(abs, repo) };
 }
 
+/** The repo's settings.yml (its chosen workflow mode), next to the override. */
+export function repoSettingsTarget(repo: string): FileTarget {
+  const abs = path.join(overrideDir(repo), SETTINGS_FILE);
+  return { abs, display: displayPath(abs, repo) };
+}
+
 const isWorkflowFileName = (name: string) => name === WORKFLOW_FILE || PROMPT_FILE.test(name);
 
 /**
@@ -87,8 +93,8 @@ export function isAllowedPath(abs: string, repo: string): boolean {
     // there are changed through `claude mcp add-json/remove`.
   ].map((x) => path.resolve(x));
   if (exact.includes(p)) return true;
-  // The workflow override: files directly in .claude/taskpilot/, never TaskPilot's own workflows/default/.
-  if (path.dirname(p) === path.resolve(overrideDir(repo)) && isWorkflowFileName(path.basename(p))) return true;
+  // The workflow override and settings.yml: files directly in .taskpilot/, never TaskPilot's own workflows/default/.
+  if (path.dirname(p) === path.resolve(overrideDir(repo)) && (isWorkflowFileName(path.basename(p)) || path.basename(p) === SETTINGS_FILE)) return true;
   // Anything inside the agents/commands/skills folders (skills also hold scripts and templates).
   const roots = LIBRARY_DIRS.flatMap((d) => [path.join(repo, ".claude", d), path.join(claudeHome(), d)]);
   return roots.some((root) => {

@@ -77,7 +77,7 @@ export interface StepDef {
 export interface WorkflowDef {
   /** Absolute path of workflow.yml, for display. */
   source: string;
-  /** The repo's override in .claude/taskpilot/, or TaskPilot's built-in workflow. */
+  /** The repo's override in .taskpilot/, or TaskPilot's built-in workflow. */
   origin: "repo" | "default";
   /** Directory holding workflow.yml and its prompt files. */
   dir: string;

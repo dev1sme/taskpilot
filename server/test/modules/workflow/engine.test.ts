@@ -378,7 +378,7 @@ describe("workflow engine", () => {
   });
 
   it("keeps a run on the workflow it started with; a restart picks up edits", async () => {
-    const dir = path.join(repo, ".claude", "taskpilot");
+    const dir = path.join(repo, ".taskpilot");
     await mkdir(dir, { recursive: true });
     const yml = (prompt: string, steps: string) =>
       `version: 2\nhistory: {file: log.md}\nsteps:\n${steps}`.replace("PROMPT", prompt);
@@ -403,7 +403,7 @@ describe("workflow engine", () => {
     await hook("Stop");
     expect(fake.pasted[1]).toBe("Second .claude/tasks/DEMO-1/ke-hoach.md");
     expect(await hook("Stop")).toMatchObject({ phase: "done" });
-    expect(await readFile(path.join(taskDir(), "log.md"), "utf8")).toContain("Quy trình: .claude/taskpilot/, 2 bước.");
+    expect(await readFile(path.join(taskDir(), "log.md"), "utf8")).toContain("Quy trình: .taskpilot/, 2 bước.");
 
     await engine.restart(repo, "DEMO-1");
     await hook("SessionStart");

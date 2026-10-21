@@ -17,12 +17,15 @@ describe("isAllowedPath", () => {
     expect(isAllowedPath("/etc/passwd", repo)).toBe(false);
   });
 
-  it("allows the workflow override in .claude/taskpilot/ but not TaskPilot's own workflow", () => {
-    const dir = path.join(repo, ".claude", "taskpilot");
+  it("allows the workflow override in .taskpilot/ but not TaskPilot's own workflow", () => {
+    const dir = path.join(repo, ".taskpilot");
     expect(isAllowedPath(path.join(dir, "workflow.yml"), repo)).toBe(true);
     expect(isAllowedPath(path.join(dir, "investigate.md"), repo)).toBe(true);
     expect(isAllowedPath(path.join(dir, "sub", "x.md"), repo)).toBe(false);
     expect(isAllowedPath(path.join(dir, "run.sh"), repo)).toBe(false);
+    expect(isAllowedPath(path.join(dir, "settings.yml"), repo)).toBe(true);
+    expect(isAllowedPath(path.join(dir, "other.yml"), repo)).toBe(false);
+    expect(isAllowedPath(path.join(dir, "sub", "settings.yml"), repo)).toBe(false);
     expect(isAllowedPath(path.join(repo, ".claude", "workflow.yml"), repo)).toBe(false);
     expect(isAllowedPath(path.join(repo, ".claude", "tasks", "A-1", "02-plan.md"), repo)).toBe(false);
     expect(isAllowedPath(path.join(DEFAULT_WORKFLOW_DIR, "workflow.yml"), repo)).toBe(false);

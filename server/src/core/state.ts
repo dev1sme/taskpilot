@@ -21,8 +21,6 @@ export interface SessionMeta {
 export interface AppState {
   lastRepo?: string;
   sessions: SessionMeta[];
-  /** The workflow mode a repo runs by default (`workflows/<id>/`, or "custom"); absent = what its override says, else "default". */
-  repoModes?: Record<string, string>;
   /** Latest workflow run per (repo, taskKey). */
   runs: RunState[];
   /** Claude plan usage last reported by a session's status line. */
@@ -54,7 +52,9 @@ export class StateStore {
       } catch {
         // Missing or corrupt file: start empty.
       }
-      this.cache = { ...raw, sessions: raw.sessions ?? [], runs: raw.runs ?? [] };
+      // repoModes moved into each repo's .taskpilot/settings.yml: drop it so the next write cleans state.json.
+      const { repoModes: _old, ...rest } = raw as Partial<AppState> & { repoModes?: unknown };
+      this.cache = { ...rest, sessions: raw.sessions ?? [], runs: raw.runs ?? [] };
     }
     return this.cache;
   }

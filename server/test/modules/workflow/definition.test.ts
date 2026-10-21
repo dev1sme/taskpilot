@@ -8,6 +8,7 @@ import {
   parseWorkflowFiles,
   readWorkflowDir,
 } from "../../../src/modules/workflow/definition.js";
+import { readRepoSettings } from "../../../src/modules/workflow/settings.js";
 import { cleanupTempDirs, makeRepo } from "../../helpers/fixtures.js";
 import { modeDir } from "../../../src/modules/workflow/modes.js";
 
@@ -26,7 +27,7 @@ function parse(yml: string, extra: Record<string, string> = {}) {
 const ONE_STEP = "version: 2\nsteps:\n  - id: a\n    prompt: p.md\n    outputs: [{id: doc, file: doc.md}]\n    done-when: doc\n";
 
 async function writeOverride(repo: string, files: Record<string, string>) {
-  const dir = path.join(repo, ".claude", "taskpilot");
+  const dir = path.join(repo, ".taskpilot");
   await mkdir(dir, { recursive: true });
   for (const [name, text] of Object.entries(files)) await writeFile(path.join(dir, name), text);
 }
@@ -48,13 +49,25 @@ describe("workflow definition", () => {
     expect(warnings).toEqual([]);
   });
 
-  it("uses the repo's .claude/taskpilot/ override and ignores the old .claude/workflow.yml", async () => {
+  it("uses the repo's .taskpilot/ override and ignores the old .claude/workflow.yml", async () => {
     const repo = await makeRepo();
     await writeFile(path.join(repo, ".claude", "workflow.yml"), "steps: []\n");
     await writeOverride(repo, { "workflow.yml": `permission-mode: acceptEdits\n${ONE_STEP}`, "p.md": "Custom {{key}}" });
     const def = await loadWorkflow(repo);
-    expect(def).toMatchObject({ origin: "repo", permissionMode: "acceptEdits", dir: path.join(repo, ".claude", "taskpilot") });
+    expect(def).toMatchObject({ origin: "repo", permissionMode: "acceptEdits", dir: path.join(repo, ".taskpilot") });
     expect(def.steps[0]).toMatchObject({ id: "a", title: "a", gate: "none", prompt: "Custom {{key}}", doneWhen: { output: "doc", file: "doc.md" } });
+  });
+
+  it("does not take settings.yml for a workflow file, and reads its mode", async () => {
+    const repo = await makeRepo();
+    expect(await readRepoSettings(repo)).toEqual({});
+    await writeOverride(repo, { "settings.yml": "mode: leader\n" });
+    expect((await readWorkflowDir(path.join(repo, ".taskpilot"))).size).toBe(0);
+    expect(await readRepoSettings(repo)).toEqual({ mode: "leader" });
+    await writeOverride(repo, { "settings.yml": "mode: [broken\n" });
+    expect(await readRepoSettings(repo)).toEqual({});
+    await writeOverride(repo, { "settings.yml": "mode: 3\n" });
+    expect(await readRepoSettings(repo)).toEqual({});
   });
 
   describe("modes", () => {

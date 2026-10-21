@@ -19,10 +19,12 @@ import {
   overrideDir,
   promptVars,
   readOverride,
+  readRepoSettings,
   readWorkflowDir,
   reportOf,
   renderPrompt,
   resolveMode,
+  settingsText,
   templateVars,
   type Composed,
   type ModeInfo,
@@ -30,7 +32,7 @@ import {
 } from "../../workflow/index.js";
 import { displayPath, isObject } from "../shared/fs.js";
 import { stringField, type ConfigRouteOptions } from "../shared/http.js";
-import { workflowTarget } from "../shared/targets.js";
+import { repoSettingsTarget, workflowTarget } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
 
 /** The mode an existing override belongs to: the one it extends, or "custom" for a complete one. */
@@ -50,13 +52,14 @@ extends: ${mode}
 
 /**
  * The workflow page: TaskPilot's modes (workflows/<id>/, read only), and the repo's override in
- * .claude/taskpilot/ — `extends: <mode>` with only what differs from that mode, or a complete (legacy)
+ * .taskpilot/ — `extends: <mode>` with only what differs from that mode, or a complete (legacy)
  * workflow — edited file by file.
  */
 export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {
-  const { requireRepo, backups, state } = opts;
+  const { requireRepo, backups } = opts;
 
-  const selectedOf = async (repo: string) => (await state.load()).repoModes?.[repo];
+  /** The mode the repo chose, from its .taskpilot/settings.yml. */
+  const selectedOf = async (repo: string) => (await readRepoSettings(repo)).mode;
 
   /** The override's files with `drafts` laid over them (null removes a file). */
   const withDrafts = (info: OverrideInfo, drafts: Record<string, string | null>): OverrideInfo => {
@@ -115,10 +118,11 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     const repo = requireRepo();
     const mode = stringField(req.body, "mode");
     requireMode(await readOverride(repo), mode);
-    await state.update((s) => {
-      s.repoModes = { ...s.repoModes, [repo]: mode };
-    });
-    return { selected: mode };
+    const target = repoSettingsTarget(repo);
+    const current = await readCurrent(target.abs);
+    const next = settingsText(mode);
+    if (current !== next) await writeWithBackup({ repo, target, next, baseHash: hashOf(current), reason: t("backup.modeChange"), backups });
+    return { selected: mode, settingsPath: target.display };
   });
 
   app.get<{ Querystring: { mode?: string } }>("/api/config/workflow", async (req) => {
@@ -151,6 +155,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
       overrideExtends: info.kind === "extends" ? info.extends : null,
       provenance: composed.provenance ?? null,
       overrideDir: OVERRIDE_DIR.split(path.sep).join("/"),
+      settingsPath: repoSettingsTarget(repo).display,
       dir: displayPath(dir, repo),
       errors,
       warnings,
@@ -257,7 +262,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     return { ...result, applied: true };
   });
 
-  /** Removes the whole override (back to the built-in workflow); every file is backed up first. */
+  /** Removes the whole override (back to the built-in workflow); every file is backed up first. settings.yml stays: it is the repo's chosen mode, not part of the override. */
   app.post("/api/config/workflow/reset", async (req) => {
     const repo = requireRepo();
     await requireOverride(repo);

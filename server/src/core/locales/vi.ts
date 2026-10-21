@@ -160,6 +160,7 @@ export default {
     hooks: "Sửa hooks trong TaskPilot",
     delete: "Xoá trong TaskPilot",
     overrideCreate: "Thêm config override",
+    modeChange: "Đổi cách chạy của repo",
     overrideReset: "Xoá config override (về mặc định)",
     overrideMigrate: "Chuyển override sang dạng extends",
     beforeRestore: "Trước khi khôi phục",

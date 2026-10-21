@@ -1,13 +1,14 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
+import { StateStore } from "../../../src/core/state.js";
 import { DEFAULT_WORKFLOW_DIR } from "../../../src/modules/workflow/definition.js";
 import { modeDir } from "../../../src/modules/workflow/modes.js";
 import { app, get, ok, repo, send, state, useConfigApp } from "../../helpers/configApp.js";
 
 useConfigApp();
 
-const dir = () => path.join(repo, ".claude", "taskpilot");
+const dir = () => path.join(repo, ".taskpilot");
 const BUILT_IN = [
   "format-history.md",
   "format-investigation.md",
@@ -44,7 +45,7 @@ const put = async (name: string, content: string) => send("PUT", "/api/config/wo
 describe("workflow config", () => {
   it("shows the built-in workflow read only until the repo adds an override", async () => {
     const view = await get("/api/config/workflow");
-    expect(view).toMatchObject({ origin: "default", overrideDir: ".claude/taskpilot", errors: [], warnings: [] });
+    expect(view).toMatchObject({ origin: "default", overrideDir: ".taskpilot", errors: [], warnings: [] });
     expect(view.def.steps.map((s: { id: string; doneWhen: string }) => [s.id, s.doneWhen])).toEqual([
       ["investigate", "plan"],
       ["implement", "summary"],
@@ -68,7 +69,9 @@ describe("workflow config", () => {
     expect((await send("PUT", "/api/config/workflow/mode", { mode: "custom" })).statusCode).toBe(400);
     expect((await send("PUT", "/api/config/workflow/mode", { mode: "leader" })).statusCode).toBe(200);
     expect((await get("/api/config/workflow/modes")).selected).toBe("leader");
-    expect((await state.load()).repoModes).toEqual({ [repo]: "leader" });
+    expect(await readFile(path.join(dir(), "settings.yml"), "utf8")).toContain("\nmode: leader\n");
+    expect((await state.load()) as object).not.toHaveProperty("repoModes");
+    expect((await get("/api/config/workflow")).settingsPath).toBe(".taskpilot/settings.yml");
 
     const view = await get("/api/config/workflow");
     expect(view).toMatchObject({ origin: "default", mode: { id: "leader", override: false }, errors: [], warnings: [] });
@@ -94,7 +97,7 @@ describe("workflow config", () => {
     expect((await send("POST", "/api/config/workflow/override", { mode: "other" })).statusCode).toBe(400);
     const res = await send("POST", "/api/config/workflow/override", { mode: "leader" });
     expect(res.statusCode).toBe(200);
-    expect(res.json().files).toEqual([".claude/taskpilot/workflow.yml"]);
+    expect(res.json().files).toEqual([".taskpilot/workflow.yml"]);
     expect(await readdir(dir())).toEqual(["workflow.yml"]);
     expect(await readFile(path.join(dir(), "workflow.yml"), "utf8")).toContain("extends: leader");
     expect((await send("POST", "/api/config/workflow/override", { mode: "default" })).statusCode).toBe(409);
@@ -131,7 +134,7 @@ describe("workflow config", () => {
     await builtInUnchanged();
   });
 
-  it("refuses to create the override over files of the mode already in .claude/taskpilot/", async () => {
+  it("refuses to create the override over files of the mode already in .taskpilot/", async () => {
     await mkdir(dir(), { recursive: true });
     await writeFile(path.join(dir(), "implement.md"), "mine");
     const res = await send("POST", "/api/config/workflow/override", { mode: "default" });
@@ -168,6 +171,29 @@ describe("workflow config", () => {
     await writeFile(path.join(dir(), "workflow.yml"), yml.slice(0, yml.indexOf("  - id: implement")));
     const refused = (await send("POST", "/api/config/workflow/override/migrate", { base: "default" })).json();
     expect(refused.errors[0]).toContain("implement");
+  });
+
+  it("keeps settings.yml when the override is removed, and falls back to default on a broken one", async () => {
+    await send("PUT", "/api/config/workflow/mode", { mode: "leader" });
+    await legacy("default");
+    const files = (await get("/api/config/workflow?mode=custom")).files as { name: string; hash: string }[];
+    expect(files.map((f) => f.name)).not.toContain("settings.yml");
+    expect((await send("POST", "/api/config/workflow/reset", { hashes: Object.fromEntries(files.map((f) => [f.name, f.hash])) })).statusCode).toBe(200);
+    expect((await readdir(dir())).sort()).toEqual(["settings.yml"]);
+    expect((await get("/api/config/workflow/modes")).selected).toBe("leader");
+    const backups = await get("/api/backups");
+    expect(backups.some((b: { display: string }) => b.display === ".taskpilot/settings.yml")).toBe(true);
+
+    await writeFile(path.join(dir(), "settings.yml"), "mode: [unclosed\n");
+    expect((await get("/api/config/workflow/modes")).selected).toBe("default");
+  });
+
+  it("drops the old repoModes key from state.json on load", async () => {
+    await writeFile(state.file, JSON.stringify({ repoModes: { [repo]: "leader" }, sessions: [], runs: [] }));
+    const fresh = new StateStore(state.dir);
+    expect(await fresh.load()).not.toHaveProperty("repoModes");
+    await fresh.update(() => undefined);
+    expect(JSON.parse(await readFile(state.file, "utf8"))).not.toHaveProperty("repoModes");
   });
 
   it("validates every save and delete against the whole override", async () => {
@@ -261,7 +287,7 @@ describe("workflow config", () => {
     expect((await get("/api/config/workflow")).origin).toBe("default");
     await expect(readdir(dir())).rejects.toThrow();
 
-    const backup = (await get("/api/backups")).find((b: { display: string; existed: boolean }) => b.display === ".claude/taskpilot/implement.md" && b.existed);
+    const backup = (await get("/api/backups")).find((b: { display: string; existed: boolean }) => b.display === ".taskpilot/implement.md" && b.existed);
     expect((await send("POST", `/api/backups/${backup.id}/restore`)).statusCode).toBe(200);
     expect(await readFile(path.join(dir(), "implement.md"), "utf8")).toBe("Mine {{out.plan}}");
     await builtInUnchanged();

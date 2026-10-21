@@ -13,8 +13,8 @@ import { templateVars } from "./vars.js";
 
 /** <package>/workflows/default: the "Mặc định" mode. */
 export const DEFAULT_WORKFLOW_DIR = modeDir(DEFAULT_MODE);
-/** A repo's own workflow: workflow.yml plus its prompt files, all in this one directory. */
-export const OVERRIDE_DIR = path.join(".claude", "taskpilot");
+/** A repo's own TaskPilot files: the workflow override (workflow.yml plus its prompt files) and settings.yml. */
+export const OVERRIDE_DIR = ".taskpilot";
 export { WORKFLOW_FILE };
 /** Prompt files sit next to workflow.yml: no sub-directories, no lookup elsewhere. */
 export const PROMPT_FILE = /^[a-z0-9][a-z0-9-]*\.md$/;

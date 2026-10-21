@@ -19,6 +19,7 @@ export {
   type OverrideInfo,
   type ParseResult,
 } from "./definition.js";
+export { SETTINGS_FILE, readRepoSettings, settingsPath, settingsText, type RepoSettings } from "./settings.js";
 export { CUSTOM_MODE, DEFAULT_MODE, isMode, listModes, modeDir, type ModeInfo } from "./modes.js";
 export { guessBase, migrateLegacy, type Migration } from "./migrate.js";
 export { mergeOverride, type Provenance } from "./merge.js";

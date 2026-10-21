@@ -20,7 +20,7 @@ import { createRepoContext, registerRepoRoutes } from "./modules/repo/index.js";
 import { SessionManager, registerSessionsRoutes } from "./modules/sessions/index.js";
 import { registerTasksRoutes, TasksWatcher } from "./modules/tasks/index.js";
 import { CopilotQuotaPoller, registerUsageRoutes, UsageStore } from "./modules/usage/index.js";
-import { WorkflowEngine, loadWorkflow, type LoadDef, registerWorkflowRoutes, stageOf } from "./modules/workflow/index.js";
+import { WorkflowEngine, loadWorkflow, readRepoSettings, type LoadDef, registerWorkflowRoutes, stageOf } from "./modules/workflow/index.js";
 
 export interface AppOptions {
   /**
@@ -81,10 +81,10 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
       return addr && typeof addr === "object" ? `http://${hookHost(addr.address)}:${addr.port}/hook` : null;
     },
   });
-  /** A mode's workflow; the repo's own choice (state.json) when `mode` is absent. */
+  /** A mode's workflow; the repo's own choice (.taskpilot/settings.yml) when `mode` is absent. */
   const loadDef: LoadDef =
     opts.loadWorkflow ??
-    (async (r, mode) => loadWorkflow(r, mode, (await opts.state.load()).repoModes?.[r]));
+    (async (r, mode) => loadWorkflow(r, mode, (await readRepoSettings(r)).mode));
   const engine = new WorkflowEngine(opts.state, sessions, loadDef);
   const logError = (e: unknown) => app.log.error(e);
   sessions.on("change", (meta) => hub.publish("sessions", { taskKey: meta.taskKey }));

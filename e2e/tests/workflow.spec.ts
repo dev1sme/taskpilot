@@ -28,6 +28,11 @@ test("the built-in workflow is read only until an override is added", async ({ p
   await expect(page.getByText("Mặc định của TaskPilot", { exact: true })).toBeVisible();
   await expect(toolbar(page).getByText("Chỉ xem")).toBeVisible();
   await expect(toolbar(page).getByRole("button", { name: "Sửa", exact: true })).toHaveCount(0);
+  // The guide is open while the repo has no override.
+  const guide = page.locator(".wf-guide");
+  await expect(guide).toHaveAttribute("open", "");
+  await expect(guide).toContainText("Khi nào có hiệu lực:");
+  await expect(guide).toContainText("Biến dạng {{key}} được TaskPilot điền khi gửi.");
   const nav = page.getByRole("navigation", { name: "File của workflow" });
   await expect(nav).toContainText("Điều tra & lên kế hoạch");
   await expect(nav).toContainText("01-investigation.md, 02-plan.md ✓");
@@ -101,6 +106,13 @@ test("a prompt is customized with variable chips, then the override is removed",
 
   await page.getByRole("button", { name: "So với mặc định" }).click();
   await expect(page.locator(".wf-file .diff-view")).toContainText("+Extra rule: {{historyFile}}");
+
+  // Back to the built-in text through a reviewed draft.
+  await page.getByRole("button", { name: "Lấy lại bản mặc định" }).click();
+  await toolbar(page).getByRole("button", { name: "Xem thay đổi & lưu" }).click();
+  await expect(page.getByRole("dialog")).toContainText("-Extra rule: {{historyFile}}");
+  await page.getByRole("button", { name: "Lưu file" }).click();
+  await expect(nav.getByRole("button", { name: /implement\.md/ })).toContainText("giống mặc định");
 
   await toolbar(page).getByRole("button", { name: "Xoá override" }).click();
   await toolbar(page).getByRole("button", { name: "Xác nhận xoá override" }).click();

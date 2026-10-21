@@ -325,3 +325,48 @@
   border: 1px solid var(--line-strong);
   border-radius: var(--r-sm);
 }
+
+.wf-guide {
+  display: grid;
+  gap: 10px;
+  font-size: 13.5px;
+}
+
+.wf-guide summary {
+  cursor: pointer;
+}
+
+.wf-guide p {
+  margin: 0;
+}
+
+.wf-guide-files {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.wf-guide-files th,
+.wf-guide-files td {
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+
+.wf-guide-files td.mono {
+  white-space: nowrap;
+}
+
+.wf-guide-points {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+@media (max-width: 760px) {
+  .wf-guide-files td.mono {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}

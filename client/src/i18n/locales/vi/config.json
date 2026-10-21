@@ -319,7 +319,6 @@
     "resetConfirm": "Xác nhận xoá override",
     "resetHint": "Mọi file trong {{dir}}/ sẽ bị xoá; repo dùng lại workflow mặc định. Bản cũ còn trong Lịch sử thay đổi, khôi phục được.",
     "resetDone": "Đã xoá override; repo dùng workflow mặc định. Có thể khôi phục trong Lịch sử thay đổi.",
-    "runNote": "Run đang chạy giữ workflow lúc bắt đầu; thay đổi áp dụng cho run mới hoặc khi Chạy lại từ đầu.",
     "valid": "Workflow hợp lệ",
     "checks": "Kiểm tra workflow",
     "files": "File của workflow",
@@ -426,7 +425,55 @@
       "addStep": "Thêm bước"
     },
     "formatsGroup": "Khung tài liệu",
-    "formatsLink": "Xem dạng tài liệu theo từng bước →"
+    "formatsLink": "Xem dạng tài liệu theo từng bước →",
+    "restore": "Lấy lại bản mặc định",
+    "restoreTitle": "Mở bản nháp với nội dung mặc định của TaskPilot; xem thay đổi rồi lưu như mọi lần sửa",
+    "guide": {
+      "title": "Override hoạt động thế nào",
+      "intro": "Mặc định repo dùng workflow có sẵn của TaskPilot (chỉ xem). Override là bản chép workflow vào {{dir}}/ của repo: khi có {{dir}}/workflow.yml, TaskPilot dùng toàn bộ thư mục này thay cho bản mặc định, không lấy lẫn file nào từ bản mặc định.",
+      "fileHead": "File",
+      "effectHead": "Sửa file này thì đổi gì",
+      "file": {
+        "yml": {
+          "name": "workflow.yml",
+          "effect": "Các bước, tài liệu mỗi bước phải viết (tên file, nội dung), file báo bước xong (done-when), có dừng chờ duyệt không, luật chung, câu về ngôn ngữ, quyền của session."
+        },
+        "prompt": {
+          "name": "investigate.md, implement.md…",
+          "effect": "Prompt gửi cho Claude khi bắt đầu mỗi bước. Biến dạng {{v}} được TaskPilot điền khi gửi."
+        },
+        "onReject": {
+          "name": "revise-*.md",
+          "effect": "Prompt gửi kèm góp ý khi ba không duyệt. Không có thì TaskPilot gửi nguyên văn góp ý."
+        },
+        "format": {
+          "name": "format-*.md",
+          "effect": "Khung tài liệu: heading Claude phải giữ và gợi ý cho từng mục. Xem ở trang Định dạng tài liệu."
+        }
+      },
+      "point": {
+        "when": {
+          "title": "Khi nào có hiệu lực:",
+          "body": "run đang chạy giữ workflow lúc nó bắt đầu; thay đổi áp dụng cho run mới hoặc khi Chạy lại từ đầu."
+        },
+        "tasks": {
+          "title": "Ảnh hưởng tới task đang có:",
+          "body": "tiến độ trong danh sách task được tính theo tên file tài liệu. Đổi tên file hoặc thêm, bớt bước thì task cũ có thể hiện chưa xong dù đã làm."
+        },
+        "updates": {
+          "title": "Khi TaskPilot cập nhật bản mặc định:",
+          "body": "override không tự đổi theo. File khác bản mặc định có tag \"đã sửa\"; dùng \"So với mặc định\" để xem khác gì và \"Lấy lại bản mặc định\" để nhận bản mới."
+        },
+        "back": {
+          "title": "Quay lại:",
+          "body": "\"Xoá override\" xoá {{dir}}/ và repo dùng lại bản mặc định; mọi file được lưu trong Lịch sử thay đổi, khôi phục được."
+        },
+        "share": {
+          "title": "Dùng chung cho cả team:",
+          "body": "commit {{dir}}/ vào repo; ai mở repo bằng TaskPilot cũng chạy cùng workflow."
+        }
+      }
+    }
   },
   "formats": {
     "title": "Định dạng tài liệu",

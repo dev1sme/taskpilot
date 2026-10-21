@@ -1,4 +1,4 @@
-import { ArrowCounterClockwise, CheckCircle, Eye, FilePlus, GitDiff, PencilSimple, Play, Plus, Trash, Warning } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, ArrowUUpLeft, CheckCircle, Eye, FilePlus, GitDiff, PencilSimple, Play, Plus, Trash, Warning } from "@phosphor-icons/react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { queryClient } from "../../../shared/api/queryClient";
@@ -98,6 +98,14 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
       setDraft(draftKey(picked), { name: picked, path: raw.path, content: raw.content, baseHash: raw.hash, isNew: false } satisfies WorkflowDraft);
     });
 
+  // A draft holding the built-in text: reviewed and saved like any edit, so the diff shows what is lost.
+  const restoreDefault = () =>
+    run(async () => {
+      const raw = await workflowConfigApi.file(picked);
+      if (raw.defaultContent === null) return;
+      setDraft(draftKey(picked), { name: picked, path: raw.path, content: raw.defaultContent, baseHash: raw.hash, isNew: false } satisfies WorkflowDraft);
+    });
+
   const flow = useSaveFlow({
     title: t(draft?.isNew ? "library.createTitle" : "library.saveTitle", { path: draft?.path ?? "" }),
     preview: () => workflowConfigApi.preview(draft!.name, draft!.content, draft!.baseHash),
@@ -169,7 +177,7 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
             </section>
           )}
           {isOverride && confirm === "reset" && <p className="alert-warn">{t("workflow.resetHint", { dir: data.overrideDir })}</p>}
-          <p className="hint">{t("workflow.runNote")}</p>
+          <OverrideGuide dir={data.overrideDir} open={!isOverride} />
           <Checks config={data} draft={draft} />
 
           <div className="library">
@@ -195,6 +203,7 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
                   confirmDelete={confirm === "delete"}
                   busy={busy}
                   onDelete={() => (confirm === "delete" ? void removeFile() : setConfirm("delete"))}
+                  onRestore={() => void restoreDefault()}
                 />
               ) : null}
               <PromptPreview config={data} />
@@ -212,6 +221,42 @@ function formatUse(config: WorkflowConfig, name: string): string {
   const files = (config.def?.steps ?? []).flatMap((s) => s.outputs).filter((o) => o.format === name).map((o) => o.file);
   if (config.def?.history.format === name) files.push(config.def.history.file);
   return files.join(", ");
+}
+
+/** What an override is, what each file changes, when changes apply and how to go back. */
+function OverrideGuide({ dir, open }: { dir: string; open: boolean }) {
+  const { t } = useTranslation("config");
+  const files = ["yml", "prompt", "onReject", "format"] as const;
+  const points = ["when", "tasks", "updates", "back", "share"] as const;
+  return (
+    <details className="card wf-guide" open={open}>
+      <summary className="card-title">{t("workflow.guide.title")}</summary>
+      <p>{t("workflow.guide.intro", { dir })}</p>
+      <table className="wf-guide-files">
+        <thead>
+          <tr>
+            <th scope="col">{t("workflow.guide.fileHead")}</th>
+            <th scope="col">{t("workflow.guide.effectHead")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {files.map((f) => (
+            <tr key={f}>
+              <td className="mono">{t(`workflow.guide.file.${f}.name`)}</td>
+              <td>{t(`workflow.guide.file.${f}.effect`, { v: "{{key}}" })}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <ul className="wf-guide-points">
+        {points.map((p) => (
+          <li key={p}>
+            <strong>{t(`workflow.guide.point.${p}.title`)}</strong> {t(`workflow.guide.point.${p}.body`, { dir })}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
 }
 
 /** Override files with an open draft (the picked one always counts, so its tab stays while it is open). */
@@ -379,7 +424,7 @@ function NewPromptForm({ existing, onAdd }: { existing: string[]; onAdd: (name: 
   );
 }
 
-function FileView(props: { file: WorkflowFile; editable: boolean; confirmDelete: boolean; busy: boolean; onDelete: () => void }) {
+function FileView(props: { file: WorkflowFile; editable: boolean; confirmDelete: boolean; busy: boolean; onDelete: () => void; onRestore: () => void }) {
   const { t } = useTranslation("config");
   const { file } = props;
   const [diff, setDiff] = useState<string | null>(null);
@@ -404,6 +449,11 @@ function FileView(props: { file: WorkflowFile; editable: boolean; confirmDelete:
             }
           >
             {diff === null ? t("workflow.compare") : t("workflow.hideCompare")}
+          </Button>
+        )}
+        {props.editable && file.sameAsDefault === false && (
+          <Button icon={ArrowUUpLeft} variant="quiet" busy={props.busy} title={t("workflow.restoreTitle")} onClick={props.onRestore}>
+            {t("workflow.restore")}
           </Button>
         )}
         {props.editable && file.name !== WORKFLOW_FILE && file.usedBy.length === 0 && (

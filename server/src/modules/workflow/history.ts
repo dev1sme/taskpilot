@@ -47,6 +47,11 @@ export const HISTORY_TEXT = {
   subtaskReply: (n: number) => `Ba trả lời việc ${n}`,
   subtaskInterrupted: (n: number) => `Việc ${n} gián đoạn`,
   subtaskSessionStopped: "Session của việc dừng giữa chừng.",
+  markedDone: "Ba đánh dấu xong",
+  markedDoneBody: (file: string) => `${file} đã ghi từ lúc gửi yêu cầu; TaskPilot không nhận được hook Stop của agent.`,
+  subtaskMarkedDone: (n: number) => `Ba đánh dấu xong việc ${n}`,
+  transcriptStop: "Agent xong lượt (từ transcript)",
+  transcriptStopBody: "Agent không gửi hook Stop; TaskPilot thấy lượt đã kết thúc trong transcript của session.",
   backToLeader: "Về leader rà soát",
   backToLeaderBody: (done: number) => `${done} việc đã xong; leader rà soát báo cáo của chúng.`,
 } as const;

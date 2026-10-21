@@ -209,7 +209,7 @@ describe("workflow engine", () => {
       await startCopilotRun(() => "copilot");
       expect(await message()).toContain("đang làm bước");
       await sleep(WARN_MS + 60);
-      expect(await state.load().then((s) => s.runs[0])).toMatchObject({ phase: "running", message: expect.stringContaining("không chạy hook") });
+      expect(await state.load().then((s) => s.runs[0])).toMatchObject({ phase: "running", message: expect.stringContaining("không gửi hook") });
       expect(await hook("PostToolUse")).toMatchObject({ phase: "running", message: expect.stringContaining("đang làm bước") });
     });
 
@@ -662,6 +662,71 @@ describe("workflow engine: dispatch", () => {
     const log = await readFile(path.join(taskDir(), "00-history.md"), "utf8");
     expect(log).toContain("· Giao việc · Ba trả lời việc 1\n\n> Không dùng");
     expect(log).toContain("· Giao việc · Việc 2 gián đoạn");
+  });
+
+  describe("when a Copilot agent sends no Stop", () => {
+    const WARN_MS = 40;
+    /** Two independent subtasks at once: 1 on Claude, 2 on Copilot, both prompted. */
+    async function twoRunning() {
+      await setup(2);
+      const def = await leaderDef(2);
+      engine = new WorkflowEngine(state, fake, async () => def, WARN_MS);
+      const leader = await dispatch(table("| 1 | A | claude | a/ | a | - |", "| 2 | B | copilot | b/ | b | - |"));
+      const [one, two] = (await run()).subtasks!.map((s) => s.sessionId!);
+      await hookOn(one, "SessionStart");
+      await hookOn(two, "SessionStart");
+      return { leader, one, two };
+    }
+
+    it("flags the silent subtask and its message, until a real hook comes; a Stop from the transcript does not clear it", async () => {
+      const { one, two } = await twoRunning();
+      await sleep(WARN_MS + 80);
+      let r = await run();
+      expect(r.subtasks!.map((s) => !!s.noHook)).toEqual([false, true]);
+      expect(r).toMatchObject({ phase: "running", message: expect.stringContaining("Việc 2: Copilot không gửi hook") });
+
+      await hookOn(two, "Stop", { source: "transcript" });
+      r = await run();
+      expect(r.subtasks![1]).toMatchObject({ phase: "waiting", noHook: true });
+
+      await hookOn(two, "UserPromptSubmit");
+      expect((await run()).subtasks![1].noHook).toBeUndefined();
+      expect(one).toBeTruthy();
+    });
+
+    it("marks a subtask done by hand only once its report was written, then goes on exactly like a Stop", async () => {
+      const { two } = await twoRunning();
+      await sleep(WARN_MS + 80);
+      await expect(engine.completeSubtask(repo, "DEMO-1", 2)).rejects.toMatchObject({ status: 409 });
+      await expect(engine.completeSubtask(repo, "DEMO-1", 9)).rejects.toMatchObject({ status: 404 });
+      await write("03-viec-2.md");
+      const r = await engine.completeSubtask(repo, "DEMO-1", 2);
+      expect(r.subtasks!.map((s) => s.phase)).toEqual(["running", "done"]);
+      expect(fake.stopped).toEqual([two]);
+      await expect(engine.completeSubtask(repo, "DEMO-1", 2)).rejects.toMatchObject({ status: 409 });
+      // A Stop that still arrives afterwards finds the subtask done and changes nothing.
+      await hookOn(two, "Stop");
+      expect(fake.stopped).toEqual([two]);
+      expect(await readFile(path.join(taskDir(), "00-history.md"), "utf8")).toContain("· Ba đánh dấu xong việc 2\n\n03-viec-2.md đã ghi");
+    });
+
+    it("marks the leader's step done by hand when its done-when file was written", async () => {
+      await setup();
+      // The fixture's documents predate the run.
+      const past = new Date("2020-01-01");
+      for (const f of await readdir(taskDir())) if (f.endsWith(".md")) await utimes(path.join(taskDir(), f), past, past);
+      const leader = (await engine.start(repo, "DEMO-1")).sessionId;
+      await hookOn(leader, "SessionStart");
+      await expect(engine.completeStep(repo, "DEMO-1")).rejects.toMatchObject({ status: 409 });
+      await write("02-plan.md");
+      expect(await engine.completeStep(repo, "DEMO-1")).toMatchObject({ phase: "gate", stepIndex: 0 });
+      await expect(engine.completeStep(repo, "DEMO-1")).rejects.toMatchObject({ status: 409 });
+    });
+
+    it("does not mark a step done by hand while subtasks are handed out", async () => {
+      await dispatch();
+      await expect(engine.completeStep(repo, "DEMO-1")).rejects.toMatchObject({ status: 409 });
+    });
   });
 
   it("stops every subtask session on restart, and marks them interrupted after a server restart", async () => {

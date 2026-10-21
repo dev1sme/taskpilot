@@ -4,7 +4,7 @@ import type { RepoContext } from "../repo/index.js";
 import { getTask } from "../tasks/index.js";
 import type { WorkflowEngine } from "./engine.js";
 
-/** Workflow run of a task: view, start, cancel, approve a gate, send feedback, answer Claude, restart, retry; reply to or retry one subtask. */
+/** Workflow run of a task: view, start, cancel, approve a gate, send feedback, answer Claude, restart, retry, mark a step done; reply to, retry or mark done one subtask. */
 /** The optional `{mode}` of a run request: a workflows/ directory or "custom"; the engine rejects an unknown one. */
 function modeOf(body: unknown): string | undefined {
   const mode = (body as { mode?: unknown } | null)?.mode;
@@ -52,6 +52,14 @@ export function registerWorkflowRoutes(app: FastifyInstance, opts: { repo: RepoC
 
   app.post<{ Params: { key: string; n: string } }>("/api/tasks/:key/run/subtasks/:n/retry", async (req) =>
     engine.retrySubtask(requireRepo(), req.params.key, Number(req.params.n)),
+  );
+
+  app.post<{ Params: { key: string; n: string } }>("/api/tasks/:key/run/subtasks/:n/complete", async (req) =>
+    engine.completeSubtask(requireRepo(), req.params.key, Number(req.params.n)),
+  );
+
+  app.post<{ Params: { key: string } }>("/api/tasks/:key/run/complete", async (req) =>
+    engine.completeStep(requireRepo(), req.params.key),
   );
 
   app.post<{ Params: { key: string }; Body: { mode?: unknown } | null }>("/api/tasks/:key/run/restart", async (req) =>

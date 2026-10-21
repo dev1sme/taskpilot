@@ -298,6 +298,35 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     });
   }
 
+  /**
+   * "Đánh dấu xong" for a subtask whose agent sent no Stop: only once its report was written since the
+   * prompt, and then exactly as a Stop would end it.
+   */
+  completeSubtask(repo: string, taskKey: string, n: number): Promise<RunState> {
+    return this.serial(async () => {
+      const { run, sub } = await this.requireSubtask(repo, taskKey, n, ["running", "waiting"]);
+      if (!(await this.writtenSince(run, sub.report, sub.stepStartedAt))) throw new HttpError(409, `${sub.report} was not written since the prompt was sent`);
+      await this.log(run, HISTORY_TEXT.subtaskMarkedDone(n), { body: HISTORY_TEXT.markedDoneBody(sub.report) });
+      await this.onSubtaskStop(run, sub);
+      return run;
+    });
+  }
+
+  /** The same for the leader's step: its `done-when` file must have been written since the prompt. */
+  completeStep(repo: string, taskKey: string): Promise<RunState> {
+    return this.serial(async () => {
+      const run = await this.require(repo, taskKey, ["running", "waiting"]);
+      const def = await this.defOf(run);
+      await this.notWhileDispatching(run);
+      const file = def.steps[run.stepIndex].doneWhen?.file;
+      if (!file) throw new HttpError(409, "This step has no done-when file to check");
+      if (!(await this.writtenSince(run, file))) throw new HttpError(409, `${file} was not written since the prompt was sent`);
+      await this.log(run, HISTORY_TEXT.markedDone, { body: HISTORY_TEXT.markedDoneBody(file) });
+      await this.onStop(run);
+      return run;
+    });
+  }
+
   /** True when an active run drives this session (as the leader or as a subtask); such a session must not be removed. */
   async usesSession(sessionId: string): Promise<boolean> {
     return (await this.bySession(sessionId)) !== undefined;
@@ -327,6 +356,15 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       if (lane === run && dispatching(run, await this.defOf(run))) return;
       if (lane === run && run.phase === "running" && run.message === t("run.noHook", { agent: agentLabel(run) })) {
         await this.save(run, { message: t("run.step", { step: (await this.defOf(run)).steps[run.stepIndex].title, agent: agentLabel(run) }) });
+      }
+      const fromTranscript = event === "Stop" && payload.source === "transcript";
+      if (lane !== run && (lane as SubtaskRun).noHook && !fromTranscript) {
+        delete (lane as SubtaskRun).noHook;
+        this.syncDispatch(run);
+        await this.save(run, {});
+      }
+      if (fromTranscript && (lane.phase === "running" || lane.phase === "waiting")) {
+        await this.log(run, HISTORY_TEXT.transcriptStop, { body: HISTORY_TEXT.transcriptStopBody });
       }
       if (event === "Stop" && typeof payload.last_assistant_message === "string") {
         lane.lastMessage = payload.last_assistant_message;
@@ -461,9 +499,11 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     const subs = run.subtasks ?? [];
     const interrupted = subs.find((s) => s.phase === "interrupted");
     const waiting = subs.find((s) => s.phase === "waiting");
+    const silent = subs.find((s) => s.noHook && (s.phase === "running" || s.phase === "starting"));
     const done = subs.filter((s) => s.phase === "done").length;
     if (interrupted) Object.assign(run, { phase: "interrupted", message: t("run.subtaskInterrupted", { n: interrupted.n }) });
     else if (waiting) Object.assign(run, { phase: "waiting", message: t("run.subtaskWaiting", { n: waiting.n, file: waiting.report }) });
+    else if (silent) Object.assign(run, { phase: "running", message: t("run.subtaskNoHook", { n: silent.n, agent: AGENT_LABELS[silent.agent], file: silent.report }) });
     else Object.assign(run, { phase: "running", message: t("run.dispatching", { done, total: subs.length }) });
   }
 
@@ -499,8 +539,9 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   }
 
   /**
-   * Copilot loads a repo's hooks only in a trusted folder. Without them nothing tells the engine
-   * the turn ended, so a prompt that gets no hook at all is reported instead of waiting silently.
+   * Without Copilot's hooks nothing tells the engine the turn ended (the session manager's transcript
+   * watch is the first fallback), so a prompt that gets no hook at all is reported, on the run for
+   * a step and on the subtask for a subtask, instead of waiting silently.
    */
   private watchForHooks(run: RunState, lane: Lane, sentAt: number): void {
     const sub = lane === run ? undefined : (lane as SubtaskRun);
@@ -510,10 +551,14 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     const timer = setTimeout(() => {
       void this.serial(async () => {
         const current = await this.find(run.repo, run.taskKey);
-        const same = current && (sub ? current.subtasks?.find((s) => s.n === sub.n) : current)?.sentPrompt?.at === sentAt;
-        if (!current || !same || current.phase !== "running" || this.sessions.hookSeen(sessionId)) return;
-        if (sub) this.emit("warning", new Error(`Copilot session of subtask ${sub.n} sent no hook ${this.noHookWarnMs} ms after its prompt`));
-        else await this.save(current, { message: t("run.noHook", { agent: AGENT_LABELS.copilot }) });
+        const target = current && (sub ? current.subtasks?.find((s) => s.n === sub.n) : current);
+        if (!current || !target || target.sentPrompt?.at !== sentAt || target.phase !== "running" || this.sessions.hookSeen(sessionId)) return;
+        if (target === current) await this.save(current, { message: t("run.noHook", { agent: AGENT_LABELS.copilot }) });
+        else {
+          (target as SubtaskRun).noHook = true;
+          this.syncDispatch(current);
+          await this.save(current, {});
+        }
       }).catch((e: unknown) => this.emit("warning", e));
     }, this.noHookWarnMs);
     timer.unref();

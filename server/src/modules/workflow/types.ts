@@ -50,6 +50,8 @@ export interface SubtaskRun extends Assignment {
   pendingPrompt?: string;
   sentPrompt?: { stepIndex: number; text: string; at: number };
   lastMessage?: string;
+  /** The agent sent no hook for a while after the prompt, so nothing tells TaskPilot when it is done. */
+  noHook?: boolean;
   /** Report file name inside the task directory. */
   report: string;
 }

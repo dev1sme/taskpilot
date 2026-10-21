@@ -64,6 +64,8 @@ export interface WorkflowConfig {
   overrideKind: "none" | "legacy" | "extends";
   overrideExtends: string | null;
   provenance: Provenance | null;
+  /** Every file as the workflow runs it. */
+  resolved: Record<string, string>;
   overrideDir: string;
   dir: string;
   errors: string[];

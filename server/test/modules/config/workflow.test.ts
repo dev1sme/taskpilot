@@ -115,6 +115,8 @@ describe("workflow config", () => {
     const merged = await get("/api/config/workflow");
     expect(merged.def.steps.map((s: { id: string }) => s.id)).toEqual(["lint", "investigate", "dispatch", "review"]);
     expect(merged.provenance.steps.map((s: { status: string }) => s.status)).toEqual(["added", "patched", "builtin", "builtin"]);
+    expect(merged.files.map((f: { name: string }) => f.name).sort()).toEqual(["lint.md", "workflow.yml"]);
+    expect(merged.resolved["investigate.md"]).toBeTruthy();
     expect(merged.def.steps[1].agent).toBe("copilot");
     expect(merged.files.find((f: { name: string }) => f.name === "lint.md").provenance).toBe("added");
 

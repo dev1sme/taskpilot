@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { FIXTURE_REPO, openFixtureRepo } from "../fixtures/repo";
@@ -12,112 +12,110 @@ const clean = () => rmSync(OVERRIDE, { recursive: true, force: true });
 test.beforeEach(async ({ page }) => {
   clean();
   await openFixtureRepo(page);
+  // Which mode the repo runs by default is kept by the app, not in the repo: start from the default.
+  await page.request.put("/api/config/workflow/mode", { data: { mode: "default" } });
 });
 test.afterAll(clean);
 
 async function withOverride(page: Page) {
-  expect((await page.request.post("/api/config/workflow/override")).ok()).toBe(true);
+  expect((await page.request.post("/api/config/workflow/override", { data: { mode: "default" } })).ok()).toBe(true);
   await page.goto("/#/workflow");
-  await expect(page.getByText("Override của repo · .claude/taskpilot/")).toBeVisible();
+  await expect(page.getByText("Mặc định · override .claude/taskpilot/")).toBeVisible();
 }
 
 const toolbar = (page: Page) => page.locator(".config-toolbar");
 
-test("the built-in workflow is read only until an override is added", async ({ page }) => {
+test("the built-in workflow is read only; the mode is chosen without an override", async ({ page }) => {
   await page.goto("/#/workflow");
-  await expect(page.getByText("Mặc định của TaskPilot", { exact: true })).toBeVisible();
+  await expect(page.getByText("Mặc định · có sẵn của TaskPilot", { exact: true })).toBeVisible();
   await expect(toolbar(page).getByText("Chỉ xem")).toBeVisible();
   await expect(toolbar(page).getByRole("button", { name: "Sửa", exact: true })).toHaveCount(0);
   // The guide is open while the repo has no override.
   const guide = page.locator(".wf-guide");
   await expect(guide).toHaveAttribute("open", "");
   await expect(guide).toContainText("Khi nào có hiệu lực:");
-  await expect(guide).toContainText("Biến dạng {{key}} được TaskPilot điền khi gửi.");
   const nav = page.getByRole("navigation", { name: "File của workflow" });
   await expect(nav).toContainText("Điều tra & lên kế hoạch");
   await expect(nav).toContainText("01-investigation.md, 02-plan.md ✓");
   // Skeletons sit in their own group, not inside the steps.
   await expect(nav.getByRole("button", { name: /format-plan\.md/ })).toContainText("02-plan.md");
-  await expect(nav.getByRole("button", { name: /format-history\.md/ })).toContainText("00-history.md");
-  await expect(nav.locator(".wf-nav-step").filter({ hasText: "Điều tra & lên kế hoạch" })).not.toContainText("format-plan.md");
   await nav.getByRole("button", { name: /investigate\.md/ }).click();
   await expect(page.locator(".wf-file .code-lines")).toContainText("{{outputs}}");
 
-  await toolbar(page).getByRole("button", { name: "Thêm config override" }).click();
-  await expect(page.getByText("Override của repo · .claude/taskpilot/")).toBeVisible();
-  expect(existsSync(path.join(OVERRIDE, "workflow.yml"))).toBe(true);
-  expect(existsSync(path.join(OVERRIDE, "investigate.md"))).toBe(true);
-  await expect(nav.getByRole("button", { name: /implement\.md/ })).toContainText("giống mặc định");
+  // Another mode is looked at, and made the repo's, with no override.
+  const modes = page.getByRole("tablist", { name: "Xem từng cách chạy" });
+  await modes.getByRole("tab", { name: /Leader/ }).click();
+  await expect(page.getByText("Leader · có sẵn của TaskPilot", { exact: true })).toBeVisible();
+  await toolbar(page).getByRole("button", { name: "Dùng làm mặc định của repo" }).click();
+  await expect(modes.getByRole("tab", { name: /Leader/ })).toContainText("mặc định của repo");
+  expect(existsSync(OVERRIDE)).toBe(false);
 });
 
-test("workflow.yml is edited in the form, previewed and checked before saving", async ({ page }) => {
+test("an override is only what differs: one file, applied to its own mode", async ({ page }) => {
+  await page.goto("/#/workflow");
+  await toolbar(page).getByRole("button", { name: "Tạo override dựa trên Mặc định" }).click();
+  await expect(page.getByText("Mặc định · override .claude/taskpilot/")).toBeVisible();
+  expect(readFileSync(path.join(OVERRIDE, "workflow.yml"), "utf8")).toContain("extends: default");
+  expect(existsSync(path.join(OVERRIDE, "investigate.md"))).toBe(false);
+  await expect(page.getByRole("navigation", { name: "File của workflow" })).toContainText("có sẵn");
+
+  // Another mode runs as shipped, and says the override is not part of it.
+  await page.getByRole("tablist", { name: "Xem từng cách chạy" }).getByRole("tab", { name: /Leader/ }).click();
+  await expect(page.getByText("không áp dụng cho cách chạy này")).toBeVisible();
+  await expect(toolbar(page).getByRole("button", { name: /Tạo override/ })).toHaveCount(0);
+});
+
+test("workflow.yml of an override is edited as YAML, checked live and saved", async ({ page }) => {
   await withOverride(page);
   await toolbar(page).getByRole("button", { name: "Sửa", exact: true }).click();
-
-  const plan = page.getByRole("textbox", { name: "Tên file" }).nth(1);
-  await expect(plan).toHaveValue("02-plan.md");
-  await plan.fill("02-ke-hoach.md");
+  await page.locator(".cm-content").click();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.type("extends: default\nsteps: [{id: implement, title: Làm cho xong}]\n");
   await expect(page.getByText("Chưa lưu").first()).toBeVisible();
-
-  // The preview renders the unsaved draft.
-  await page.getByRole("button", { name: "Xem prompt" }).click();
-  await expect(page.locator(".wf-rendered")).toContainText(".claude/tasks/TASK-1/02-ke-hoach.md");
-  // Each document comes with its skeleton.
-  await expect(page.locator(".wf-rendered")).toContainText("# TASK-1 — Kế hoạch");
-  await expect(page.locator(".wf-rendered")).toContainText("## 5. Cách verify");
-  await expect(page.getByText("Task mẫu: TASK-1 · Tên task mẫu")).toBeVisible();
-  // A simulated restart adds what a run after "Chạy lại từ đầu" is told to read first.
-  await page.getByRole("checkbox", { name: "Như sau khi Chạy lại từ đầu" }).check();
-  await page.getByRole("button", { name: "Xem prompt" }).click();
-  await expect(page.locator(".wf-rendered")).toContainText("Task này được chạy lại từ bước đầu.");
-  await expect(page.getByRole("combobox", { name: "File khung" }).nth(1)).toHaveValue("format-plan.md");
-
-  // A broken step id is reported live and refused at review.
-  const id = page.getByRole("textbox", { name: "id", exact: true }).first();
-  await id.fill("Bad Id");
-  await expect(page.locator(".wf-checks-list")).toContainText("steps[0].id must match");
+  await expect(page.locator(".wf-ok")).toBeVisible();
   await toolbar(page).getByRole("button", { name: "Xem thay đổi & lưu" }).click();
-  await expect(page.getByRole("dialog")).toContainText("Workflow không hợp lệ");
-  await page.getByRole("button", { name: "Tiếp tục sửa" }).click();
-
-  await id.fill("investigate");
-  await toolbar(page).getByRole("button", { name: "Xem thay đổi & lưu" }).click();
-  await expect(page.getByRole("dialog")).toContainText("02-ke-hoach.md");
+  await expect(page.getByRole("dialog")).toContainText("Làm cho xong");
   await page.getByRole("button", { name: "Lưu file" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  expect(readFileSync(path.join(OVERRIDE, "workflow.yml"), "utf8")).toContain("file: 02-ke-hoach.md");
-  // Comments of the copied file survive the form.
-  expect(readFileSync(path.join(OVERRIDE, "workflow.yml"), "utf8")).toContain("# Built-in TaskPilot workflow.");
+  expect(readFileSync(path.join(OVERRIDE, "workflow.yml"), "utf8")).toContain("title: Làm cho xong");
+  await expect(page.getByRole("navigation", { name: "File của workflow" })).toContainText("đã sửa: title");
 });
 
-test("a prompt is customized with variable chips, then the override is removed", async ({ page }) => {
+test("a prompt is replaced by a file of the same name, then the override is removed", async ({ page }) => {
   await withOverride(page);
   const nav = page.getByRole("navigation", { name: "File của workflow" });
-  await nav.getByRole("button", { name: /implement\.md/ }).click();
-  await toolbar(page).getByRole("button", { name: "Sửa", exact: true }).click();
+  await toolbar(page).getByRole("button", { name: "Thêm file prompt" }).click();
+  await nav.getByRole("textbox").fill("implement.md");
+  await nav.getByRole("button", { name: "Thêm", exact: true }).click();
   await page.locator(".cm-content").click();
   await page.keyboard.press("Control+End");
   await page.keyboard.type("\nExtra rule: ");
   await page.getByRole("button", { name: "{{historyFile}}" }).click();
   await toolbar(page).getByRole("button", { name: "Xem thay đổi & lưu" }).click();
-  await page.getByRole("button", { name: "Lưu file" }).click();
-  await expect(nav.getByRole("button", { name: /implement\.md/ })).toContainText("đã sửa");
+  await page.getByRole("button", { name: "Tạo file" }).click();
+  await expect(nav.getByRole("button", { name: /implement\.md/ })).toContainText("thay file có sẵn");
   expect(readFileSync(path.join(OVERRIDE, "implement.md"), "utf8")).toContain("Extra rule: {{historyFile}}");
-
-  await page.getByRole("button", { name: "So với mặc định" }).click();
-  await expect(page.locator(".wf-file .diff-view")).toContainText("+Extra rule: {{historyFile}}");
-
-  // Back to the built-in text through a reviewed draft.
-  await page.getByRole("button", { name: "Lấy lại bản mặc định" }).click();
-  await toolbar(page).getByRole("button", { name: "Xem thay đổi & lưu" }).click();
-  await expect(page.getByRole("dialog")).toContainText("-Extra rule: {{historyFile}}");
-  await page.getByRole("button", { name: "Lưu file" }).click();
-  await expect(nav.getByRole("button", { name: /implement\.md/ })).toContainText("giống mặc định");
 
   await toolbar(page).getByRole("button", { name: "Xoá override" }).click();
   await toolbar(page).getByRole("button", { name: "Xác nhận xoá override" }).click();
-  await expect(page.getByText("Mặc định của TaskPilot", { exact: true })).toBeVisible();
+  await expect(page.getByText("Mặc định · có sẵn của TaskPilot", { exact: true })).toBeVisible();
   expect(existsSync(OVERRIDE)).toBe(false);
+});
+
+test("a complete override of the old format is offered a move to `extends`", async ({ page }) => {
+  // A legacy override: the built-in default's files, copied whole.
+  const files = (await (await page.request.get("/api/config/workflow")).json()).resolved as Record<string, string>;
+  mkdirSync(OVERRIDE, { recursive: true });
+  for (const [name, content] of Object.entries(files)) writeFileSync(path.join(OVERRIDE, name), content);
+  await page.goto("/#/workflow");
+  await page.getByRole("tab", { name: "Override của repo (toàn bộ)" }).click();
+  await expect(page.getByText("Override dạng cũ (đủ bộ file)")).toBeVisible();
+  await page.getByRole("button", { name: "Chuyển sang dạng extends" }).click();
+  await expect(page.getByRole("dialog")).toContainText("extends");
+  await page.getByRole("button", { name: "Chuyển", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(readFileSync(path.join(OVERRIDE, "workflow.yml"), "utf8")).toContain("extends: default");
+  expect(existsSync(path.join(OVERRIDE, "investigate.md"))).toBe(false);
 });
 
 test("the documents page shows each step's documents with their skeletons and links to the editor", async ({ page }) => {
@@ -131,12 +129,17 @@ test("the documents page shows each step's documents with their skeletons and li
   await plan.getByRole("tab", { name: "Nguồn" }).click();
   await expect(plan.locator(".fmt-raw")).toContainText("<!-- Kết quả cần đạt");
   await expect(page.getByRole("region", { name: "Nhật ký quyết định" })).toContainText("format-history.md");
-  // The built-in workflow is read only: no edit button until the repo has an override.
+  // The built-in workflow is read only: no edit button until the repo has an override of that file.
   await expect(plan.getByRole("button", { name: "Sửa" })).toHaveCount(0);
 
-  expect((await page.request.post("/api/config/workflow/override")).ok()).toBe(true);
+  // An `extends` override keeps showing the mode's skeletons, and edits only the ones it holds.
+  expect((await page.request.post("/api/config/workflow/override", { data: { mode: "default" } })).ok()).toBe(true);
+  const planFile = (await (await page.request.get("/api/config/workflow")).json()).resolved["format-plan.md"] as string;
+  expect((await page.request.put("/api/config/workflow/file", { data: { name: "format-plan.md", content: planFile, baseHash: "absent" } })).ok()).toBe(true);
   await page.reload();
-  await page.locator(".fmt-card").filter({ hasText: "02-plan.md" }).first().getByRole("button", { name: "Sửa" }).click();
+  const card = page.locator(".fmt-card").filter({ hasText: "02-plan.md" }).first();
+  await expect(card.locator(".fmt-rendered h2").first()).toHaveText("1. Mục tiêu");
+  await card.getByRole("button", { name: "Sửa" }).click();
   await expect(page).toHaveURL(/#\/workflow\/format-plan\.md$/);
   await expect(page.locator(".wf-file .code-head")).toContainText(".claude/taskpilot/format-plan.md");
 });

@@ -175,6 +175,8 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
           dispatch: s.dispatch && { from: s.dispatch.from, promptFile: s.dispatch.promptFile, report: s.dispatch.report, format: s.dispatch.format ?? null, parallel: s.dispatch.parallel },
         })),
       },
+      /** Every file of the workflow as it runs (the mode's, with the override laid over it). */
+      resolved: Object.fromEntries(composed.files),
       files: [...files].map(([name, content]) => ({
         name,
         path: displayPath(path.join(dir, name), repo),

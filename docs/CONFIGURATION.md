@@ -84,18 +84,45 @@ How TaskPilot drives Copilot (copilot 1.0.100, see
 
 ## Custom workflow
 
-A repo uses TaskPilot's built-in workflow (`workflows/default/`) until it has an override in
-`.claude/taskpilot/`. The *Workflow* page shows the workflow in use. The built-in one is read only
-there; **Thêm config override** copies it (`workflow.yml` and its prompt files) into
-`.claude/taskpilot/`, where every file can then be edited, checked, compared with the built-in
-file and previewed as the prompt a step sends (for a sample task, `TASK-1`, optionally as after
-*Chạy lại từ đầu* or with a sample feedback). **Xoá override** goes back to the built-in workflow
-(every file is backed up first). TaskPilot only ever writes inside `.claude/taskpilot/`, never
-`workflows/default/`. The old `.claude/workflow.yml` is no longer read. The page opens with a short
-guide to all of this (*Override hoạt động thế nào*).
+### Modes (how a task runs)
 
-The override is complete on its own: prompt files are looked up next to its `workflow.yml` only,
-never in the built-in workflow.
+TaskPilot ships its workflows as **modes**: one directory `workflows/<id>/workflow.yml` each
+(`default`: static steps; `leader`: Claude leads, members do the plan's rows). No override is
+needed to pick one:
+
+- the *Workflow* page has a tab per mode and **Dùng làm mặc định của repo**; the choice is kept by
+  TaskPilot in `~/.taskpilot/state.json` (`repoModes[repo]`), not in the repo;
+- the task screen has a **Cách chạy** select next to *Bắt đầu* / *Chạy lại từ đầu* (hidden while
+  only one mode is available) to run one task differently;
+- a run keeps the mode it started with (snapshot, `workflow.mode`) and the history entry names it.
+
+Adding a mode = adding a `workflows/<id>/workflow.yml` (with a `name` and `description`).
+
+### Override
+
+A repo's override in `.claude/taskpilot/` is `workflow.yml` with `extends: <mode>` and only what
+differs from that mode: top-level keys (`agent`, `permission-mode`, `language`, `rules`, `history`,
+`restart`) replace the mode's; a step with an id of the mode patches that step (only the keys
+written: `title`, `dispatch.prompt|format|parallel`); a new step is added with exactly one of
+`before` / `after`; a prompt or format file of the directory replaces the mode's file of the same
+name. Everything not written follows the mode, so it gets TaskPilot's updates. An override applies
+only to the mode it extends; for other modes the page says *không áp dụng* and shows the built-in.
+
+The *Workflow* page shows the mode in use, read only. **Tạo override dựa trên <mode>** writes just
+`workflow.yml` (refused with 409 if files already in `.claude/taskpilot/` clash with the mode's file
+names). Files can then be edited, checked, compared with the built-in file and previewed as the
+prompt a step sends (for a sample task, `TASK-1`, optionally as after *Chạy lại từ đầu* or with a
+sample feedback). **Xoá override** goes back to the built-in workflow (every file is backed up
+first). TaskPilot only ever writes inside `.claude/taskpilot/`, never `workflows/`. The old
+`.claude/workflow.yml` is no longer read. The page opens with a short guide (*Override hoạt động
+thế nào*). The Formats page shows each document's skeleton from the workflow as it runs, and
+offers *Sửa* only for skeletons the override holds.
+
+**Complete (legacy) overrides.** An override without `extends` (a full copy) still works, as the
+special mode `custom`, the repo's default while it exists; a new one cannot be created. A banner
+offers **Chuyển sang dạng extends**: a diff of the new `workflow.yml` is reviewed first, files equal
+to the base mode's are dropped, and everything is backed up. The regenerated `workflow.yml` does not keep the
+original comments (the backup does). `POST /api/config/workflow/override/migrate`.
 
 What an override changes, and when:
 
@@ -109,9 +136,9 @@ What an override changes, and when:
 - A run keeps the workflow it started with: edits apply to new runs and to *Chạy lại từ đầu*.
 - The task list reads how far a task got from the declared document file names: renaming an
   output's `file`, or adding and removing steps, can make finished tasks look unfinished.
-- An override does not follow later changes to the built-in workflow. Files that differ from it are
-  tagged *đã sửa*; **So với mặc định** shows the diff and **Lấy lại bản mặc định** opens a draft
-  with the built-in text, reviewed and saved like any edit.
+- An `extends` override follows later changes to the mode for everything it does not write. Files
+  it holds are tagged *thay file có sẵn* / *file thêm*; **So với mặc định** shows the diff and
+  **Lấy lại bản mặc định** opens a draft with the built-in text, reviewed and saved like any edit.
 - Commit `.claude/taskpilot/` to share the workflow with everyone who opens the repo.
 
 ```yaml
@@ -182,11 +209,11 @@ declared outputs. A run keeps the workflow it started with: edits apply to new r
 
 ## Leader / member workflow
 
-`workflows/leader/` is a ready template: Claude (the leader) investigates and writes a plan ending
+`workflows/leader/` is a mode: Claude (the leader) investigates and writes a plan ending
 with a `## 7. Phân công` table, the reviewer approves, then every row runs in its own session of the
-agent it names (`claude` or `copilot`), and the leader's session reviews the reports. Use it from
-the *Workflow* page: **Thêm override từ mẫu leader** (`POST /api/config/workflow/override`
-`{template: "leader"}`) copies it into `.claude/taskpilot/`.
+agent it names (`claude` or `copilot`), and the leader's session reviews the reports. Pick it
+without an override: **Cách chạy** on the task screen, or **Dùng làm mặc định của repo** on the
+*Workflow* page. An override can still `extends: leader`.
 
 ```yaml
 steps:

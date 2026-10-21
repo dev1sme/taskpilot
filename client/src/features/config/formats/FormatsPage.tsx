@@ -17,7 +17,7 @@ import "./formats.css";
  */
 export function FormatsPage() {
   const { t } = useTranslation("config");
-  const { data, error, loading, reload } = useConfig(["workflow"], workflowConfigApi.get);
+  const { data, error, loading, reload } = useConfig(["workflow"], () => workflowConfigApi.get());
   const steps = data?.def?.steps ?? [];
   const history = data?.def?.history;
 
@@ -68,7 +68,8 @@ export function FormatsPage() {
 function FormatCard(props: { config: WorkflowConfig; file: string; description: string; format: string | null; done: boolean }) {
   const { t } = useTranslation("config");
   const [raw, setRaw] = useState(false);
-  const skeleton = props.format ? props.config.files.find((f) => f.name === props.format) : undefined;
+  const skeletonText = props.format ? props.config.resolved[props.format] : undefined;
+  const inOverride = !!props.format && props.config.files.some((f) => f.name === props.format);
 
   return (
     <article className="card fmt-card">
@@ -81,7 +82,7 @@ function FormatCard(props: { config: WorkflowConfig; file: string; description: 
             {props.done && <> · {t("formats.doneWhen")}</>}
           </p>
         </div>
-        {skeleton && (
+        {skeletonText !== undefined && (
           <div className="fmt-actions">
             <div className="segmented" role="tablist" aria-label={t("formats.view")}>
               <button type="button" role="tab" aria-selected={!raw} onClick={() => setRaw(false)}>
@@ -91,20 +92,20 @@ function FormatCard(props: { config: WorkflowConfig; file: string; description: 
                 {t("formats.raw")}
               </button>
             </div>
-            {props.config.origin === "repo" && (
-              <Button icon={PencilSimple} variant="quiet" onClick={() => navigate({ page: "config", section: "workflow", file: skeleton.name })}>
+            {props.config.origin === "repo" && inOverride && (
+              <Button icon={PencilSimple} variant="quiet" onClick={() => navigate({ page: "config", section: "workflow", file: props.format! })}>
                 {t("action.edit")}
               </Button>
             )}
           </div>
         )}
       </header>
-      {skeleton &&
+      {skeletonText !== undefined &&
         (raw ? (
-          <pre className="fmt-raw">{skeleton.content}</pre>
+          <pre className="fmt-raw">{skeletonText}</pre>
         ) : (
           <div className="fmt-rendered">
-            <Markdown source={showHints(skeleton.content)} />
+            <Markdown source={showHints(skeletonText)} />
           </div>
         ))}
     </article>

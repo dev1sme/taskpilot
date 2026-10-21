@@ -40,7 +40,7 @@ task's documents like the others, but it doesn't count in the task list's "N Cla
    copied to `archive/<stamp>/` before Claude writes them again. The new run's first prompt tells
    Claude which archived documents to read first, so it knows what was done before.
 
-6. With the leader template (*Workflow* page → **Thêm override từ mẫu leader**), the plan gate also
+6. With the leader mode (**Cách chạy** next to *Bắt đầu*, or *Workflow* page → **Dùng làm mặc định của repo**; no override needed), the plan gate also
    shows the parsed **Phân công** table; **Duyệt** is disabled while it has errors. After approval the
    task screen shows a tree of subtasks, each with its agent, state and report. A subtask that is
    waiting has its own reply box, an interrupted one a **Gửi lại việc** button; their sessions are tabs in

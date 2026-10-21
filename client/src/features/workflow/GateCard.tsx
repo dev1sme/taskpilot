@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useEffect, useId, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import { AGENT_LABELS } from "../../shared/agents";
 import { AgentBadge } from "../../shared/ui/AgentBadge";
 import { Button } from "../../shared/ui/Button";
 import { Markdown } from "../../shared/ui/Markdown";
@@ -28,6 +29,7 @@ export function GateCard(props: {
 }) {
   const { t } = useTranslation("workflow");
   const { taskKey, step } = props;
+  const agent = AGENT_LABELS[step.agent];
   const docQuery = useQuery({
     queryKey: ["doc", taskKey, step.doneFile, props.docVersion],
     queryFn: () => workspaceApi.file(taskKey, step.doneFile!),
@@ -84,7 +86,7 @@ export function GateCard(props: {
 
       {props.run.lastMessage && (
         <figure className="gate-claude">
-          <figcaption>{t("gate.summary")}</figcaption>
+          <figcaption>{t("gate.summary", { agent })}</figcaption>
           <Markdown source={props.run.lastMessage} />
         </figure>
       )}
@@ -108,7 +110,7 @@ export function GateCard(props: {
       )}
 
       <div className="gate-decide">
-        {props.questions.length > 0 && <QuestionForm questions={props.questions} answers={answers} onChange={setAnswers} disabled={busy !== null} />}
+        {props.questions.length > 0 && <QuestionForm agent={agent} questions={props.questions} answers={answers} onChange={setAnswers} disabled={busy !== null} />}
         {answered && <p className="gate-hint">{t("questions.approveHint")}</p>}
         <Button
           icon={Check}
@@ -127,7 +129,7 @@ export function GateCard(props: {
             void act("feedback", () => workflowApi.feedback(taskKey, feedbackText));
           }}
         >
-          <label htmlFor={feedbackId}>{answered ? t("gate.feedbackLabelAnswered") : t("gate.feedbackLabel")}</label>
+          <label htmlFor={feedbackId}>{answered ? t("gate.feedbackLabelAnswered", { agent }) : t("gate.feedbackLabel", { agent })}</label>
           <div className="gate-feedback-row">
             <textarea
               id={feedbackId}

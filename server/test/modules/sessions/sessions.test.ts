@@ -213,7 +213,8 @@ describe("repo sessions", () => {
 /**
  * Stands in for copilot: shows the trust prompt until a line arrives, then the input box footer
  * (its ready marker). Every prompt line then fires hooks the way copilot 1.0.100 does: SessionStart
- * only now, no tool_use_id, PermissionRequest in camelCase.
+ * only now, no tool_use_id, PermissionRequest in camelCase and also for tools it allows on its own.
+ * The prompt "ask" waits for one more line (the user's answer) before the tool runs.
  */
 const COPILOT_SCRIPT = `
 post() { curl -sS -m 5 -o /dev/null -X POST -H "x-taskpilot-hook-token: $TASKPILOT_HOOK_TOKEN" \\
@@ -222,11 +223,13 @@ echo "Confirm folder trust"
 read -r answer
 printf '\\033[2m/ commands\\033[0m · ? help\\n'
 while IFS= read -r line; do
+  cmd="npm test"; [ "$line" = ask ] && cmd="npm run build"
   post UserPromptSubmit '{"session_id":"'"$1"'","prompt":"x"}'
   post SessionStart '{"session_id":"'"$1"'","source":"new"}'
-  post PreToolUse '{"session_id":"'"$1"'","tool_name":"Bash","tool_input":{"command":"npm test"}}'
-  post PermissionRequest '{"hookName":"permissionRequest","sessionId":"'"$1"'","toolName":"bash","toolInput":{"command":"npm test"}}'
-  post PostToolUse '{"session_id":"'"$1"'","tool_name":"Bash","tool_input":{"command":"npm test"},"tool_result":{"result_type":"success"}}'
+  post PreToolUse '{"session_id":"'"$1"'","tool_name":"Bash","tool_input":{"command":"'"$cmd"'"}}'
+  post PermissionRequest '{"hookName":"permissionRequest","sessionId":"'"$1"'","toolName":"bash","toolInput":{"command":"'"$cmd"'"}}'
+  if [ "$line" = ask ]; then read -r answer; fi
+  post PostToolUse '{"session_id":"'"$1"'","tool_name":"Bash","tool_input":{"command":"'"$cmd"'","description":"Run it"},"tool_result":{"result_type":"success"}}'
   post Stop '{"session_id":"'"$1"'","transcript_path":"/nonexistent/events.jsonl","stop_reason":"end_turn"}'
 done`;
 const fakeCopilot: Launcher = (id) => ({ file: "/bin/sh", args: ["-c", COPILOT_SCRIPT, "sh", id] });
@@ -264,12 +267,21 @@ describe("copilot sessions", () => {
       await new Promise((r) => setTimeout(r, 50));
       feed = (await app.inject({ url: "/api/tasks/DEMO-1/activity", headers: ok })).json();
     }
-    expect(feed.map((f) => f.kind)).toEqual(["session", "prompt", "tool", "permission", "stop"]);
+    // The tool ran at once, so its PermissionRequest was not a question to the user.
+    expect(feed.map((f) => f.kind)).toEqual(["session", "prompt", "tool", "stop"]);
     expect(feed.find((f) => f.kind === "tool")).toMatchObject({ status: "done", summary: expect.stringContaining("npm test") });
-    expect(feed.find((f) => f.kind === "permission")?.summary).toContain("npm test");
+    expect((await list())[0].activity).toBe("idle");
+
+    term.ws.send(JSON.stringify({ t: "i", d: "ask\r" }));
+    for (let i = 0; i < 100 && (await list())[0].activity !== "permission"; i++) await new Promise((r) => setTimeout(r, 50));
+    expect((await list())[0].activity).toBe("permission");
+    feed = (await app.inject({ url: "/api/tasks/DEMO-1/activity", headers: ok })).json();
+    expect(feed.at(-1)).toMatchObject({ kind: "permission", summary: expect.stringContaining("npm run build") });
+    term.ws.send(JSON.stringify({ t: "i", d: "y\r" }));
+    for (let i = 0; i < 100 && (await list())[0].activity !== "idle"; i++) await new Promise((r) => setTimeout(r, 50));
     expect((await list())[0].activity).toBe("idle");
     term.ws.close();
-  });
+   }, 15_000);
 
   it("rejects an unknown agent", async () => {
     const { app } = await startCopilot();

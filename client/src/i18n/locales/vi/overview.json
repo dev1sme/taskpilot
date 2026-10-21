@@ -4,18 +4,18 @@
   "needs": {
     "title": "việc đang chờ ba",
     "calmTitle": "Không có việc nào chờ ba",
-    "calmBody": "Khi Claude cần ba duyệt, trả lời hoặc cho phép, việc đó sẽ hiện ở đây đầu tiên.",
+    "calmBody": "Khi agent (Claude, Copilot) cần ba duyệt, trả lời hoặc cho phép, việc đó sẽ hiện ở đây đầu tiên.",
     "open": "Mở",
     "cta": {
       "permission": "Trả lời",
       "gate": "Xem & duyệt",
-      "waiting": "Trả lời Claude",
+      "waiting": "Trả lời agent",
       "interrupted": "Tiếp tục"
     },
     "detail": {
-      "permission": "Claude đang chờ ba cho phép một thao tác",
+      "permission": "Agent đang chờ ba cho phép một thao tác",
       "gate": "Một bước đã xong, chờ ba duyệt",
-      "waiting": "Claude dừng lại, có thể đang hỏi ba",
+      "waiting": "Agent dừng lại, có thể đang hỏi ba",
       "interrupted": "Session dừng giữa chừng"
     }
   },
@@ -40,7 +40,7 @@
     "live": "Đang chạy · <taskLink>{{task}}</taskLink>",
     "others": " và {{count}} task khác",
     "none": "Không có task nào đang chạy. Mở một task và bấm \"Bắt đầu quy trình\".",
-    "starting": "Claude đang khởi động…",
+    "starting": "Agent đang khởi động…",
     "pulse": "{{count}} thao tác trong 12 phút qua"
   }
 }

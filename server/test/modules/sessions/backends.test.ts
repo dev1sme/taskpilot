@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { AGENTS } from "../../../src/core/agents.js";
@@ -16,7 +16,7 @@ import { cleanupTempDirs, tempDir } from "../../helpers/fixtures.js";
 
 afterAll(cleanupTempDirs);
 
-const state = (): HookState => ({ openTools: new Map(), nextToolId: 1 });
+const state = (): HookState => ({ openTools: new Map(), nextToolId: 1, finishedAt: new Map(), heldPermissions: new Map() });
 const SID = "5c462bd1-30c6-4a29-9ff8-0280f70857af";
 
 describe("backends", () => {
@@ -63,6 +63,18 @@ describe("normalizeCopilot", () => {
     const stop = { session_id: SID, transcript_path: transcript, stop_reason: "end_turn" };
     expect(await normalizeCopilot("Stop", stop, state())).toMatchObject({ last_assistant_message: "Plan.\n\n1. Q? — Đề xuất: có" });
     expect(await lastAssistantMessage(path.join(dir, "missing.jsonl"))).toBeNull();
+  });
+
+  it("waits for the stopped turn to reach the transcript, which copilot writes after the Stop hook", async () => {
+    const dir = await tempDir("taskpilot-copilot-");
+    const transcript = path.join(dir, "events.jsonl");
+    const at = (ms: number) => new Date(ms).toISOString();
+    const stoppedAt = Date.now();
+    const event = (type: string, ms: number, content = "") => JSON.stringify({ type, timestamp: at(ms), data: { content } });
+    await writeFile(transcript, `${event("assistant.message", stoppedAt - 9000, "Lượt trước.")}\n${event("assistant.turn_end", stoppedAt - 8900)}\n`);
+    setTimeout(() => void appendFile(transcript, `${event("assistant.message", stoppedAt - 5, "Lượt này.")}\n${event("assistant.turn_end", stoppedAt - 3)}\n`), 300);
+    const stop = { session_id: SID, transcript_path: transcript, timestamp: at(stoppedAt) };
+    expect(await normalizeCopilot("Stop", stop, state())).toMatchObject({ last_assistant_message: "Lượt này." });
   });
 });
 

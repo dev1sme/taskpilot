@@ -12,6 +12,14 @@ const MARK = "TASKPILOT_HOOK_URL";
 const READY_MARKER = "/ commands";
 /** Enough of events.jsonl to find the last assistant message of a turn. */
 const TRANSCRIPT_TAIL_BYTES = 2 * 1024 * 1024;
+/**
+ * Copilot fires Stop before events.jsonl has the turn's last lines (copilot 1.0.101): wait this long
+ * at most for an `assistant.turn_end` from around the Stop.
+ */
+const TRANSCRIPT_WAIT_MS = 3000;
+const TRANSCRIPT_POLL_MS = 100;
+/** A turn_end this close before the Stop belongs to the turn that stopped. */
+const TURN_END_SLACK_MS = 500;
 
 /**
  * Copilot runtime tool names → Claude's, as Copilot itself maps them for hooks declared with
@@ -45,6 +53,8 @@ export const copilotBackend: AgentBackend = {
   prepare: ensureCopilotHooks,
   // Copilot fires SessionStart only together with the first prompt, so the engine cannot wait for it.
   readyMarker: READY_MARKER,
+  // PermissionRequest fires for every tool call, also the ones Copilot then allows on its own.
+  permissionGraceMs: 1500,
   normalize: normalizeCopilot,
 };
 
@@ -74,7 +84,9 @@ export async function normalizeCopilot(event: HookEvent, payload: Record<string,
       return id ? { ...out, tool_use_id: id } : out;
     }
     case "Stop": {
-      const message = typeof out.transcript_path === "string" ? await lastAssistantMessage(out.transcript_path) : null;
+      const stoppedAt = typeof out.timestamp === "string" ? Date.parse(out.timestamp) : NaN;
+      const message =
+        typeof out.transcript_path === "string" ? await lastAssistantMessage(out.transcript_path, Number.isNaN(stoppedAt) ? undefined : stoppedAt) : null;
       return message ? { ...out, last_assistant_message: message } : out;
     }
     default:
@@ -82,8 +94,21 @@ export async function normalizeCopilot(event: HookEvent, payload: Record<string,
   }
 }
 
-/** The last non-empty `assistant.message` of a Copilot events.jsonl; null when unreadable. */
-export async function lastAssistantMessage(file: string): Promise<string | null> {
+/**
+ * The last non-empty `assistant.message` of a Copilot events.jsonl; null when unreadable. With
+ * `stoppedAt` (the Stop hook's time), waits until the file has that turn's end.
+ */
+export async function lastAssistantMessage(file: string, stoppedAt?: number): Promise<string | null> {
+  const deadline = Date.now() + TRANSCRIPT_WAIT_MS;
+  for (;;) {
+    const found = await readLastMessage(file);
+    const complete = stoppedAt === undefined || (found?.turnEndedAt ?? 0) >= stoppedAt - TURN_END_SLACK_MS;
+    if (!found || complete || Date.now() >= deadline) return found?.message ?? null;
+    await new Promise((r) => setTimeout(r, TRANSCRIPT_POLL_MS));
+  }
+}
+
+async function readLastMessage(file: string): Promise<{ message: string | null; turnEndedAt: number } | null> {
   let text: string;
   try {
     const handle = await open(file, "r");
@@ -100,18 +125,23 @@ export async function lastAssistantMessage(file: string): Promise<string | null>
     return null;
   }
   const lines = text.split("\n");
+  let turnEndedAt = 0;
   for (let i = lines.length - 1; i >= 0; i--) {
-    if (!lines[i].includes('"assistant.message"')) continue;
+    if (!lines[i].includes('"assistant.')) continue;
+    let event: { type?: unknown; timestamp?: unknown; data?: { content?: unknown } };
     try {
-      const event = JSON.parse(lines[i]) as { type?: unknown; data?: { content?: unknown } };
-      if (event.type === "assistant.message" && typeof event.data?.content === "string" && event.data.content.trim()) {
-        return event.data.content;
-      }
+      event = JSON.parse(lines[i]) as typeof event;
     } catch {
       // The first line of the tail may be cut in half.
+      continue;
+    }
+    if (event.type === "assistant.turn_end" && !turnEndedAt && typeof event.timestamp === "string") {
+      turnEndedAt = Date.parse(event.timestamp) || 0;
+    } else if (event.type === "assistant.message" && typeof event.data?.content === "string" && event.data.content.trim()) {
+      return { message: event.data.content, turnEndedAt };
     }
   }
-  return null;
+  return { message: null, turnEndedAt };
 }
 
 const locks = new Map<string, Promise<unknown>>();

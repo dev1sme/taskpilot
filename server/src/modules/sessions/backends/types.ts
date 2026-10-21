@@ -7,6 +7,10 @@ export interface HookState {
   /** Ids handed out to tool calls that have not finished yet, oldest first, by tool name. */
   openTools: Map<string, string[]>;
   nextToolId: number;
+  /** When each tool call last finished, by tool name and subject (permissionGraceMs). */
+  finishedAt: Map<string, number>;
+  /** PermissionRequests held back for permissionGraceMs, by tool name and subject. */
+  heldPermissions: Map<string, NodeJS.Timeout>;
 }
 
 /**
@@ -25,6 +29,11 @@ export interface AgentBackend {
    * not fire at startup: the session then reports SessionStart when this text appears.
    */
   readyMarker?: string;
+  /**
+   * Set when the agent fires PermissionRequest before deciding whether to ask at all: the request
+   * shows only if the tool has not finished after this long (or did not just finish).
+   */
+  permissionGraceMs?: number;
   /** The payload as Claude Code would send it; null drops the event. */
   normalize?(event: HookEvent, payload: Record<string, unknown>, state: HookState): Promise<Record<string, unknown> | null>;
 }

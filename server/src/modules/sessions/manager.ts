@@ -154,11 +154,44 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     const live = id ? this.live.get(id) : undefined;
     if (!id || !live) return false;
     const meta = await this.find(id);
-    const normalize = backendOf(meta.agent).normalize;
-    const payload = normalize ? await normalize(event, raw, live.hookState) : raw;
+    const backend = backendOf(meta.agent);
+    const payload = backend.normalize ? await backend.normalize(event, raw, live.hookState) : raw;
     if (payload && typeof payload.session_id === "string" && payload.session_id !== id) return false;
-    if (payload) this.apply(meta, live, event, payload);
+    if (!payload) return true;
+    if (backend.permissionGraceMs) this.graced(meta, live, event, payload, backend.permissionGraceMs);
+    else this.apply(meta, live, event, payload);
     return true;
+  }
+
+  /**
+   * For agents whose PermissionRequest also fires for tools they then allow on their own: the
+   * request is held back and dropped when the tool finishes within `graceMs` (hooks can also arrive
+   * in the other order, so a tool that just finished drops it at once).
+   */
+  private graced(meta: SessionMeta, live: Live, event: HookEvent, payload: Record<string, unknown>, graceMs: number): void {
+    const { finishedAt, heldPermissions: held } = live.hookState;
+    const tool = toolCallKey(payload);
+    if (event === "PermissionRequest") {
+      if (Date.now() - (finishedAt.get(tool) ?? 0) < graceMs) return;
+      clearTimeout(held.get(tool));
+      held.set(
+        tool,
+        setTimeout(() => {
+          held.delete(tool);
+          if (live.proc) this.apply(meta, live, event, payload);
+        }, graceMs),
+      );
+      return;
+    }
+    if (event === "PostToolUse" || event === "PostToolUseFailure") {
+      finishedAt.set(tool, Date.now());
+      clearTimeout(held.get(tool));
+      held.delete(tool);
+    } else if (event === "Stop") {
+      for (const timer of held.values()) clearTimeout(timer);
+      held.clear();
+    }
+    this.apply(meta, live, event, payload);
   }
 
   private apply(meta: SessionMeta, live: Live, event: HookEvent, payload: Record<string, unknown>): void {
@@ -281,6 +314,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     });
     proc.onExit(({ exitCode }) => {
       live.proc = null;
+      for (const timer of live.hookState.heldPermissions.values()) clearTimeout(timer);
       live.exitCode = exitCode;
       this.byHookToken.delete(hookToken);
       live.hookToken = null;
@@ -327,8 +361,15 @@ function emptyLive(): Live {
   };
 }
 
+/** Tool name and what it acts on: tells two calls of the same tool apart (inputs differ in extras like `description`). */
+function toolCallKey(payload: Record<string, unknown>): string {
+  const input = typeof payload.tool_input === "object" && payload.tool_input !== null ? (payload.tool_input as Record<string, unknown>) : {};
+  const subject = ["command", "file_path", "path", "url", "query", "pattern"].map((k) => input[k]).find((v) => typeof v === "string");
+  return `${typeof payload.tool_name === "string" ? payload.tool_name : ""}\0${subject ?? ""}`;
+}
+
 function emptyHookState(): HookState {
-  return { openTools: new Map(), nextToolId: 1 };
+  return { openTools: new Map(), nextToolId: 1, finishedAt: new Map(), heldPermissions: new Map() };
 }
 
 /** Terminal output without escape sequences, enough to find a line of text in it. */

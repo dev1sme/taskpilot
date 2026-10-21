@@ -31,14 +31,14 @@ export function composeAnswers(questions: Question[], answers: Answers, agree: s
 }
 
 /** One field per question Claude asked: take its proposal or write another answer. */
-export function QuestionForm(props: { questions: Question[]; answers: Answers; onChange: (answers: Answers) => void; disabled?: boolean }) {
+export function QuestionForm(props: { questions: Question[]; answers: Answers; onChange: (answers: Answers) => void; disabled?: boolean; agent: string }) {
   const { t } = useTranslation("workflow");
   const id = useId();
   const set = (n: number, patch: Partial<Answer>) => props.onChange({ ...props.answers, [n]: { ...props.answers[n], ...patch } });
 
   return (
     <fieldset className="questions" disabled={props.disabled}>
-      <legend>{t("questions.title", { count: props.questions.length })}</legend>
+      <legend>{t("questions.title", { count: props.questions.length, agent: props.agent })}</legend>
       <ol>
         {props.questions.map((q) => {
           const a = props.answers[q.n] ?? { mode: "skip", text: "" };

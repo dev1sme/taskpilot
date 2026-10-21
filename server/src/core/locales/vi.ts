@@ -9,7 +9,7 @@ export default {
     restarted: 'TaskPilot đã khởi động lại. Bấm "Gửi lại bước" để resume session và chạy tiếp, hoặc "Chạy lại từ đầu".',
     working: "Claude đang làm việc.",
     sessionStopped: 'Session đã dừng giữa chừng. Bấm "Gửi lại bước" để resume session và chạy tiếp bước này, hoặc "Chạy lại từ đầu".',
-    notWritten: 'Claude đã dừng nhưng chưa ghi {{file}}. Trả lời Claude trong terminal, hoặc bấm "Gửi lại bước".',
+    notWritten: 'Claude đã dừng nhưng chưa ghi {{file}}. Trả lời Claude ngay dưới đây (hoặc trong terminal), hoặc bấm "Gửi lại bước".',
     gate: 'Bước "{{step}}" xong, chờ duyệt.',
     gateFile: 'Bước "{{step}}" xong, chờ duyệt. Xem {{file}} rồi duyệt hoặc góp ý.',
     resuming: "Đang resume session…",

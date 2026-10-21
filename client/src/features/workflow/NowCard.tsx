@@ -2,6 +2,7 @@ import {
   ArrowClockwise,
   ArrowCounterClockwise,
   ChatCircleDots,
+  ChatText,
   CheckCircle,
   FileText,
   HandPalm,
@@ -10,14 +11,15 @@ import {
   TerminalWindow,
 } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Button } from "../../shared/ui/Button";
 import { Elapsed, formatDuration } from "../../shared/ui/Elapsed";
 import { CategoryIcon, type ActivityItem } from "../activity";
 import { workflowApi } from "./api";
 import type { SessionView } from "../sessions";
-import type { RunState, WorkflowStep } from "./types";
+import { composeAnswers, initialAnswers, QuestionForm } from "./QuestionForm";
+import type { Question, RunState, WorkflowStep } from "./types";
 import "./now-card.css";
 
 interface Props {
@@ -26,6 +28,7 @@ interface Props {
   run: RunState | null;
   session: SessionView | null;
   activity: ActivityItem[];
+  questions: Question[];
   onOpenTerminal: () => void;
   onOpenDoc: (path: string) => void;
   onChanged: () => void;
@@ -129,7 +132,8 @@ export function NowCard(props: Props) {
       <Card tone="attention" icon={<ChatCircleDots weight="fill" />}>
         <h3>{t("now.waitingTitle")}</h3>
         <p className="now-text">{run.message}</p>
-        {run.lastMessage && <blockquote className="now-quote">{lastParagraph(run.lastMessage)}</blockquote>}
+        {run.lastMessage && props.questions.length === 0 && <blockquote className="now-quote">{lastParagraph(run.lastMessage)}</blockquote>}
+        <ReplyForm taskKey={props.taskKey} questions={props.questions} onChanged={props.onChanged} />
         {errorLine}
         <div className="now-actions">
           {openTerminal}
@@ -208,6 +212,56 @@ export function NowCard(props: Props) {
       {errorLine}
       {run.phase === "starting" && <div className="now-actions">{openTerminal}{retry}</div>}
     </Card>
+  );
+}
+
+/** Answers Claude from here: one field per question it asked, plus free text; sent into the session as it is. */
+function ReplyForm(props: { taskKey: string; questions: Question[]; onChanged: () => void }) {
+  const { t } = useTranslation("workflow");
+  const id = useId();
+  const [answers, setAnswers] = useState(() => initialAnswers(props.questions));
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const asked = JSON.stringify(props.questions);
+  useEffect(() => setAnswers(initialAnswers(JSON.parse(asked) as Question[])), [asked]);
+  const reply = [composeAnswers(props.questions, answers, t("questions.agree")), text.trim()].filter(Boolean).join("\n\n");
+
+  return (
+    <form
+      className="now-reply"
+      onSubmit={(e) => {
+        e.preventDefault();
+        setBusy(true);
+        workflowApi
+          .reply(props.taskKey, reply)
+          .then(
+            () => {
+              setText("");
+              setError(null);
+            },
+            (err: Error) => setError(err.message),
+          )
+          .finally(() => {
+            setBusy(false);
+            props.onChanged();
+          });
+      }}
+    >
+      {props.questions.length > 0 && <QuestionForm questions={props.questions} answers={answers} onChange={setAnswers} disabled={busy} />}
+      <label htmlFor={id}>{props.questions.length > 0 ? t("now.replyMore") : t("now.replyLabel")}</label>
+      <div className="now-reply-row">
+        <textarea id={id} rows={2} value={text} placeholder={t("now.replyPlaceholder")} onChange={(e) => setText(e.target.value)} />
+        <Button type="submit" icon={ChatText} variant="attention" busy={busy} disabled={busy || !reply}>
+          {t("now.replySend")}
+        </Button>
+      </div>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+    </form>
   );
 }
 

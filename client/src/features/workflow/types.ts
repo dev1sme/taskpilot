@@ -14,6 +14,13 @@ export interface RunState {
   updatedAt: number;
 }
 
+/** A question Claude left for the reviewer (numbered in its document or message). */
+export interface Question {
+  n: number;
+  text: string;
+  proposal?: string;
+}
+
 export interface WorkflowStep {
   id: string;
   title: string;
@@ -33,4 +40,6 @@ export interface RunView {
     outdated: boolean;
   };
   run: RunState | null;
+  /** Claude's questions at a gate or while it waits. */
+  questions: Question[];
 }

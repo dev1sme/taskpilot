@@ -164,3 +164,33 @@
     opacity: 0;
   }
 }
+
+.now-reply {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.now-reply > label {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.now-reply-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.now-reply textarea {
+  flex: 1;
+  min-width: 220px;
+  padding: 8px 12px;
+  font: inherit;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  resize: vertical;
+}

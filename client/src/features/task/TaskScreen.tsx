@@ -171,6 +171,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                     taskKey={task.key}
                     run={run}
                     step={steps[run.stepIndex]}
+                    questions={view.questions}
                     isLast={run.stepIndex === steps.length - 1}
                     docVersion={task.updatedAt}
                     onOpenDoc={setDoc}
@@ -183,6 +184,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                     run={run}
                     session={runSession}
                     activity={activity}
+                    questions={view.questions}
                     onOpenTerminal={openTerminal}
                     onOpenDoc={setDoc}
                     onChanged={changed}

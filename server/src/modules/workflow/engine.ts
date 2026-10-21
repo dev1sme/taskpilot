@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { HttpError } from "../../core/errors.js";
 import { getTask, TASKS_DIR } from "../tasks/index.js";
@@ -8,6 +8,7 @@ import type { SessionMeta, StateStore } from "../../core/state.js";
 import { loadWorkflow, OVERRIDE_DIR } from "./definition.js";
 import { archiveOutputs } from "./archive.js";
 import { appendHistory, HISTORY_TEXT } from "./history.js";
+import { parseQuestions, type Question } from "./questions.js";
 import type { RunState, StepDef, WorkflowDef } from "./types.js";
 import { promptVars, renderPrompt } from "./vars.js";
 import { t } from "../../core/i18n.js";
@@ -38,6 +39,8 @@ export interface RunView {
   };
   /** Without the workflow snapshot, which only the engine needs. */
   run: Omit<RunState, "workflow"> | null;
+  /** Claude's numbered questions for the reviewer, at a gate or while it waits for an answer. */
+  questions: Question[];
 }
 
 const MTIME_SLACK_MS = 100;
@@ -82,7 +85,19 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
         outdated: !!pinned && JSON.stringify(pinned) !== JSON.stringify(current),
       },
       run: run ? withoutSnapshot(run) : null,
+      questions: run ? await this.questionsOf(run, def) : [],
     };
+  }
+
+  /** At a gate: the open questions of the step's done-when document, else of Claude's last message. */
+  private async questionsOf(run: RunState, def: WorkflowDef): Promise<Question[]> {
+    if (run.phase === "gate") {
+      const file = def.steps[run.stepIndex]?.doneWhen?.file;
+      const doc = file ? await readFile(path.join(taskDirOf(run), file), "utf8").catch(() => "") : "";
+      const fromDoc = parseQuestions(doc);
+      if (fromDoc.length > 0) return fromDoc;
+    }
+    return run.phase === "gate" || run.phase === "waiting" ? parseQuestions(run.lastMessage ?? "") : [];
   }
 
   start(repo: string, taskKey: string): Promise<RunState> {

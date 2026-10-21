@@ -115,6 +115,26 @@ describe("workflow engine", () => {
     expect(await engine.approve(repo, "DEMO-1")).toMatchObject({ phase: "done" });
   });
 
+  it("shows Claude's questions: from its last message while it waits, from the plan at the gate", async () => {
+    await engine.start(repo, "DEMO-1");
+    await hook("SessionStart");
+    const id = (await state.load()).runs[0].sessionId;
+    fake.sessions.get(id)!.activity = "idle";
+    await engine.onHook(fake.meta(id), "Stop", { last_assistant_message: "Cần ba chốt:\n\n1. Dùng Redis? — Đề xuất: không\n" });
+    expect(await engine.view(repo, "DEMO-1")).toMatchObject({ run: { phase: "waiting" }, questions: [{ n: 1, text: "Dùng Redis?", proposal: "không" }] });
+
+    await hook("UserPromptSubmit");
+    await mkdir(taskDir(), { recursive: true });
+    await writeFile(path.join(taskDir(), "02-plan.md"), "# Plan\n\n## 6. Câu hỏi mở\n\n1. Tách task? — Đề xuất: không\n2. Đổi tên bước?\n");
+    await engine.onHook(fake.meta(id), "Stop", { last_assistant_message: "Xong.\n\n1. Câu khác?" });
+    const view = await engine.view(repo, "DEMO-1");
+    expect(view.run?.phase).toBe("gate");
+    expect(view.questions).toEqual([
+      { n: 1, text: "Tách task?", proposal: "không" },
+      { n: 2, text: "Đổi tên bước?" },
+    ]);
+  });
+
   it("resumes an exited session on retry and sends the step again after SessionStart", async () => {
     const run = await engine.start(repo, "DEMO-1");
     await hook("SessionStart");

@@ -63,6 +63,30 @@ A directory is a task when `<key>/spec/` contains at least one `.md` file.
   and Claude rewrites them in place; its prompt (`{{previousRun}}`) lists the archived documents to
   read first (`restart.read` in the workflow).
 
+### Dispatch (leader / member runs, TPL-011)
+
+A step with `dispatch:` (instead of `prompt:`) hands the work to member agents. The step before it
+is a `gate: approve` step whose plan (`from:`) ends with a `## 7. Phân công` table
+(`# | Việc | Agent | File | Đầu ra | Phụ thuộc`, parsed by `modules/workflow/assignments.ts`). The gate
+shows the parsed table and refuses approval while it has errors (no table, unknown agent, bad
+dependency, cycle).
+
+```
+gate approve (leader's plan)
+  dispatch: one session per table row, agent = the row's `Agent` (claude | copilot)
+     ready = dependencies done, fewer than `parallel` subtasks running, `File` not overlapping a running one
+     subtask done = its report (`report: 03-viec-{{n}}.md`) written after its prompt was sent + Stop
+  back to the leader's session: the next step (review) gets {{subtasks}} and reads the reports
+```
+
+- Subtasks are sessions of the task titled `Việc <n>` with their own `permission-mode` and agent;
+  state lives in `run.subtasks` (`pending | running | waiting | interrupted | done`).
+- A subtask that stops without its report is `waiting`: answer it with
+  `POST /api/tasks/:key/run/subtasks/:n/reply` `{text}`; after a restart or exit it is `interrupted`:
+  `POST …/subtasks/:n/retry`. The run-level `reply` / `retry` answer 409 while dispatching.
+- The leader's own hooks and exit are ignored while its run is dispatching.
+- `GET …/run` adds `assignments` (the parsed table, for the plan gate) and `subtaskQuestions`.
+
 ## 4. Workflow definition
 
 Built-in default in `workflows/default/`; a repo overrides it with its own copy in
@@ -74,6 +98,9 @@ TaskPilot adds around them (skeleton rule, restart notice) lives in `modules/wor
 after a restart `{{previousRun}}` points Claude at the archived documents.
 
 `bypassPermissions` is not accepted from a workflow file.
+
+`dispatch` steps (`from`, `prompt`, `report`, `format`, `parallel` 1–4) are described in
+[CONFIGURATION.md](CONFIGURATION.md#leader--member-workflow); the engine rules are in §3.
 
 `agent` (`claude` | `copilot`) at the top sets the agent of every step; a step's own `agent`
 overrides it. A step for another agent than the previous one runs in a new session of that agent
@@ -206,9 +233,10 @@ The embedded terminal is shell-equivalent access to the machine.
 - Copilot `account.getQuota` over `--headless --stdio` (`core/copilot/quota.ts`): checked on copilot
   1.0.101 (protocol 3); check it again after every Copilot upgrade. If it breaks, the footer keeps
   the last numbers and logs nothing.
-- Follow-up tasks from TPL-009: **TPL-011** leader-driven runs (Claude reads its
-  plan and hands sub-tasks to member agents while running; TPL-009 only assigns agents per step),
-  **TPL-012** Codex backend, **TPL-013** Copilot config pages (`.github/copilot/*`, `copilot mcp`).
+- TPL-011 leader-driven runs are implemented (§3 Dispatch). Not yet checked with real claude +
+  copilot sessions; after a TaskPilot restart a dispatching run whose subtasks are all pending or
+  done (none active) stays `running` until a subtask is retried.
+- Follow-up tasks from TPL-009: **TPL-012** Codex backend, **TPL-013** Copilot config pages (`.github/copilot/*`, `copilot mcp`).
 
 ## 9. Milestones
 

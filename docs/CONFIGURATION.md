@@ -161,6 +161,8 @@ Prompt files are templates. Variables:
 | `{{rules}}`, `{{language}}` | `rules` and `language` from `workflow.yml` |
 | `{{previousRun}}`, `{{archiveDir}}` | after *Chạy lại từ đầu*: which archived documents to read first; empty otherwise |
 | `{{feedback}}` | the reviewer's feedback, in `on-reject` prompts only |
+| `{{subtask}}`, `{{subtaskReport}}` | in a dispatch step's prompt: the subtask (row of the plan's table, its dependencies and parallel peers) and the path of its report; `{{agent}}` is the subtask's agent |
+| `{{subtasks}}` | in the steps after a dispatch: the subtasks with their agents and report paths |
 
 A save is refused when it makes the workflow invalid (a `done-when` naming no output of its step,
 a prompt file that does not exist, `{{out.x}}` for an unknown output, `{{feedback}}` outside an
@@ -169,3 +171,33 @@ a prompt file that does not exist, `{{out.x}}` for an unknown output, `{{feedbac
 written after the step's prompt was sent; the task list reads how far a task got from the
 declared outputs. A run keeps the workflow it started with: edits apply to new runs and to
 *Chạy lại từ đầu*.
+
+## Leader / member workflow
+
+`workflows/leader/` is a ready template: Claude (the leader) investigates and writes a plan ending
+with a `## 7. Phân công` table, the reviewer approves, then every row runs in its own session of the
+agent it names (`claude` or `copilot`), and the leader's session reviews the reports. Use it from
+the *Workflow* page: **Thêm override từ mẫu leader** (`POST /api/config/workflow/override`
+`{template: "leader"}`) copies it into `.claude/taskpilot/`.
+
+```yaml
+steps:
+  - id: investigate            # ... outputs, done-when: plan, gate: approve  (required before dispatch)
+  - id: dispatch
+    title: Giao việc
+    dispatch:
+      from: plan               # output id of an earlier step holding the table
+      prompt: subtask.md       # sent to each subtask's session ({{subtask}}, {{subtaskReport}})
+      report: 03-viec-{{n}}.md # report each subtask writes; {{n}} = its number
+      format: format-subtask.md  # optional skeleton of the report
+      parallel: 1              # 1-4 subtasks at once
+  - id: review
+    prompt: review.md          # reads {{subtasks}}
+```
+
+The table columns are `# | Việc | Agent | File | Đầu ra | Phụ thuộc`. `File` lists the files or
+directories a subtask edits (comma separated); `Phụ thuộc` lists the numbers that must finish first
+(`-` for none). With `parallel` above 1, subtasks start together only when their dependencies are done
+and their `File` cells do not overlap. A save is refused when the step before a `dispatch` is not
+`gate: approve`, when `from` names no output, when there is a second `dispatch` step or no step after it, when `report` lacks `{{n}}` or collides with an output file, or when `parallel` is outside 1–4. A `dispatch` step has
+no `prompt`, `outputs`, `done-when` or `gate` of its own.

@@ -113,14 +113,12 @@ export class ActivityStore extends EventEmitter<{ item: [item: ActivityItem] }> 
         if (failed && typeof payload.error === "string") finished.detail = clipBlock(payload.error);
         return this.put(items, finished);
       }
-      case "Stop":
-        return this.put(items, {
-          ...base,
-          id: this.newId(),
-          kind: "stop",
-          summary: firstLine(str("last_assistant_message"), 140) || t("activity.stop", { agent: AGENT_LABELS[meta.agent ?? DEFAULT_AGENT] }),
-          detail: str("last_assistant_message"),
-        });
+      case "Stop": {
+        const agent = AGENT_LABELS[meta.agent ?? DEFAULT_AGENT];
+        // A Stop TaskPilot read from the agent's transcript, not one the agent sent: say so.
+        const summary = payload.source === "transcript" ? t("activity.stopFromTranscript", { agent }) : firstLine(str("last_assistant_message"), 140) || t("activity.stop", { agent });
+        return this.put(items, { ...base, id: this.newId(), kind: "stop", summary, detail: str("last_assistant_message") });
+      }
     }
   }
 

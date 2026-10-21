@@ -73,7 +73,14 @@
     "permission": "xin quyền",
     "readReport": "Đọc {{file}}",
     "retry": "Gửi lại việc",
+    "noHook": "{{agent}} không gửi hook",
     "phase": { "pending": "chờ tới lượt", "starting": "đang khởi động", "running": "đang làm", "waiting": "đang chờ ba", "done": "xong", "interrupted": "bị gián đoạn" }
+  },
+  "markDone": {
+    "button": "Đánh dấu xong",
+    "hint": "Chỉ khi agent đã ghi xong tài liệu của bước này.",
+    "confirm": "Xác nhận: xong",
+    "cancel": "Huỷ"
   },
   "questions": {
     "title_one": "{{agent}} hỏi {{count}} câu",

@@ -71,6 +71,7 @@ interface Lane {
   pendingPrompt?: string;
   sentPrompt?: { stepIndex: number; text: string; at: number };
   lastMessage?: string;
+  noHook?: boolean;
 }
 
 const MTIME_SLACK_MS = 100;
@@ -355,7 +356,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       // While subtasks run, the leader's session sits idle; nothing it reports concerns the run.
       if (lane === run && dispatching(run, await this.defOf(run))) return;
       if (lane === run && run.phase === "running" && run.message === t("run.noHook", { agent: agentLabel(run) })) {
-        await this.save(run, { message: t("run.step", { step: (await this.defOf(run)).steps[run.stepIndex].title, agent: agentLabel(run) }) });
+        await this.save(run, { noHook: undefined, message: t("run.step", { step: (await this.defOf(run)).steps[run.stepIndex].title, agent: agentLabel(run) }) });
       }
       const fromTranscript = event === "Stop" && payload.source === "transcript";
       if (lane !== run && (lane as SubtaskRun).noHook && !fromTranscript) {
@@ -532,7 +533,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     await this.saveLane(
       run,
       lane,
-      { phase: "running", stepStartedAt: now, sentPrompt: { stepIndex: run.stepIndex, text, at: now }, pendingPrompt: undefined },
+      { phase: "running", stepStartedAt: now, sentPrompt: { stepIndex: run.stepIndex, text, at: now }, pendingPrompt: undefined, noHook: undefined },
       t("run.step", { step: step.title, agent: agentLabel(run) }),
     );
     this.watchForHooks(run, lane, now);
@@ -553,7 +554,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
         const current = await this.find(run.repo, run.taskKey);
         const target = current && (sub ? current.subtasks?.find((s) => s.n === sub.n) : current);
         if (!current || !target || target.sentPrompt?.at !== sentAt || target.phase !== "running" || this.sessions.hookSeen(sessionId)) return;
-        if (target === current) await this.save(current, { message: t("run.noHook", { agent: AGENT_LABELS.copilot }) });
+        if (target === current) await this.save(current, { noHook: true, message: t("run.noHook", { agent: AGENT_LABELS.copilot }) });
         else {
           (target as SubtaskRun).noHook = true;
           this.syncDispatch(current);

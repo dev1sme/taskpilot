@@ -5,6 +5,7 @@ import { AGENT_LABELS } from "../../shared/agents";
 import { AgentBadge } from "../../shared/ui/AgentBadge";
 import { Button } from "../../shared/ui/Button";
 import { workflowApi } from "./api";
+import { MarkDoneButton } from "./MarkDoneButton";
 import { ReplyForm } from "./ReplyForm";
 import type { Assignment, ParsedAssignments, Question, SubtaskRun } from "./types";
 import "./subtask-tree.css";
@@ -116,6 +117,7 @@ function SubtaskRow(props: TreeProps & { sub: SubtaskRun }) {
       <div className="subtask-main">
         <p className="subtask-title">
           <span className="subtask-num">{sub.n}.</span> {sub.title} <AgentBadge agent={sub.agent} />
+          {sub.noHook && sub.phase !== "done" && <span className="subtask-nohook">{t("subtasks.noHook", { agent: AGENT_LABELS[sub.agent] })}</span>}
           <span className={`subtask-phase phase-${sub.phase}`}>{permission ? t("subtasks.permission") : t(`subtasks.phase.${sub.phase}`)}</span>
         </p>
         <p className="subtask-meta">
@@ -150,6 +152,9 @@ function SubtaskRow(props: TreeProps & { sub: SubtaskRun }) {
             <Button icon={TerminalWindow} variant="quiet" onClick={() => props.onOpenTerminal(sub.sessionId!)}>
               {t("now.openTerminal")}
             </Button>
+          )}
+          {sub.noHook && (sub.phase === "running" || sub.phase === "waiting") && (
+            <MarkDoneButton complete={() => workflowApi.completeSubtask(props.taskKey, sub.n)} onChanged={props.onChanged} onError={setError} />
           )}
           {sub.phase === "interrupted" && (
             <Button icon={ArrowClockwise} variant="attention" busy={busy} onClick={() => void retry()}>

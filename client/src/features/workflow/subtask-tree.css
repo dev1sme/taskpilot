@@ -109,3 +109,9 @@
 .subtask-actions:empty {
   display: none;
 }
+
+.subtask-nohook {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--attention);
+}

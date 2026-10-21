@@ -12,5 +12,7 @@ export const workflowApi = {
   retry: (key: string) => call<RunState>("POST", `${taskUrl(key)}/run/retry`),
   replySubtask: (key: string, n: number, text: string) => call<RunState>("POST", `${taskUrl(key)}/run/subtasks/${n}/reply`, { text }),
   retrySubtask: (key: string, n: number) => call<RunState>("POST", `${taskUrl(key)}/run/subtasks/${n}/retry`),
+  completeSubtask: (key: string, n: number) => call<RunState>("POST", `${taskUrl(key)}/run/subtasks/${n}/complete`),
+  completeStep: (key: string) => call<RunState>("POST", `${taskUrl(key)}/run/complete`),
   restartRun: (key: string, mode?: string) => call<RunState>("POST", `${taskUrl(key)}/run/restart`, mode ? { mode } : undefined),
 };

@@ -18,6 +18,7 @@ import { Elapsed, formatDuration } from "../../shared/ui/Elapsed";
 import { CategoryIcon, type ActivityItem } from "../activity";
 import { workflowApi } from "./api";
 import type { SessionView } from "../sessions";
+import { MarkDoneButton } from "./MarkDoneButton";
 import { ReplyForm } from "./ReplyForm";
 import { ModePicker } from "./ModePicker";
 import { SubtaskTree } from "./SubtaskTree";
@@ -76,6 +77,9 @@ export function NowCard(props: Props) {
     </Button>
   );
   const step = run ? props.steps[run.stepIndex] : undefined;
+  const markDone = run?.noHook && step?.doneFile && (
+    <MarkDoneButton complete={() => workflowApi.completeStep(props.taskKey)} onChanged={props.onChanged} onError={setError} />
+  );
   /** Run strings name the agent of the current step (of the first one before a run). */
   const agent = AGENT_LABELS[(step ?? props.steps[0])?.agent ?? "claude"];
   const errorLine = error && (
@@ -174,6 +178,7 @@ export function NowCard(props: Props) {
         {errorLine}
         <div className="now-actions">
           {openTerminal}
+          {markDone}
           {retry}
         </div>
       </Card>
@@ -248,6 +253,7 @@ export function NowCard(props: Props) {
       )}
       {errorLine}
       {run.phase === "starting" && <div className="now-actions">{openTerminal}{retry}</div>}
+      {run.phase === "running" && markDone && <div className="now-actions">{openTerminal}{markDone}{retry}</div>}
     </Card>
   );
 }

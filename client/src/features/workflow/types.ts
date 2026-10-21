@@ -11,6 +11,8 @@ export interface RunState {
   /** The latest prompt pasted into the session, as sent. */
   sentPrompt?: { stepIndex: number; text: string; at: number };
   stepStartedAt: number;
+  /** The step's agent sent no hook for a while, so TaskPilot cannot tell when it is done. */
+  noHook?: boolean;
   startedAt: number;
   updatedAt: number;
   /** Set while a dispatch step runs (and after it): one entry per row of the plan's assignment table. */
@@ -33,6 +35,8 @@ export interface SubtaskRun extends Assignment {
   phase: SubtaskPhase;
   sessionId?: string;
   lastMessage?: string;
+  /** The agent sent no hook for a while after the prompt. */
+  noHook?: boolean;
   /** Report file name in the task directory. */
   report: string;
 }

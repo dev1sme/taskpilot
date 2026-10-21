@@ -126,6 +126,8 @@ export interface RunState {
   sentPrompt?: { stepIndex: number; text: string; at: number };
   /** Prompt to send once the session reports SessionStart. */
   pendingPrompt?: string;
+  /** The step's agent sent no hook for a while after the prompt (a subtask has its own flag). */
+  noHook?: boolean;
   /** The workflow as it was when the run started; later edits apply to new runs only. */
   workflow?: WorkflowDef;
   /** The subtasks of a dispatch step, once the run reached it. Absent for a static workflow. */

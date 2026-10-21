@@ -41,7 +41,7 @@ async function fakeRun(page: Page, opts: { stepIndex: number; phase: string; sub
         })
       : route.fallback(),
   );
-  await page.route(/\/api\/tasks\/PROJ-1\/run\/(approve|subtasks\/\d+\/(reply|retry))$/, (route) => {
+  await page.route(/\/api\/tasks\/PROJ-1\/run\/(approve|subtasks\/\d+\/(reply|retry|complete))$/, (route) => {
     sent.push({ url: new URL(route.request().url()).pathname, body: route.request().postDataJSON() });
     return route.fulfill({ json: run });
   });
@@ -99,4 +99,15 @@ test("an interrupted subtask is retried on its own", async ({ page }) => {
   await expect(rows.nth(0).getByRole("button", { name: "Đọc 03-viec-1.md" })).toBeVisible();
   await rows.nth(1).getByRole("button", { name: "Gửi lại việc" }).click();
   await expect.poll(() => sent).toEqual([{ url: "/api/tasks/PROJ-1/run/subtasks/2/retry", body: null }]);
+});
+
+test("a Copilot subtask that sends no hook is flagged and marked done by hand after a confirmation", async ({ page }) => {
+  const sent = await fakeRun(page, { stepIndex: 1, phase: "running", subtasks: [sub(1, "done"), sub(2, "running", { noHook: true, sessionId: "00000000-0000-4000-8000-000000000002" })] });
+  await page.goto("/#/tasks/PROJ-1");
+  const row = page.locator(".now-card .subtask-row").nth(1);
+  await expect(row).toContainText("Copilot không gửi hook");
+  await row.getByRole("button", { name: "Đánh dấu xong" }).click();
+  expect(sent).toEqual([]);
+  await row.getByRole("button", { name: "Xác nhận: xong" }).click();
+  await expect.poll(() => sent).toEqual([{ url: "/api/tasks/PROJ-1/run/subtasks/2/complete", body: null }]);
 });

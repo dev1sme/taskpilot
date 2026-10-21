@@ -70,5 +70,8 @@ not just this repo's sessions.
 
 With Copilot installed and logged in, a separate `Copilot 42%` item shows the share of the Copilot
 account's budget used (AI credits, or premium requests on the legacy plans), read from Copilot when
-a Copilot session ends a turn, at most once a minute. An account without a limit of its own (e.g.
-Copilot Business on AI credits) shows `Copilot ∞`.
+a Copilot session is ready, while it works and when it ends a turn, at most once a minute. An
+account without a limit of its own (e.g. Copilot Business on AI credits) shows `Copilot ∞`. It needs
+the hooks TaskPilot installs, which Copilot loads only in a trusted folder: with
+`permission-mode: auto` in the workflow, or after "Yes, and remember" at the trust question. When a
+Copilot step gets no hook for a minute, the run says so; fix the trust and use "Gửi lại bước".

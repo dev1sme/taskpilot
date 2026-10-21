@@ -49,6 +49,11 @@ class FakeSessions implements SessionPort {
     this.pastedBy.set(id, [...(this.pastedBy.get(id) ?? []), text]);
     this.sessions.get(id)!.activity = "busy";
   }
+  /** Sessions that sent a hook; the fake's `hook()` helper does not mark them, tests do. */
+  seen = new Set<string>();
+  hookSeen(id: string) {
+    return this.seen.has(id);
+  }
   meta(id: string): SessionMeta {
     return this.sessions.get(id)!;
   }
@@ -171,6 +176,47 @@ describe("workflow engine", () => {
     expect((await state.load()).runs[0]).toMatchObject({ phase: "starting" });
     expect(await hook("SessionStart")).toMatchObject({ phase: "running" });
     expect(fake.pasted).toHaveLength(2);
+  });
+
+  describe("a Copilot step that sends no hook", () => {
+    const WARN_MS = 40;
+    async function startCopilotRun(agentOf: (i: number) => "claude" | "copilot") {
+      engine = new WorkflowEngine(
+        state,
+        fake,
+        async (r) => {
+          const def = await loadWorkflow(r);
+          def.steps.forEach((s, i) => (s.agent = agentOf(i)));
+          return def;
+        },
+        WARN_MS,
+      );
+      const run = await engine.start(repo, "DEMO-1");
+      await hook("SessionStart");
+      return run.sessionId;
+    }
+    const message = async () => (await state.load()).runs[0].message;
+
+    it("says so after the timeout, and drops the warning once a hook arrives", async () => {
+      await startCopilotRun(() => "copilot");
+      expect(await message()).toContain("đang làm bước");
+      await sleep(WARN_MS + 60);
+      expect(await state.load().then((s) => s.runs[0])).toMatchObject({ phase: "running", message: expect.stringContaining("không chạy hook") });
+      expect(await hook("PostToolUse")).toMatchObject({ phase: "running", message: expect.stringContaining("đang làm bước") });
+    });
+
+    it("stays quiet when a hook came in time, and for Claude", async () => {
+      const id = await startCopilotRun(() => "copilot");
+      fake.seen.add(id);
+      await sleep(WARN_MS + 60);
+      expect(await message()).toContain("đang làm bước");
+    });
+
+    it("does not warn for Claude", async () => {
+      await startCopilotRun(() => "claude");
+      await sleep(WARN_MS + 60);
+      expect(await message()).toContain("đang làm bước");
+    });
   });
 
   it("runs a step for another agent in a new session and logs the switch", async () => {

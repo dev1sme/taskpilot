@@ -16,6 +16,8 @@ export function registerHooksRoutes(app: FastifyInstance, opts: { sessions: Sess
       if (!isHookEvent(req.params.event)) throw new HttpError(404, "Unknown hook event");
       const payload = (typeof req.body === "object" && req.body !== null ? req.body : {}) as Record<string, unknown>;
       if (typeof token !== "string" || !(await sessions.handleHook(token, req.params.event, payload))) {
+        // The hook command swallows errors, so this is the only trace of a hook that was refused.
+        app.log.warn({ event: req.params.event, hasToken: typeof token === "string" }, "Hook refused: invalid or stale token");
         return reply.code(403).send({ error: "Invalid hook token" });
       }
       return { ok: true };

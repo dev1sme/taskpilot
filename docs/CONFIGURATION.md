@@ -55,7 +55,14 @@ starts over with the first step's agent. The built-in workflow runs every step w
 | `default` / absent | no flag: Copilot asks before writes and commands |
 | `acceptEdits` | `--allow-tool=write` |
 | `plan` | `--mode plan` |
-| `auto` | `--allow-all-tools` (not `--yolo`: paths and URLs outside the repo still ask) |
+| `auto` | env `COPILOT_ALLOW_ALL=true`: allows every tool and **trusts the folder without asking**, so the repo's hooks (and MCP servers, skills, plugins) load. Not `--yolo`/`--allow-all-paths`/`--allow-all-urls`. |
+
+A Copilot step needs `permission-mode: auto` to run unattended: set it in the repo's override
+(`.claude/taskpilot/`), since the built-in workflow has none. It also becomes Claude's
+`--permission-mode auto`. In the other modes Copilot loads the repo's hooks only once you trust
+the folder **permanently** (option 2, "Yes, and remember"; "this session" does not reliably load
+them). Without hooks TaskPilot never hears that Copilot finished: the run says so after a minute
+without any hook (use "Gửi lại bước" after fixing the trust) and the footer has no Copilot usage.
 
 How TaskPilot drives Copilot (copilot 1.0.100, see
 [hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference) and
@@ -68,8 +75,8 @@ How TaskPilot drives Copilot (copilot 1.0.100, see
   are dropped when the file is rewritten, which happens only when TaskPilot's entries change). The
   hooks do nothing in a `copilot` you start yourself. The file is not added to `.gitignore`: do it
   if the repo should not share it.
-- Copilot asks whether you trust the folder on its first start in a repo (or every start, if you
-  trust it for the session only). Answer in the terminal; the step's prompt is sent once Copilot's
+- Without `permission-mode: auto`, Copilot asks whether you trust the folder on its first start in a
+  repo (or every start, if you trust it for the session only). Answer in the terminal; the step's prompt is sent once Copilot's
   input box is ready, never into that question.
 - Copilot also runs the hooks in the repo's `.claude/settings.json` and `.claude/settings.local.json`.
 - The footer's plan usage is Claude's only: Copilot's status line input has no account quota.

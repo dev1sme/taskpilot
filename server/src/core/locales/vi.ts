@@ -14,6 +14,7 @@ export default {
     gateFile: 'Bước "{{step}}" xong, chờ duyệt. Xem {{file}} rồi duyệt hoặc góp ý.',
     resuming: "Đang resume session…",
     starting: "Đang chờ {{agent}} khởi động. Nếu {{agent}} hỏi trust folder, trả lời trong terminal.",
+    noHook: '{{agent}} không chạy hook của TaskPilot nên TaskPilot không biết khi nào {{agent}} xong. Dùng `permission-mode: auto`, hoặc trust thư mục lâu dài ("Yes, and remember"), rồi bấm "Gửi lại bước".',
     step: '{{agent}} đang làm bước "{{step}}".',
     dispatching: "Đang giao việc: {{done}}/{{total}} xong.",
     subtaskWaiting: "Việc {{n}} đã dừng nhưng chưa ghi báo cáo {{file}}. Trả lời việc đó từ cây việc, hoặc gửi lại.",

@@ -218,10 +218,11 @@ The embedded terminal is shell-equivalent access to the machine.
 | `SessionStart` | **Not at startup**: fires only with the first prompt, next to `UserPromptSubmit`. TaskPilot treats the input box footer `/ commands` in the terminal output as SessionStart and drops Copilot's late one. **Checked on 1.0.101; check again after every Copilot upgrade** (a changed footer leaves runs in `starting`; "Gửi lại bước" still pastes). |
 | Tool hooks | No `tool_use_id`, no `duration_ms`; parallel calls share a timestamp. A shell command exiting non-zero is a `PostToolUse` (`result_type: "success"`), not `PostToolUseFailure`. |
 | `Stop` | No last message: read the last non-empty `assistant.message` `data.content` from `transcript_path` (`~/.copilot/session-state/<id>/events.jsonl`). The turn's last lines reach the file after the hook fires: TaskPilot waits (up to 3 s) for that turn's `assistant.turn_end`. |
-| First run in a folder | "Confirm folder trust": 1. Yes (this session) / 2. Yes, and remember / 3. No. No hook fires before the answer; after "Yes" the repo hooks load in that same session. `trustedFolders` in `~/.copilot/settings.json` does not skip the question. The footer `/ commands` appears only after it. Leave it to the user; never auto-answer. |
+| First run in a folder | "Confirm folder trust": 1. Yes (this session) / 2. Yes, and remember / 3. No. No hook fires before the answer. In a `/tmp` repo the hooks then loaded in that session; **in the taskpilot repo they did not** (TPL-014, next row), so "this session" does not guarantee hooks. `trustedFolders` in `~/.copilot/settings.json` does not skip the question. The footer `/ commands` appears only after it. Leave it to the user; never auto-answer. |
 | Bracketed paste, multi-line | One prompt with newlines intact, submitted by `\r` 200 ms later. |
 | `statusLine` | Runs only from `~/.copilot/settings.json`, not from the repo's `settings.local.json`. Input: `session_id`, `model`, `cost.total_premium_requests`, `ai_used`, `context_window`; **no account quota**; the footer reads it with `account.getQuota` instead (next row). |
 | `account.getQuota` (TPL-010, SDK 1.0.24 / copilot 1.0.101) | `copilot --headless --stdio` answers JSON-RPC (`Content-Length` frames, protocol 3) without a `connect` first; start + reply ≈0.4-0.55 s, ~250 MB RSS. `quotaSnapshots.premium_interactions` is the main budget on both billing models: `tokenBasedBilling: true` → AI credits, otherwise premium requests. Fields beyond the SDK type: `hasQuota`, `tokenBasedBilling`, `overageEntitlement`. A Business account on AI credits reads unlimited (`isUnlimitedEntitlement`, 100 % remaining, `resetDate` = time of the call). Logged out: error `-32603 … Not authenticated`. Each start writes a log file (even `--log-level none`), hence `--log-dir`. |
+| Hooks need a trusted folder (TPL-014, copilot 1.0.101) | Every hook run writes `hook.start`/`hook.end` to the session's `events.jsonl`; sessions in this repo had 0 (hooks never ran: no footer, run stuck after the step), `/tmp` spikes 12–34. `-p` without `--trust-folder`: 0 hooks; with it, all six. `~/.copilot/config.json` `trustedFolders` is where "remember" is stored. Env **`COPILOT_ALLOW_ALL=true`**: all tools allowed, folder trusted, hooks load, `ls /tmp` not asked; **`=1`: 0 hooks**. `permission-mode: auto` sets it (`core/copilot/launch.ts`); other modes get a run warning when no hook arrives within 60 s of the prompt. The interactive run through TaskPilot's terminal is to be checked by hand (open item). |
 | Settings files | JSONC (comments). Precedence: user < `.github/copilot/settings.json` < `settings.local.json` < env < flags. Copilot also runs hooks from `.claude/settings.json` and `.claude/settings.local.json`. |
 
 ## 8. Open items
@@ -236,6 +237,10 @@ The embedded terminal is shell-equivalent access to the machine.
 - TPL-011 leader-driven runs are implemented (§3 Dispatch). Not yet checked with real claude +
   copilot sessions; after a TaskPilot restart a dispatching run whose subtasks are all pending or
   done (none active) stays `running` until a subtask is retried.
+- TPL-014: `COPILOT_ALLOW_ALL=true` was verified in prompt mode (`-p`) only; check a Copilot step with
+  `permission-mode: auto` interactively in TaskPilot (no trust prompt, `hook.start` in `events.jsonl`,
+  no `human_response` permissions). Re-check after every Copilot upgrade. Outside `auto`, a run with
+  no hooks only warns; reading `events.jsonl` instead of the Stop hook is a possible follow-up.
 - Follow-up tasks from TPL-009: **TPL-012** Codex backend, **TPL-013** Copilot config pages (`.github/copilot/*`, `copilot mcp`).
 
 ## 9. Milestones

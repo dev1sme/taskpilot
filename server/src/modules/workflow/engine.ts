@@ -22,6 +22,8 @@ export interface SessionPort {
   stop(id: string): Promise<void>;
   get(id: string): Promise<SessionView>;
   paste(id: string, text: string): void;
+  /** Whether the session's running process has sent a hook of its own yet. */
+  hookSeen(id: string): boolean;
 }
 
 export interface RunView {
@@ -66,6 +68,8 @@ interface Lane {
 }
 
 const MTIME_SLACK_MS = 100;
+/** How long a Copilot session may stay without any hook after its prompt before the run says so. */
+const NO_HOOK_WARN_MS = 60_000;
 const ACTIVE: ReadonlyArray<RunState["phase"]> = ["starting", "running", "waiting", "gate", "interrupted"];
 
 /**
@@ -79,6 +83,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     private readonly state: StateStore,
     private readonly sessions: SessionPort,
     private readonly loadDef: (repo: string) => Promise<WorkflowDef> = loadWorkflow,
+    private readonly noHookWarnMs: number = NO_HOOK_WARN_MS,
   ) {
     super();
   }
@@ -307,6 +312,9 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       const lane = laneOf(run, meta.id)!;
       // While subtasks run, the leader's session sits idle; nothing it reports concerns the run.
       if (lane === run && dispatching(run, await this.defOf(run))) return;
+      if (lane === run && run.phase === "running" && run.message === t("run.noHook", { agent: agentLabel(run) })) {
+        await this.save(run, { message: t("run.step", { step: (await this.defOf(run)).steps[run.stepIndex].title, agent: agentLabel(run) }) });
+      }
       if (event === "Stop" && typeof payload.last_assistant_message === "string") {
         lane.lastMessage = payload.last_assistant_message;
       }
@@ -474,6 +482,28 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       { phase: "running", stepStartedAt: now, sentPrompt: { stepIndex: run.stepIndex, text, at: now }, pendingPrompt: undefined },
       t("run.step", { step: step.title, agent: agentLabel(run) }),
     );
+    this.watchForHooks(run, lane, now);
+  }
+
+  /**
+   * Copilot loads a repo's hooks only in a trusted folder. Without them nothing tells the engine
+   * the turn ended, so a prompt that gets no hook at all is reported instead of waiting silently.
+   */
+  private watchForHooks(run: RunState, lane: Lane, sentAt: number): void {
+    const sub = lane === run ? undefined : (lane as SubtaskRun);
+    const agent = sub ? sub.agent : (run.workflow?.steps[run.stepIndex]?.agent ?? DEFAULT_AGENT);
+    if (agent !== "copilot") return;
+    const sessionId = lane.sessionId!;
+    const timer = setTimeout(() => {
+      void this.serial(async () => {
+        const current = await this.find(run.repo, run.taskKey);
+        const same = current && (sub ? current.subtasks?.find((s) => s.n === sub.n) : current)?.sentPrompt?.at === sentAt;
+        if (!current || !same || current.phase !== "running" || this.sessions.hookSeen(sessionId)) return;
+        if (sub) this.emit("warning", new Error(`Copilot session of subtask ${sub.n} sent no hook ${this.noHookWarnMs} ms after its prompt`));
+        else await this.save(current, { message: t("run.noHook", { agent: AGENT_LABELS.copilot }) });
+      }).catch((e: unknown) => this.emit("warning", e));
+    }, this.noHookWarnMs);
+    timer.unref();
   }
 
   /** Saves a lane's change: the run's own fields with `message`, or a subtask's with the run's phase following. */

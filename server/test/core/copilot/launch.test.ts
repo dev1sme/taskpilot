@@ -12,7 +12,14 @@ describe("copilotLauncher", () => {
     expect(args("default")).toEqual([]);
     expect(args("acceptEdits")).toEqual(["--allow-tool=write"]);
     expect(args("plan")).toEqual(["--mode", "plan"]);
-    expect(args("auto")).toEqual(["--allow-all-tools"]);
+    expect(args("auto")).toEqual([]);
+  });
+
+  it("trusts the folder in auto mode through COPILOT_ALLOW_ALL=true, and only there", () => {
+    const env = (permissionMode?: string) => copilotLauncher("s1", { resume: false, permissionMode }).env;
+    // Any other value would allow tools but not trust the folder, so its hooks would not load.
+    expect(env("auto")).toEqual({ COPILOT_ALLOW_ALL: "true" });
+    for (const mode of ["default", "acceptEdits", "plan", undefined]) expect(env(mode)).toBeUndefined();
   });
 
   it("ignores --settings, which copilot does not have", () => {

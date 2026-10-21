@@ -1,10 +1,14 @@
-import { open, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { open, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { copilotLauncher } from "../../../core/copilot/launch.js";
-import { HOOK_EVENTS, hookCommand, type HookEvent } from "../hooks.js";
+import { HOOK_EVENTS, copilotHookCommand, type HookEvent } from "../hooks.js";
 import type { AgentBackend, HookState } from "./types.js";
 
-/** Repo-local Copilot settings (docs: personal overrides, meant to be gitignored by the user). */
+/**
+ * Repo-local Copilot settings: where TaskPilot put its hooks before TPL-017. They are removed from
+ * there now; Copilot 1.0.101 drops repo hooks on a plugin reload when it does not trust the folder.
+ */
 export const COPILOT_SETTINGS = path.join(".github", "copilot", "settings.local.json");
 /** Marks the hook entries TaskPilot owns in that file; everything else in it is the user's. */
 const MARK = "TASKPILOT_HOOK_URL";
@@ -149,51 +153,79 @@ async function readLastMessage(file: string): Promise<{ message: string | null; 
 
 const locks = new Map<string, Promise<unknown>>();
 
+/** The user-level hooks file TaskPilot owns (no one else writes taskpilot.json). */
+export function copilotHooksFile(): string {
+  return path.join(process.env.COPILOT_HOME || path.join(os.homedir(), ".copilot"), "hooks", "taskpilot.json");
+}
+
 /**
- * Puts TaskPilot's hooks into the repo's .github/copilot/settings.local.json: entries that post
- * to $TASKPILOT_HOOK_URL are replaced, every other key and hook is kept. Copilot reads hooks only
- * from disk (no --settings flag); the per-session URL and token come from the child's environment,
- * and without them (copilot started by hand) the hooks exit at once. The file is rewritten only
- * when this changes it; .gitignore is left to the user.
+ * Installs TaskPilot's hooks as a user-level hooks file, hooks/taskpilot.json under COPILOT_HOME
+ * (default ~/.copilot), and removes the entries older versions put into the repo's
+ * .github/copilot/settings.local.json. Checked on copilot 1.0.101: user hooks survive the plugin
+ * reload that drops repo hooks while the folder is untrusted (docs/SPEC.md §7). The per-session
+ * URL and token come from the child's environment; the guard in the command makes the hooks do
+ * nothing in a Copilot TaskPilot did not start. Files are rewritten only when their content changes.
  */
-export function ensureCopilotHooks(repo: string): Promise<void> {
+export async function ensureCopilotHooks(repo: string): Promise<void> {
+  await serialized(copilotHooksFile(), () => writeIfChanged(copilotHooksFile(), (before) => (before === userHooksText() ? before : userHooksText())));
   const file = path.join(repo, COPILOT_SETTINGS);
-  const next = (locks.get(file) ?? Promise.resolve()).then(() => writeHooks(file));
-  locks.set(file, next.catch(() => undefined));
+  await serialized(file, () => writeIfChanged(file, (before) => (before === null ? before : withoutTaskPilotHooks(before))));
+}
+
+function serialized(key: string, task: () => Promise<void>): Promise<void> {
+  const next = (locks.get(key) ?? Promise.resolve()).then(task);
+  locks.set(key, next.catch(() => undefined));
   return next;
 }
 
-async function writeHooks(file: string): Promise<void> {
+/** `change` returns the new text, or null to delete the file. */
+async function writeIfChanged(file: string, change: (before: string | null) => string | null): Promise<void> {
   let before: string | null = null;
   try {
     before = await readFile(file, "utf8");
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
   }
-  const after = withTaskPilotHooks(before);
+  const after = change(before);
   if (after === before) return;
+  if (after === null) {
+    await rm(file, { force: true });
+    return;
+  }
   await mkdir(path.dirname(file), { recursive: true });
   const tmp = `${file}.taskpilot-${process.pid}.tmp`;
   await writeFile(tmp, after);
   await rename(tmp, file);
 }
 
-/** Settings text with TaskPilot's hook entries in Copilot's flat schema ({type, bash, timeoutSec}). */
-export function withTaskPilotHooks(text: string | null): string {
+/** The hooks file in Copilot's flat schema ({type, bash, timeoutSec}) with TaskPilot's guard. */
+export function userHooksText(): string {
+  const hooks: Record<string, unknown> = {};
+  for (const event of HOOK_EVENTS) hooks[event] = [{ type: "command", bash: copilotHookCommand(event), timeoutSec: 10 }];
+  return `${JSON.stringify({ version: 1, hooks }, null, 2)}\n`;
+}
+
+/**
+ * Settings text without TaskPilot's hook entries; the same text when it has none, and null when
+ * nothing but empty hooks is left (the file then only existed for TaskPilot).
+ */
+export function withoutTaskPilotHooks(text: string): string | null {
   const data = parseJsonc(text);
-  const hooks: Record<string, unknown> = isObject(data.hooks) ? { ...data.hooks } : {};
+  if (!isObject(data.hooks)) return text;
+  const hooks: Record<string, unknown> = { ...data.hooks };
+  let changed = false;
   for (const [event, entries] of Object.entries(hooks)) {
     if (!Array.isArray(entries)) continue;
     const kept = entries.filter((h) => !isOwn(h));
+    if (kept.length === entries.length) continue;
+    changed = true;
     if (kept.length > 0) hooks[event] = kept;
     else delete hooks[event];
   }
-  for (const event of HOOK_EVENTS) {
-    const own = { type: "command", bash: `[ -n "$TASKPILOT_HOOK_TOKEN" ] || exit 0; ${hookCommand(event)}`, timeoutSec: 10 };
-    const current = hooks[event];
-    hooks[event] = [...(Array.isArray(current) ? current : []), own];
-  }
-  return `${JSON.stringify({ ...data, hooks }, null, 2)}\n`;
+  if (!changed) return text;
+  const { hooks: _old, ...rest } = data;
+  const next = Object.keys(hooks).length > 0 ? { ...rest, hooks } : rest;
+  return Object.keys(next).length > 0 ? `${JSON.stringify(next, null, 2)}\n` : null;
 }
 
 function isOwn(entry: unknown): boolean {

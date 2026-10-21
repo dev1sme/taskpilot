@@ -15,11 +15,10 @@ describe("copilotLauncher", () => {
     expect(args("auto")).toEqual([]);
   });
 
-  it("trusts the folder in auto mode through COPILOT_ALLOW_ALL=true, and only there", () => {
+  it("marks every session as TaskPilot's and allows all tools only in auto mode", () => {
     const env = (permissionMode?: string) => copilotLauncher("s1", { resume: false, permissionMode }).env;
-    // Any other value would allow tools but not trust the folder, so its hooks would not load.
-    expect(env("auto")).toEqual({ COPILOT_ALLOW_ALL: "true" });
-    for (const mode of ["default", "acceptEdits", "plan", undefined]) expect(env(mode)).toBeUndefined();
+    expect(env("auto")).toEqual({ TASKPILOT_HOOK_AGENT: "copilot", COPILOT_ALLOW_ALL: "true" });
+    for (const mode of ["default", "acceptEdits", "plan", undefined]) expect(env(mode)).toEqual({ TASKPILOT_HOOK_AGENT: "copilot" });
   });
 
   it("ignores --settings, which copilot does not have", () => {

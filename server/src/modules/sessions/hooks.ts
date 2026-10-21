@@ -38,6 +38,14 @@ export function hookCommand(event: HookEvent): string {
 }
 
 /**
+ * The hook command for Copilot's user-level hooks file, which every Copilot session on the machine
+ * reads: it does nothing unless TaskPilot started that Copilot (launch.ts sets both variables).
+ */
+export function copilotHookCommand(event: HookEvent): string {
+  return `[ "$TASKPILOT_HOOK_AGENT" = copilot ] && [ -n "$TASKPILOT_HOOK_TOKEN" ] || exit 0; ${hookCommand(event)}`;
+}
+
+/**
  * Status line of every session: posts its input (plan usage) to TaskPilot in the background, then
  * runs the user's own status line, which --settings would otherwise replace (verified on claude
  * 2.1.304). The user's command comes from the child's environment, so it needs no escaping here.

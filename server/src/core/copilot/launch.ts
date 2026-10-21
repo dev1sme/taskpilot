@@ -10,26 +10,27 @@ const PERMISSION_FLAGS: Record<string, string[]> = {
 };
 
 /**
- * Checked on copilot 1.0.101: a repo's hooks load only once its folder is trusted, and without them
- * TaskPilot never hears of a finished turn. COPILOT_ALLOW_ALL=true allows every tool and trusts the
- * folder without a prompt; any other value ("1", "yes") does not trust it, so no hook loads.
- * Deliberately not --yolo/--allow-all, which also open every path and URL.
+ * Checked on copilot 1.0.101: COPILOT_ALLOW_ALL=true allows every tool without a prompt; any other
+ * value ("1", "yes") does not. Deliberately not --yolo/--allow-all, which also open every path and URL.
  */
 const PERMISSION_ENV: Record<string, Record<string, string>> = {
   auto: { COPILOT_ALLOW_ALL: "true" },
 };
 
+/** Tells the user-level hooks (hooks/taskpilot.json) that TaskPilot, not a hand-started Copilot, runs this one. */
+const HOOK_AGENT_ENV = { TASKPILOT_HOOK_AGENT: "copilot" };
+
 /**
  * GitHub Copilot CLI (`copilot`, npm @github/copilot). --session-id both creates a session with
  * that id and resumes it (copilot 1.0.100), so `resume` needs no flag of its own. Hooks come from
- * .github/copilot/settings.local.json, not from the command line.
+ * the user-level hooks/taskpilot.json, not from the command line.
  */
 export const copilotLauncher: Launcher = (sessionId, opts) => {
   const mode = opts.permissionMode;
-  const env = mode ? PERMISSION_ENV[mode] : undefined;
+  const env = { ...HOOK_AGENT_ENV, ...(mode ? PERMISSION_ENV[mode] : undefined) };
   return {
     file: process.env.TASKPILOT_COPILOT ?? "copilot",
     args: ["--session-id", sessionId, ...(mode ? (PERMISSION_FLAGS[mode] ?? []) : [])],
-    ...(env ? { env } : {}),
+    env,
   };
 };

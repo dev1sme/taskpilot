@@ -1,16 +1,19 @@
 import { appendFile, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
+import { spawnSync } from "node:child_process";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { AGENTS } from "../../../src/core/agents.js";
 import { HOOK_EVENTS } from "../../../src/modules/sessions/hooks.js";
 import { BACKENDS, type HookState } from "../../../src/modules/sessions/backends/index.js";
 import {
   COPILOT_SETTINGS,
+  copilotHooksFile,
   ensureCopilotHooks,
   lastAssistantMessage,
   normalizeCopilot,
   stripComments,
-  withTaskPilotHooks,
+  userHooksText,
+  withoutTaskPilotHooks,
 } from "../../../src/modules/sessions/backends/copilot.js";
 import { cleanupTempDirs, tempDir } from "../../helpers/fixtures.js";
 
@@ -79,45 +82,83 @@ describe("normalizeCopilot", () => {
 });
 
 describe("copilot hook file", () => {
-  it("adds every hook in Copilot's flat schema with a guard for sessions TaskPilot did not start", () => {
-    const data = JSON.parse(withTaskPilotHooks(null)) as { hooks: Record<string, Array<Record<string, unknown>>> };
+  it("holds every hook in Copilot's flat schema with a guard for sessions TaskPilot did not start", () => {
+    const data = JSON.parse(userHooksText()) as { version: number; hooks: Record<string, Array<Record<string, unknown>>> };
+    expect(data.version).toBe(1);
     expect(Object.keys(data.hooks)).toEqual([...HOOK_EVENTS]);
     const stop = data.hooks.Stop[0];
     expect(stop).toMatchObject({ type: "command", timeoutSec: 10 });
-    expect(stop.bash).toMatch(/^\[ -n "\$TASKPILOT_HOOK_TOKEN" \] \|\| exit 0; curl /);
+    expect(stop.bash).toMatch(/^\[ "\$TASKPILOT_HOOK_AGENT" = copilot \] && \[ -n "\$TASKPILOT_HOOK_TOKEN" \] \|\| exit 0; curl /);
     expect(stop.bash).toContain('"$TASKPILOT_HOOK_URL/Stop"');
   });
 
-  it("keeps the user's keys and hooks, replaces only its own, and reads JSONC", () => {
+  it("does nothing in a Copilot that TaskPilot did not start", () => {
+    const stop = (JSON.parse(userHooksText()) as { hooks: { Stop: Array<{ bash: string }> } }).hooks.Stop[0].bash;
+    const run = (env: Record<string, string>) => spawnSync("sh", ["-c", stop.replace("curl ", "echo curl-ran #")], { env: { PATH: process.env.PATH ?? "", ...env }, encoding: "utf8" }).stdout;
+    expect(run({})).toBe("");
+    expect(run({ TASKPILOT_HOOK_TOKEN: "t" })).toBe("");
+    expect(run({ TASKPILOT_HOOK_AGENT: "copilot" })).toBe("");
+    expect(run({ TASKPILOT_HOOK_AGENT: "copilot", TASKPILOT_HOOK_TOKEN: "t" })).toContain("curl-ran");
+  });
+
+  it("removes only TaskPilot's entries from a settings file and reads JSONC", () => {
+    const own = { type: "command", bash: "curl $TASKPILOT_HOOK_URL/Stop" };
     const user = `{
   // personal overrides
   "model": "gpt-5", /* inline */
   "url": "https://example.com//not-a-comment",
-  "hooks": { "Stop": [{ "type": "command", "bash": "echo mine" }], "sessionEnd": [{ "bash": "echo bye" }] }
+  "hooks": { "Stop": [{ "type": "command", "bash": "echo mine" }, ${JSON.stringify(own)}], "PreToolUse": [${JSON.stringify(own)}], "sessionEnd": [{ "bash": "echo bye" }] }
 }`;
-    const once = withTaskPilotHooks(user);
-    const data = JSON.parse(once) as { model: string; url: string; hooks: Record<string, Array<{ bash: string }>> };
+    const data = JSON.parse(withoutTaskPilotHooks(user) as string) as { model: string; url: string; hooks: Record<string, Array<{ bash: string }>> };
     expect(data.model).toBe("gpt-5");
     expect(data.url).toBe("https://example.com//not-a-comment");
-    expect(data.hooks.sessionEnd).toEqual([{ bash: "echo bye" }]);
-    expect(data.hooks.Stop.map((h) => h.bash.includes("TASKPILOT_HOOK_URL"))).toEqual([false, true]);
-    expect(withTaskPilotHooks(once)).toBe(once);
+    expect(data.hooks).toEqual({ Stop: [{ type: "command", bash: "echo mine" }], sessionEnd: [{ bash: "echo bye" }] });
+    const clean = JSON.stringify({ hooks: { Stop: [{ bash: "echo mine" }] } });
+    expect(withoutTaskPilotHooks(clean)).toBe(clean);
   });
 
   it("strips comments but not comment-like text in strings", () => {
     expect(JSON.parse(stripComments('{"a": "x // y", // c\n "b": "/* z */" /* d */}'))).toEqual({ a: "x // y", b: "/* z */" });
   });
 
-  it("writes the file once and never touches .gitignore or .git/info/exclude", async () => {
-    const repo = await tempDir("taskpilot-copilot-repo-");
-    await mkdir(path.join(repo, ".git", "info"), { recursive: true });
-    await ensureCopilotHooks(repo);
-    const file = path.join(repo, COPILOT_SETTINGS);
-    const first = await stat(file);
-    await Promise.all([ensureCopilotHooks(repo), ensureCopilotHooks(repo)]);
-    expect((await stat(file)).mtimeMs).toBe(first.mtimeMs);
-    expect(JSON.parse(await readFile(file, "utf8")).hooks.Stop).toHaveLength(1);
-    expect(await readdir(path.join(repo, ".git", "info"))).toEqual([]);
-    expect((await readdir(repo)).sort()).toEqual([".git", ".github"]);
+  describe("on disk", () => {
+    const saved = process.env.COPILOT_HOME;
+    afterEach(() => {
+      if (saved === undefined) delete process.env.COPILOT_HOME;
+      else process.env.COPILOT_HOME = saved;
+    });
+
+    it("writes hooks/taskpilot.json under COPILOT_HOME once, and leaves the repo alone", async () => {
+      const home = await tempDir("taskpilot-copilot-home-");
+      process.env.COPILOT_HOME = home;
+      const repo = await tempDir("taskpilot-copilot-repo-");
+      await mkdir(path.join(repo, ".git", "info"), { recursive: true });
+      await ensureCopilotHooks(repo);
+      const file = path.join(home, "hooks", "taskpilot.json");
+      expect(copilotHooksFile()).toBe(file);
+      const first = await stat(file);
+      await Promise.all([ensureCopilotHooks(repo), ensureCopilotHooks(repo)]);
+      expect((await stat(file)).mtimeMs).toBe(first.mtimeMs);
+      expect(JSON.parse(await readFile(file, "utf8")).hooks.Stop).toHaveLength(1);
+      expect(await readdir(path.join(repo, ".git", "info"))).toEqual([]);
+      expect((await readdir(repo)).sort()).toEqual([".git"]);
+    });
+
+    it("drops the entries older versions put into the repo, keeping the user's own data", async () => {
+      process.env.COPILOT_HOME = await tempDir("taskpilot-copilot-home-");
+      const own = { type: "command", bash: "curl $TASKPILOT_HOOK_URL/Stop" };
+      const only = await tempDir("taskpilot-copilot-repo-");
+      const mixed = await tempDir("taskpilot-copilot-repo-");
+      for (const [repo, settings] of [
+        [only, { hooks: { Stop: [own] } }],
+        [mixed, { model: "gpt-5", hooks: { Stop: [own, { bash: "echo mine" }] } }],
+      ] as const) {
+        await mkdir(path.join(repo, ".github", "copilot"), { recursive: true });
+        await writeFile(path.join(repo, COPILOT_SETTINGS), JSON.stringify(settings));
+        await ensureCopilotHooks(repo);
+      }
+      await expect(stat(path.join(only, COPILOT_SETTINGS))).rejects.toThrow();
+      expect(JSON.parse(await readFile(path.join(mixed, COPILOT_SETTINGS), "utf8"))).toEqual({ model: "gpt-5", hooks: { Stop: [{ bash: "echo mine" }] } });
+    });
   });
 });

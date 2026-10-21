@@ -63,6 +63,7 @@ export const copilotBackend: AgentBackend = {
   // PermissionRequest fires for every tool call, also the ones Copilot then allows on its own.
   permissionGraceMs: 1500,
   normalize: normalizeCopilot,
+  finishedTurn: copilotFinishedTurn,
 };
 
 export async function normalizeCopilot(event: HookEvent, payload: Record<string, unknown>, state: HookState): Promise<Record<string, unknown> | null> {
@@ -101,6 +102,66 @@ export async function normalizeCopilot(event: HookEvent, payload: Record<string,
   }
 }
 
+/** events.jsonl of a Copilot session. */
+export function copilotTranscript(sessionId: string): string {
+  return path.join(copilotHome(), "session-state", sessionId, "events.jsonl");
+}
+
+/**
+ * Stop as seen from the transcript: the last assistant/tool/user line is an `assistant.turn_end`
+ * written after `since`, and nothing at all was written for `idleMs` (a turn_end also
+ * ends each round of tool calls, but those rounds go on within seconds).
+ */
+export async function copilotFinishedTurn(sessionId: string, since: number, idleMs: number, now = Date.now()): Promise<Record<string, unknown> | null> {
+  const file = copilotTranscript(sessionId);
+  const text = await readTail(file);
+  if (text === null) return null;
+  let last: { type: string; at: number } | null = null;
+  let lastWork: { type: string; at: number } | null = null;
+  for (const line of text.split("\n")) {
+    if (!line.startsWith("{")) continue;
+    let event: { type?: unknown; timestamp?: unknown };
+    try {
+      event = JSON.parse(line) as typeof event;
+    } catch {
+      continue;
+    }
+    if (typeof event.type !== "string" || typeof event.timestamp !== "string") continue;
+    const at = Date.parse(event.timestamp);
+    if (Number.isNaN(at)) continue;
+    last = { type: event.type, at };
+    if (/^(assistant|tool)\.|^user\.message$/.test(event.type)) lastWork = last;
+  }
+  if (!last || lastWork?.type !== "assistant.turn_end" || lastWork.at < since || now - last.at < idleMs) return null;
+  const payload = { session_id: sessionId, transcript_path: file, source: "transcript", timestamp: new Date(lastWork.at).toISOString() };
+  return (await normalizeCopilot("Stop", payload, emptyState())) ?? payload;
+}
+
+function emptyState(): HookState {
+  return { openTools: new Map(), nextToolId: 1, finishedAt: new Map(), heldPermissions: new Map() };
+}
+
+function copilotHome(): string {
+  return process.env.COPILOT_HOME || path.join(os.homedir(), ".copilot");
+}
+
+async function readTail(file: string): Promise<string | null> {
+  try {
+    const handle = await open(file, "r");
+    try {
+      const { size } = await handle.stat();
+      const start = Math.max(0, size - TRANSCRIPT_TAIL_BYTES);
+      const buf = Buffer.alloc(size - start);
+      await handle.read(buf, 0, buf.length, start);
+      return buf.toString("utf8");
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The last non-empty `assistant.message` of a Copilot events.jsonl; null when unreadable. With
  * `stoppedAt` (the Stop hook's time), waits until the file has that turn's end.
@@ -116,21 +177,8 @@ export async function lastAssistantMessage(file: string, stoppedAt?: number): Pr
 }
 
 async function readLastMessage(file: string): Promise<{ message: string | null; turnEndedAt: number } | null> {
-  let text: string;
-  try {
-    const handle = await open(file, "r");
-    try {
-      const { size } = await handle.stat();
-      const start = Math.max(0, size - TRANSCRIPT_TAIL_BYTES);
-      const buf = Buffer.alloc(size - start);
-      await handle.read(buf, 0, buf.length, start);
-      text = buf.toString("utf8");
-    } finally {
-      await handle.close();
-    }
-  } catch {
-    return null;
-  }
+  const text = await readTail(file);
+  if (text === null) return null;
   const lines = text.split("\n");
   let turnEndedAt = 0;
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -155,7 +203,7 @@ const locks = new Map<string, Promise<unknown>>();
 
 /** The user-level hooks file TaskPilot owns (no one else writes taskpilot.json). */
 export function copilotHooksFile(): string {
-  return path.join(process.env.COPILOT_HOME || path.join(os.homedir(), ".copilot"), "hooks", "taskpilot.json");
+  return path.join(copilotHome(), "hooks", "taskpilot.json");
 }
 
 /**

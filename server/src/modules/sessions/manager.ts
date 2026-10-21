@@ -8,6 +8,7 @@ import { nextActivity, type Activity, type HookEvent } from "./hooks.js";
 import { childEnv, type Launcher } from "../../core/claude/launch.js";
 import { DEFAULT_AGENT, type Agent } from "../../core/agents.js";
 import { backendOf, type HookState } from "./backends/index.js";
+import type { AgentBackend } from "./backends/types.js";
 
 export type SessionStatus = "running" | "exited";
 
@@ -34,6 +35,8 @@ interface Live {
   lastHookAt: number | null;
   /** The backend's memory between hook callbacks of this process. */
   hookState: HookState;
+  /** Polls the agent's transcript for the end of a turn while no hook has come (see watchTranscript). */
+  transcriptTimer: NodeJS.Timeout | null;
   /** Recent output as plain text, while waiting for the backend's ready marker. */
   pendingOutput: string | null;
   /** Raw PTY output replayed to clients that attach later (page reload, second tab). */
@@ -52,6 +55,10 @@ export interface SessionManagerOptions {
   hookUrl?: () => string | null;
   /** Extra environment for sessions of a repo (TaskPilot's env store, e.g. MCP secrets). */
   extraEnv?: (repo: string) => Promise<Record<string, string>>;
+  /** How often the transcript of a session without hooks is read (default 2 s). */
+  transcriptPollMs?: number;
+  /** How long a transcript must stay quiet after a turn's end before TaskPilot takes it as Stop (default 15 s). */
+  transcriptIdleMs?: number;
 }
 
 export interface SessionEvents {
@@ -78,6 +85,8 @@ export class SessionManager extends EventEmitter<SessionEvents> {
   private readonly scrollbackLimit: number;
   private readonly hookUrl: () => string | null;
   private readonly extraEnv: (repo: string) => Promise<Record<string, string>>;
+  private readonly transcriptPollMs: number;
+  private readonly transcriptIdleMs: number;
 
   constructor(
     private readonly state: StateStore,
@@ -88,6 +97,8 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     this.scrollbackLimit = opts.scrollbackLimit ?? 2_000_000;
     this.hookUrl = opts.hookUrl ?? (() => null);
     this.extraEnv = opts.extraEnv ?? (async () => ({}));
+    this.transcriptPollMs = opts.transcriptPollMs ?? 2000;
+    this.transcriptIdleMs = opts.transcriptIdleMs ?? 15_000;
   }
 
   async list(repo: string, taskKey: string): Promise<SessionView[]> {
@@ -148,6 +159,49 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     if (!proc) throw new HttpError(409, "Session is not running");
     proc.write(`\x1b[200~${text}\x1b[201~`);
     setTimeout(() => this.live.get(id)?.proc?.write("\r"), SUBMIT_DELAY_MS);
+    this.watchTranscript(id, Date.now());
+  }
+
+  /**
+   * Agents whose Stop hook can fail to arrive (Copilot, TPL-017) have a transcript that shows the end
+   * of a turn. While the process has sent no hook at all, that end is applied as a Stop of
+   * its own so a run does not wait forever; the first real hook cancels the watch.
+   */
+  private watchTranscript(id: string, since: number): void {
+    const live = this.live.get(id);
+    if (!live) return;
+    clearInterval(live.transcriptTimer ?? undefined);
+    live.transcriptTimer = null;
+    void this.find(id).then((meta) => {
+      const backend = backendOf(meta.agent);
+      if (!backend.finishedTurn || live.lastHookAt !== null) return;
+      this.stopWatching(live);
+      let busy = false;
+      const timer = setInterval(() => {
+        if (busy) return;
+        busy = true;
+        void this.pollTranscript(meta, live, backend.finishedTurn!, since)
+          .catch((e: unknown) => this.emit("warning", e))
+          .finally(() => (busy = false));
+      }, this.transcriptPollMs);
+      timer.unref();
+      live.transcriptTimer = timer;
+    }).catch((e: unknown) => this.emit("warning", e));
+  }
+
+  private async pollTranscript(meta: SessionMeta, live: Live, finishedTurn: NonNullable<AgentBackend["finishedTurn"]>, since: number): Promise<void> {
+    if (!live.proc || live.lastHookAt !== null) return this.stopWatching(live);
+    if (live.activity === "permission") return;
+    const payload = await finishedTurn(meta.id, since, this.transcriptIdleMs);
+    // A hook, an exit or a new prompt may have come while the file was read.
+    if (!payload || !live.proc || live.lastHookAt !== null || !live.transcriptTimer) return;
+    this.stopWatching(live);
+    this.apply(meta, live, "Stop", payload);
+  }
+
+  private stopWatching(live: Live): void {
+    clearInterval(live.transcriptTimer ?? undefined);
+    live.transcriptTimer = null;
   }
 
   /** Applies a hook callback. Returns false when the token does not belong to a live session. */
@@ -156,6 +210,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     const live = id ? this.live.get(id) : undefined;
     if (!id || !live) return false;
     live.lastHookAt = Date.now();
+    this.stopWatching(live);
     const meta = await this.find(id);
     const backend = backendOf(meta.agent);
     const payload = backend.normalize ? await backend.normalize(event, raw, live.hookState) : raw;
@@ -300,6 +355,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       hookToken,
       lastHookAt: null,
       hookState: emptyHookState(),
+      transcriptTimer: null,
       pendingOutput: backend.readyMarker ? "" : null,
     };
     this.live.set(meta.id, live);
@@ -323,6 +379,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     });
     proc.onExit(({ exitCode }) => {
       live.proc = null;
+      this.stopWatching(live);
       for (const timer of live.hookState.heldPermissions.values()) clearTimeout(timer);
       live.exitCode = exitCode;
       this.byHookToken.delete(hookToken);
@@ -364,6 +421,7 @@ function emptyLive(): Live {
     hookToken: null,
     lastHookAt: null,
     hookState: emptyHookState(),
+    transcriptTimer: null,
     pendingOutput: null,
     scrollback: [],
     scrollbackSize: 0,

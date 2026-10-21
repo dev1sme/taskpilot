@@ -42,6 +42,8 @@ export interface AppOptions {
   launcher?: Launcher;
   /** Overrides an agent's command (tests). */
   launchers?: Partial<Record<Agent, Launcher>>;
+  /** Overrides how often and how patiently a hookless session's transcript is read (tests). */
+  transcript?: { pollMs: number; idleMs: number };
   /** Overrides workflow loading (tests). */
   loadWorkflow?: LoadDef;
   /** Overrides reading Copilot's account quota (tests). */
@@ -71,6 +73,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   const sessions = new SessionManager(opts.state, {
     launcher: opts.launcher,
     launchers: opts.launchers,
+    transcriptPollMs: opts.transcript?.pollMs,
+    transcriptIdleMs: opts.transcript?.idleMs,
     extraEnv: async (repo) => {
       // The status line TaskPilot installs runs the user's own one after reporting usage.
       const statusLine = await statusLineCommand(repo).catch(() => null);

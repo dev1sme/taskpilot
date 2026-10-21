@@ -34,6 +34,12 @@ export interface AgentBackend {
    * shows only if the tool has not finished after this long (or did not just finish).
    */
   permissionGraceMs?: number;
+  /**
+   * For agents whose Stop hook may never arrive: the Stop payload when the agent's own transcript
+   * shows that the turn begun after `since` (ms) has ended and nothing was written for `idleMs`,
+   * null while it has not. Only asked for sessions that have not sent a single hook of their own.
+   */
+  finishedTurn?(sessionId: string, since: number, idleMs: number): Promise<Record<string, unknown> | null>;
   /** The payload as Claude Code would send it; null drops the event. */
   normalize?(event: HookEvent, payload: Record<string, unknown>, state: HookState): Promise<Record<string, unknown> | null>;
 }

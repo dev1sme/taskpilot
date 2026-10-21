@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { WebSocket } from "ws";
 import { buildApp } from "../../../src/app.js";
+import { SessionManager } from "../../../src/modules/sessions/index.js";
 import { type Launcher } from "../../../src/core/claude/launch.js";
 import { StateStore } from "../../../src/core/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
@@ -26,7 +27,11 @@ beforeAll(async () => {
   copilotHome = await tempDir("taskpilot-copilot-home-");
   process.env.COPILOT_HOME = copilotHome;
 });
-afterEach(async () => app?.close());
+const managers: SessionManager[] = [];
+afterEach(async () => {
+  await app?.close();
+  for (const m of managers.splice(0)) m.closeAll();
+});
 afterAll(async () => {
   if (realCopilotHome === undefined) delete process.env.COPILOT_HOME;
   else process.env.COPILOT_HOME = realCopilotHome;
@@ -245,6 +250,21 @@ while IFS= read -r line; do
 done`;
 const fakeCopilot: Launcher = (id) => ({ file: "/bin/sh", args: ["-c", COPILOT_SCRIPT, "sh", id] });
 
+/**
+ * Stands in for a copilot whose hooks never run (TPL-017): the prompt "work" ends a turn in
+ * events.jsonl, "tool" is followed by a tool call that is still running.
+ */
+const HOOKLESS_SCRIPT = `
+echo ready
+dir="$COPILOT_HOME/session-state/$1"; mkdir -p "$dir"; : > "$dir/events.jsonl"
+line() { printf '{"type":"%s","timestamp":"%s"}\\n' "$1" "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" >> "$dir/events.jsonl"; }
+while IFS= read -r l; do
+  line user.message; line assistant.turn_start; line assistant.turn_end
+  # A bracketed paste arrives with its escape sequences around the text.
+  case "$l" in *tool*) line assistant.turn_start; line tool.execution_start;; esac
+done`;
+const hooklessCopilot: Launcher = (id) => ({ file: "/bin/sh", args: ["-c", HOOKLESS_SCRIPT, "sh", id] });
+
 describe("launcher env", () => {
   it("reaches the child on top of the inherited environment, and not Claude's", async () => {
     const state = new StateStore(await tempDir("taskpilot-state-"));
@@ -330,6 +350,50 @@ describe("copilot sessions", () => {
     expect((await list())[0].activity).toBe("idle");
     term.ws.close();
    }, 15_000);
+
+  describe("when no hook arrives", () => {
+    async function hookless() {
+      const state = new StateStore(await tempDir("taskpilot-state-"));
+      const repo = await makeRepo();
+      const manager = new SessionManager(state, { launchers: { copilot: hooklessCopilot }, transcriptPollMs: 30, transcriptIdleMs: 250 });
+      managers.push(manager);
+      const stops: Array<Record<string, unknown>> = [];
+      manager.on("hook", (_meta, event, payload) => event === "Stop" && stops.push(payload));
+      const { id } = await manager.create(repo, "DEMO-1", { agent: "copilot" });
+      for (let i = 0; i < 100 && !(await waitReady(id)); i++) await new Promise((r) => setTimeout(r, 30));
+      return { manager, stops, id };
+    }
+    const waitReady = async (id: string) => (await readFile(path.join(copilotHome, "session-state", id, "events.jsonl"), "utf8").catch(() => null)) !== null;
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    it("takes the end of a turn in events.jsonl for the Stop, once the transcript has been quiet for a while", async () => {
+      const { manager, stops, id } = await hookless();
+      manager.paste(id, "work");
+      await sleep(150);
+      expect(stops).toHaveLength(0);
+      for (let i = 0; i < 100 && stops.length === 0; i++) await sleep(30);
+      expect(stops).toHaveLength(1);
+      expect(stops[0]).toMatchObject({ session_id: id, source: "transcript" });
+      await sleep(400);
+      expect(stops).toHaveLength(1);
+    });
+
+    it("does not call a turn finished while a tool call is still running", async () => {
+      const { manager, stops, id } = await hookless();
+      manager.paste(id, "tool");
+      await sleep(900);
+      expect(stops).toHaveLength(0);
+    });
+
+    it("stops watching once a real hook has come", async () => {
+      const { manager, stops, id } = await hookless();
+      manager.paste(id, "work");
+      const token = (manager as unknown as { live: Map<string, { hookToken: string }> }).live.get(id)!.hookToken;
+      await manager.handleHook(token, "UserPromptSubmit", { session_id: id });
+      await sleep(900);
+      expect(stops).toHaveLength(0);
+    });
+  });
 
   it("rejects an unknown agent", async () => {
     const { app } = await startCopilot();

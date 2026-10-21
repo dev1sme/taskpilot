@@ -103,6 +103,21 @@ describe("workflow definition", () => {
     ]);
   });
 
+  it("runs every step with Claude unless the workflow or the step names another agent", async () => {
+    const def = await loadWorkflow(await makeRepo());
+    expect([def.agent, ...def.steps.map((s) => s.agent)]).toEqual(["claude", "claude", "claude"]);
+
+    const two = "version: 2\nagent: copilot\nsteps:\n  - id: a\n    prompt: p.md\n    agent: claude\n  - id: b\n    prompt: p.md\n";
+    const parsed = parse(two).def!;
+    expect([parsed.agent, ...parsed.steps.map((s) => s.agent)]).toEqual(["copilot", "claude", "copilot"]);
+  });
+
+  it("rejects an unknown agent", () => {
+    const { def, errors } = parse("version: 2\nagent: codex\nsteps:\n  - id: a\n    prompt: p.md\n    agent: gpt\n");
+    expect(def).toBeNull();
+    expect(errors).toEqual(["agent must be one of claude, copilot", "steps[0].agent must be one of claude, copilot"]);
+  });
+
   it("injects every hook through curl with the session's env", () => {
     const settings = JSON.parse(hookSettings()) as { hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>> };
     expect(Object.keys(settings.hooks)).toEqual([...HOOK_EVENTS]);

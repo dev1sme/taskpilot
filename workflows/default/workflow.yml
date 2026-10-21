@@ -2,6 +2,9 @@
 # (Workflow page → "Thêm config override"); this directory is never edited from the UI.
 version: 2
 # permission-mode: acceptEdits        # default | acceptEdits | plan | auto
+# Agent of every step: claude | copilot. A step's own `agent` overrides it, e.g. Claude
+# investigates and Copilot implements: `agent: copilot` on the implement step.
+# agent: claude
 
 # The task's decision log: the heading Claude uses for its own entries ({{historyEntry}}) and the
 # skeleton of a whole entry ({{historyFormat}}).
@@ -41,6 +44,7 @@ steps:
 
   - id: implement
     title: Triển khai
+    # agent: copilot
     prompt: implement.md
     on-reject: revise-implementation.md
     outputs:

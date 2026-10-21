@@ -73,6 +73,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
       variables: templateVars,
       newPrompt: PROMPT_TEXT.newPrompt,
       def: def && {
+        agent: def.agent,
         permissionMode: def.permissionMode ?? null,
         history: { file: def.history.file, entry: def.history.entry, format: def.history.format ?? null },
         language: def.language,
@@ -81,6 +82,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
         steps: def.steps.map((s) => ({
           id: s.id,
           title: s.title,
+          agent: s.agent,
           gate: s.gate,
           doneWhen: s.doneWhen?.output ?? null,
           outputs: s.outputs.map((o) => ({ id: o.id, file: o.file, content: o.content, format: o.format ?? null })),

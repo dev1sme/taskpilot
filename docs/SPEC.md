@@ -181,7 +181,7 @@ The embedded terminal is shell-equivalent access to the machine.
 | `--session-id <uuid>` | Creates the session with that id, and resumes it on a later start (context kept, `SessionStart.source: "resume"`). No separate resume flag needed. |
 | Hook config | No `--settings` flag. Hooks in `.github/copilot/settings.local.json`, flat entries `{type: "command", bash, timeoutSec}`. Declared with **PascalCase** names (`Stop`…) Copilot sends Claude-style snake_case payloads (`session_id`, `tool_name` as Claude's `Bash`/`Read`/`Edit`, `tool_input`, `transcript_path`); camelCase names get camelCase payloads. |
 | `PermissionRequest` | Still camelCase despite the PascalCase name: `sessionId`, `toolName: "bash"`, `toolInput`. Fires before Copilot decides, also for calls it then allows on its own (read-only commands, `--allow-tool` writes), and can arrive after the call's `PostToolUse`. TaskPilot holds it for 1.5 s and drops it when that call finishes (`permissionGraceMs`). |
-| `SessionStart` | **Not at startup**: fires only with the first prompt, next to `UserPromptSubmit`. TaskPilot treats the input box footer `/ commands` in the terminal output as SessionStart and drops Copilot's late one. |
+| `SessionStart` | **Not at startup**: fires only with the first prompt, next to `UserPromptSubmit`. TaskPilot treats the input box footer `/ commands` in the terminal output as SessionStart and drops Copilot's late one. **Checked on 1.0.101; check again after every Copilot upgrade** (a changed footer leaves runs in `starting`; "Gửi lại bước" still pastes). |
 | Tool hooks | No `tool_use_id`, no `duration_ms`; parallel calls share a timestamp. A shell command exiting non-zero is a `PostToolUse` (`result_type: "success"`), not `PostToolUseFailure`. |
 | `Stop` | No last message: read the last non-empty `assistant.message` `data.content` from `transcript_path` (`~/.copilot/session-state/<id>/events.jsonl`). The turn's last lines reach the file after the hook fires: TaskPilot waits (up to 3 s) for that turn's `assistant.turn_end`. |
 | First run in a folder | "Confirm folder trust": 1. Yes (this session) / 2. Yes, and remember / 3. No. No hook fires before the answer; after "Yes" the repo hooks load in that same session. `trustedFolders` in `~/.copilot/settings.json` does not skip the question. The footer `/ commands` appears only after it. Leave it to the user; never auto-answer. |
@@ -193,10 +193,12 @@ The embedded terminal is shell-equivalent access to the machine.
 
 - Trust dialog vs. `SessionStart` order is inferred, not verified: in a never-trusted folder the first
   prompt waits for `SessionStart`; if it never arrives, "Gửi lại bước" pastes anyway.
-- Copilot plan usage: its status line has no quota and runs only from the user's settings; options
-  are a user-level status line or the Copilot SDK's `account.getQuota`.
-- Leader-driven runs: Claude reads its plan and hands sub-tasks to member agents (Copilot, later
-  Codex) while running; TPL-009 only assigns agents per step.
+- Copilot ready marker (`/ commands`, `modules/sessions/backends/copilot.ts`): checked on copilot
+  1.0.101; check it again, with the spike table above, after every Copilot upgrade.
+- Follow-up tasks from TPL-009: **TPL-010** Copilot plan usage (Copilot SDK `account.getQuota`, not
+  a status line in `~/.copilot/settings.json`), **TPL-011** leader-driven runs (Claude reads its
+  plan and hands sub-tasks to member agents while running; TPL-009 only assigns agents per step),
+  **TPL-012** Codex backend, **TPL-013** Copilot config pages (`.github/copilot/*`, `copilot mcp`).
 
 ## 9. Milestones
 

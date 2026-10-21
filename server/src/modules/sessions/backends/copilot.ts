@@ -8,7 +8,10 @@ import type { AgentBackend, HookState } from "./types.js";
 export const COPILOT_SETTINGS = path.join(".github", "copilot", "settings.local.json");
 /** Marks the hook entries TaskPilot owns in that file; everything else in it is the user's. */
 const MARK = "TASKPILOT_HOOK_URL";
-/** Footer of copilot's input box; absent while the folder trust prompt is shown (copilot 1.0.100). */
+/**
+ * Footer of copilot's input box; absent while the folder trust prompt is shown. Checked on copilot
+ * 1.0.101: check it again after every Copilot upgrade (docs/SPEC.md §7).
+ */
 const READY_MARKER = "/ commands";
 /** Enough of events.jsonl to find the last assistant message of a turn. */
 const TRANSCRIPT_TAIL_BYTES = 2 * 1024 * 1024;

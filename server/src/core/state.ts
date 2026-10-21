@@ -1,12 +1,15 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import type { Agent } from "./agents.js";
 import type { UsageView } from "../modules/usage/index.js";
 import type { RunState } from "../modules/workflow/index.js";
 
 export interface SessionMeta {
-  /** Also the Claude Code session id (`--session-id` / `--resume`). */
+  /** Also the agent's own session id (`--session-id` / `--resume`). */
   id: string;
+  /** The coding agent the session runs; absent = claude (sessions saved before agents existed). */
+  agent?: Agent;
   repo: string;
   taskKey: string;
   title: string;

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { isAgent, type Agent } from "../../core/agents.js";
 import { HttpError } from "../../core/errors.js";
 import type { RepoContext } from "../repo/index.js";
 import { getTask, REPO_SESSION_KEY } from "../tasks/index.js";
@@ -11,7 +12,15 @@ function sessionId(id: string): string {
   return id;
 }
 
-/** Claude sessions of a task or of the repo, and the PTY socket of each. */
+/** Optional `{ agent }` body of a new session; Claude when absent. */
+function agentOf(body: unknown): Agent | undefined {
+  const agent = typeof body === "object" && body !== null ? (body as { agent?: unknown }).agent : undefined;
+  if (agent === undefined || agent === null) return undefined;
+  if (!isAgent(agent)) throw new HttpError(400, `Unknown agent: ${String(agent)}`);
+  return agent;
+}
+
+/** Agent sessions of a task or of the repo, and the PTY socket of each. */
 export function registerSessionsRoutes(
   app: FastifyInstance,
   opts: { repo: RepoContext; sessions: SessionManager; runs: { usesSession(id: string): Promise<boolean> } },
@@ -26,13 +35,13 @@ export function registerSessionsRoutes(
 
   app.post<{ Params: { key: string } }>("/api/tasks/:key/sessions", async (req) => {
     const task = await getTask(requireRepo(), req.params.key);
-    return sessions.create(requireRepo(), task.key);
+    return sessions.create(requireRepo(), task.key, { agent: agentOf(req.body) });
   });
 
-  // Repo sessions: Claude in the repo without a task (the footer terminal). Not part of any workflow run.
+  // Repo sessions: an agent in the repo without a task (the footer terminal). Not part of any workflow run.
   app.get("/api/repo/sessions", async () => sessions.list(requireRepo(), REPO_SESSION_KEY));
 
-  app.post("/api/repo/sessions", async () => sessions.create(requireRepo(), REPO_SESSION_KEY));
+  app.post("/api/repo/sessions", async (req) => sessions.create(requireRepo(), REPO_SESSION_KEY, { agent: agentOf(req.body) }));
 
   app.post<{ Params: { id: string } }>("/api/sessions/:id/resume", async (req) =>
     sessions.resume(sessionId(req.params.id)),

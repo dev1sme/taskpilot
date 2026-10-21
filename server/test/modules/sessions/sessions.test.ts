@@ -1,6 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { readFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
+import path from "node:path";
 import { WebSocket } from "ws";
 import { buildApp } from "../../../src/app.js";
 import { type Launcher } from "../../../src/core/claude/launch.js";
@@ -205,5 +207,79 @@ describe("repo sessions", () => {
     const state = new StateStore(await tempDir("taskpilot-state-"));
     app = await buildApp({ token: TOKEN, state, launcher: fakeClaude });
     expect((await app.inject({ url: "/api/repo/sessions", headers: ok })).statusCode).toBe(409);
+  });
+});
+
+/**
+ * Stands in for copilot: shows the trust prompt until a line arrives, then the input box footer
+ * (its ready marker). Every prompt line then fires hooks the way copilot 1.0.100 does: SessionStart
+ * only now, no tool_use_id, PermissionRequest in camelCase.
+ */
+const COPILOT_SCRIPT = `
+post() { curl -sS -m 5 -o /dev/null -X POST -H "x-taskpilot-hook-token: $TASKPILOT_HOOK_TOKEN" \\
+  -H "content-type: application/json" --data-binary "$2" "$TASKPILOT_HOOK_URL/$1"; }
+echo "Confirm folder trust"
+read -r answer
+printf '\\033[2m/ commands\\033[0m · ? help\\n'
+while IFS= read -r line; do
+  post UserPromptSubmit '{"session_id":"'"$1"'","prompt":"x"}'
+  post SessionStart '{"session_id":"'"$1"'","source":"new"}'
+  post PreToolUse '{"session_id":"'"$1"'","tool_name":"Bash","tool_input":{"command":"npm test"}}'
+  post PermissionRequest '{"hookName":"permissionRequest","sessionId":"'"$1"'","toolName":"bash","toolInput":{"command":"npm test"}}'
+  post PostToolUse '{"session_id":"'"$1"'","tool_name":"Bash","tool_input":{"command":"npm test"},"tool_result":{"result_type":"success"}}'
+  post Stop '{"session_id":"'"$1"'","transcript_path":"/nonexistent/events.jsonl","stop_reason":"end_turn"}'
+done`;
+const fakeCopilot: Launcher = (id) => ({ file: "/bin/sh", args: ["-c", COPILOT_SCRIPT, "sh", id] });
+
+describe("copilot sessions", () => {
+  async function startCopilot() {
+    const state = new StateStore(await tempDir("taskpilot-state-"));
+    const repo = await makeRepo();
+    app = await buildApp({ token: TOKEN, state, repo, launcher: fakeClaude, launchers: { copilot: fakeCopilot } });
+    await app.listen({ host: "127.0.0.1", port: 0 });
+    return { app, repo };
+  }
+  const list = async () => (await app!.inject({ url: "/api/tasks/DEMO-1/sessions", headers: ok })).json();
+
+  it("writes the hook file, waits for the input box, and maps copilot's hooks", async () => {
+    const { app, repo } = await startCopilot();
+    const s = (await app.inject({ method: "POST", url: "/api/tasks/DEMO-1/sessions", headers: ok, payload: { agent: "copilot" } })).json();
+    expect(s).toMatchObject({ agent: "copilot", status: "running" });
+    const hooks = JSON.parse(await readFile(path.join(repo, ".github", "copilot", "settings.local.json"), "utf8")).hooks;
+    expect(Object.keys(hooks)).toContain("Stop");
+
+    const term = await connect(app, s.id);
+    await term.until(() => term.output().includes("Confirm folder trust"));
+    await new Promise((r) => setTimeout(r, 200));
+    expect((await list())[0].activity).toBe("starting");
+
+    term.ws.send(JSON.stringify({ t: "i", d: "1\r" }));
+    await term.until(() => term.output().includes("? help"));
+    for (let i = 0; i < 50 && (await list())[0].activity !== "idle"; i++) await new Promise((r) => setTimeout(r, 50));
+    expect((await list())[0].activity).toBe("idle");
+
+    term.ws.send(JSON.stringify({ t: "i", d: "go\r" }));
+    let feed: Array<{ kind: string; status?: string; summary: string }> = [];
+    for (let i = 0; i < 100 && !feed.some((f) => f.kind === "stop"); i++) {
+      await new Promise((r) => setTimeout(r, 50));
+      feed = (await app.inject({ url: "/api/tasks/DEMO-1/activity", headers: ok })).json();
+    }
+    expect(feed.map((f) => f.kind)).toEqual(["session", "prompt", "tool", "permission", "stop"]);
+    expect(feed.find((f) => f.kind === "tool")).toMatchObject({ status: "done", summary: expect.stringContaining("npm test") });
+    expect(feed.find((f) => f.kind === "permission")?.summary).toContain("npm test");
+    expect((await list())[0].activity).toBe("idle");
+    term.ws.close();
+  });
+
+  it("rejects an unknown agent", async () => {
+    const { app } = await startCopilot();
+    const res = await app.inject({ method: "POST", url: "/api/repo/sessions", headers: ok, payload: { agent: "codex" } });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("starts Claude when no agent is given", async () => {
+    const { app } = await startCopilot();
+    const s = (await app.inject({ method: "POST", url: "/api/repo/sessions", headers: ok })).json();
+    expect(s.agent).toBe("claude");
   });
 });

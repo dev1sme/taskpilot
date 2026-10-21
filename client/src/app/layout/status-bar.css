@@ -32,10 +32,6 @@ a.status-item.is-warn,
   text-decoration: none;
 }
 
-.status-version {
-  margin-left: auto;
-}
-
 .status-button {
   padding: 2px 6px;
   margin: -2px -6px;

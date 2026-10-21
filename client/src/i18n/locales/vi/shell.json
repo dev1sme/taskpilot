@@ -18,7 +18,8 @@
     "formats": "Định dạng tài liệu",
     "backups": "Lịch sử thay đổi",
     "mcp": "MCP servers",
-    "codegraph": "Codegraph"
+    "codegraph": "Codegraph",
+    "allTasks": "Xem tất cả ({{count}})"
   },
   "navGroup": {
     "workspace": "Workspace",
@@ -26,6 +27,12 @@
     "integrations": "Tích hợp"
   },
   "repoSwitch": "Bấm để chọn",
+  "account": {
+    "claudeVersion": "claude {{version}}",
+    "claudeMissing": "chưa có claude",
+    "copilotVersion": "copilot {{version}}",
+    "logout": "Đăng xuất"
+  },
   "header": {
     "crumbs": "Vị trí",
     "search": "Tìm task, trang…"
@@ -48,10 +55,6 @@
     "waitingPermission": "chờ quyền",
     "sessionsRunning": "{{count}} session đang chạy",
     "asking": "{{count}} xin quyền",
-    "claudeVersion": "claude {{version}}",
-    "claudeMissing": "không tìm thấy claude",
-    "copilotVersion": "copilot {{version}}",
-    "logout": "Đăng xuất",
     "usageLabel": "Usage Claude: ",
     "usageTitle": "Giới hạn gói Claude đã dùng (toàn tài khoản)",
     "usageReset": "{{window}} reset lúc {{time}}",

@@ -83,3 +83,98 @@ for (const width of [1440, 390]) {
     expect(mainScroll).toBeLessThanOrEqual(mainClient);
   });
 }
+
+/** Tasks for the sidebar, oldest first: SIDE-1 waits on a gate, SIDE-2 runs, the rest are idle. */
+function manyTasks(count: number) {
+  const now = Date.now();
+  return Array.from({ length: count }, (_, i) => ({
+    key: `SIDE-${i + 1}`,
+    title: `Việc số ${i + 1} có tiêu đề khá dài để thử cắt chữ`,
+    stage: { done: 0, total: 3, step: null },
+    historyFile: "00-history.md",
+    specFiles: [],
+    outputFiles: [],
+    updatedAt: now - i * 60_000,
+    run: i === 0 ? { phase: "gate", stepIndex: 0, stepStartedAt: now } : i === 1 ? { phase: "running", stepIndex: 0, stepStartedAt: now } : null,
+    waitingPermission: false,
+    sessionsRunning: 0,
+  }));
+}
+
+test.describe("sidebar", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route("**/api/tasks", (route) => route.fulfill({ json: manyTasks(18) }));
+  });
+
+  test("caps the task list and keeps every nav group on a 1440×900 screen", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/#/tasks");
+    const sidebar = page.locator("nav.sidebar");
+    const rows = sidebar.locator(".nav-tasks .nav-task:not(.nav-task-all)");
+    await expect(rows).toHaveCount(6);
+    // Needs-you first, then running.
+    await expect(rows.nth(0)).toContainText("SIDE-1");
+    await expect(rows.nth(1)).toContainText("SIDE-2");
+    const all = sidebar.getByRole("link", { name: "Xem tất cả (18)" });
+    await expect(all).toHaveAttribute("href", "#/tasks");
+    await expect(sidebar.getByRole("link", { name: "Codegraph" })).toBeInViewport({ ratio: 1 });
+    const nav = sidebar.locator(".sidebar-nav");
+    const [scroll, client] = await nav.evaluate((el) => [el.scrollHeight, el.clientHeight]);
+    expect(scroll).toBeLessThanOrEqual(client);
+  });
+
+  test("keeps the open task in the list when it is outside the cap", async ({ page }) => {
+    await page.goto("/#/tasks/SIDE-15");
+    const rows = page.locator("nav.sidebar .nav-tasks .nav-task:not(.nav-task-all)");
+    await expect(rows).toHaveCount(7);
+    await expect(rows.last()).toContainText("SIDE-15");
+    await expect(rows.last()).toHaveAttribute("aria-current", "page");
+  });
+
+  test("shows the task list only on the Task pages, the waiting badge everywhere", async ({ page }) => {
+    await page.goto("/#/memory");
+    const sidebar = page.locator("nav.sidebar");
+    await expect(sidebar.locator('a.nav-item[href="#/tasks"] .nav-badge')).toHaveText("1");
+    await expect(sidebar.locator(".nav-tasks")).toHaveCount(0);
+  });
+
+  test("folds a group, remembers it, and unfolds it for the page being opened", async ({ page }) => {
+    await page.goto("/#/");
+    const sidebar = page.locator("nav.sidebar");
+    const toggle = sidebar.getByRole("button", { name: "Cấu hình Claude" });
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(sidebar.getByRole("link", { name: "Hooks" })).toBeHidden();
+    await page.reload();
+    await expect(sidebar.getByRole("button", { name: "Cấu hình Claude" })).toHaveAttribute("aria-expanded", "false");
+    await page.goto("/#/hooks");
+    await expect(sidebar.getByRole("button", { name: "Cấu hình Claude" })).toHaveAttribute("aria-expanded", "true");
+    await expect(sidebar.getByRole("link", { name: "Hooks" })).toHaveAttribute("aria-current", "page");
+  });
+
+  test("log out and agent versions sit in the sidebar, not the footer", async ({ page }) => {
+    await page.goto("/#/");
+    const account = page.locator("nav.sidebar .sidebar-account");
+    await expect(account.getByRole("button", { name: "Đăng xuất" })).toBeVisible();
+    await expect(account).toContainText(/claude/);
+    const footer = page.locator("footer.status-bar");
+    await expect(footer).toBeVisible();
+    await expect(footer.getByRole("button", { name: "Đăng xuất" })).toHaveCount(0);
+    await expect(footer).not.toContainText(/claude \S|không tìm thấy claude|copilot \d/);
+  });
+
+  test("fits a 390px screen without horizontal overflow", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/#/tasks");
+    const sidebar = page.locator("nav.sidebar");
+    await expect(sidebar.locator(".nav-tasks .nav-task:not(.nav-task-all)")).toHaveCount(6);
+    for (const el of [sidebar, sidebar.locator(".sidebar-nav")]) {
+      const [scroll, client] = await el.evaluate((x) => [x.scrollWidth, x.clientWidth]);
+      expect(scroll).toBeLessThanOrEqual(client);
+    }
+    await expect(sidebar.getByRole("button", { name: "Đăng xuất" })).toBeInViewport();
+    const [docScroll, docClient] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+    expect(docScroll).toBeLessThanOrEqual(docClient);
+  });
+});

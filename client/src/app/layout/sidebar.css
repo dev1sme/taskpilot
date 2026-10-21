@@ -1,13 +1,84 @@
 /* ------------------------------------------------------------------ sidebar */
 
+/* Three zones: head (brand, repo) and account stay put, the nav between them scrolls. */
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 16px 12px;
-  overflow: auto;
+  min-height: 0;
+  overflow: hidden;
   background: var(--sidebar);
   border-right: 1px solid var(--line);
+}
+
+.sidebar-head {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 12px 10px;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  padding: 0 12px 8px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.sidebar-account {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 20px;
+  border-top: 1px solid var(--line);
+}
+
+.account-versions {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--faint);
+}
+
+.account-versions span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-logout {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  transition: color var(--fast) var(--ease-out), border-color var(--fast) var(--ease-out), background-color var(--fast) var(--ease-out);
+}
+
+.account-logout:hover {
+  color: var(--ink);
+  background: var(--hover);
+  border-color: var(--line-strong);
+}
+
+.account-logout svg {
+  width: 15px;
+  height: 15px;
 }
 
 .brand {
@@ -26,7 +97,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px;
+  padding: 8px 10px;
   text-align: left;
   background: var(--raised);
   border: 1px solid var(--line);
@@ -86,9 +157,42 @@
 }
 
 .nav-label {
-  padding: 0 10px 6px;
+  padding: 0 10px 4px;
   font-size: 12px;
   color: var(--faint);
+}
+
+.nav-toggle {
+  display: flex;
+  margin-top: 4px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 24px;
+  margin-bottom: 2px;
+  padding: 2px 10px;
+  font-family: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: var(--r-sm);
+  transition: color var(--fast) var(--ease-out), background-color var(--fast) var(--ease-out);
+}
+
+.nav-toggle:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.nav-toggle-caret {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  transition: transform var(--fast) var(--ease-out);
+}
+
+.nav-toggle[aria-expanded="false"] .nav-toggle-caret {
+  transform: rotate(-90deg);
 }
 
 .nav-item {
@@ -96,8 +200,9 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 36px;
-  padding: 7px 10px;
+  min-height: 30px;
+  padding: 4px 10px;
+  line-height: 20px;
   color: var(--muted);
   text-decoration: none;
   border-radius: var(--r-sm);
@@ -165,7 +270,7 @@
 }
 
 .nav-tasks {
-  margin: 2px 0 6px 18px !important;
+  margin: 2px 0 4px 18px !important;
   padding-left: 8px !important;
   border-left: 1px solid var(--line);
 }
@@ -174,8 +279,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
-  padding: 5px 8px;
+  min-height: 26px;
+  padding: 3px 8px;
+  line-height: 18px;
   color: var(--ink);
   text-decoration: none;
   border-radius: var(--r-sm);
@@ -213,18 +319,19 @@
   }
 }
 
+/* One line per task: the key stays whole, the title gives way. */
 .nav-task-text {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  gap: 6px;
   min-width: 0;
 }
 
 .nav-task-key {
-  overflow: hidden;
+  flex: none;
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -234,4 +341,27 @@
   color: var(--muted);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.nav-task-all {
+  padding-left: 34px;
+  font-size: 12px;
+  color: var(--signal-text);
+}
+
+.nav-task-all:hover {
+  color: var(--ink);
+}
+
+/* Dense rows suit a pointer; on a touch-sized screen the rows grow back to finger size. */
+@media (max-width: 860px) {
+  .nav-item,
+  .nav-task,
+  .account-logout {
+    min-height: 40px;
+  }
+
+  .nav-toggle {
+    min-height: 36px;
+  }
 }

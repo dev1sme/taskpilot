@@ -1,24 +1,22 @@
-import { Gauge, HandPalm, SignOut, TerminalWindow } from "@phosphor-icons/react";
+import { Gauge, HandPalm, TerminalWindow } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import { AGENT_LABELS } from "../../shared/agents";
 import { href } from "../../shared/router";
 import { useWorkspace } from "../../features/workspace";
 import { locale } from "../../i18n";
-import { logout, useAuthMode } from "../../features/auth";
 import { useRepoSessions } from "../../features/sessions";
 import { useUsage, type AgentQuota, type UsageView } from "../../features/usage";
 import "./status-bar.css";
 
-/** Live, repo-wide counters at the bottom of every page. */
+/** Live, repo-wide counters at the bottom of every page. Log out and agent versions live in the sidebar. */
 export function StatusBar(props: { terminalOpen: boolean; onToggleTerminal: (open: boolean) => void }) {
   const { t } = useTranslation("shell");
-  const { repo, tasks, info } = useWorkspace();
+  const { repo, tasks } = useWorkspace();
   const { sessions: repoSessions } = useRepoSessions(repo?.path ?? null);
   const repoRunning = repoSessions.filter((s) => s.status === "running").length;
   const repoAsking = repoSessions.some((s) => s.activity === "permission");
   const running = tasks.reduce((n, task) => n + task.sessionsRunning, 0);
   const asking = tasks.filter((task) => task.waitingPermission);
-  const mode = useAuthMode();
   const usage = useUsage();
 
   return (
@@ -54,15 +52,6 @@ export function StatusBar(props: { terminalOpen: boolean; onToggleTerminal: (ope
       )}
       {usage && (usage.fiveHour || usage.sevenDay || usage.spend) && <UsageItem usage={usage} />}
       {usage?.agents?.copilot && <CopilotUsageItem quota={usage.agents.copilot} />}
-      <span className="status-item status-version">{info?.claudeVersion ? t("status.claudeVersion", { version: info.claudeVersion }) : t("status.claudeMissing")}</span>
-      {/* Copilot is optional: shown only when installed. */}
-      {info?.versions?.copilot && <span className="status-item status-version">{t("status.copilotVersion", { version: info.versions.copilot })}</span>}
-      {mode === "password" && (
-        <button type="button" className="status-item status-button status-logout" onClick={() => void logout()}>
-          <SignOut aria-hidden="true" />
-          {t("status.logout")}
-        </button>
-      )}
     </footer>
   );
 }

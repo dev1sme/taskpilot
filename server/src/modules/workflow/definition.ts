@@ -11,6 +11,8 @@ import { templateVars } from "./vars.js";
 
 /** <package>/workflows/default; four levels up from both server/src/modules/workflow and dist/server/modules/workflow. */
 export const DEFAULT_WORKFLOW_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../workflows/default");
+/** The leader / member template a repo can copy into its override. */
+export const LEADER_WORKFLOW_DIR = path.join(path.dirname(DEFAULT_WORKFLOW_DIR), "leader");
 /** A repo's own workflow: workflow.yml plus its prompt files, all in this one directory. */
 export const OVERRIDE_DIR = path.join(".claude", "taskpilot");
 export const WORKFLOW_FILE = "workflow.yml";

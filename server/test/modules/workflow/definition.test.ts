@@ -4,6 +4,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { hookSettings, HOOK_EVENTS } from "../../../src/modules/sessions/hooks.js";
 import {
   DEFAULT_WORKFLOW_DIR,
+  LEADER_WORKFLOW_DIR,
   loadWorkflow,
   parseWorkflowFiles,
   readWorkflowDir,
@@ -135,6 +136,17 @@ describe("workflow definition", () => {
         outputs: [],
         dispatch: { from: "plan", promptFile: "sub.md", report: "03-viec-{{n}}.md", format: "fmt.md", formatText: "# {{key}}", parallel: 2 },
       });
+    });
+
+    it("ships a leader template that parses without errors or warnings", async () => {
+      const { def, errors, warnings } = parseWorkflowFiles(await readWorkflowDir(LEADER_WORKFLOW_DIR), { dir: LEADER_WORKFLOW_DIR, origin: "default" });
+      expect({ errors, warnings }).toEqual({ errors: [], warnings: [] });
+      expect(def!.steps.map((s) => [s.id, s.agent, s.gate, !!s.dispatch])).toEqual([
+        ["investigate", "claude", "approve", false],
+        ["dispatch", "claude", "none", true],
+        ["review", "claude", "approve", false],
+      ]);
+      expect(def!.steps[1].dispatch).toMatchObject({ from: "plan", report: "03-viec-{{n}}.md", parallel: 1, promptFile: "subtask.md", format: "format-subtask.md" });
     });
 
     it("defaults parallel to 1, and a workflow without dispatch is unchanged", () => {

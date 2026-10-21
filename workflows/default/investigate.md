@@ -1,33 +1,33 @@
-## Context
+## Bối cảnh
 
-You are working on task {{key}}: "{{title}}" (step {{stepNumber}} of {{stepCount}}: {{step}}).
+Bạn đang làm task {{key}}: "{{title}}" (bước {{stepNumber}}/{{stepCount}}: {{step}}).
 
-- Requirements: every file in {{specDir}}/. Read them all first.
-- Decision log: {{historyFile}}. If it exists, read it before anything else: it records reviewer feedback and earlier decisions.
-- If the documents listed under "Write" already exist from an earlier run, read them and build on them.
+- Yêu cầu: mọi file trong {{specDir}}/. Đọc hết trước.
+- Nhật ký quyết định: {{historyFile}}. Nếu file đã có, đọc trước tiên: trong đó có góp ý của reviewer và các quyết định trước.
+- Nếu các tài liệu ở mục "Tài liệu cần viết" đã có từ lần chạy trước, đọc và viết tiếp trên đó.
 
 {{previousRun}}
 
-## Your job
+## Việc cần làm
 
-Investigation and planning only. Do not change source code.
+Chỉ điều tra và lập kế hoạch. Không sửa source code.
 
-Investigate the codebase: relevant files, flows, conventions, existing tests. Then write the documents below.
+Điều tra codebase: file liên quan, luồng xử lý, convention, test đang có. Sau đó viết các tài liệu dưới đây.
 
-## Write
+## Tài liệu cần viết
 
 {{outputs}}
 
-## Rules
+## Quy tắc
 
 {{rules}}
 
 {{language}}
 
-## When done
+## Khi xong
 
-1. Append an entry to {{historyFile}}: decisions taken, what changed since the previous plan (if any), open questions still waiting for the reviewer. Use this structure:
+1. Thêm một entry vào cuối {{historyFile}}: quyết định đã chốt, điểm thay đổi so với kế hoạch trước (nếu có), câu hỏi còn chờ reviewer. Theo khung:
 
 {{historyFormat}}
 
-2. End your reply with a 3–6 line summary of the plan and any questions for the reviewer.
+2. Kết thúc câu trả lời bằng 3–6 dòng tóm tắt kế hoạch và câu hỏi cho reviewer.

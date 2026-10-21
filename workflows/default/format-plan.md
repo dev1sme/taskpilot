@@ -16,4 +16,4 @@
 <!-- Lệnh build/test chính xác trong code block, và kiểm tay nếu cần. -->
 
 ## 6. Câu hỏi mở
-<!-- Đánh số; mỗi câu kèm đề xuất của bạn. Ghi "Không có" nếu không còn câu nào. -->
+<!-- Mỗi câu một dòng: `1. <câu hỏi> — Đề xuất: <đề xuất của bạn>`. Ghi "Không có" nếu không còn câu nào. -->

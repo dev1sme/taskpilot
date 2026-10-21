@@ -106,7 +106,7 @@ describe("workflow engine", () => {
     expect(await hook("Stop")).toMatchObject({ phase: "gate" });
 
     await engine.approve(repo, "DEMO-1");
-    expect(fake.pasted[2]).toContain("is approved");
+    expect(fake.pasted[2]).toContain("đã được duyệt");
     await write("04-summary.md");
     expect(await hook("Stop")).toMatchObject({ phase: "gate", stepIndex: 1 });
     expect(await engine.approve(repo, "DEMO-1")).toMatchObject({ phase: "done" });
@@ -158,7 +158,7 @@ describe("workflow engine", () => {
     expect(log).toContain("· Điều tra & lên kế hoạch · Bắt đầu quy trình\n\nQuy trình: mặc định của TaskPilot, 2 bước.");
     expect(log).toContain("· Điều tra & lên kế hoạch · Ba góp ý\n\n> Tách task riêng\n>\n> Thêm 00-history.md\n");
     expect(log).toContain("· Điều tra & lên kế hoạch · Ba duyệt");
-    expect(log).toContain("· Implement · Huỷ quy trình");
+    expect(log).toContain("· Triển khai · Huỷ quy trình");
     expect(log.indexOf("Ba góp ý")).toBeLessThan(log.indexOf("Ba duyệt"));
   });
 
@@ -201,17 +201,17 @@ describe("workflow engine", () => {
     expect((await readdir(taskDir())).sort()).toEqual([HISTORY_FILE, "02-plan.md", "03-progress.md", "archive", "notes.txt", "spec"].sort());
 
     const log = await readFile(path.join(taskDir(), HISTORY_FILE), "utf8");
-    expect(log).toContain(`· Implement · Chạy lại từ đầu\n\nBản cũ: archive/${stamp}/ (02-plan.md, 03-progress.md)`);
+    expect(log).toContain(`· Triển khai · Chạy lại từ đầu\n\nBản cũ: archive/${stamp}/ (02-plan.md, 03-progress.md)`);
     expect(log.lastIndexOf("Bắt đầu quy trình")).toBeGreaterThan(log.indexOf("Chạy lại từ đầu"));
 
     // The new run's first prompt sends Claude to the archived plan and progress first.
     expect(run.previous).toEqual({ dir: `archive/${stamp}`, files: ["02-plan.md", "03-progress.md"] });
     await hook("SessionStart");
     const prompt = fake.pasted.at(-1)!;
-    expect(prompt).toContain("This task was restarted from the first step.");
+    expect(prompt).toContain("Task này được chạy lại từ bước đầu.");
     expect(prompt).toContain(`- .claude/tasks/DEMO-1/archive/${stamp}/02-plan.md\n- .claude/tasks/DEMO-1/archive/${stamp}/03-progress.md\n`);
     expect(prompt).not.toMatch(/\n{3}/);
-    expect(fake.pasted[0]).not.toContain("restarted");
+    expect(fake.pasted[0]).not.toContain("chạy lại từ bước đầu");
   });
 
   it("keeps a run on the workflow it started with; a restart picks up edits", async () => {
@@ -244,7 +244,7 @@ describe("workflow engine", () => {
 
     await engine.restart(repo, "DEMO-1");
     await hook("SessionStart");
-    expect(fake.pasted.at(-1)).toMatch(/^Edited This task was restarted/);
+    expect(fake.pasted.at(-1)).toMatch(/^Edited Task này được chạy lại/);
     expect((await engine.view(repo, "DEMO-1")).workflow).toMatchObject({ outdated: false });
   });
 

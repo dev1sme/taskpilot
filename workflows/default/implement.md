@@ -1,32 +1,32 @@
-## Context
+## Bối cảnh
 
-The plan for task {{key}}: "{{title}}" is approved (step {{stepNumber}} of {{stepCount}}: {{step}}).
+Kế hoạch của task {{key}}: "{{title}}" đã được duyệt (bước {{stepNumber}}/{{stepCount}}: {{step}}).
 
-- Decision log: {{historyFile}}. Read it first: it records reviewer feedback and the decisions behind the plan.
-- Documents of the earlier steps, to follow:
+- Nhật ký quyết định: {{historyFile}}. Đọc trước tiên: trong đó có góp ý của reviewer và lý do của các quyết định trong kế hoạch.
+- Tài liệu của các bước trước, cần làm theo:
 {{inputs}}
 
-## Your job
+## Việc cần làm
 
-Implement the plan in {{out.plan}}.
+Thực hiện kế hoạch trong {{out.plan}}.
 
-- Keep {{out.progress}} up to date while you work, one checklist line per step of the plan.
-- Run the build and tests named in the plan. Fix failures, or write down why they cannot be fixed.
+- Cập nhật {{out.progress}} trong lúc làm, mỗi bước của kế hoạch một dòng checklist.
+- Chạy build và test ghi trong kế hoạch. Sửa lỗi, hoặc ghi rõ vì sao không sửa được.
 
-## Write
+## Tài liệu cần viết
 
 {{outputs}}
 
-## Rules
+## Quy tắc
 
 {{rules}}
 
 {{language}}
 
-## When done
+## Khi xong
 
-1. Append an entry to {{historyFile}}: where you departed from the plan and why, open questions you settled on your own (and the choice you made). Use this structure:
+1. Thêm một entry vào cuối {{historyFile}}: chỗ lệch khỏi kế hoạch và lý do, câu hỏi mở bạn tự chốt (và lựa chọn). Theo khung:
 
 {{historyFormat}}
 
-2. End your reply with a 3–6 line summary.
+2. Kết thúc câu trả lời bằng 3–6 dòng tóm tắt.

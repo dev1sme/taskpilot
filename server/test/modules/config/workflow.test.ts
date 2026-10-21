@@ -127,7 +127,7 @@ describe("workflow config", () => {
 
   it("renders the prompt a step would send, drafts included", async () => {
     const res = await send("POST", "/api/config/workflow/render", { taskKey: "DEMO-1", stepId: "implement", kind: "prompt" });
-    expect(res.json().text).toContain("Implement the plan in .claude/tasks/DEMO-1/02-plan.md.");
+    expect(res.json().text).toContain("Thực hiện kế hoạch trong .claude/tasks/DEMO-1/02-plan.md.");
 
     await send("POST", "/api/config/workflow/override");
     const yml = (await raw("workflow.yml")).content as string;
@@ -139,7 +139,7 @@ describe("workflow config", () => {
       drafts: { "workflow.yml": yml.replace("01-investigation.md", "01-dieu-tra.md") },
     });
     expect(drafted.json().text).toContain("Thêm test");
-    expect(drafted.json().text).toContain(".claude/tasks/DEMO-1/01-dieu-tra.md if relevant");
+    expect(drafted.json().text).toContain(".claude/tasks/DEMO-1/01-dieu-tra.md nếu liên quan");
     expect((await send("POST", "/api/config/workflow/render", { taskKey: "NOPE", stepId: "investigate", kind: "prompt" })).statusCode).toBe(404);
   });
 

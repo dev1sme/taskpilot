@@ -30,6 +30,8 @@ interface Live {
   activity: Activity;
   /** Authenticates hook callbacks from this process; new for every spawn. */
   hookToken: string | null;
+  /** When the agent last sent a hook of its own (not the ready marker's stand-in); null until then. */
+  lastHookAt: number | null;
   /** The backend's memory between hook callbacks of this process. */
   hookState: HookState;
   /** Recent output as plain text, while waiting for the backend's ready marker. */
@@ -153,6 +155,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     const id = this.byHookToken.get(token);
     const live = id ? this.live.get(id) : undefined;
     if (!id || !live) return false;
+    live.lastHookAt = Date.now();
     const meta = await this.find(id);
     const backend = backendOf(meta.agent);
     const payload = backend.normalize ? await backend.normalize(event, raw, live.hookState) : raw;
@@ -201,6 +204,11 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       this.emit("change", meta);
     }
     this.emit("hook", meta, event, payload);
+  }
+
+  /** Whether the running process of this session has sent a hook of its own yet. */
+  hookSeen(id: string): boolean {
+    return this.live.get(id)?.lastHookAt != null;
   }
 
   /** Applies a status line callback; same token check as hooks. */
@@ -272,7 +280,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     // Without its hooks the session still runs; the run then waits and can be retried by hand.
     await backend.prepare?.(meta.repo).catch((e: unknown) => this.emit("warning", e));
     const launcher = this.launchers[meta.agent ?? DEFAULT_AGENT] ?? backend.launcher;
-    const { file, args } = launcher(meta.id, {
+    const { file, args, env: launchEnv } = launcher(meta.id, {
       resume,
       settings: backend.launchSettings?.(),
       permissionMode: meta.permissionMode,
@@ -280,7 +288,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     const proc = pty.spawn(file, args, {
       name: "xterm-256color",
       cwd: meta.repo,
-      env: childEnv(process.env, { ...extra, ...(hookUrl ? { TASKPILOT_HOOK_URL: hookUrl, TASKPILOT_HOOK_TOKEN: hookToken } : {}) }),
+      env: childEnv(process.env, { ...extra, ...launchEnv, ...(hookUrl ? { TASKPILOT_HOOK_URL: hookUrl, TASKPILOT_HOOK_TOKEN: hookToken } : {}) }),
       ...DEFAULT_SIZE,
     });
     // On resume, keep the previous run's scrollback and attached clients.
@@ -290,6 +298,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       exitCode: null,
       activity: "starting",
       hookToken,
+      lastHookAt: null,
       hookState: emptyHookState(),
       pendingOutput: backend.readyMarker ? "" : null,
     };
@@ -353,6 +362,7 @@ function emptyLive(): Live {
     exitCode: null,
     activity: "starting",
     hookToken: null,
+    lastHookAt: null,
     hookState: emptyHookState(),
     pendingOutput: null,
     scrollback: [],

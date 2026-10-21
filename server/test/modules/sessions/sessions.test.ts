@@ -234,6 +234,28 @@ while IFS= read -r line; do
 done`;
 const fakeCopilot: Launcher = (id) => ({ file: "/bin/sh", args: ["-c", COPILOT_SCRIPT, "sh", id] });
 
+describe("launcher env", () => {
+  it("reaches the child on top of the inherited environment, and not Claude's", async () => {
+    const state = new StateStore(await tempDir("taskpilot-state-"));
+    const printEnv = (env?: Record<string, string>): Launcher => (id) => ({
+      file: "/bin/sh",
+      args: ["-c", 'echo "env:[$TP_LAUNCH_VAR]"; cat', "sh", id],
+      ...(env ? { env } : {}),
+    });
+    app = await buildApp({ token: TOKEN, state, repo: await makeRepo(), launcher: printEnv(), launchers: { copilot: printEnv({ TP_LAUNCH_VAR: "yes" }) } });
+    const open = async (agent: string) => {
+      const s = (await app!.inject({ method: "POST", url: "/api/tasks/DEMO-1/sessions", headers: ok, payload: { agent } })).json();
+      return connect(app!, s.id);
+    };
+    const copilot = await open("copilot");
+    await copilot.until(() => copilot.output().includes("env:[yes]"));
+    const claude = await open("claude");
+    await claude.until(() => claude.output().includes("env:[]"));
+    copilot.ws.close();
+    claude.ws.close();
+  });
+});
+
 describe("copilot sessions", () => {
   async function startCopilot() {
     const state = new StateStore(await tempDir("taskpilot-state-"));
@@ -260,6 +282,13 @@ describe("copilot sessions", () => {
     await term.until(() => term.output().includes("? help"));
     for (let i = 0; i < 50 && (await list())[0].activity !== "idle"; i++) await new Promise((r) => setTimeout(r, 50));
     expect((await list())[0].activity).toBe("idle");
+    // The footer needs no turn to end: the quota is read as soon as the session is ready.
+    let early: { agents?: { copilot?: unknown } } | null = null;
+    for (let i = 0; i < 50 && !early?.agents?.copilot; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+      early = (await app.inject({ url: "/api/usage", headers: ok })).json();
+    }
+    expect(early?.agents?.copilot).toBeTruthy();
 
     term.ws.send(JSON.stringify({ t: "i", d: "go\r" }));
     let feed: Array<{ kind: string; status?: string; summary: string }> = [];

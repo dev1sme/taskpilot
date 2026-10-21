@@ -95,13 +95,14 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   sessions.on("warning", logError);
   const usage = new UsageStore(opts.state);
   // Claude's plan usage comes from its status line; copilot's status line input has no account
-  // quota (TPL-009 spike), so copilot's is read from its runtime when a turn ends.
+  // quota (TPL-009 spike), so copilot's is read from its runtime: when a session is ready, while
+  // it works and when a turn ends. The poller limits reads to one a minute.
   sessions.on("statusline", (meta, payload) => {
     if ((meta.agent ?? "claude") === "claude") void usage.apply(payload).catch(logError);
   });
   const copilotQuota = new CopilotQuotaPoller(usage, opts.copilotQuota, logError);
   sessions.on("hook", (meta, event) => {
-    if (meta.agent === "copilot" && event === "Stop") copilotQuota.request();
+    if (meta.agent === "copilot" && (event === "SessionStart" || event === "PostToolUse" || event === "Stop")) copilotQuota.request();
   });
   usage.on("change", (view) => hub.publish("usage", view));
   engine.on("change", (run) => hub.publish("run", { taskKey: run.taskKey }));

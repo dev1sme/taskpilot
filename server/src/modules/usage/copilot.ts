@@ -29,7 +29,7 @@ export function parseCopilotQuota(snapshots: unknown): Omit<AgentQuota, "updated
 }
 
 /**
- * Refreshes Copilot's quota when a Copilot session ends a turn: right away when the last read is a
+ * Refreshes Copilot's quota when a Copilot session asks (ready, tool done, turn ended): right away when the last read is a
  * minute old, otherwise once at the end of that minute, so the last turn is never missed. Reads
  * never overlap. A missing or logged-out Copilot removes the quota; other failures keep it.
  */

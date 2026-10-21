@@ -8,6 +8,8 @@ export interface LaunchOptions {
 export interface LaunchSpec {
   file: string;
   args: string[];
+  /** Variables for the child on top of the inherited ones. */
+  env?: Record<string, string>;
 }
 
 /** Builds the command for a session; injectable so tests can run a plain shell instead of claude. */

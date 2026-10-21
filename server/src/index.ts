@@ -26,7 +26,8 @@ const USAGE = `Usage: taskpilot [--repo <path>] [--host <addr>] [--port <n>] [--
 Environment: TASKPILOT_HOME (state dir, default ~/.taskpilot), TASKPILOT_TOKEN (fixed UI token),
 TASKPILOT_ALLOWED_HOSTS (comma-separated hostnames accepted besides loopback, e.g. a reverse
 proxy's domain), TASKPILOT_AUTH_USER + TASKPILOT_AUTH_PASSWORD (log in with these instead of the
-token, both or neither), TASKPILOT_CLAUDE (claude command, default "claude").
+token, both or neither), TASKPILOT_CLAUDE (claude command, default "claude"), TASKPILOT_COPILOT
+(GitHub Copilot CLI command, default "copilot").
 Variables not set in the environment are read from the .env next to package.json.`;
 
 let values;

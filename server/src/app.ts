@@ -91,7 +91,10 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   sessions.on("exit", (meta) => void engine.onExit(meta).catch(logError));
   sessions.on("warning", logError);
   const usage = new UsageStore(opts.state);
-  sessions.on("statusline", (_meta, payload) => void usage.apply(payload).catch(logError));
+  // Plan usage comes from Claude's status line only; copilot's input has no account quota (TPL-009 spike).
+  sessions.on("statusline", (meta, payload) => {
+    if ((meta.agent ?? "claude") === "claude") void usage.apply(payload).catch(logError);
+  });
   usage.on("change", (view) => hub.publish("usage", view));
   engine.on("change", (run) => hub.publish("run", { taskKey: run.taskKey }));
   engine.on("warning", logError);

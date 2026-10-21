@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { AGENT_LABELS, DEFAULT_AGENT, type Agent } from "../../core/agents.js";
 import { HttpError } from "../../core/errors.js";
 import { getTask, TASKS_DIR } from "../tasks/index.js";
 import type { HookEvent, SessionView } from "../sessions/index.js";
@@ -15,7 +16,7 @@ import { t } from "../../core/i18n.js";
 
 /** The parts of SessionManager the engine uses. */
 export interface SessionPort {
-  create(repo: string, taskKey: string, opts: { permissionMode?: string }): Promise<SessionView>;
+  create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent }): Promise<SessionView>;
   resume(id: string): Promise<SessionView>;
   stop(id: string): Promise<void>;
   get(id: string): Promise<SessionView>;
@@ -30,6 +31,7 @@ export interface RunView {
     steps: Array<{
       id: string;
       title: string;
+      agent: Agent;
       gate: StepDef["gate"];
       doneFile: string | null;
       outputs: Array<{ id: string; file: string }>;
@@ -78,6 +80,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
         steps: def.steps.map((s) => ({
           id: s.id,
           title: s.title,
+          agent: s.agent ?? DEFAULT_AGENT,
           gate: s.gate,
           doneFile: s.doneWhen?.file ?? null,
           outputs: s.outputs.map((o) => ({ id: o.id, file: o.file })),
@@ -134,7 +137,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
    */
   private async begin(repo: string, taskKey: string, previous?: RunState["previous"]): Promise<RunState> {
     const def = await this.loadDef(repo);
-    const session = await this.sessions.create(repo, taskKey, { permissionMode: def.permissionMode });
+    const session = await this.sessions.create(repo, taskKey, { permissionMode: def.permissionMode, agent: def.steps[0].agent ?? DEFAULT_AGENT });
     const now = Date.now();
     const run: RunState = {
       repo,
@@ -168,8 +171,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       if (last) {
         return this.save(run, { phase: "done", message: t("run.done") });
       }
-      run.stepIndex += 1;
-      await this.deliver(run, await this.prompt(run, def.steps[run.stepIndex].prompt));
+      await this.enterStep(run, def, run.stepIndex + 1);
       return run;
     });
   }
@@ -286,9 +288,26 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     } else if (run.stepIndex + 1 >= def.steps.length) {
       await this.save(run, { phase: "done", message: t("run.done") });
     } else {
-      run.stepIndex += 1;
-      await this.deliver(run, await this.prompt(run, def.steps[run.stepIndex].prompt));
+      await this.enterStep(run, def, run.stepIndex + 1);
     }
+  }
+
+  /**
+   * Moves the run to step `index` and sends its prompt. A step for another agent gets a new session
+   * of that agent: the previous one is stopped (it stays listed) and the switch goes into the decision
+   * log, which the step's prompt has the agent read with the task's documents.
+   */
+  private async enterStep(run: RunState, def: WorkflowDef, index: number): Promise<void> {
+    run.stepIndex = index;
+    const agent = def.steps[index].agent ?? DEFAULT_AGENT;
+    const current = await this.sessions.get(run.sessionId).catch(() => null);
+    if (current && current.agent !== agent) {
+      if (current.status === "running") await this.sessions.stop(run.sessionId);
+      const session = await this.sessions.create(run.repo, run.taskKey, { permissionMode: def.permissionMode, agent });
+      await this.log(run, HISTORY_TEXT.switchAgent, { body: HISTORY_TEXT.switchAgentBody(AGENT_LABELS[current.agent], AGENT_LABELS[agent]) });
+      await this.save(run, { sessionId: session.id });
+    }
+    await this.deliver(run, await this.prompt(run, def.steps[index].prompt));
   }
 
   /**

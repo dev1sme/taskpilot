@@ -33,6 +33,8 @@ export const HISTORY_TEXT = {
   interrupted: "Gián đoạn",
   serverRestarted: "TaskPilot khởi động lại giữa bước.",
   sessionStopped: "Session dừng giữa bước.",
+  switchAgent: "Đổi agent",
+  switchAgentBody: (from: string, to: string) => `Bước này chạy bằng ${to} trong session mới; session ${from} của bước trước đã dừng.`,
 } as const;
 
 // "2026-10-20 14:03" in the server's time zone.

@@ -10,7 +10,7 @@ version: 2
 # skeleton of a whole entry ({{historyFormat}}).
 history:
   file: 00-history.md
-  entry: "## <YYYY-MM-DD HH:MM> · {{step}} · Claude"
+  entry: "## <YYYY-MM-DD HH:MM> · {{step}} · {{agent}}"
   format: format-history.md
 
 # {{language}} and {{rules}} in the prompts below. Each output's `format` is a skeleton file shown

@@ -4,6 +4,8 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { SessionView } from "../../../src/modules/sessions/manager.js";
 import type { SessionMeta } from "../../../src/core/state.js";
 import { StateStore } from "../../../src/core/state.js";
+import type { Agent } from "../../../src/core/agents.js";
+import { loadWorkflow } from "../../../src/modules/workflow/definition.js";
 import { WorkflowEngine, type SessionPort } from "../../../src/modules/workflow/engine.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
@@ -20,11 +22,11 @@ class FakeSessions implements SessionPort {
   resumed: string[] = [];
   constructor(private readonly state: StateStore) {}
 
-  async create(repo: string, taskKey: string, opts: { permissionMode?: string }): Promise<SessionView> {
+  async create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent }): Promise<SessionView> {
     const id = `00000000-0000-4000-8000-${String(this.sessions.size).padStart(12, "0")}`;
     const meta: SessionMeta = { id, repo, taskKey, title: "Session", createdAt: Date.now(), ...opts };
     await this.state.update((s) => void s.sessions.push(meta));
-    const view: SessionView = { ...meta, status: "running", exitCode: null, activity: "starting" };
+    const view: SessionView = { ...meta, agent: opts.agent ?? "claude", status: "running", exitCode: null, activity: "starting" };
     this.sessions.set(id, view);
     return view;
   }
@@ -166,6 +168,68 @@ describe("workflow engine", () => {
     expect((await state.load()).runs[0]).toMatchObject({ phase: "starting" });
     expect(await hook("SessionStart")).toMatchObject({ phase: "running" });
     expect(fake.pasted).toHaveLength(2);
+  });
+
+  it("runs a step for another agent in a new session and logs the switch", async () => {
+    engine = new WorkflowEngine(state, fake, async (r) => {
+      const def = await loadWorkflow(r);
+      def.steps[1].agent = "copilot";
+      return def;
+    });
+    // The run object is updated in place; keep the first session's id.
+    const first = (await engine.start(repo, "DEMO-1")).sessionId;
+    expect(fake.sessions.get(first)?.agent).toBe("claude");
+    await hook("SessionStart");
+    await write("02-plan.md");
+    await hook("Stop");
+    expect((await engine.view(repo, "DEMO-1")).workflow.steps.map((s) => s.agent)).toEqual(["claude", "copilot"]);
+
+    const next = await engine.approve(repo, "DEMO-1");
+    expect(fake.stopped).toEqual([first]);
+    expect(next.sessionId).not.toBe(first);
+    expect(fake.sessions.get(next.sessionId)).toMatchObject({ agent: "copilot" });
+    // The new session gets the step once it reports SessionStart.
+    expect(next).toMatchObject({ phase: "starting", stepIndex: 1 });
+    expect(await hook("SessionStart")).toMatchObject({ phase: "running" });
+    expect(fake.pasted.at(-1)).toContain("· Triển khai · Copilot");
+
+    // The old session's exit no longer belongs to the run.
+    await engine.onExit(fake.meta(first));
+    expect((await state.load()).runs[0]).toMatchObject({ phase: "running", sessionId: next.sessionId });
+
+    // The Copilot session stopping interrupts the run; retry resumes that session, not Claude's.
+    fake.exit(next.sessionId);
+    await engine.onExit(fake.meta(next.sessionId));
+    expect((await state.load()).runs[0]).toMatchObject({ phase: "interrupted" });
+    await engine.retry(repo, "DEMO-1");
+    expect(fake.resumed).toEqual([next.sessionId]);
+    await hook("SessionStart");
+    await write("04-summary.md");
+    expect(await hook("Stop")).toMatchObject({ phase: "gate", stepIndex: 1 });
+
+    const log = await readFile(path.join(taskDir(), HISTORY_FILE), "utf8");
+    expect(log).toContain("· Triển khai · Đổi agent\n\nBước này chạy bằng Copilot trong session mới; session Claude của bước trước đã dừng.");
+
+    // A restart starts over with step 1's agent.
+    const again = await engine.restart(repo, "DEMO-1");
+    expect(fake.sessions.get(again.sessionId)).toMatchObject({ agent: "claude" });
+    expect(again.stepIndex).toBe(0);
+  });
+
+  it("keeps one session when every step uses the same agent, also for snapshots saved without agents", async () => {
+    engine = new WorkflowEngine(state, fake, async (r) => {
+      const def = await loadWorkflow(r);
+      // As saved by a TaskPilot without agents.
+      for (const s of def.steps) delete (s as { agent?: Agent }).agent;
+      delete (def as { agent?: Agent }).agent;
+      return def;
+    });
+    const run = await engine.start(repo, "DEMO-1");
+    await hook("SessionStart");
+    await write("02-plan.md");
+    await hook("Stop");
+    expect(await engine.approve(repo, "DEMO-1")).toMatchObject({ sessionId: run.sessionId, phase: "running", stepIndex: 1 });
+    expect(fake.stopped).toEqual([]);
   });
 
   it("refuses a second active run and allows one after cancel", async () => {

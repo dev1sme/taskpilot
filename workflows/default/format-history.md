@@ -1,4 +1,4 @@
-## <YYYY-MM-DD HH:MM> · {{step}} · Claude
+## <YYYY-MM-DD HH:MM> · {{step}} · {{agent}}
 
 **Quyết định:**
 - <quyết định và lý do>

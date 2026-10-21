@@ -32,7 +32,7 @@ describe("workflow definition", () => {
   it("loads the built-in workflow with its outputs and prompts, without warnings", async () => {
     const def = await loadWorkflow(await makeRepo());
     expect(def).toMatchObject({ origin: "default", source: path.join(DEFAULT_WORKFLOW_DIR, "workflow.yml") });
-    expect(def.history).toMatchObject({ file: "00-history.md", entry: "## <YYYY-MM-DD HH:MM> · {{step}} · Claude", format: "format-history.md" });
+    expect(def.history).toMatchObject({ file: "00-history.md", entry: "## <YYYY-MM-DD HH:MM> · {{step}} · {{agent}}", format: "format-history.md" });
     expect(def.steps.flatMap((s) => s.outputs.map((o) => o.format))).toEqual(["format-investigation.md", "format-plan.md", "format-progress.md", "format-summary.md"]);
     expect(def.restart).toEqual({ read: ["plan", "summary", "progress"] });
     expect(def.steps.map((s) => [s.id, s.gate, s.doneWhen?.file, s.outputs.map((o) => o.file)])).toEqual([

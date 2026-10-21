@@ -1,4 +1,5 @@
 import path from "node:path";
+import { AGENT_LABELS, DEFAULT_AGENT } from "../../core/agents.js";
 import { SPEC_DIR, TASKS_DIR } from "../tasks/index.js";
 import { PROMPT_TEXT } from "./prompt-text.js";
 import type { RunState, WorkflowDef } from "./types.js";
@@ -8,6 +9,7 @@ export const templateVars = [
   "key",
   "title",
   "step",
+  "agent",
   "stepNumber",
   "stepCount",
   "taskDir",
@@ -64,6 +66,7 @@ export function promptVars(
     key: task.key,
     title: task.title,
     step: step?.title ?? "",
+    agent: AGENT_LABELS[step?.agent ?? DEFAULT_AGENT],
     stepNumber: String(stepIndex + 1),
     stepCount: String(def.steps.length),
     taskDir,

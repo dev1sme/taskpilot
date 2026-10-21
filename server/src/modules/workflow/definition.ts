@@ -21,7 +21,7 @@ const PERMISSION_MODES = ["default", "acceptEdits", "plan", "auto"];
 const ID = /^[a-z][a-z0-9-]*$/;
 /** A document at the top of the task directory (where restarts archive from and stages are read). */
 const TASK_DOC = /^[A-Za-z0-9][\w.-]*\.md$/;
-const DEFAULT_HISTORY = { file: "00-history.md", entry: "## <YYYY-MM-DD HH:MM> · {{step}} · Claude" };
+const DEFAULT_HISTORY = { file: "00-history.md", entry: "## <YYYY-MM-DD HH:MM> · {{step}} · {{agent}}" };
 
 export interface ParseResult {
   def: WorkflowDef | null;

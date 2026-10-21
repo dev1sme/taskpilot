@@ -22,6 +22,8 @@ export const SERVER_ENV: Record<string, string> = {
   TASKPILOT_HOME: path.join(TMP, "home"),
   TASKPILOT_CLAUDE_HOME: path.join(TMP, "claude"),
   TASKPILOT_CLAUDE_JSON: path.join(TMP, "claude.json"),
+  // Copilot sessions install their hooks under COPILOT_HOME.
+  COPILOT_HOME: path.join(TMP, "copilot"),
   TASKPILOT_AUTH_USER: E2E_USER,
   TASKPILOT_AUTH_PASSWORD: E2E_PASSWORD,
   TASKPILOT_TOKEN: "e2e-token",

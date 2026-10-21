@@ -5,11 +5,14 @@ import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 import { AGENTS, DEFAULT_AGENT, isAgent, type Agent } from "../../core/agents.js";
 import { HttpError } from "../../core/errors.js";
-import type { OutputDef, StepDef, WorkflowDef } from "./types.js";
+import { MAX_PARALLEL } from "./assignments.js";
+import type { DispatchDef, OutputDef, StepDef, WorkflowDef } from "./types.js";
 import { templateVars } from "./vars.js";
 
 /** <package>/workflows/default; four levels up from both server/src/modules/workflow and dist/server/modules/workflow. */
 export const DEFAULT_WORKFLOW_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../workflows/default");
+/** The leader / member template a repo can copy into its override. */
+export const LEADER_WORKFLOW_DIR = path.join(path.dirname(DEFAULT_WORKFLOW_DIR), "leader");
 /** A repo's own workflow: workflow.yml plus its prompt files, all in this one directory. */
 export const OVERRIDE_DIR = path.join(".claude", "taskpilot");
 export const WORKFLOW_FILE = "workflow.yml";
@@ -138,9 +141,63 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
     else rules = doc.rules as string[];
   }
 
+  const stepCount = doc.steps.length;
   const steps: StepDef[] = [];
   const outputIds = new Set<string>();
+  /** Agent of the step that writes each output: the leader of a dispatch step reading it. */
+  const outputAgent = new Map<string, Agent>();
   const outputFiles = new Set<string>([history.file]);
+  /** A dispatch step: its table comes from an earlier output, its prompt is for each subtask. */
+  const readDispatch = (at: string, raw: Record<string, unknown>, index: number): StepDef | null => {
+    const id = typeof raw.id === "string" ? raw.id : "";
+    for (const key of ["prompt", "outputs", "done-when", "gate", "agent", "on-reject"]) {
+      if (raw[key] !== undefined) errors.push(`${at}: a dispatch step has no \`${key}\`; its settings go under \`dispatch\``);
+    }
+    if (steps.some((s) => s.dispatch)) {
+      errors.push(`${at}: only one dispatch step is allowed`);
+    }
+    if (index > 0 && !steps.at(-1)?.dispatch && steps.at(-1)?.gate !== "approve") {
+      errors.push(`${at}: the step before a dispatch step needs gate: approve, so the reviewer approves the plan before work is handed out`);
+    }
+    if (index === stepCount - 1) errors.push(`${at}: a dispatch step needs a review step after it`);
+    const d = raw.dispatch;
+    if (!isObject(d)) return (errors.push(`${at}.dispatch must be {from, prompt, report, format, parallel}`), null);
+
+    const from = typeof d.from === "string" ? d.from : "";
+    const leader = outputAgent.get(from);
+    if (leader === undefined) errors.push(`${at}.dispatch.from must be the id of an output of an earlier step`);
+
+    const prompt = loadPrompt(`${at}.dispatch.prompt`, d.prompt);
+    const report = typeof d.report === "string" ? d.report : "";
+    if (!report.includes("{{n}}")) errors.push(`${at}.dispatch.report must contain {{n}}, e.g. 03-viec-{{n}}.md`);
+    else if (!TASK_DOC.test(report.replaceAll("{{n}}", "1"))) errors.push(`${at}.dispatch.report must be a .md file name at the top of the task directory`);
+    else if ([...outputFiles].some((f) => reportOf(report, 1) === f)) errors.push(`${at}.dispatch.report ${report} collides with an output file`);
+    const format = loadFormat(`${at}.dispatch.format`, d.format);
+    let parallel = 1;
+    if (d.parallel !== undefined) {
+      if (typeof d.parallel !== "number" || !Number.isInteger(d.parallel) || d.parallel < 1 || d.parallel > MAX_PARALLEL) {
+        errors.push(`${at}.dispatch.parallel must be an integer from 1 to ${MAX_PARALLEL}`);
+      } else parallel = d.parallel;
+    }
+    const dispatch: DispatchDef = {
+      from,
+      prompt: prompt?.text ?? "",
+      promptFile: prompt?.file ?? "",
+      report,
+      ...(format ? { format: format.file, formatText: format.text } : {}),
+      parallel,
+    };
+    return {
+      id,
+      title: typeof raw.title === "string" ? raw.title : id,
+      agent: leader ?? agent,
+      prompt: "",
+      promptFile: "",
+      outputs: [],
+      gate: "none",
+      dispatch,
+    };
+  };
   for (const [i, raw] of doc.steps.entries()) {
     const at = `steps[${i}]`;
     if (!isObject(raw)) {
@@ -150,6 +207,11 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
     const id = raw.id;
     if (typeof id !== "string" || !ID.test(id)) errors.push(`${at}.id must match ${ID}`);
     else if (steps.some((s) => s.id === id)) errors.push(`duplicate step id ${id}`);
+    if (raw.dispatch !== undefined) {
+      const step = readDispatch(at, raw, i);
+      if (step) steps.push(step);
+      continue;
+    }
     const gate = raw.gate ?? "none";
     if (gate !== "approve" && gate !== "none") errors.push(`${at}.gate must be approve or none`);
 
@@ -200,6 +262,7 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
       onReject: onReject?.text,
       onRejectFile: onReject?.file,
     });
+    for (const o of outputs) outputAgent.set(o.id, steps[steps.length - 1].agent);
   }
 
   let restart: WorkflowDef["restart"];
@@ -229,6 +292,11 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
   });
 }
 
+/** The report file of subtask `n`, from the workflow's `report` pattern. */
+export function reportOf(pattern: string, n: number): string {
+  return pattern.replaceAll("{{n}}", String(n));
+}
+
 const VAR = /\{\{([\w.]+)\}\}/g;
 
 function checkTemplates(
@@ -240,12 +308,14 @@ function checkTemplates(
   warnings: string[],
 ) {
   const known = new Set<string>(templateVars);
-  const check = (where: string, text: string, allowFeedback: boolean) => {
+  const check = (where: string, text: string, allowFeedback: boolean, allowSubtask = false) => {
     for (const [, name] of text.matchAll(VAR)) {
       if (name.startsWith("out.")) {
         if (!outputIds.has(name.slice(4))) errors.push(`${where}: {{${name}}} names no output`);
       } else if (name === "feedback" && !allowFeedback) {
         errors.push(`${where}: {{feedback}} is only available in on-reject prompts`);
+      } else if ((name === "subtask" || name === "subtaskReport") && !allowSubtask) {
+        errors.push(`${where}: {{${name}}} is only available in the dispatch step's prompt`);
       } else if (!known.has(name)) {
         warnings.push(`${where}: unknown variable {{${name}}} is sent as it is`);
       }
@@ -260,6 +330,11 @@ function checkTemplates(
     if (o.format) formats.add(o.format);
   }
   for (const s of steps) {
+    if (s.dispatch) {
+      check(s.dispatch.promptFile, s.dispatch.prompt, false, true);
+      if (s.dispatch.format && s.dispatch.formatText !== undefined) check(s.dispatch.format, s.dispatch.formatText, false);
+      if (!s.dispatch.prompt.includes("{{subtask}}")) warnings.push(`${s.dispatch.promptFile}: without {{subtask}}, the member is not told what its subtask is`);
+    }
     if (s.promptFile) check(s.promptFile, s.prompt, false);
     if (s.onRejectFile && s.onReject !== undefined) check(s.onRejectFile, s.onReject, true);
     if (s.outputs.length > 0 && s.prompt && !/\{\{outputs\}\}/.test(s.prompt) && !s.outputs.some((o) => s.prompt.includes(`{{out.${o.id}}}`))) {

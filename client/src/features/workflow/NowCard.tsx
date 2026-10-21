@@ -2,7 +2,6 @@ import {
   ArrowClockwise,
   ArrowCounterClockwise,
   ChatCircleDots,
-  ChatText,
   CheckCircle,
   FileText,
   HandPalm,
@@ -11,7 +10,7 @@ import {
   TerminalWindow,
 } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { AGENT_LABELS } from "../../shared/agents";
 import { Button } from "../../shared/ui/Button";
@@ -19,7 +18,8 @@ import { Elapsed, formatDuration } from "../../shared/ui/Elapsed";
 import { CategoryIcon, type ActivityItem } from "../activity";
 import { workflowApi } from "./api";
 import type { SessionView } from "../sessions";
-import { composeAnswers, initialAnswers, QuestionForm } from "./QuestionForm";
+import { ReplyForm } from "./ReplyForm";
+import { SubtaskTree } from "./SubtaskTree";
 import type { Question, RunState, WorkflowStep } from "./types";
 import "./now-card.css";
 
@@ -30,7 +30,11 @@ interface Props {
   session: SessionView | null;
   activity: ActivityItem[];
   questions: Question[];
-  onOpenTerminal: () => void;
+  /** Questions of each waiting subtask, by subtask number. */
+  subtaskQuestions: Record<number, Question[]>;
+  /** Sessions asking for a permission. */
+  asking: Set<string>;
+  onOpenTerminal: (sessionId?: string) => void;
   onOpenDoc: (path: string) => void;
   onChanged: () => void;
 }
@@ -66,7 +70,7 @@ export function NowCard(props: Props) {
     </Button>
   );
   const openTerminal = (
-    <Button icon={TerminalWindow} onClick={props.onOpenTerminal}>
+    <Button icon={TerminalWindow} onClick={() => props.onOpenTerminal()}>
       {t("now.openTerminal")}
     </Button>
   );
@@ -114,6 +118,34 @@ export function NowCard(props: Props) {
     );
   }
 
+  // The leader's session is idle while its subtasks work: each one is shown and answered on its own.
+  if (step?.dispatch && run.subtasks) {
+    const done = run.subtasks.filter((s) => s.phase === "done").length;
+    const attention = run.phase === "waiting" || run.phase === "interrupted" || run.subtasks.some((s) => props.asking.has(s.sessionId ?? ""));
+    return (
+      <Card tone={attention ? "attention" : "signal"} icon={attention ? <ChatCircleDots weight="fill" /> : <span className="radar" aria-hidden="true" />}>
+        <div className="now-head">
+          <h3>{t("subtasks.title", { step: step.title, done, total: run.subtasks.length })}</h3>
+          <span className="now-timer">
+            <Elapsed since={run.stepStartedAt} />
+          </span>
+        </div>
+        <p className="now-text">{run.message}</p>
+        <SubtaskTree
+          taskKey={props.taskKey}
+          subtasks={run.subtasks}
+          questions={props.subtaskQuestions}
+          asking={props.asking}
+          onOpenTerminal={props.onOpenTerminal}
+          onOpenDoc={props.onOpenDoc}
+          onChanged={props.onChanged}
+        />
+        {errorLine}
+        <div className="now-actions">{restart}</div>
+      </Card>
+    );
+  }
+
   if (session?.activity === "permission") {
     const ask = [...props.activity].reverse().find((i) => i.kind === "permission");
     return (
@@ -122,7 +154,7 @@ export function NowCard(props: Props) {
         <p className="now-text">{ask?.action ?? t("now.permissionFallback", { agent })}</p>
         <p className="now-sub">{t("now.permissionHint")}</p>
         <div className="now-actions">
-          <Button icon={TerminalWindow} variant="attention" onClick={props.onOpenTerminal}>
+          <Button icon={TerminalWindow} variant="attention" onClick={() => props.onOpenTerminal()}>
             {t("now.permissionAnswer")}
           </Button>
         </div>
@@ -136,7 +168,7 @@ export function NowCard(props: Props) {
         <h3>{t("now.waitingTitle", { agent })}</h3>
         <p className="now-text">{run.message}</p>
         {run.lastMessage && props.questions.length === 0 && <blockquote className="now-quote">{lastParagraph(run.lastMessage)}</blockquote>}
-        <ReplyForm taskKey={props.taskKey} questions={props.questions} agent={agent} onChanged={props.onChanged} />
+        <ReplyForm send={(text) => workflowApi.reply(props.taskKey, text)} questions={props.questions} agent={agent} onChanged={props.onChanged} />
         {errorLine}
         <div className="now-actions">
           {openTerminal}
@@ -215,56 +247,6 @@ export function NowCard(props: Props) {
       {errorLine}
       {run.phase === "starting" && <div className="now-actions">{openTerminal}{retry}</div>}
     </Card>
-  );
-}
-
-/** Answers Claude from here: one field per question it asked, plus free text; sent into the session as it is. */
-function ReplyForm(props: { taskKey: string; questions: Question[]; agent: string; onChanged: () => void }) {
-  const { t } = useTranslation("workflow");
-  const id = useId();
-  const [answers, setAnswers] = useState(() => initialAnswers(props.questions));
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const asked = JSON.stringify(props.questions);
-  useEffect(() => setAnswers(initialAnswers(JSON.parse(asked) as Question[])), [asked]);
-  const reply = [composeAnswers(props.questions, answers, t("questions.agree")), text.trim()].filter(Boolean).join("\n\n");
-
-  return (
-    <form
-      className="now-reply"
-      onSubmit={(e) => {
-        e.preventDefault();
-        setBusy(true);
-        workflowApi
-          .reply(props.taskKey, reply)
-          .then(
-            () => {
-              setText("");
-              setError(null);
-            },
-            (err: Error) => setError(err.message),
-          )
-          .finally(() => {
-            setBusy(false);
-            props.onChanged();
-          });
-      }}
-    >
-      {props.questions.length > 0 && <QuestionForm agent={props.agent} questions={props.questions} answers={answers} onChange={setAnswers} disabled={busy} />}
-      <label htmlFor={id}>{props.questions.length > 0 ? t("now.replyMore") : t("now.replyLabel", { agent: props.agent })}</label>
-      <div className="now-reply-row">
-        <textarea id={id} rows={2} value={text} placeholder={t("now.replyPlaceholder")} onChange={(e) => setText(e.target.value)} />
-        <Button type="submit" icon={ChatText} variant="attention" busy={busy} disabled={busy || !reply}>
-          {t("now.replySend")}
-        </Button>
-      </div>
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-    </form>
   );
 }
 

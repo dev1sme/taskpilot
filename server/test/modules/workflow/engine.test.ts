@@ -5,7 +5,7 @@ import type { SessionView } from "../../../src/modules/sessions/manager.js";
 import type { SessionMeta } from "../../../src/core/state.js";
 import { StateStore } from "../../../src/core/state.js";
 import type { Agent } from "../../../src/core/agents.js";
-import { loadWorkflow } from "../../../src/modules/workflow/definition.js";
+import { LEADER_WORKFLOW_DIR, loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
 import { WorkflowEngine, type SessionPort } from "../../../src/modules/workflow/engine.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
@@ -19,10 +19,12 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 class FakeSessions implements SessionPort {
   sessions = new Map<string, SessionView>();
   pasted: string[] = [];
+  /** What was pasted into each session. */
+  pastedBy = new Map<string, string[]>();
   resumed: string[] = [];
   constructor(private readonly state: StateStore) {}
 
-  async create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent }): Promise<SessionView> {
+  async create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent; title?: string }): Promise<SessionView> {
     const id = `00000000-0000-4000-8000-${String(this.sessions.size).padStart(12, "0")}`;
     const meta: SessionMeta = { id, repo, taskKey, title: "Session", createdAt: Date.now(), ...opts };
     await this.state.update((s) => void s.sessions.push(meta));
@@ -44,6 +46,7 @@ class FakeSessions implements SessionPort {
   }
   paste(id: string, text: string) {
     this.pasted.push(text);
+    this.pastedBy.set(id, [...(this.pastedBy.get(id) ?? []), text]);
     this.sessions.get(id)!.activity = "busy";
   }
   meta(id: string): SessionMeta {
@@ -377,5 +380,241 @@ describe("workflow engine", () => {
     await hook("SessionStart");
     await new WorkflowEngine(state, fake).recover();
     expect((await state.load()).runs[0]).toMatchObject({ phase: "interrupted" });
+  });
+});
+
+describe("workflow engine: dispatch", () => {
+  let repo: string;
+  let fake: FakeSessions;
+  let engine: WorkflowEngine;
+  let state: StateStore;
+  const taskDir = () => path.join(repo, ".claude", "tasks", "DEMO-1");
+  const table = (...rows: string[]) => ["## 7. Phân công", "", "| # | Việc | Agent | File | Đầu ra | Phụ thuộc |", "|---|---|---|---|---|---|", ...rows].join("\n");
+  const TWO = table("| 1 | Parser | claude | server/a.ts | parser | - |", "| 2 | UI | copilot | client/ | ui | 1 |");
+
+  async function leaderDef(parallel = 1) {
+    const { def } = parseWorkflowFiles(await readWorkflowDir(LEADER_WORKFLOW_DIR), { dir: LEADER_WORKFLOW_DIR, origin: "default" });
+    def!.steps[1].dispatch!.parallel = parallel;
+    return def!;
+  }
+  async function setup(parallel = 1) {
+    repo = await makeRepo();
+    state = new StateStore(await tempDir("taskpilot-state-"));
+    fake = new FakeSessions(state);
+    const def = await leaderDef(parallel);
+    engine = new WorkflowEngine(state, fake, async () => def);
+  }
+  async function write(name: string, text = "# x\n") {
+    await mkdir(taskDir(), { recursive: true });
+    await writeFile(path.join(taskDir(), name), text);
+  }
+  const run = async () => (await state.load()).runs[0];
+  /** Fires a hook in one session, the way the session's own agent would. */
+  async function hookOn(id: string, event: Parameters<WorkflowEngine["onHook"]>[1], payload: Record<string, unknown> = {}) {
+    fake.sessions.get(id)!.activity = event === "Stop" || event === "SessionStart" ? "idle" : "busy";
+    await engine.onHook(fake.meta(id), event, payload);
+    return run();
+  }
+  /** Leader plans with `plan`, the reviewer approves: the subtasks start. */
+  async function dispatch(plan = TWO) {
+    const leader = (await engine.start(repo, "DEMO-1")).sessionId;
+    await hookOn(leader, "SessionStart");
+    await write("02-plan.md", `# Plan\n\n${plan}\n`);
+    await hookOn(leader, "Stop");
+    await engine.approve(repo, "DEMO-1");
+    return leader;
+  }
+  /** The subtask's agent starts, writes its report and ends the turn. */
+  async function finish(n: number) {
+    const sub = (await run()).subtasks!.find((s) => s.n === n)!;
+    await hookOn(sub.sessionId!, "SessionStart");
+    await write(sub.report);
+    return hookOn(sub.sessionId!, "Stop");
+  }
+
+  beforeEach(() => setup());
+
+  it("runs each subtask in its own session of its agent, in dependency order, then reviews in the leader's session", async () => {
+    const leader = await dispatch();
+    let r = await run();
+    expect(r).toMatchObject({ stepIndex: 1, phase: "running", message: "Đang giao việc: 0/2 xong.", sessionId: leader });
+    expect(r.subtasks!.map((s) => [s.n, s.phase, s.agent])).toEqual([[1, "starting", "claude"], [2, "pending", "copilot"]]);
+    const first = r.subtasks![0].sessionId!;
+    expect(fake.sessions.get(first)).toMatchObject({ agent: "claude", title: "Việc 1" });
+
+    r = await hookOn(first, "SessionStart");
+    expect(fake.pastedBy.get(first)![0]).toContain("Việc 1: Parser");
+    expect(fake.pastedBy.get(first)![0]).toContain("File được sửa: `server/a.ts`");
+    expect(fake.pastedBy.get(first)![0]).not.toContain("Không commit");
+
+    // Without its report the subtask waits; the leader's session is not asked anything.
+    expect(await hookOn(first, "Stop")).toMatchObject({ phase: "waiting", subtasks: [{ phase: "waiting" }, { phase: "pending" }] });
+    await hookOn(first, "UserPromptSubmit");
+    await write("03-viec-1.md");
+    r = await hookOn(first, "Stop");
+    expect(r.subtasks!.map((s) => s.phase)).toEqual(["done", "starting"]);
+    expect(fake.stopped).toEqual([first]);
+    expect(r).toMatchObject({ phase: "running", message: "Đang giao việc: 1/2 xong." });
+
+    const second = r.subtasks![1].sessionId!;
+    expect(fake.sessions.get(second)).toMatchObject({ agent: "copilot", title: "Việc 2" });
+    await hookOn(second, "SessionStart");
+    expect(fake.pastedBy.get(second)![0]).toContain("`.claude/tasks/DEMO-1/03-viec-1.md` (việc 1: Parser)");
+
+    await write("03-viec-2.md");
+    r = await hookOn(second, "Stop");
+    expect(fake.stopped).toEqual([first, second]);
+    expect(r).toMatchObject({ stepIndex: 2, phase: "running", sessionId: leader });
+    expect(fake.pastedBy.get(leader)!.at(-1)).toContain("- Việc 2 · Copilot · UI → `.claude/tasks/DEMO-1/03-viec-2.md`");
+
+    await write("04-summary.md");
+    expect(await hookOn(leader, "Stop")).toMatchObject({ phase: "gate", stepIndex: 2 });
+    expect(await engine.approve(repo, "DEMO-1")).toMatchObject({ phase: "done" });
+
+    const log = await readFile(path.join(taskDir(), "00-history.md"), "utf8");
+    for (const heading of ["· Giao việc\n\n1. Claude — Parser\n2. Copilot — UI (sau việc 1)", "· Việc 1 xong · Claude\n\nBáo cáo: 03-viec-1.md", "· Việc 2 xong · Copilot", "· Giao việc · Về leader rà soát\n\n2 việc đã xong"]) {
+      expect(log).toContain(heading);
+    }
+  });
+
+  it("ignores hooks of the leader's idle session while subtasks work", async () => {
+    const leader = await dispatch();
+    expect(await hookOn(leader, "Stop")).toMatchObject({ stepIndex: 1, phase: "running" });
+    fake.exit(leader);
+    await engine.onExit(fake.meta(leader));
+    expect(await run()).toMatchObject({ phase: "running" });
+    expect(await engine.usesSession(leader)).toBe(true);
+    expect(await engine.usesSession((await run()).subtasks![0].sessionId!)).toBe(true);
+  });
+
+  it("resumes the leader's session for the review when it exited meanwhile", async () => {
+    const leader = await dispatch();
+    fake.exit(leader);
+    await engine.onExit(fake.meta(leader));
+    await finish(1);
+    await finish(2);
+    expect(fake.resumed).toEqual([leader]);
+    expect(await run()).toMatchObject({ stepIndex: 2, phase: "starting", sessionId: leader });
+    expect(await hookOn(leader, "SessionStart")).toMatchObject({ phase: "running" });
+    expect(fake.pastedBy.get(leader)!.at(-1)).toContain("Rà soát");
+  });
+
+  it("refuses to approve a plan whose table cannot run, and says why in the view", async () => {
+    const leader = (await engine.start(repo, "DEMO-1")).sessionId;
+    await hookOn(leader, "SessionStart");
+    await write("02-plan.md", "# Plan\n\n" + table("| 1 | A | gemini | - | x | 3 |"));
+    await hookOn(leader, "Stop");
+    const view = await engine.view(repo, "DEMO-1");
+    expect(view.assignments!.items).toEqual([]);
+    expect(view.assignments!.errors).toEqual(expect.arrayContaining([expect.stringContaining('unknown agent "gemini"')]));
+    await expect(engine.approve(repo, "DEMO-1")).rejects.toMatchObject({ status: 400, message: expect.stringContaining("gemini") });
+    expect(await run()).toMatchObject({ phase: "gate", stepIndex: 0 });
+    expect(fake.sessions.size).toBe(1);
+
+    await write("02-plan.md", `# Plan\n\n${TWO}\n`);
+    expect((await engine.view(repo, "DEMO-1")).assignments!.items.map((a) => a.n)).toEqual([1, 2]);
+  });
+
+  it("starts subtasks at once only when their files do not overlap; the rest queue", async () => {
+    await setup(2);
+    const rows = [
+      "| 1 | A | claude | server/ | a | - |",
+      "| 2 | B | copilot | client/ | b | - |",
+      "| 3 | C | claude | server/x.ts | c | - |",
+      "| 4 | D | claude | docs/ | d | 1 |",
+    ];
+    await dispatch(table(...rows));
+    let r = await run();
+    expect(r.subtasks!.map((s) => s.phase)).toEqual(["starting", "starting", "pending", "pending"]);
+    await hookOn(r.subtasks![0].sessionId!, "SessionStart");
+    expect(fake.pastedBy.get(r.subtasks![0].sessionId!)![0]).toContain("Không commit");
+
+    await finish(2);
+    r = await run();
+    // 3 overlaps 1, which is still running; 4 waits for 1.
+    expect(r.subtasks!.map((s) => s.phase)).toEqual(["running", "done", "pending", "pending"]);
+    await finish(1);
+    r = await run();
+    expect(r.subtasks!.map((s) => s.phase)).toEqual(["done", "done", "starting", "starting"]);
+  });
+
+  it("needs files for every subtask when they may run in parallel", async () => {
+    await setup(2);
+    const leader = (await engine.start(repo, "DEMO-1")).sessionId;
+    await hookOn(leader, "SessionStart");
+    await write("02-plan.md", "# Plan\n\n" + table("| 1 | A | claude | - | a | - |"));
+    await hookOn(leader, "Stop");
+    await expect(engine.approve(repo, "DEMO-1")).rejects.toMatchObject({ status: 400, message: expect.stringContaining("File is required") });
+  });
+
+  it("answers a waiting subtask and retries an interrupted one, each on its own", async () => {
+    await setup(2);
+    const leader = await dispatch(table("| 1 | A | claude | a/ | a | - |", "| 2 | B | copilot | b/ | b | - |"));
+    const [one, two] = (await run()).subtasks!.map((s) => s.sessionId!);
+    await hookOn(one, "SessionStart");
+    await hookOn(two, "SessionStart");
+
+    await hookOn(one, "Stop", { last_assistant_message: "Hỏi ba:\n\n1. Dùng Redis? — Đề xuất: không\n" });
+    let r = await run();
+    expect(r).toMatchObject({ phase: "waiting" });
+    expect((await engine.view(repo, "DEMO-1")).subtaskQuestions).toEqual({ 1: [{ n: 1, text: "Dùng Redis?", proposal: "không" }] });
+    // The run-level reply and retry belong to the leader, which has nothing to answer now.
+    await expect(engine.reply(repo, "DEMO-1", "Không")).rejects.toMatchObject({ status: 409 });
+    await expect(engine.retry(repo, "DEMO-1")).rejects.toMatchObject({ status: 409 });
+    await expect(engine.replySubtask(repo, "DEMO-1", 2, "x")).rejects.toMatchObject({ status: 409 });
+    await expect(engine.replySubtask(repo, "DEMO-1", 9, "x")).rejects.toMatchObject({ status: 404 });
+    await expect(engine.replySubtask(repo, "DEMO-1", 1, " ")).rejects.toMatchObject({ status: 400 });
+
+    r = await engine.replySubtask(repo, "DEMO-1", 1, "Không dùng");
+    expect(fake.pastedBy.get(one)!.at(-1)).toBe("Không dùng");
+    expect(r).toMatchObject({ phase: "running", subtasks: [{ phase: "running" }, { phase: "running" }] });
+
+    fake.exit(two);
+    await engine.onExit(fake.meta(two));
+    r = await run();
+    expect(r).toMatchObject({ phase: "interrupted", subtasks: [{ phase: "running" }, { phase: "interrupted" }] });
+    expect(r.message).toContain("Việc 2");
+
+    await engine.retrySubtask(repo, "DEMO-1", 2);
+    expect(fake.resumed).toEqual([two]);
+    r = await hookOn(two, "SessionStart");
+    expect(r).toMatchObject({ phase: "running", subtasks: [{ phase: "running" }, { phase: "running" }] });
+    expect(fake.pastedBy.get(two)).toHaveLength(2);
+    expect(fake.sessions.get(leader)!.status).toBe("running");
+
+    const log = await readFile(path.join(taskDir(), "00-history.md"), "utf8");
+    expect(log).toContain("· Giao việc · Ba trả lời việc 1\n\n> Không dùng");
+    expect(log).toContain("· Giao việc · Việc 2 gián đoạn");
+  });
+
+  it("stops every subtask session on restart, and marks them interrupted after a server restart", async () => {
+    await setup(2);
+    await dispatch(table("| 1 | A | claude | a/ | a | - |", "| 2 | B | copilot | b/ | b | - |"));
+    const [one, two] = (await run()).subtasks!.map((s) => s.sessionId!);
+    await hookOn(one, "SessionStart");
+    await hookOn(two, "SessionStart");
+
+    fake.exit(one);
+    fake.exit(two);
+    await new WorkflowEngine(state, fake).recover();
+    expect((await run()).subtasks!.map((s) => s.phase)).toEqual(["interrupted", "interrupted"]);
+    expect(await run()).toMatchObject({ phase: "interrupted" });
+
+    await engine.retrySubtask(repo, "DEMO-1", 1);
+    await hookOn(one, "SessionStart");
+    await engine.restart(repo, "DEMO-1");
+    expect(fake.stopped).toContain(one);
+    expect(await run()).toMatchObject({ phase: "starting", stepIndex: 0 });
+    expect((await run()).subtasks).toBeUndefined();
+    // A stopped subtask session no longer belongs to the new run.
+    await engine.onExit(fake.meta(one));
+    expect(await run()).toMatchObject({ phase: "starting" });
+  });
+
+  it("keeps a static workflow free of subtasks", async () => {
+    engine = new WorkflowEngine(state, fake);
+    await engine.start(repo, "DEMO-1");
+    expect(await engine.view(repo, "DEMO-1")).toMatchObject({ assignments: null, subtaskQuestions: {} });
+    expect((await run()).subtasks).toBeUndefined();
   });
 });

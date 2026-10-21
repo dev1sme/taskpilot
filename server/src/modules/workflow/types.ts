@@ -12,6 +12,48 @@ export interface OutputDef {
   formatText?: string;
 }
 
+/** A "giao việc" step: after the plan is approved, each row of its assignment table becomes a subtask. */
+export interface DispatchDef {
+  /** Id of the earlier step output that holds the "Phân công" table. */
+  from: string;
+  /** Subtask prompt template text, already loaded. */
+  prompt: string;
+  promptFile: string;
+  /** Report file name, `{{n}}` standing for the subtask number. */
+  report: string;
+  /** Skeleton file (next to workflow.yml) the report must follow, and its text. */
+  format?: string;
+  formatText?: string;
+  /** Subtasks allowed to run at the same time, 1..MAX_PARALLEL. */
+  parallel: number;
+}
+
+/** One row of the assignment table. */
+export interface Assignment {
+  n: number;
+  title: string;
+  agent: Agent;
+  /** Files or directories the subtask may change; used to keep parallel subtasks apart. */
+  files: string[];
+  output: string;
+  /** Numbers of the subtasks that must be done first. */
+  deps: number[];
+}
+
+/** pending: not started; starting/running/waiting/interrupted/done as for a run (done: its report was written). */
+export type SubtaskPhase = "pending" | "starting" | "running" | "waiting" | "done" | "interrupted";
+
+export interface SubtaskRun extends Assignment {
+  phase: SubtaskPhase;
+  sessionId?: string;
+  stepStartedAt?: number;
+  pendingPrompt?: string;
+  sentPrompt?: { stepIndex: number; text: string; at: number };
+  lastMessage?: string;
+  /** Report file name inside the task directory. */
+  report: string;
+}
+
 export interface StepDef {
   id: string;
   title: string;
@@ -28,6 +70,8 @@ export interface StepDef {
   /** Template sent with the reviewer's feedback when a gate is rejected. */
   onReject?: string;
   onRejectFile?: string;
+  /** Set on a dispatch step, which has no prompt, outputs or gate of its own. */
+  dispatch?: DispatchDef;
 }
 
 export interface WorkflowDef {
@@ -80,6 +124,8 @@ export interface RunState {
   pendingPrompt?: string;
   /** The workflow as it was when the run started; later edits apply to new runs only. */
   workflow?: WorkflowDef;
+  /** The subtasks of a dispatch step, once the run reached it. Absent for a static workflow. */
+  subtasks?: SubtaskRun[];
   /** Documents archived by "Chạy lại từ đầu" right before this run; `dir` is relative to the task dir. */
   previous?: { dir: string; files: string[] };
   startedAt: number;

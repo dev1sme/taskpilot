@@ -35,6 +35,21 @@ export const HISTORY_TEXT = {
   sessionStopped: "Session dừng giữa bước.",
   switchAgent: "Đổi agent",
   switchAgentBody: (from: string, to: string) => `Bước này chạy bằng ${to} trong session mới; session ${from} của bước trước đã dừng.`,
+  dispatch: "Giao việc",
+  dispatchBody: (items: Array<{ n: number; agent: string; title: string; deps: number[] }>, parallel: number) =>
+    [
+      ...items.map((a) => `${a.n}. ${a.agent} — ${a.title}${a.deps.length ? ` (sau việc ${a.deps.join(", ")})` : ""}`),
+      parallel > 1 ? `\nChạy tối đa ${parallel} việc cùng lúc.` : "",
+    ]
+      .join("\n")
+      .trim(),
+  subtaskDone: (n: number, agent: string) => `Việc ${n} xong · ${agent}`,
+  subtaskDoneBody: (report: string) => `Báo cáo: ${report}`,
+  subtaskReply: (n: number) => `Ba trả lời việc ${n}`,
+  subtaskInterrupted: (n: number) => `Việc ${n} gián đoạn`,
+  subtaskSessionStopped: "Session của việc dừng giữa chừng.",
+  backToLeader: "Về leader rà soát",
+  backToLeaderBody: (done: number) => `${done} việc đã xong; leader rà soát báo cáo của chúng.`,
 } as const;
 
 // "2026-10-20 14:03" in the server's time zone.

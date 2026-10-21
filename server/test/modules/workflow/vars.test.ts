@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_WORKFLOW_DIR, loadWorkflow } from "../../../src/modules/workflow/definition.js";
+import { DEFAULT_WORKFLOW_DIR, LEADER_WORKFLOW_DIR, loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
 import { stageOf } from "../../../src/modules/workflow/stage.js";
 import type { WorkflowDef } from "../../../src/modules/workflow/types.js";
 import { promptVars, render, renderPrompt } from "../../../src/modules/workflow/vars.js";
@@ -109,6 +109,63 @@ describe("prompt variables", () => {
     expect(promptVars(def, 0, task).historyFormat).toBe("```markdown\n### Plan · Claude\n```");
   });
 
+  describe("subtasks", () => {
+    const dispatchDef = (parallel: number): WorkflowDef => ({
+      ...def,
+      steps: [
+        def.steps[0],
+        {
+          id: "work",
+          title: "Giao việc",
+          agent: "claude",
+          prompt: "",
+          promptFile: "",
+          outputs: [],
+          gate: "none",
+          dispatch: { from: "plan", prompt: "", promptFile: "s.md", report: "03-viec-{{n}}.md", format: "f.md", formatText: "# {{key}} — Việc", parallel },
+        },
+        def.steps[1],
+      ],
+    });
+    const subs = [
+      { n: 1, title: "Parser", agent: "claude" as const, files: ["server/a.ts"], output: "parser", deps: [] },
+      { n: 2, title: "UI", agent: "copilot" as const, files: [], output: "", deps: [1] },
+    ];
+
+    it("describes the subtask, its dependencies' reports and its own report with the skeleton", () => {
+      const vars = promptVars(dispatchDef(1), 1, task, { subtask: subs[1], subtasks: subs });
+      expect(vars.agent).toBe("Copilot");
+      expect(vars.subtaskReport).toBe(".claude/tasks/A-1/03-viec-2.md");
+      expect(vars.subtask).toBe(
+        [
+          "Việc 2: UI",
+          "File được sửa: leader không khai; chỉ sửa những gì việc này cần.",
+          "",
+          "Các việc trước đó đã xong; đọc báo cáo của chúng trước khi làm:",
+          "- `.claude/tasks/A-1/03-viec-1.md` (việc 1: Parser)",
+        ].join("\n"),
+      );
+      expect(vars.outputs).toContain("- `.claude/tasks/A-1/03-viec-2.md`: báo cáo việc này");
+      expect(vars.outputs).toContain("# A-1 — Việc");
+      expect(vars.inputs).toContain(".claude/tasks/A-1/plan.md");
+    });
+
+    it("tells members not to commit only when subtasks run in parallel", () => {
+      expect(promptVars(dispatchDef(1), 1, task, { subtask: subs[0], subtasks: subs }).subtask).not.toContain("Không commit");
+      const parallel = promptVars(dispatchDef(2), 1, task, { subtask: subs[0], subtasks: subs }).subtask;
+      expect(parallel).toContain("File được sửa: `server/a.ts`");
+      expect(parallel).toContain("Đầu ra mong đợi: parser");
+      expect(parallel).toContain("Không commit");
+    });
+
+    it("lists every subtask for the review step, and nothing outside a run", () => {
+      expect(promptVars(dispatchDef(1), 2, task, { subtasks: subs }).subtasks).toBe(
+        "- Việc 1 · Claude · Parser → `.claude/tasks/A-1/03-viec-1.md`\n- Việc 2 · Copilot · UI → `.claude/tasks/A-1/03-viec-2.md`",
+      );
+      expect(promptVars(dispatchDef(1), 2, task).subtasks).toBe("");
+    });
+  });
+
   it("builds the built-in prompts from the workflow: sections, documents with skeletons, rules", async () => {
     const builtIn = await loadWorkflow(DEFAULT_WORKFLOW_DIR);
     const [investigate, implement] = builtIn.steps;
@@ -166,6 +223,35 @@ describe("prompt variables", () => {
       expect(onReject.length).toBeLessThanOrEqual(1500);
       expect(onReject).not.toContain("```markdown\n# TPL-008");
     }
+  });
+});
+
+describe("leader template prompts", () => {
+  const vars = { key: "TPL-011", title: "Leader điều phối động" };
+  const subs = [
+    { n: 1, title: "Parser", agent: "claude" as const, files: ["server/a.ts"], output: "parser", deps: [] },
+    { n: 2, title: "UI", agent: "copilot" as const, files: ["client"], output: "UI", deps: [1] },
+  ];
+
+  it("renders every prompt with no variable left and keeps to its size budget", async () => {
+    const { def } = parseWorkflowFiles(await readWorkflowDir(LEADER_WORKFLOW_DIR), { dir: LEADER_WORKFLOW_DIR, origin: "default" });
+    const leader = def!;
+    const render = (i: number, template: string, extra: Parameters<typeof promptVars>[3] = {}) => renderPrompt(template, promptVars(leader, i, vars, extra));
+    const plan = render(0, leader.steps[0].prompt);
+    const subtask = render(1, leader.steps[1].dispatch!.prompt, { subtask: subs[1], subtasks: subs });
+    const review = render(2, leader.steps[2].prompt, { subtasks: subs });
+    const reviseReview = render(2, leader.steps[2].onReject!, { subtasks: subs, feedback: "x" });
+    for (const text of [plan, subtask, review, reviseReview]) expect(text).not.toMatch(/\{\{/);
+    expect(plan).toContain("## 7. Phân công");
+    expect(plan).toContain("| # | Việc | Agent | File | Đầu ra | Phụ thuộc |");
+    expect(subtask).toContain("Việc 2: UI");
+    expect(subtask).toContain("- `.claude/tasks/TPL-011/03-viec-1.md` (việc 1: Parser)");
+    expect(subtask).toContain("# TPL-011 — Báo cáo việc");
+    expect(review).toContain("- Việc 2 · Copilot · UI → `.claude/tasks/TPL-011/03-viec-2.md`");
+    expect(plan.length).toBeLessThanOrEqual(3800);
+    expect(subtask.length).toBeLessThanOrEqual(2000);
+    expect(review.length).toBeLessThanOrEqual(2800);
+    expect(reviseReview.length).toBeLessThanOrEqual(1500);
   });
 });
 

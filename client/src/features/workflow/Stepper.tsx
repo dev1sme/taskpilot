@@ -16,7 +16,7 @@ interface Node {
 /** Steps as waypoints and approval gates as diamonds, with an animated progress track. */
 export function Stepper({ steps, run }: { steps: WorkflowStep[]; run: RunState | null }) {
   const { t } = useTranslation("workflow");
-  const nodes = buildNodes(steps, run, t("stepper.gate"));
+  const nodes = buildNodes(steps, run, t("stepper.gate"), (label, done, total) => t("stepper.dispatchCount", { label, done, total }));
   const reached = nodes.reduce((last, n, i) => (n.state !== "pending" ? i : last), -1);
   const progress = nodes.length > 1 ? Math.max(0, reached) / (nodes.length - 1) : 0;
   const working = run?.phase === "running" || run?.phase === "starting";
@@ -52,7 +52,7 @@ export function Stepper({ steps, run }: { steps: WorkflowStep[]; run: RunState |
   );
 }
 
-function buildNodes(steps: WorkflowStep[], run: RunState | null, gateLabel: string): Node[] {
+function buildNodes(steps: WorkflowStep[], run: RunState | null, gateLabel: string, counted: (label: string, done: number, total: number) => string): Node[] {
   const live = run !== null && run.phase !== "cancelled";
   const at = run?.stepIndex ?? -1;
   const finished = run?.phase === "done";
@@ -62,7 +62,7 @@ function buildNodes(steps: WorkflowStep[], run: RunState | null, gateLabel: stri
     nodes.push({
       key: step.id,
       kind: "step",
-      label: step.title,
+      label: step.dispatch && run?.subtasks ? counted(step.title, run.subtasks.filter((s) => s.phase === "done").length, run.subtasks.length) : step.title,
       state: stepDone ? "done" : live && i === at ? "current" : "pending",
     });
     if (step.gate === "approve") {

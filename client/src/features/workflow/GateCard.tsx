@@ -10,7 +10,8 @@ import { Markdown } from "../../shared/ui/Markdown";
 import { workspaceApi } from "../workspace";
 import { workflowApi } from "./api";
 import { composeAnswers, initialAnswers, QuestionForm } from "./QuestionForm";
-import type { Question, RunState, WorkflowStep } from "./types";
+import { AssignmentPreview } from "./SubtaskTree";
+import type { ParsedAssignments, Question, RunState, WorkflowStep } from "./types";
 import "./gate-card.css";
 
 /**
@@ -22,6 +23,10 @@ export function GateCard(props: {
   run: RunState;
   step: WorkflowStep;
   questions: Question[];
+  /** When the next step is a dispatch step: the subtasks the plan's table gives. */
+  assignments: ParsedAssignments | null;
+  /** Concurrency of that dispatch step. */
+  parallel: number;
   isLast: boolean;
   docVersion: number;
   onOpenDoc: (path: string) => void;
@@ -103,6 +108,8 @@ export function GateCard(props: {
         </div>
       )}
 
+      {props.assignments && <AssignmentPreview assignments={props.assignments} parallel={props.parallel} />}
+
       {error && (
         <p className="error" role="alert">
           {error}
@@ -117,7 +124,7 @@ export function GateCard(props: {
           variant="attention"
           size="lg"
           busy={busy === "approve"}
-          disabled={busy !== null}
+          disabled={busy !== null || (props.assignments?.errors.length ?? 0) > 0}
           onClick={() => void act("approve", () => workflowApi.approve(taskKey, answered))}
         >
           {answered ? (props.isLast ? t("gate.approveLastAnswered") : t("gate.approveNextAnswered")) : props.isLast ? t("gate.approveLast") : t("gate.approveNext")}

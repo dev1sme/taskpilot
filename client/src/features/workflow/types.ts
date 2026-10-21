@@ -13,6 +13,34 @@ export interface RunState {
   stepStartedAt: number;
   startedAt: number;
   updatedAt: number;
+  /** Set while a dispatch step runs (and after it): one entry per row of the plan's assignment table. */
+  subtasks?: SubtaskRun[];
+}
+
+export type SubtaskPhase = "pending" | "starting" | "running" | "waiting" | "done" | "interrupted";
+
+/** One row of the plan's assignment table. */
+export interface Assignment {
+  n: number;
+  title: string;
+  agent: Agent;
+  files: string[];
+  output: string;
+  deps: number[];
+}
+
+export interface SubtaskRun extends Assignment {
+  phase: SubtaskPhase;
+  sessionId?: string;
+  lastMessage?: string;
+  /** Report file name in the task directory. */
+  report: string;
+}
+
+/** What the plan's table gives, or why it cannot run yet. */
+export interface ParsedAssignments {
+  items: Assignment[];
+  errors: string[];
 }
 
 /** A question Claude left for the reviewer (numbered in its document or message). */
@@ -31,6 +59,8 @@ export interface WorkflowStep {
   doneFile: string | null;
   /** Documents the step writes, from the workflow. */
   outputs: Array<{ id: string; file: string }>;
+  /** Set on a dispatch step: each subtask of the plan runs in its own session. */
+  dispatch: { from: string; report: string; parallel: number } | null;
 }
 
 export interface RunView {
@@ -45,4 +75,8 @@ export interface RunView {
   run: RunState | null;
   /** Claude's questions at a gate or while it waits. */
   questions: Question[];
+  /** At a gate before a dispatch step: the subtasks the plan's table gives. */
+  assignments: ParsedAssignments | null;
+  /** Questions of each waiting subtask, by subtask number. */
+  subtaskQuestions: Record<number, Question[]>;
 }

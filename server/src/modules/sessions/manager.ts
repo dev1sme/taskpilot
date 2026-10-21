@@ -100,13 +100,13 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     return this.view(await this.find(id));
   }
 
-  async create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent } = {}): Promise<SessionView> {
+  async create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent; title?: string } = {}): Promise<SessionView> {
     const count = (await this.list(repo, taskKey)).length;
     const meta: SessionMeta = {
       id: randomUUID(),
       repo,
       taskKey,
-      title: `Session ${count + 1}`,
+      title: opts.title ?? `Session ${count + 1}`,
       createdAt: Date.now(),
       ...(opts.permissionMode ? { permissionMode: opts.permissionMode } : {}),
       ...(opts.agent && opts.agent !== DEFAULT_AGENT ? { agent: opts.agent } : {}),

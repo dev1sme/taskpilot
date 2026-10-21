@@ -62,10 +62,13 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
   // A confirmation asked in one phase does not carry over to the next.
   useEffect(() => setRestart("idle"), [run?.phase, run?.stepIndex]);
 
-  const openTerminal = () => {
-    if (run) setActiveSession(run.sessionId);
+  const openTerminal = (sessionId?: string) => {
+    const id = sessionId ?? run?.sessionId;
+    if (id) setActiveSession(id);
     setDrawerOpen(true);
   };
+  const askingIds = new Set(sessions.filter((s) => s.activity === "permission").map((s) => s.id));
+  const nextStep = run ? steps[run.stepIndex + 1] : undefined;
   const closeDoc = useCallback(() => setDoc(null), []);
   const closePrompt = useCallback(() => setShowPrompt(false), []);
   const sent = run?.sentPrompt;
@@ -172,6 +175,8 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                     run={run}
                     step={steps[run.stepIndex]}
                     questions={view.questions}
+                    assignments={nextStep?.dispatch ? view.assignments : null}
+                    parallel={nextStep?.dispatch?.parallel ?? 1}
                     isLast={run.stepIndex === steps.length - 1}
                     docVersion={task.updatedAt}
                     onOpenDoc={setDoc}
@@ -185,6 +190,8 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                     session={runSession}
                     activity={activity}
                     questions={view.questions}
+                    subtaskQuestions={view.subtaskQuestions}
+                    asking={askingIds}
                     onOpenTerminal={openTerminal}
                     onOpenDoc={setDoc}
                     onChanged={changed}
@@ -192,7 +199,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                 )}
               </div>
               <div className="task-side">
-                <DocsPanel task={task} steps={steps} onOpen={setDoc} />
+                <DocsPanel task={task} steps={steps} reports={run?.subtasks?.map((s) => s.report)} onOpen={setDoc} />
                 <ActivityFeed items={activity} />
               </div>
             </div>
@@ -213,7 +220,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
         sessions={sessions}
         activeId={activeSession}
         open={drawerOpen}
-        runSessionId={active ? (run?.sessionId ?? null) : null}
+        runSessionIds={active ? [run.sessionId, ...(run.subtasks ?? []).flatMap((s) => (s.sessionId ? [s.sessionId] : []))] : []}
         onSelect={setActiveSession}
         onToggle={setDrawerOpen}
         onChanged={changed}

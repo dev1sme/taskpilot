@@ -5,6 +5,7 @@ import { HttpError } from "../../../core/errors.js";
 import { t } from "../../../core/i18n.js";
 import {
   DEFAULT_WORKFLOW_DIR,
+  LEADER_WORKFLOW_DIR,
   OVERRIDE_DIR,
   PROMPT_TEXT,
   WORKFLOW_FILE,
@@ -13,6 +14,7 @@ import {
   parseWorkflowFiles,
   promptVars,
   readWorkflowDir,
+  reportOf,
   renderPrompt,
   templateVars,
   type ParseResult,
@@ -60,8 +62,9 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     const { def, errors, warnings } = parseWorkflowFiles(files, { dir, origin });
     /** Where a file is used: step titles for prompts, document files for skeletons, the history file. */
     const usedBy = (name: string) => [
-      ...(def?.steps.filter((s) => s.promptFile === name || s.onRejectFile === name).map((s) => s.title) ?? []),
+      ...(def?.steps.filter((s) => s.promptFile === name || s.onRejectFile === name || s.dispatch?.promptFile === name).map((s) => s.title) ?? []),
       ...(def?.steps.flatMap((s) => s.outputs).filter((o) => o.format === name).map((o) => o.file) ?? []),
+      ...(def?.steps.filter((s) => s.dispatch?.format === name).map((s) => s.dispatch!.report) ?? []),
       ...(def?.history.format === name ? [def.history.file] : []),
     ];
     return {
@@ -88,6 +91,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
           outputs: s.outputs.map((o) => ({ id: o.id, file: o.file, content: o.content, format: o.format ?? null })),
           promptFile: s.promptFile,
           onRejectFile: s.onRejectFile ?? null,
+          dispatch: s.dispatch && { from: s.dispatch.from, promptFile: s.dispatch.promptFile, report: s.dispatch.report, format: s.dispatch.format ?? null, parallel: s.dispatch.parallel },
         })),
       },
       files: [...files].map(([name, content]) => ({
@@ -110,13 +114,18 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     return { path: target.display, exists: content !== null, content: content ?? "", hash: hashOf(content), defaultContent: fallback };
   });
 
-  /** Copies the built-in workflow into .claude/taskpilot/: prompts first, workflow.yml last, so the override only takes effect complete. */
-  app.post("/api/config/workflow/override", async () => {
+  /**
+   * Copies a template (the built-in workflow, or the leader / member one) into .claude/taskpilot/:
+   * prompts first, workflow.yml last, so the override only takes effect complete.
+   */
+  app.post("/api/config/workflow/override", async (req) => {
     const repo = requireRepo();
+    const template = (req.body as { template?: unknown } | null)?.template ?? "default";
+    if (template !== "default" && template !== "leader") throw new HttpError(400, t("errors.missing", { key: "template" }));
     const dir = overrideDir(repo);
     const display = displayPath(dir, repo);
     if (hasOverride(repo)) throw new HttpError(409, t("errors.overrideExists", { dir: display }));
-    const source = await readWorkflowDir(DEFAULT_WORKFLOW_DIR);
+    const source = await readWorkflowDir(template === "leader" ? LEADER_WORKFLOW_DIR : DEFAULT_WORKFLOW_DIR);
     const existing = await readWorkflowDir(dir);
     const clash = [...source.keys()].filter((n) => existing.has(n));
     if (clash.length) throw new HttpError(409, t("errors.overrideConflict", { dir: display, files: clash.join(", ") }));
@@ -241,10 +250,12 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     const index = def.steps.findIndex((s) => s.id === stepId);
     if (index < 0) throw new HttpError(404, t("errors.stepNotFound", { step: stepId }));
     const step = def.steps[index];
-    const template = kind === "onReject" ? step.onReject : step.prompt;
+    if (!!step.dispatch !== (kind === "subtask")) throw new HttpError(404, t("errors.stepNotFound", { step: stepId }));
+    const template = step.dispatch ? step.dispatch.prompt : kind === "onReject" ? step.onReject : step.prompt;
     if (template === undefined) throw new HttpError(404, t("errors.noOnReject", { step: step.title }));
     const feedback = kind === "onReject" ? (typeof body.feedback === "string" && body.feedback.trim() ? body.feedback : PROMPT_TEXT.sampleFeedback) : undefined;
     const previous = body.restart === true ? { dir: PROMPT_TEXT.sampleArchive, files: def.steps.flatMap((s) => s.outputs.map((o) => o.file)).sort() } : undefined;
-    return { task: PROMPT_TEXT.sampleTask, text: renderPrompt(template, promptVars(def, index, PROMPT_TEXT.sampleTask, { feedback, previous })) };
+    const subtask = step.dispatch && { ...PROMPT_TEXT.sampleSubtask, files: [...PROMPT_TEXT.sampleSubtask.files], phase: "pending" as const, report: reportOf(step.dispatch.report, PROMPT_TEXT.sampleSubtask.n) };
+    return { task: PROMPT_TEXT.sampleTask, text: renderPrompt(template, promptVars(def, index, PROMPT_TEXT.sampleTask, { feedback, previous, subtask, subtasks: subtask && [subtask] })) };
   });
 }

@@ -2,7 +2,7 @@ import path from "node:path";
 import { AGENT_LABELS, DEFAULT_AGENT } from "../../core/agents.js";
 import { SPEC_DIR, TASKS_DIR } from "../tasks/index.js";
 import { PROMPT_TEXT } from "./prompt-text.js";
-import type { RunState, WorkflowDef } from "./types.js";
+import type { Assignment, RunState, WorkflowDef } from "./types.js";
 
 /** Variables every template may use, besides {{out.<id>}}. Shown as chips on the Workflow page. */
 export const templateVars = [
@@ -24,6 +24,9 @@ export const templateVars = [
   "archiveDir",
   "previousRun",
   "feedback",
+  "subtask",
+  "subtaskReport",
+  "subtasks",
 ] as const;
 
 /** Replaces {{name}} and {{out.id}}; unknown names are left as they are so mistakes stay visible. */
@@ -46,7 +49,14 @@ export function promptVars(
   def: WorkflowDef,
   stepIndex: number,
   task: { key: string; title: string },
-  opts: { previous?: RunState["previous"]; feedback?: string } = {},
+  opts: {
+    previous?: RunState["previous"];
+    feedback?: string;
+    /** The subtask a dispatch step's prompt is for. */
+    subtask?: Assignment & { report?: string };
+    /** Every subtask of the run, for the step that reviews them. */
+    subtasks?: Array<Assignment & { report?: string }>;
+  } = {},
 ): Record<string, string> {
   const taskDir = taskDirOf(task.key);
   const step = def.steps[stepIndex];
@@ -76,7 +86,27 @@ export function promptVars(
     archiveDir: opts.previous ? `${taskDir}/${opts.previous.dir}` : "",
     ...(opts.feedback !== undefined ? { feedback: opts.feedback } : {}),
   };
+  if (opts.subtask) base.agent = AGENT_LABELS[opts.subtask.agent];
   for (const s of def.steps) for (const o of s.outputs) base[`out.${o.id}`] = `${taskDir}/${o.file}`;
+
+  const dispatch = step?.dispatch;
+  const reportOf = (a: { n: number; report?: string }) => `${taskDir}/${a.report ?? dispatch?.report.replaceAll("{{n}}", String(a.n)) ?? ""}`;
+  const sub = opts.subtask;
+  const subtaskVars: Record<string, string> = {};
+  if (sub && dispatch) {
+    Object.assign(subtaskVars, {
+      subtask: subtaskBlock(sub, opts.subtasks ?? [], dispatch.parallel, reportOf),
+      subtaskReport: reportOf(sub),
+      outputs: documents([
+        { id: "report", file: reportOf(sub).slice(taskDir.length + 1), content: PROMPT_TEXT.subtask.report, format: dispatch.format, formatText: dispatch.formatText },
+      ]),
+    });
+  }
+  const all = opts.subtasks ?? [];
+  const lastDispatch = def.steps.find((s) => s.dispatch)?.dispatch;
+  const listed = all.map((a) =>
+    PROMPT_TEXT.subtaskLine(a.n, AGENT_LABELS[a.agent], a.title, `${taskDir}/${a.report ?? lastDispatch?.report.replaceAll("{{n}}", String(a.n)) ?? ""}`),
+  );
 
   return {
     ...base,
@@ -86,7 +116,26 @@ export function promptVars(
     outputs: documents(step?.outputs ?? []),
     inputs: list(def.steps.slice(0, Math.max(stepIndex, 0)).flatMap((s) => s.outputs)),
     previousRun: previousRun(def, opts.previous, taskDir, historyFile),
+    subtasks: listed.join("\n"),
+    ...subtaskVars,
   };
+}
+
+/** The description of one subtask: what to do, where, and which earlier reports to read. */
+function subtaskBlock(
+  sub: Assignment,
+  all: Array<Assignment & { report?: string }>,
+  parallel: number,
+  reportOf: (a: { n: number; report?: string }) => string,
+): string {
+  const T = PROMPT_TEXT.subtask;
+  const lines = [T.heading(sub.n, sub.title)];
+  if (sub.output) lines.push(T.output(sub.output));
+  lines.push(sub.files.length ? T.files(sub.files) : T.noFiles);
+  const deps = sub.deps.map((d) => all.find((a) => a.n === d)).filter((a): a is Assignment & { report?: string } => !!a);
+  if (deps.length) lines.push("", T.dependsOn, ...deps.map((d) => T.dependency(reportOf(d), d.n, d.title)));
+  if (parallel > 1) lines.push("", T.noCommit);
+  return lines.join("\n");
 }
 
 /** A markdown code block; the fence grows past any backticks inside. */

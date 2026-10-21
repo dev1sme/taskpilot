@@ -68,9 +68,9 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
     }
   };
 
-  const createOverride = () =>
+  const createOverride = (template: "default" | "leader" = "default") =>
     run(async () => {
-      const res = await workflowConfigApi.createOverride();
+      const res = await workflowConfigApi.createOverride(template);
       toast(t("workflow.created", { count: res.files.length }));
       await refresh();
     });
@@ -118,9 +118,14 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
   });
 
   const actions = !data ? null : !isOverride ? (
-    <Button icon={Plus} variant="primary" busy={busy} title={t("workflow.createTitle", { dir: data.overrideDir })} onClick={() => void createOverride()}>
-      {t("workflow.create")}
-    </Button>
+    <>
+      <Button icon={Plus} variant="quiet" busy={busy} title={t("workflow.createLeaderTitle", { dir: data.overrideDir })} onClick={() => void createOverride("leader")}>
+        {t("workflow.createLeader")}
+      </Button>
+      <Button icon={Plus} variant="primary" busy={busy} title={t("workflow.createTitle", { dir: data.overrideDir })} onClick={() => void createOverride("default")}>
+        {t("workflow.create")}
+      </Button>
+    </>
   ) : draft ? (
     <>
       <DraftControls key={picked} draftKey={draftKey(picked)} />
@@ -563,7 +568,8 @@ function PromptPreview({ config }: { config: WorkflowConfig }) {
   const dirty = useDrafts();
 
   const step = steps.find((s) => s.id === stepId) ?? steps[0];
-  const onReject = kind === "onReject" && !!step?.onRejectFile;
+  const dispatch = !!step?.dispatch;
+  const onReject = !dispatch && kind === "onReject" && !!step?.onRejectFile;
 
   const show = async () => {
     setError(null);
@@ -575,7 +581,7 @@ function PromptPreview({ config }: { config: WorkflowConfig }) {
       }
     }
     try {
-      setResult(await workflowConfigApi.render({ stepId: step!.id, kind: onReject ? "onReject" : "prompt", feedback, restart, drafts }));
+      setResult(await workflowConfigApi.render({ stepId: step!.id, kind: dispatch ? "subtask" : onReject ? "onReject" : "prompt", feedback, restart, drafts }));
     } catch (e) {
       setResult(null);
       setError((e as Error).message);
@@ -596,10 +602,16 @@ function PromptPreview({ config }: { config: WorkflowConfig }) {
           ))}
         </select>
         <select aria-label={t("workflow.preview.kind")} value={onReject ? "onReject" : "prompt"} onChange={(e) => setKind(e.target.value as "prompt" | "onReject")}>
-          <option value="prompt">{t("workflow.promptLabel")}</option>
-          {step.onRejectFile && <option value="onReject">{t("workflow.onRejectLabel")}</option>}
+          {dispatch ? (
+            <option value="prompt">{t("workflow.subtaskLabel")}</option>
+          ) : (
+            <>
+              <option value="prompt">{t("workflow.promptLabel")}</option>
+              {step.onRejectFile && <option value="onReject">{t("workflow.onRejectLabel")}</option>}
+            </>
+          )}
         </select>
-        {!onReject && (
+        {!onReject && !dispatch && (
           <label className="wf-check">
             <input type="checkbox" checked={restart} onChange={(e) => setRestart(e.target.checked)} />
             {t("workflow.preview.restart")}

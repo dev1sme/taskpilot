@@ -1,0 +1,61 @@
+# Leader / member workflow: Claude investigates and plans, each subtask of the plan runs in its own
+# session of the agent the plan assigns it to, then Claude reviews. Use it by copying this directory
+# into .claude/taskpilot/ (Workflow page → "Thêm config override từ mẫu leader").
+version: 2
+# permission-mode: acceptEdits        # default | acceptEdits | plan | auto
+agent: claude
+
+history:
+  file: 00-history.md
+  entry: "## <YYYY-MM-DD HH:MM> · {{step}} · {{agent}}"
+  format: format-history.md
+
+language: Viết tài liệu bằng cùng ngôn ngữ với spec.
+rules:
+  - "Chỉ thêm entry mới vào cuối {{historyFile}} bằng Edit; không viết lại hay xoá entry cũ."
+  - Không push, không merge.
+  - "Câu hỏi cho reviewer: đánh số, mỗi câu một dòng `1. <câu hỏi> — Đề xuất: <đề xuất của bạn>`. Không dùng tool AskUserQuestion (reviewer trả lời trên TaskPilot)."
+
+restart:
+  read: [plan, summary]
+
+steps:
+  # The plan ends with a "Phân công" table; TaskPilot checks it before the reviewer can approve.
+  - id: investigate
+    title: Điều tra & lên kế hoạch
+    prompt: investigate.md
+    on-reject: revise-plan.md
+    outputs:
+      - id: investigation
+        file: 01-investigation.md
+        content: phạm vi, file liên quan (kèm đường dẫn), hiện trạng phần đó, rủi ro
+        format: format-investigation.md
+      - id: plan
+        file: 02-plan.md
+        content: mục tiêu, thay đổi theo file, các bước theo thứ tự, rủi ro, cách verify (lệnh build/test chính xác), câu hỏi mở, phân công (bảng việc con)
+        format: format-plan.md
+    done-when: plan
+    gate: approve
+
+  # After approval, one session per row of the table of {{out.plan}}. A subtask is done when its report is written.
+  # parallel: how many subtasks may run at once (1-4); only those whose `File` cells do not overlap.
+  - id: dispatch
+    title: Giao việc
+    dispatch:
+      from: plan
+      prompt: subtask.md
+      report: 03-viec-{{n}}.md
+      format: format-subtask.md
+      parallel: 1
+
+  - id: review
+    title: Rà soát
+    prompt: review.md
+    on-reject: revise-review.md
+    outputs:
+      - id: summary
+        file: 04-summary.md
+        content: thay đổi gì, file đã sửa, kết quả build/test, việc còn lại, ghi chú cho reviewer
+        format: format-summary.md
+    done-when: summary
+    gate: approve

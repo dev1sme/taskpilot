@@ -9,11 +9,11 @@ import type { TaskSummary } from "../workspace";
  * The task's documents: the spec the user wrote, then what Claude is expected to write, in step
  * order. Files that do not exist yet are listed (greyed) so the user sees what is coming.
  */
-export function DocsPanel(props: { task: TaskSummary; steps: WorkflowStep[]; onOpen: (path: string) => void }) {
+export function DocsPanel(props: { task: TaskSummary; steps: WorkflowStep[]; /** Report files of the subtasks of a dispatch step. */ reports?: string[]; onOpen: (path: string) => void }) {
   const { t } = useTranslation("docs");
   const { task } = props;
   const outputs = new Map(task.outputFiles.map((f) => [f.path, f]));
-  const expected = props.steps.flatMap((s) => s.outputs.map((o) => o.file));
+  const expected = [...props.steps.flatMap((s) => s.outputs.map((o) => o.file)), ...(props.reports ?? [])];
   const names = [...new Set([...task.outputFiles.map((f) => f.path), ...expected])].sort();
 
   return (

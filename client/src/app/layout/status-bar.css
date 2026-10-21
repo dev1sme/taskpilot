@@ -1,6 +1,7 @@
 /* ------------------------------------------------------------------ status bar */
 
 .status-bar {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -44,7 +45,8 @@ a.status-item.is-warn,
 }
 
 .status-button:hover,
-.status-terminal[aria-expanded="true"] {
+.status-terminal[aria-expanded="true"],
+.status-usage[aria-expanded="true"] {
   color: var(--ink);
   background: var(--hover);
 }
@@ -78,5 +80,176 @@ a.status-item.is-warn,
   70%,
   100% {
     box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+/* ------------------------------------------------------------------ usage button + popover */
+
+.status-usage-root {
+  position: relative;
+  min-width: 0;
+}
+
+.status-usage {
+  white-space: nowrap;
+}
+
+.usage-peak {
+  display: none;
+}
+
+.usage-popover {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: -6px;
+  z-index: 50;
+  display: grid;
+  gap: 14px;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  padding: 14px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+}
+
+.usage-agent {
+  display: grid;
+  gap: 8px;
+}
+
+.usage-agent + .usage-agent {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.usage-agent-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.usage-agent-head h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.usage-version {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.usage-updated,
+.usage-meter-note {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.usage-version {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-scope,
+.usage-empty,
+.usage-updated {
+  margin: 0;
+  color: var(--muted);
+}
+
+.usage-scope,
+.usage-empty {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.usage-meters {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.usage-meters li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 8px;
+}
+
+.usage-meter-label {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.usage-meter-value {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-bar,
+.usage-meter-note {
+  grid-column: 1 / -1;
+}
+
+.usage-bar {
+  height: 4px;
+  overflow: hidden;
+  background: var(--hover);
+  border-radius: 2px;
+}
+
+.usage-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--signal);
+  border-radius: inherit;
+}
+
+.usage-meters li.is-warn .usage-meter-value {
+  font-weight: 600;
+  color: var(--attention);
+}
+
+.usage-meters li.is-warn .usage-bar > span {
+  background: var(--attention);
+}
+
+@media (max-width: 860px) {
+  /* Anchor to the footer so the popover never runs off a narrow screen. */
+  .status-usage-root {
+    position: static;
+  }
+
+  .usage-popover {
+    left: 16px;
+    right: 16px;
+    width: auto;
+    max-width: none;
+  }
+}
+
+@media (max-width: 520px) {
+  /* Still read out in full; only the fullest meter is shown. */
+  .usage-summary {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .usage-peak {
+    display: inline;
   }
 }

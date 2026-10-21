@@ -63,12 +63,15 @@ tied to any task (reserved key `@repo`), for ad-hoc work in the repo. It behaves
 session tabs — same drawer, opens itself on a permission prompt — but never shows up in a task's
 session list, a workflow run or the activity feed.
 
-The status bar also shows Claude's plan usage, e.g. `5h 42% · 7d 18%`, once a session's status line
-has reported it (after its first response); the figure turns into a warning past 80%, and its
-tooltip has the reset times. This is account-wide usage (Pro/Max plans or a spend-based gateway),
-not just this repo's sessions.
+The status bar also has one **usage** button, e.g. `5h 42% · 7d 18% · Copilot 9%`. Claude's part
+appears once a session's status line has reported it (after its first response); it is account-wide
+usage (Pro/Max plans or a spend-based gateway), not just this repo's sessions. The button turns into
+a warning when any figure passes 80%; on a phone it shows only the fullest one. Click it (or focus it
+and press Enter) for the details: a bar per limit, reset times, used x/y, when each figure was
+reported, and the installed claude/copilot versions (also shown small at the bottom of the
+sidebar). Esc or a click outside closes it.
 
-With Copilot installed and logged in, a separate `Copilot 42%` item shows the share of the Copilot
+With Copilot installed and logged in, the same button adds `Copilot 42%`: the share of the Copilot
 account's budget used (AI credits, or premium requests on the legacy plans), read from Copilot when
 a Copilot session is ready, while it works and when it ends a turn, at most once a minute. An
 account without a limit of its own (e.g. Copilot Business on AI credits) shows `Copilot ∞`. It needs

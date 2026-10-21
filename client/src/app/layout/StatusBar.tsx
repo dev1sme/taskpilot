@@ -1,5 +1,7 @@
 import { Gauge, HandPalm, TerminalWindow } from "@phosphor-icons/react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { AGENT_LABELS } from "../../shared/agents";
 import { href } from "../../shared/router";
 import { useWorkspace } from "../../features/workspace";
@@ -50,59 +52,177 @@ export function StatusBar(props: { terminalOpen: boolean; onToggleTerminal: (ope
           {t("status.asking", { count: asking.length })}
         </a>
       )}
-      {usage && (usage.fiveHour || usage.sevenDay || usage.spend) && <UsageItem usage={usage} />}
-      {usage?.agents?.copilot && <CopilotUsageItem quota={usage.agents.copilot} />}
+      {usage && (usage.fiveHour || usage.sevenDay || usage.spend || usage.agents?.copilot) && <UsageButton usage={usage} />}
     </footer>
   );
 }
 
-/** At or above this share of a window the item turns into a warning. */
+/** At or above this share of a window the usage turns into a warning. */
 const WARN_PERCENT = 80;
 
-/** Claude plan usage as the last status line reported it: "5h 42% · 7d 18%". */
-function UsageItem({ usage }: { usage: UsageView }) {
+interface Meter {
+  id: string;
+  label: string;
+  percent: number | null;
+  notes: string[];
+}
+
+/**
+ * Claude's plan usage and Copilot's quota as one footer button ("5h 42% · 7d 18% · Copilot 9%"); the
+ * details (reset times, used x/y, agent versions) sit in a popover that opens on click or keyboard.
+ */
+function UsageButton({ usage }: { usage: UsageView }) {
   const { t } = useTranslation("shell");
-  const parts: string[] = [];
-  const resets: string[] = [];
-  if (usage.fiveHour) {
-    parts.push(`5h ${Math.round(usage.fiveHour.usedPercentage)}%`);
-    if (usage.fiveHour.resetsAt) resets.push(t("status.usageReset", { window: "5h", time: formatTime(usage.fiveHour.resetsAt, false) }));
-  }
-  if (usage.sevenDay) {
-    parts.push(`7d ${Math.round(usage.sevenDay.usedPercentage)}%`);
-    if (usage.sevenDay.resetsAt) resets.push(t("status.usageReset", { window: "7d", time: formatTime(usage.sevenDay.resetsAt, true) }));
-  }
-  if (usage.spend) parts.push(`spend ${Math.round(usage.spend.usedPercentage)}%`);
-  const max = Math.max(usage.fiveHour?.usedPercentage ?? 0, usage.sevenDay?.usedPercentage ?? 0, usage.spend?.usedPercentage ?? 0);
-  const updated = usage.updatedAt ? [t("status.usageUpdated", { time: formatTime(usage.updatedAt, true) })] : [];
-  const title = [t("status.usageTitle"), ...resets, ...updated].join("\n");
+  const { info } = useWorkspace();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const panelId = useId();
+
+  const claude = claudeMeters(usage, t);
+  const copilotQuota = usage.agents?.copilot;
+  const copilot = copilotQuota ? copilotMeter(copilotQuota, t) : null;
+  const meters = copilot ? [...claude, copilot] : claude;
+  const warn = meters.some((m) => m.percent !== null && m.percent >= WARN_PERCENT);
+  const summary = meters.map(short).join(" · ");
+  // Narrow screens show only the fullest meter.
+  const peak = meters.reduce((a, b) => ((b.percent ?? -1) > (a.percent ?? -1) ? b : a), meters[0]);
+
+  useEffect(() => {
+    if (!open) return;
+    panelRef.current?.focus();
+    const onPointer = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointer);
+    return () => document.removeEventListener("pointerdown", onPointer);
+  }, [open]);
+
+  const close = () => {
+    setOpen(false);
+    buttonRef.current?.focus();
+  };
+
+  const claudeVersion = info?.claudeVersion ? t("account.claudeVersion", { version: info.claudeVersion }) : t("account.claudeMissing");
+  const copilotVersion = info?.versions?.copilot ? t("account.copilotVersion", { version: info.versions.copilot }) : null;
 
   return (
-    <span className={`status-item status-usage${max >= WARN_PERCENT ? " is-warn" : ""}`} title={title}>
-      <Gauge aria-hidden="true" />
-      <span className="sr-only">{t("status.usageLabel")}</span>
-      {parts.join(" · ")}
-    </span>
+    <div
+      className="status-usage-root"
+      ref={rootRef}
+      onKeyDown={(e) => {
+        if (open && e.key === "Escape") {
+          e.stopPropagation();
+          close();
+        }
+      }}
+      onBlur={(e) => {
+        if (open && e.relatedTarget && !rootRef.current?.contains(e.relatedTarget as Node)) setOpen(false);
+      }}
+    >
+      <button
+        type="button"
+        ref={buttonRef}
+        className={`status-item status-button status-usage${warn ? " is-warn" : ""}`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Gauge aria-hidden="true" />
+        <span className="sr-only">{t("status.usageLabel")}</span>
+        <span className="usage-summary">{summary}</span>
+        <span className="usage-peak" aria-hidden="true">
+          {peak && short(peak)}
+        </span>
+      </button>
+      {open && (
+        <div className="usage-popover" id={panelId} ref={panelRef} role="dialog" aria-label={t("status.usageDialog")} tabIndex={-1}>
+          <section className="usage-agent">
+            <header className="usage-agent-head">
+              <h2>{AGENT_LABELS.claude}</h2>
+              <span className="usage-version">{claudeVersion}</span>
+            </header>
+            <p className="usage-scope">{t("status.usageTitle")}</p>
+            {claude.length > 0 ? <MeterList meters={claude} /> : <p className="usage-empty">{t("status.usageEmpty")}</p>}
+            {claude.length > 0 && usage.updatedAt && <p className="usage-updated">{t("status.usageUpdated", { time: formatTime(usage.updatedAt, true) })}</p>}
+          </section>
+          {copilotQuota && copilot && (
+            <section className="usage-agent">
+              <header className="usage-agent-head">
+                <h2>{AGENT_LABELS.copilot}</h2>
+                {copilotVersion && <span className="usage-version">{copilotVersion}</span>}
+              </header>
+              <p className="usage-scope">
+                {copilotQuota.unlimited
+                  ? t("status.copilotUsageUnlimited", { unit: copilotUnit(copilotQuota, t) })
+                  : t("status.copilotUsageTitle", { unit: copilotUnit(copilotQuota, t) })}
+              </p>
+              <MeterList meters={[copilot]} />
+              <p className="usage-updated">{t("status.usageUpdated", { time: formatTime(copilotQuota.updatedAt, true) })}</p>
+            </section>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
-/** Copilot's account quota as its runtime last reported it: "Copilot 42%", or "Copilot ∞" when unlimited. */
-function CopilotUsageItem({ quota }: { quota: AgentQuota }) {
-  const { t } = useTranslation("shell");
-  const unit = t(quota.unit === "ai_credits" ? "status.copilotUnitAiCredits" : "status.copilotUnitPremiumRequests");
-  const lines = [quota.unlimited ? t("status.copilotUsageUnlimited", { unit }) : t("status.copilotUsageTitle", { unit })];
-  if (quota.used !== null && quota.entitlement !== null) lines.push(t("status.copilotUsageUsed", { used: quota.used, entitlement: quota.entitlement, unit }));
-  if (quota.resetsAt) lines.push(t("status.copilotUsageReset", { time: formatTime(quota.resetsAt, true) }));
-  lines.push(t("status.usageUpdated", { time: formatTime(quota.updatedAt, true) }));
-  const warn = quota.usedPercentage !== null && quota.usedPercentage >= WARN_PERCENT;
-
+function MeterList({ meters }: { meters: Meter[] }) {
   return (
-    <span className={`status-item status-usage status-usage-copilot${warn ? " is-warn" : ""}`} title={lines.join("\n")}>
-      <Gauge aria-hidden="true" />
-      <span className="sr-only">{t("status.copilotUsageLabel")}</span>
-      {`${AGENT_LABELS.copilot} ${quota.usedPercentage === null ? "∞" : `${Math.round(quota.usedPercentage)}%`}`}
-    </span>
+    <ul className="usage-meters">
+      {meters.map((m) => {
+        const warn = m.percent !== null && m.percent >= WARN_PERCENT;
+        return (
+          <li key={m.id} className={warn ? "is-warn" : undefined}>
+            <span className="usage-meter-label">{m.label}</span>
+            <span className="usage-meter-value">{m.percent === null ? "∞" : `${Math.round(m.percent)}%`}</span>
+            <span className="usage-bar" aria-hidden="true">
+              <span style={{ width: `${Math.min(100, m.percent ?? 0)}%` }} />
+            </span>
+            {m.notes.map((note) => (
+              <span key={note} className="usage-meter-note">
+                {note}
+              </span>
+            ))}
+          </li>
+        );
+      })}
+    </ul>
   );
+}
+
+/** "5h 42%", "Copilot ∞". */
+function short(m: Meter): string {
+  return `${m.id === "copilot" ? AGENT_LABELS.copilot : m.label} ${m.percent === null ? "∞" : `${Math.round(m.percent)}%`}`;
+}
+
+function claudeMeters(usage: UsageView, t: TFunction<"shell">): Meter[] {
+  const meters: Meter[] = [];
+  if (usage.fiveHour) {
+    const reset = usage.fiveHour.resetsAt;
+    meters.push({ id: "5h", label: "5h", percent: usage.fiveHour.usedPercentage, notes: reset ? [t("status.usageReset", { window: "5h", time: formatTime(reset, false) })] : [] });
+  }
+  if (usage.sevenDay) {
+    const reset = usage.sevenDay.resetsAt;
+    meters.push({ id: "7d", label: "7d", percent: usage.sevenDay.usedPercentage, notes: reset ? [t("status.usageReset", { window: "7d", time: formatTime(reset, true) })] : [] });
+  }
+  if (usage.spend) meters.push({ id: "spend", label: "spend", percent: usage.spend.usedPercentage, notes: [] });
+  return meters;
+}
+
+function copilotUnit(quota: AgentQuota, t: TFunction<"shell">): string {
+  return t(quota.unit === "ai_credits" ? "status.copilotUnitAiCredits" : "status.copilotUnitPremiumRequests");
+}
+
+/** Copilot's account quota as its runtime last reported it. */
+function copilotMeter(quota: AgentQuota, t: TFunction<"shell">): Meter {
+  const unit = copilotUnit(quota, t);
+  const notes: string[] = [];
+  if (quota.used !== null && quota.entitlement !== null) notes.push(t("status.copilotUsageUsed", { used: quota.used, entitlement: quota.entitlement, unit }));
+  if (quota.resetsAt) notes.push(t("status.copilotUsageReset", { time: formatTime(quota.resetsAt, true) }));
+  return { id: "copilot", label: unit, percent: quota.usedPercentage, notes };
 }
 
 function formatTime(ms: number, withDay: boolean): string {

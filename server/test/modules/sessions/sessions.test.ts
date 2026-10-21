@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
@@ -19,8 +19,19 @@ const fakeClaude: Launcher = (id, { resume }) => ({
 });
 
 let app: FastifyInstance | undefined;
+// Copilot sessions install their hooks under COPILOT_HOME: keep that out of the real ~/.copilot.
+const realCopilotHome = process.env.COPILOT_HOME;
+let copilotHome = "";
+beforeAll(async () => {
+  copilotHome = await tempDir("taskpilot-copilot-home-");
+  process.env.COPILOT_HOME = copilotHome;
+});
 afterEach(async () => app?.close());
-afterAll(cleanupTempDirs);
+afterAll(async () => {
+  if (realCopilotHome === undefined) delete process.env.COPILOT_HOME;
+  else process.env.COPILOT_HOME = realCopilotHome;
+  await cleanupTempDirs();
+});
 
 async function start() {
   const state = new StateStore(await tempDir("taskpilot-state-"));
@@ -266,12 +277,13 @@ describe("copilot sessions", () => {
   }
   const list = async () => (await app!.inject({ url: "/api/tasks/DEMO-1/sessions", headers: ok })).json();
 
-  it("writes the hook file, waits for the input box, and maps copilot's hooks", async () => {
+  it("writes the user-level hook file, waits for the input box, and maps copilot's hooks", async () => {
     const { app, repo } = await startCopilot();
     const s = (await app.inject({ method: "POST", url: "/api/tasks/DEMO-1/sessions", headers: ok, payload: { agent: "copilot" } })).json();
     expect(s).toMatchObject({ agent: "copilot", status: "running" });
-    const hooks = JSON.parse(await readFile(path.join(repo, ".github", "copilot", "settings.local.json"), "utf8")).hooks;
+    const hooks = JSON.parse(await readFile(path.join(copilotHome, "hooks", "taskpilot.json"), "utf8")).hooks;
     expect(Object.keys(hooks)).toContain("Stop");
+    await expect(readFile(path.join(repo, ".github", "copilot", "settings.local.json"), "utf8")).rejects.toThrow();
 
     const term = await connect(app, s.id);
     await term.until(() => term.output().includes("Confirm folder trust"));

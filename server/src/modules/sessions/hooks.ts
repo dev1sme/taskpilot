@@ -1,4 +1,4 @@
-/** Claude Code hook events TaskPilot listens to. */
+/** Hook events TaskPilot listens to, by their Claude Code names (Copilot accepts the same names). */
 export const HOOK_EVENTS = [
   "SessionStart",
   "UserPromptSubmit",
@@ -24,12 +24,17 @@ export function isHookEvent(name: string): name is HookEvent {
  * JSON stays the same for every session.
  */
 export function hookSettings(): string {
-  const command = (event: HookEvent) =>
-    `curl -sS -m 5 -o /dev/null -X POST -H "x-taskpilot-hook-token: $TASKPILOT_HOOK_TOKEN" ` +
-    `-H "content-type: application/json" --data-binary @- "$TASKPILOT_HOOK_URL/${event}" >/dev/null 2>&1 || true`;
   const hooks: Record<string, unknown> = {};
-  for (const event of HOOK_EVENTS) hooks[event] = [{ hooks: [{ type: "command", command: command(event) }] }];
+  for (const event of HOOK_EVENTS) hooks[event] = [{ hooks: [{ type: "command", command: hookCommand(event) }] }];
   return JSON.stringify({ hooks, statusLine: { type: "command", command: STATUS_LINE_COMMAND } });
+}
+
+/** Shell command a hook runs: posts its JSON input to TaskPilot, never failing the agent's turn. */
+export function hookCommand(event: HookEvent): string {
+  return (
+    `curl -sS -m 5 -o /dev/null -X POST -H "x-taskpilot-hook-token: $TASKPILOT_HOOK_TOKEN" ` +
+    `-H "content-type: application/json" --data-binary @- "$TASKPILOT_HOOK_URL/${event}" >/dev/null 2>&1 || true`
+  );
 }
 
 /**

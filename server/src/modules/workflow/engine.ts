@@ -6,11 +6,12 @@ import { HttpError } from "../../core/errors.js";
 import { getTask, TASKS_DIR } from "../tasks/index.js";
 import type { HookEvent, SessionView } from "../sessions/index.js";
 import type { SessionMeta, StateStore } from "../../core/state.js";
-import { loadWorkflow, OVERRIDE_DIR } from "./definition.js";
+import { checkForParallel, overlaps, parseAssignments, type ParsedAssignments } from "./assignments.js";
+import { loadWorkflow, OVERRIDE_DIR, reportOf } from "./definition.js";
 import { archiveOutputs } from "./archive.js";
 import { appendHistory, HISTORY_TEXT } from "./history.js";
 import { parseQuestions, type Question } from "./questions.js";
-import type { RunPhase, RunState, StepDef, SubtaskPhase, WorkflowDef } from "./types.js";
+import type { Assignment, RunPhase, RunState, StepDef, SubtaskPhase, SubtaskRun, WorkflowDef } from "./types.js";
 import { promptVars, renderPrompt } from "./vars.js";
 import { t } from "../../core/i18n.js";
 
@@ -35,6 +36,8 @@ export interface RunView {
       gate: StepDef["gate"];
       doneFile: string | null;
       outputs: Array<{ id: string; file: string }>;
+      /** Set on a dispatch step. */
+      dispatch: { from: string; report: string; parallel: number } | null;
     }>;
     /** The run follows the workflow as it was when it started, which has been edited since. */
     outdated: boolean;
@@ -43,6 +46,10 @@ export interface RunView {
   run: Omit<RunState, "workflow"> | null;
   /** Claude's numbered questions for the reviewer, at a gate or while it waits for an answer. */
   questions: Question[];
+  /** At a gate whose next step is a dispatch step: the subtasks the plan's table gives, or why it is not usable. */
+  assignments: ParsedAssignments | null;
+  /** Questions of each subtask that waits for an answer, by subtask number. */
+  subtaskQuestions: Record<number, Question[]>;
 }
 
 /**
@@ -97,16 +104,22 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
           gate: s.gate,
           doneFile: s.doneWhen?.file ?? null,
           outputs: s.outputs.map((o) => ({ id: o.id, file: o.file })),
+          dispatch: s.dispatch ? { from: s.dispatch.from, report: s.dispatch.report, parallel: s.dispatch.parallel } : null,
         })),
         outdated: !!pinned && JSON.stringify(pinned) !== JSON.stringify(current),
       },
       run: run ? withoutSnapshot(run) : null,
       questions: run ? await this.questionsOf(run, def) : [],
+      assignments: run?.phase === "gate" && def.steps[run.stepIndex + 1]?.dispatch ? await this.assignmentsFor(run, def, run.stepIndex + 1) : null,
+      subtaskQuestions: Object.fromEntries(
+        (run?.subtasks ?? []).filter((s) => s.phase === "waiting").map((s) => [s.n, parseQuestions(s.lastMessage ?? "")]),
+      ),
     };
   }
 
   /** At a gate: the open questions of the step's done-when document, else of Claude's last message. */
   private async questionsOf(run: RunState, def: WorkflowDef): Promise<Question[]> {
+    if (dispatching(run, def)) return [];
     if (run.phase === "gate") {
       const file = def.steps[run.stepIndex]?.doneWhen?.file;
       const doc = file ? await readFile(path.join(taskDirOf(run), file), "utf8").catch(() => "") : "";
@@ -135,6 +148,9 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       if (!existing) throw new HttpError(409, "No workflow run to restart; start one first");
       const old = await this.sessions.get(existing.sessionId).catch(() => null);
       if (old?.status === "running") await this.sessions.stop(existing.sessionId);
+      for (const sub of existing.subtasks ?? []) {
+        if (sub.sessionId && (await this.sessions.get(sub.sessionId).catch(() => null))?.status === "running") await this.sessions.stop(sub.sessionId);
+      }
       const before = await this.defOf(existing);
       const previous = await archiveOutputs(taskDirOf(existing), before.history.file, new Date());
       await this.log(existing, HISTORY_TEXT.restart, {
@@ -180,11 +196,13 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       const run = await this.require(repo, taskKey, ["gate"]);
       const def = await this.defOf(run);
       const last = run.stepIndex + 1 >= def.steps.length;
+      const table = !last && def.steps[run.stepIndex + 1].dispatch ? await this.assignmentsFor(run, def, run.stepIndex + 1) : null;
+      if (table && table.errors.length > 0) throw new HttpError(400, t("run.assignmentsInvalid", { errors: table.errors.join("; ") }));
       await this.log(run, HISTORY_TEXT.approve, { ...(note.trim() ? { quote: note.trim() } : {}), ...(last ? { body: HISTORY_TEXT.done } : {}) });
       if (last) {
         return this.save(run, { phase: "done", message: t("run.done") });
       }
-      await this.enterStep(run, def, run.stepIndex + 1);
+      await this.enterStep(run, def, run.stepIndex + 1, table?.items);
       return run;
     });
   }
@@ -206,6 +224,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     return this.serial(async () => {
       if (!text.trim()) throw new HttpError(400, "Reply is empty");
       const run = await this.require(repo, taskKey, ["waiting"]);
+      await this.notWhileDispatching(run);
       const session = await this.sessions.get(run.sessionId);
       if (session.status === "running" && session.activity === "busy") {
         throw new HttpError(409, "The agent is still working; wait for it or stop it in the terminal");
@@ -220,6 +239,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   retry(repo: string, taskKey: string): Promise<RunState> {
     return this.serial(async () => {
       const run = await this.require(repo, taskKey, ["starting", "running", "waiting", "interrupted"]);
+      await this.notWhileDispatching(run);
       const session = await this.sessions.get(run.sessionId);
       if (session.status === "running" && session.activity === "busy") {
         throw new HttpError(409, "The agent is still working; wait for it or stop it in the terminal");
@@ -238,7 +258,29 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     });
   }
 
-  /** True when an active run drives this session; such a session must not be removed. */
+  /** Answers a subtask that waits (it ended its turn without its report): logged, then pasted as it is. */
+  replySubtask(repo: string, taskKey: string, n: number, text: string): Promise<RunState> {
+    return this.serial(async () => {
+      if (!text.trim()) throw new HttpError(400, "Reply is empty");
+      const { run, sub } = await this.requireSubtask(repo, taskKey, n, ["waiting"]);
+      await this.ensureIdle(sub);
+      await this.log(run, HISTORY_TEXT.subtaskReply(n), { quote: text.trim() });
+      await this.deliver(run, text.trim(), { lane: sub });
+      return run;
+    });
+  }
+
+  /** Sends a subtask's prompt again, resuming its session first if it has exited. */
+  retrySubtask(repo: string, taskKey: string, n: number): Promise<RunState> {
+    return this.serial(async () => {
+      const { run, sub } = await this.requireSubtask(repo, taskKey, n, ["starting", "running", "waiting", "interrupted"]);
+      await this.ensureIdle(sub);
+      await this.deliver(run, sub.pendingPrompt ?? (await this.subtaskPrompt(run, sub)), { force: true, lane: sub });
+      return run;
+    });
+  }
+
+  /** True when an active run drives this session (as the leader or as a subtask); such a session must not be removed. */
   async usesSession(sessionId: string): Promise<boolean> {
     return (await this.bySession(sessionId)) !== undefined;
   }
@@ -249,10 +291,10 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       for (const run of (await this.state.load()).runs) {
         if (["starting", "running", "waiting"].includes(run.phase)) {
           await this.log(run, HISTORY_TEXT.interrupted, { body: HISTORY_TEXT.serverRestarted });
-          await this.save(run, {
-            phase: "interrupted",
-            message: t("run.restarted"),
-          });
+          for (const sub of run.subtasks ?? []) {
+            if (["starting", "running", "waiting"].includes(sub.phase)) sub.phase = "interrupted";
+          }
+          await this.save(run, { phase: "interrupted", message: t("run.restarted") });
         }
       }
     });
@@ -262,15 +304,19 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     return this.serial(async () => {
       const run = await this.bySession(meta.id);
       if (!run) return;
+      const lane = laneOf(run, meta.id)!;
+      // While subtasks run, the leader's session sits idle; nothing it reports concerns the run.
+      if (lane === run && dispatching(run, await this.defOf(run))) return;
       if (event === "Stop" && typeof payload.last_assistant_message === "string") {
-        run.lastMessage = payload.last_assistant_message;
+        lane.lastMessage = payload.last_assistant_message;
       }
-      if (event === "SessionStart" && run.phase === "starting" && run.pendingPrompt) {
-        await this.send(run, run.pendingPrompt);
-      } else if (event === "UserPromptSubmit" && run.phase === "waiting") {
-        await this.save(run, { phase: "running", message: t("run.working", { agent: agentLabel(run) }) });
-      } else if (event === "Stop" && (run.phase === "running" || run.phase === "waiting")) {
-        await this.onStop(run);
+      if (event === "SessionStart" && lane.phase === "starting" && lane.pendingPrompt) {
+        await this.send(run, lane.pendingPrompt, lane);
+      } else if (event === "UserPromptSubmit" && lane.phase === "waiting") {
+        await this.saveLane(run, lane, { phase: "running" }, t("run.working", { agent: agentLabel(run) }));
+      } else if (event === "Stop" && (lane.phase === "running" || lane.phase === "waiting")) {
+        if (lane === run) await this.onStop(run);
+        else await this.onSubtaskStop(run, lane as SubtaskRun);
       }
     });
   }
@@ -278,12 +324,18 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   onExit(meta: SessionMeta): Promise<void> {
     return this.serial(async () => {
       const run = await this.bySession(meta.id);
-      if (!run || !["starting", "running", "waiting"].includes(run.phase)) return;
-      await this.log(run, HISTORY_TEXT.interrupted, { body: HISTORY_TEXT.sessionStopped });
-      await this.save(run, {
-        phase: "interrupted",
-        message: t("run.sessionStopped"),
-      });
+      if (!run) return;
+      const lane = laneOf(run, meta.id)!;
+      if (!["starting", "running", "waiting"].includes(lane.phase)) return;
+      if (lane === run) {
+        if (dispatching(run, await this.defOf(run))) return;
+        await this.log(run, HISTORY_TEXT.interrupted, { body: HISTORY_TEXT.sessionStopped });
+        await this.save(run, { phase: "interrupted", message: t("run.sessionStopped") });
+      } else {
+        const sub = lane as SubtaskRun;
+        await this.log(run, HISTORY_TEXT.subtaskInterrupted(sub.n), { body: HISTORY_TEXT.subtaskSessionStopped });
+        await this.saveLane(run, sub, { phase: "interrupted" }, "");
+      }
     });
   }
 
@@ -305,14 +357,33 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     }
   }
 
+  /** A subtask's turn ended: done when its report was written since the prompt, else it waits for an answer. */
+  private async onSubtaskStop(run: RunState, sub: SubtaskRun): Promise<void> {
+    const def = await this.defOf(run);
+    if (!(await this.writtenSince(run, sub.report, sub.stepStartedAt))) {
+      await this.saveLane(run, sub, { phase: "waiting" }, "");
+      return;
+    }
+    await this.saveLane(run, sub, { phase: "done", pendingPrompt: undefined }, "");
+    await this.log(run, HISTORY_TEXT.subtaskDone(sub.n, AGENT_LABELS[sub.agent]), { body: HISTORY_TEXT.subtaskDoneBody(sub.report) });
+    if ((await this.sessions.get(sub.sessionId!).catch(() => null))?.status === "running") await this.sessions.stop(sub.sessionId!);
+    if ((run.subtasks ?? []).every((s) => s.phase === "done")) {
+      await this.log(run, HISTORY_TEXT.backToLeader, { body: HISTORY_TEXT.backToLeaderBody(run.subtasks!.length) });
+      await this.enterStep(run, def, run.stepIndex + 1);
+    } else await this.launchReady(run, def);
+  }
+
   /**
    * Moves the run to step `index` and sends its prompt. A step for another agent gets a new session
    * of that agent: the previous one is stopped (it stays listed) and the switch goes into the decision
-   * log, which the step's prompt has the agent read with the task's documents.
+   * log, which the step's prompt has the agent read with the task's documents. A dispatch step opens
+   * one session per subtask instead and leaves the leader's session as it is.
    */
-  private async enterStep(run: RunState, def: WorkflowDef, index: number): Promise<void> {
+  private async enterStep(run: RunState, def: WorkflowDef, index: number, items?: Assignment[]): Promise<void> {
     run.stepIndex = index;
-    const agent = def.steps[index].agent ?? DEFAULT_AGENT;
+    const step = def.steps[index];
+    if (step.dispatch) return this.startDispatch(run, def, step.dispatch.report, items ?? []);
+    const agent = step.agent ?? DEFAULT_AGENT;
     const current = await this.sessions.get(run.sessionId).catch(() => null);
     if (current && current.agent !== agent) {
       if (current.status === "running") await this.sessions.stop(run.sessionId);
@@ -320,7 +391,59 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       await this.log(run, HISTORY_TEXT.switchAgent, { body: HISTORY_TEXT.switchAgentBody(AGENT_LABELS[current.agent], AGENT_LABELS[agent]) });
       await this.save(run, { sessionId: session.id });
     }
-    await this.deliver(run, await this.prompt(run, def.steps[index].prompt));
+    await this.deliver(run, await this.prompt(run, step.prompt));
+  }
+
+  private async startDispatch(run: RunState, def: WorkflowDef, report: string, items: Assignment[]): Promise<void> {
+    const dispatch = def.steps[run.stepIndex].dispatch!;
+    const subtasks: SubtaskRun[] = items.map((a) => ({ ...a, phase: "pending", report: reportOf(report, a.n) }));
+    await this.save(run, { subtasks, pendingPrompt: undefined, phase: "running", message: t("run.dispatching", { done: 0, total: subtasks.length }) });
+    await this.log(run, HISTORY_TEXT.dispatch, {
+      body: HISTORY_TEXT.dispatchBody(items.map((a) => ({ ...a, agent: AGENT_LABELS[a.agent] })), dispatch.parallel),
+    });
+    await this.launchReady(run, def);
+  }
+
+  /**
+   * Opens a session for every pending subtask that can start: its dependencies are done, a slot is free
+   * and its files do not overlap those of a subtask in progress. Subtasks wait their turn in table order.
+   */
+  private async launchReady(run: RunState, def: WorkflowDef): Promise<void> {
+    const dispatch = def.steps[run.stepIndex].dispatch!;
+    const subs = run.subtasks ?? [];
+    for (;;) {
+      const busy = subs.filter((s) => s.phase !== "pending" && s.phase !== "done");
+      const next = subs.find(
+        (s) =>
+          s.phase === "pending" &&
+          s.deps.every((d) => subs.find((o) => o.n === d)?.phase === "done") &&
+          busy.length < dispatch.parallel &&
+          !busy.some((b) => overlaps(b.files, s.files)),
+      );
+      if (!next) break;
+      const session = await this.sessions.create(run.repo, run.taskKey, {
+        permissionMode: def.permissionMode,
+        agent: next.agent,
+        title: t("run.subtaskTitle", { n: next.n }),
+      });
+      next.sessionId = session.id;
+      next.phase = "starting";
+      await this.save(run, {});
+      await this.deliver(run, await this.subtaskPrompt(run, next), { lane: next });
+    }
+    this.syncDispatch(run);
+    await this.save(run, {});
+  }
+
+  /** The run's own phase and message while its subtasks work: the one needing attention first. */
+  private syncDispatch(run: RunState) {
+    const subs = run.subtasks ?? [];
+    const interrupted = subs.find((s) => s.phase === "interrupted");
+    const waiting = subs.find((s) => s.phase === "waiting");
+    const done = subs.filter((s) => s.phase === "done").length;
+    if (interrupted) Object.assign(run, { phase: "interrupted", message: t("run.subtaskInterrupted", { n: interrupted.n }) });
+    else if (waiting) Object.assign(run, { phase: "waiting", message: t("run.subtaskWaiting", { n: waiting.n, file: waiting.report }) });
+    else Object.assign(run, { phase: "running", message: t("run.dispatching", { done, total: subs.length }) });
   }
 
   /**
@@ -358,13 +481,51 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     if (lane === run) await this.save(run, { ...patch, message } as Partial<RunState>);
     else {
       Object.assign(lane, patch);
+      this.syncDispatch(run);
       await this.save(run, {});
     }
   }
 
   private async prompt(run: RunState, template: string, extra: { feedback?: string } = {}): Promise<string> {
     const task = await getTask(run.repo, run.taskKey);
-    return renderPrompt(template, promptVars(await this.defOf(run), run.stepIndex, task, { previous: run.previous, ...extra }));
+    return renderPrompt(template, promptVars(await this.defOf(run), run.stepIndex, task, { previous: run.previous, subtasks: run.subtasks, ...extra }));
+  }
+
+  private async subtaskPrompt(run: RunState, sub: SubtaskRun): Promise<string> {
+    const def = await this.defOf(run);
+    const task = await getTask(run.repo, run.taskKey);
+    return renderPrompt(def.steps[run.stepIndex].dispatch!.prompt, promptVars(def, run.stepIndex, task, { previous: run.previous, subtask: sub, subtasks: run.subtasks }));
+  }
+
+  /** The subtasks a dispatch step would get from the plan's table, with the problems that keep them from running. */
+  private async assignmentsFor(run: RunState, def: WorkflowDef, index: number): Promise<ParsedAssignments> {
+    const dispatch = def.steps[index].dispatch!;
+    const file = def.steps.flatMap((s) => s.outputs).find((o) => o.id === dispatch.from)?.file ?? "";
+    const doc = await readFile(path.join(taskDirOf(run), file), "utf8").catch(() => "");
+    const parsed = parseAssignments(doc);
+    const errors = parsed.errors.length ? parsed.errors : checkForParallel(parsed.items, dispatch.parallel);
+    return { items: errors.length ? [] : parsed.items, errors };
+  }
+
+  /** The run-level reply and retry talk to the leader's session, which has nothing to answer while subtasks work. */
+  private async notWhileDispatching(run: RunState): Promise<void> {
+    if (dispatching(run, await this.defOf(run))) throw new HttpError(409, "Subtasks are running; answer or retry them one by one");
+  }
+
+  private async requireSubtask(repo: string, taskKey: string, n: number, phases: ReadonlyArray<SubtaskPhase>): Promise<{ run: RunState; sub: SubtaskRun }> {
+    const run = await this.require(repo, taskKey, ["starting", "running", "waiting", "interrupted"]);
+    if (!dispatching(run, await this.defOf(run))) throw new HttpError(409, "The run is not handing out subtasks");
+    const sub = run.subtasks?.find((s) => s.n === n);
+    if (!sub) throw new HttpError(404, `No subtask ${n}`);
+    if (!phases.includes(sub.phase)) throw new HttpError(409, `Not allowed while subtask ${n} is ${sub.phase}`);
+    return { run, sub };
+  }
+
+  private async ensureIdle(sub: SubtaskRun): Promise<void> {
+    const session = await this.sessions.get(sub.sessionId!);
+    if (session.status === "running" && session.activity === "busy") {
+      throw new HttpError(409, "The agent is still working; wait for it or stop it in the terminal");
+    }
   }
 
   /** The workflow the run started with; runs saved before snapshots existed follow the current one. */
@@ -408,7 +569,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   }
 
   private async bySession(sessionId: string): Promise<RunState | undefined> {
-    return (await this.state.load()).runs.find((r) => r.sessionId === sessionId && ACTIVE.includes(r.phase));
+    return (await this.state.load()).runs.find((r) => laneOf(r, sessionId) && ACTIVE.includes(r.phase));
   }
 
   private async require(repo: string, taskKey: string, phases: ReadonlyArray<RunState["phase"]>): Promise<RunState> {
@@ -424,6 +585,16 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     this.queue = next.catch(() => undefined);
     return next;
   }
+}
+
+/** The run itself when `sessionId` is its leader's session, else the subtask that session works on. */
+function laneOf(run: RunState, sessionId: string): Lane | undefined {
+  return run.sessionId === sessionId ? run : run.subtasks?.find((s) => s.sessionId === sessionId);
+}
+
+/** The run is at its dispatch step: subtasks are being handed out and worked on. */
+function dispatching(run: RunState, def: WorkflowDef): boolean {
+  return !!run.subtasks && !!def.steps[run.stepIndex]?.dispatch;
 }
 
 function withoutSnapshot(run: RunState): Omit<RunState, "workflow"> {

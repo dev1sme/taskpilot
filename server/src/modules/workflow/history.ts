@@ -44,6 +44,7 @@ export const HISTORY_TEXT = {
       .join("\n")
       .trim(),
   subtaskDone: (n: number, agent: string) => `Việc ${n} xong · ${agent}`,
+  subtaskDoneBody: (report: string) => `Báo cáo: ${report}`,
   subtaskReply: (n: number) => `Ba trả lời việc ${n}`,
   subtaskInterrupted: (n: number) => `Việc ${n} gián đoạn`,
   subtaskSessionStopped: "Session của việc dừng giữa chừng.",

@@ -156,6 +156,9 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
     if (steps.some((s) => s.dispatch)) {
       errors.push(`${at}: only one dispatch step is allowed`);
     }
+    if (index > 0 && !steps.at(-1)?.dispatch && steps.at(-1)?.gate !== "approve") {
+      errors.push(`${at}: the step before a dispatch step needs gate: approve, so the reviewer approves the plan before work is handed out`);
+    }
     if (index === stepCount - 1) errors.push(`${at}: a dispatch step needs a review step after it`);
     const d = raw.dispatch;
     if (!isObject(d)) return (errors.push(`${at}.dispatch must be {from, prompt, report, format, parallel}`), null);

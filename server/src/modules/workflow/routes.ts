@@ -4,7 +4,7 @@ import type { RepoContext } from "../repo/index.js";
 import { getTask } from "../tasks/index.js";
 import type { WorkflowEngine } from "./engine.js";
 
-/** Workflow run of a task: view, start, cancel, approve a gate, send feedback, answer Claude, restart, retry. */
+/** Workflow run of a task: view, start, cancel, approve a gate, send feedback, answer Claude, restart, retry; reply to or retry one subtask. */
 export function registerWorkflowRoutes(app: FastifyInstance, opts: { repo: RepoContext; engine: WorkflowEngine }) {
   const { engine } = opts;
   const requireRepo = opts.repo.require;
@@ -36,6 +36,15 @@ export function registerWorkflowRoutes(app: FastifyInstance, opts: { repo: RepoC
     if (typeof req.body?.text !== "string") throw new HttpError(400, "Body must be {\"text\": string}");
     return engine.reply(requireRepo(), req.params.key, req.body.text);
   });
+
+  app.post<{ Params: { key: string; n: string }; Body: { text?: unknown } }>("/api/tasks/:key/run/subtasks/:n/reply", async (req) => {
+    if (typeof req.body?.text !== "string") throw new HttpError(400, "Body must be {\"text\": string}");
+    return engine.replySubtask(requireRepo(), req.params.key, Number(req.params.n), req.body.text);
+  });
+
+  app.post<{ Params: { key: string; n: string } }>("/api/tasks/:key/run/subtasks/:n/retry", async (req) =>
+    engine.retrySubtask(requireRepo(), req.params.key, Number(req.params.n)),
+  );
 
   app.post<{ Params: { key: string } }>("/api/tasks/:key/run/restart", async (req) =>
     engine.restart(requireRepo(), (await getTask(requireRepo(), req.params.key)).key),

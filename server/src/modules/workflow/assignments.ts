@@ -89,6 +89,12 @@ export function parseAssignments(markdown: string): ParsedAssignments {
   return { items: errors.length ? [] : items, errors };
 }
 
+/** Problems of a parsed table for a dispatch step that runs up to `parallel` subtasks at once. */
+export function checkForParallel(items: Assignment[], parallel: number): string[] {
+  if (parallel <= 1) return [];
+  return items.filter((a) => a.files.length === 0).map((a) => `subtask ${a.n}: File is required when subtasks run in parallel`);
+}
+
 /** True when two lists of files or directories share a path: equal, or one inside the other. */
 export function overlaps(a: string[], b: string[]): boolean {
   const left = a.map(normalize);

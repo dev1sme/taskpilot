@@ -59,7 +59,7 @@ starts over with the first step's agent. The built-in workflow investigates and 
 | `auto` | env `COPILOT_ALLOW_ALL=true`: allows every tool and **trusts the folder without asking**, so the repo's hooks (and MCP servers, skills, plugins) load. Not `--yolo`/`--allow-all-paths`/`--allow-all-urls`. |
 
 A Copilot step needs `permission-mode: auto` to run unattended: set it in the repo's override
-(`.claude/taskpilot/`), since the built-in workflow has none. It also becomes Claude's
+(`.taskpilot/`), since the built-in workflow has none. It also becomes Claude's
 `--permission-mode auto`. In the other modes Copilot loads the repo's hooks only once you trust
 the folder **permanently** (option 2, "Yes, and remember"; "this session" does not reliably load
 them). Without hooks TaskPilot never hears that Copilot finished: the run says so after a minute
@@ -90,8 +90,8 @@ TaskPilot ships its workflows as **modes**: one directory `workflows/<id>/workfl
 (`default`: static steps; `leader`: Claude leads, members do the plan's rows). No override is
 needed to pick one:
 
-- the *Workflow* page has a tab per mode and **Dùng làm mặc định của repo**; the choice is kept by
-  TaskPilot in `~/.taskpilot/state.json` (`repoModes[repo]`), not in the repo;
+- the *Workflow* page has a tab per mode and **Dùng làm mặc định của repo**; the choice is written to
+  `.taskpilot/settings.yml` in the repo (`mode: <id>`; backed up first, kept by *Xoá override*);
 - the task screen has a **Cách chạy** select next to *Bắt đầu* / *Chạy lại từ đầu* (hidden while
   only one mode is available) to run one task differently;
 - a run keeps the mode it started with (snapshot, `workflow.mode`) and the history entry names it.
@@ -100,7 +100,7 @@ Adding a mode = adding a `workflows/<id>/workflow.yml` (with a `name` and `descr
 
 ### Override
 
-A repo's override in `.claude/taskpilot/` is `workflow.yml` with `extends: <mode>` and only what
+A repo's override in `.taskpilot/` is `workflow.yml` with `extends: <mode>` and only what
 differs from that mode: top-level keys (`agent`, `permission-mode`, `language`, `rules`, `history`,
 `restart`) replace the mode's; a step with an id of the mode patches that step (only the keys
 written: `title`, `dispatch.prompt|format|parallel`); a new step is added with exactly one of
@@ -109,11 +109,11 @@ name. Everything not written follows the mode, so it gets TaskPilot's updates. A
 only to the mode it extends; for other modes the page says *không áp dụng* and shows the built-in.
 
 The *Workflow* page shows the mode in use, read only. **Tạo override dựa trên <mode>** writes just
-`workflow.yml` (refused with 409 if files already in `.claude/taskpilot/` clash with the mode's file
+`workflow.yml` (refused with 409 if files already in `.taskpilot/` clash with the mode's file
 names). Files can then be edited, checked, compared with the built-in file and previewed as the
 prompt a step sends (for a sample task, `TASK-1`, optionally as after *Chạy lại từ đầu* or with a
 sample feedback). **Xoá override** goes back to the built-in workflow (every file is backed up
-first). TaskPilot only ever writes inside `.claude/taskpilot/`, never `workflows/`. The old
+first). TaskPilot only ever writes inside `.taskpilot/`, never `workflows/`. The old
 `.claude/workflow.yml` is no longer read. The page opens with a short guide (*Override hoạt động
 thế nào*). The Formats page shows each document's skeleton from the workflow as it runs, and
 offers *Sửa* only for skeletons the override holds.
@@ -139,7 +139,7 @@ What an override changes, and when:
 - An `extends` override follows later changes to the mode for everything it does not write. Files
   it holds are tagged *thay file có sẵn* / *file thêm*; **So với mặc định** shows the diff and
   **Lấy lại bản mặc định** opens a draft with the built-in text, reviewed and saved like any edit.
-- Commit `.claude/taskpilot/` to share the workflow with everyone who opens the repo.
+- Commit `.taskpilot/` to share the workflow with everyone who opens the repo.
 
 ```yaml
 version: 2

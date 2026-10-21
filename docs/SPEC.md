@@ -91,8 +91,8 @@ gate approve (leader's plan)
 
 Built-in **modes** in `workflows/<id>/` (`default`, `leader`; a mode = a directory with
 `workflow.yml`). The mode of a run is chosen per task (start/restart body `mode`) or per repo
-(`repoModes` in `~/.taskpilot/state.json`), else `default`; the snapshot records it. A repo
-overrides a mode with `.claude/taskpilot/workflow.yml` (`extends: <mode>` + only the differences,
+(`mode: <id>` in the repo's `.taskpilot/settings.yml`), else `default`; the snapshot records it. A repo
+overrides a mode with `.taskpilot/workflow.yml` (`extends: <mode>` + only the differences,
 merged at file level before parsing; created from the Workflow page); a complete override without
 `extends` is the legacy mode `custom` and can be migrated. Format
 (`version: 2`), template variables and checks: [CONFIGURATION.md](CONFIGURATION.md#custom-workflow).

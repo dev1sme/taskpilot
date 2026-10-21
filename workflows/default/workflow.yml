@@ -1,5 +1,5 @@
 # Built-in TaskPilot workflow ("Mặc định"): Claude investigates, then implements. A repo changes it with
-# .claude/taskpilot/workflow.yml containing `extends: default` and only what differs (Workflow page →
+# .taskpilot/workflow.yml containing `extends: default` and only what differs (Workflow page →
 # "Tạo override"); this directory is never edited from the UI.
 name: Mặc định
 description: Điều tra & lên kế hoạch, rồi triển khai trong một session.

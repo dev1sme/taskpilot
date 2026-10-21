@@ -65,7 +65,7 @@ then environment, then `.env`, then the default.
 - [docs/GUIDE.md](docs/GUIDE.md) — task layout, the approval workflow, restarting a run, and the
   repo terminal and Claude plan usage in the footer.
 - [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — editing CLAUDE.md, permissions, hooks, agents,
-  commands, skills and MCP servers across scopes, and overriding the workflow in `.claude/taskpilot/`.
+  commands, skills and MCP servers across scopes, and overriding the workflow in `.taskpilot/`.
 - [docs/DEPLOY.md](docs/DEPLOY.md) — running as a systemd service, behind a reverse proxy, and the
   security model.
 - [docs/DEVELOP.md](docs/DEVELOP.md) — dev commands, project layout, i18n.

@@ -337,7 +337,7 @@
       "patched": "đã sửa: {{keys}}",
       "added": "bước thêm"
     },
-    "created": "Đã tạo {{count}} file trong .claude/taskpilot/",
+    "created": "Đã tạo {{count}} file trong .taskpilot/",
     "reset": "Xoá override",
     "resetTitle": "Xoá {{dir}}/ và dùng lại workflow mặc định",
     "resetConfirm": "Xác nhận xoá override",

@@ -27,7 +27,7 @@ const DRAFT_PREFIX = "workflow:";
 
 /**
  * The task workflow: TaskPilot's built-in one is shown read only; "Thêm config override" copies it
- * into the repo's .claude/taskpilot/, where every file can then be edited, checked and previewed.
+ * into the repo's .taskpilot/, where every file can then be edited, checked and previewed.
  */
 export function WorkflowPage({ file: initialFile }: { file?: string }) {
   const { t } = useTranslation("config");

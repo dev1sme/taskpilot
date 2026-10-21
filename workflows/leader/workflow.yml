@@ -1,6 +1,6 @@
 # Leader / member workflow: Claude investigates and plans, each subtask of the plan runs in its own
 # session of the agent the plan assigns it to, then Claude reviews. Choose it as the repo's mode on the
-# Workflow page, or per task when running; change it with .claude/taskpilot/workflow.yml containing
+# Workflow page, or per task when running; change it with .taskpilot/workflow.yml containing
 # `extends: leader`.
 name: Leader
 description: Leader lập kế hoạch và giao việc; mỗi việc con chạy trong session riêng, rồi leader rà soát.

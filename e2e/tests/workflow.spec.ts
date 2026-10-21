@@ -3,16 +3,16 @@ import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { FIXTURE_REPO, openFixtureRepo } from "../fixtures/repo";
 
-// The override lives in the shared fixture repo: run these one at a time and leave no override behind.
+// The override and the repo's mode (.taskpilot/settings.yml) live in the shared fixture repo: run these one at a time and leave nothing behind.
 test.describe.configure({ mode: "serial" });
 
-const OVERRIDE = path.join(FIXTURE_REPO, ".claude", "taskpilot");
+const OVERRIDE = path.join(FIXTURE_REPO, ".taskpilot");
 const clean = () => rmSync(OVERRIDE, { recursive: true, force: true });
 
 test.beforeEach(async ({ page }) => {
   clean();
   await openFixtureRepo(page);
-  // Which mode the repo runs by default is kept by the app, not in the repo: start from the default.
+  // The repo's default mode is kept in .taskpilot/settings.yml: start from the default.
   await page.request.put("/api/config/workflow/mode", { data: { mode: "default" } });
 });
 test.afterAll(clean);
@@ -20,7 +20,7 @@ test.afterAll(clean);
 async function withOverride(page: Page) {
   expect((await page.request.post("/api/config/workflow/override", { data: { mode: "default" } })).ok()).toBe(true);
   await page.goto("/#/workflow");
-  await expect(page.getByText("Mặc định · override .claude/taskpilot/")).toBeVisible();
+  await expect(page.getByText("Mặc định · override .taskpilot/")).toBeVisible();
 }
 
 const toolbar = (page: Page) => page.locator(".config-toolbar");
@@ -48,13 +48,15 @@ test("the built-in workflow is read only; the mode is chosen without an override
   await expect(page.getByText("Leader · có sẵn của TaskPilot", { exact: true })).toBeVisible();
   await toolbar(page).getByRole("button", { name: "Dùng làm mặc định của repo" }).click();
   await expect(modes.getByRole("tab", { name: /Leader/ })).toContainText("mặc định của repo");
-  expect(existsSync(OVERRIDE)).toBe(false);
+  // The choice is the repo's settings.yml; there is still no override.
+  expect(readFileSync(path.join(OVERRIDE, "settings.yml"), "utf8")).toContain("mode: leader");
+  expect(existsSync(path.join(OVERRIDE, "workflow.yml"))).toBe(false);
 });
 
 test("an override is only what differs: one file, applied to its own mode", async ({ page }) => {
   await page.goto("/#/workflow");
   await toolbar(page).getByRole("button", { name: "Tạo override dựa trên Mặc định" }).click();
-  await expect(page.getByText("Mặc định · override .claude/taskpilot/")).toBeVisible();
+  await expect(page.getByText("Mặc định · override .taskpilot/")).toBeVisible();
   expect(readFileSync(path.join(OVERRIDE, "workflow.yml"), "utf8")).toContain("extends: default");
   expect(existsSync(path.join(OVERRIDE, "investigate.md"))).toBe(false);
   await expect(page.getByRole("navigation", { name: "File của workflow" })).toContainText("có sẵn");
@@ -99,7 +101,10 @@ test("a prompt is replaced by a file of the same name, then the override is remo
   await toolbar(page).getByRole("button", { name: "Xoá override" }).click();
   await toolbar(page).getByRole("button", { name: "Xác nhận xoá override" }).click();
   await expect(page.getByText("Mặc định · có sẵn của TaskPilot", { exact: true })).toBeVisible();
-  expect(existsSync(OVERRIDE)).toBe(false);
+  // Only the override goes; the repo's mode (settings.yml) stays.
+  expect(existsSync(path.join(OVERRIDE, "workflow.yml"))).toBe(false);
+  expect(existsSync(path.join(OVERRIDE, "implement.md"))).toBe(false);
+  expect(existsSync(path.join(OVERRIDE, "settings.yml"))).toBe(true);
 });
 
 test("a complete override of the old format is offered a move to `extends`", async ({ page }) => {
@@ -141,5 +146,5 @@ test("the documents page shows each step's documents with their skeletons and li
   await expect(card.locator(".fmt-rendered h2").first()).toHaveText("1. Mục tiêu");
   await card.getByRole("button", { name: "Sửa" }).click();
   await expect(page).toHaveURL(/#\/workflow\/format-plan\.md$/);
-  await expect(page.locator(".wf-file .code-head")).toContainText(".claude/taskpilot/format-plan.md");
+  await expect(page.locator(".wf-file .code-head")).toContainText(".taskpilot/format-plan.md");
 });

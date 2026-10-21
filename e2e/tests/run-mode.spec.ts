@@ -4,7 +4,7 @@ import { openFixtureRepo } from "../fixtures/repo";
 // Runs are faked at the network layer: starting a real one would launch claude.
 test("a task is started in the mode picked, with no override", async ({ page }) => {
   await openFixtureRepo(page);
-  await page.request.put("/api/config/workflow/mode", { data: { mode: "default" } });
+  await page.request.put("/api/config/workflow/mode", { data: { mode: "default" } }); // writes .taskpilot/settings.yml
   const steps = [{ id: "investigate", title: "Điều tra & lên kế hoạch", gate: "approve", doneFile: "02-plan.md", outputs: [{ id: "plan", file: "02-plan.md" }] }];
   const mode = { id: "default", name: "Mặc định", override: false };
   await page.route("**/api/tasks/PROJ-1/run", (route) =>

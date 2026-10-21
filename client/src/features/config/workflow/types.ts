@@ -54,7 +54,7 @@ export interface ModeInfo {
   description: string;
 }
 
-/** The workflow of a mode: TaskPilot's built-in one, or with the repo's override in .claude/taskpilot/ when that applies to it. */
+/** The workflow of a mode: TaskPilot's built-in one, or with the repo's override in .taskpilot/ when that applies to it. */
 export interface WorkflowConfig {
   origin: "repo" | "default";
   mode: { id: string; name: string; override: boolean };

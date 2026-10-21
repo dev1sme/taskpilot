@@ -35,6 +35,8 @@ export interface WorkflowConfig {
   errors: string[];
   warnings: string[];
   variables: string[];
+  /** Starting text of a new prompt file. */
+  newPrompt: string;
   def: {
     permissionMode: string | null;
     history: { file: string; entry: string; format: string | null };

@@ -15,6 +15,6 @@ export const workflowConfigApi = {
   save: (name: string, content: string, baseHash: string) => call<SaveResult>("PUT", "/api/config/workflow/file", { name, content, baseHash }),
   remove: (name: string, baseHash: string) => call<SaveResult>("DELETE", `/api/config/workflow/file?name=${q(name)}&baseHash=${q(baseHash)}`),
   defaultDiff: (name: string) => call<{ diff: string; same: boolean }>("GET", `/api/config/workflow/default-diff?name=${q(name)}`),
-  render: (body: { taskKey: string; stepId: string; kind: "prompt" | "onReject"; drafts: Record<string, string> }) =>
-    call<{ text: string }>("POST", "/api/config/workflow/render", body),
+  render: (body: { stepId: string; kind: "prompt" | "onReject"; feedback: string; restart: boolean; drafts: Record<string, string> }) =>
+    call<{ task: { key: string; title: string }; text: string }>("POST", "/api/config/workflow/render", body),
 };

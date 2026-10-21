@@ -369,12 +369,14 @@
       "none": "Chạy tiếp"
     },
     "preview": {
-      "title": "Xem prompt thực tế",
-      "help": "Prompt cuối cùng TaskPilot sẽ gửi cho một task, tính cả các thay đổi chưa lưu.",
-      "noTasks": "Repo chưa có task để thử.",
-      "task": "Task",
+      "title": "Xem prompt mẫu",
+      "help": "Prompt TaskPilot sẽ gửi, dựng với một task mẫu từ workflow hiện tại, tính cả thay đổi chưa lưu. Prompt đã gửi thật cho một task xem ở màn hình của task đó.",
       "step": "Bước",
       "kind": "Loại prompt",
+      "restart": "Như sau khi Chạy lại từ đầu",
+      "feedback": "Góp ý mẫu",
+      "feedbackPlaceholder": "Góp ý của reviewer (để trống: hiện chỗ góp ý sẽ chèn vào)",
+      "sample": "Task mẫu: {{key}} · {{title}}",
       "show": "Xem prompt"
     },
     "form": {

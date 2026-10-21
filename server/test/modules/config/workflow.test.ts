@@ -125,22 +125,32 @@ describe("workflow config", () => {
     expect((await get("/api/config/workflow")).errors).toEqual([]);
   });
 
-  it("renders the prompt a step would send, drafts included", async () => {
-    const res = await send("POST", "/api/config/workflow/render", { taskKey: "DEMO-1", stepId: "implement", kind: "prompt" });
-    expect(res.json().text).toContain("Thực hiện kế hoạch trong .claude/tasks/DEMO-1/02-plan.md.");
+  it("renders the prompt a step would send for a sample task, drafts included", async () => {
+    const res = await send("POST", "/api/config/workflow/render", { stepId: "implement", kind: "prompt" });
+    expect(res.json().task).toEqual({ key: "TASK-1", title: "Tên task mẫu" });
+    expect(res.json().text).toContain("Thực hiện kế hoạch trong .claude/tasks/TASK-1/02-plan.md.");
+    expect(res.json().text).not.toContain("chạy lại từ bước đầu");
+
+    // A simulated restart lists every document as archived; the plan is read first.
+    const restarted = (await send("POST", "/api/config/workflow/render", { stepId: "investigate", kind: "prompt", restart: true })).json().text;
+    expect(restarted).toContain("Task này được chạy lại từ bước đầu.");
+    expect(restarted).toContain("- .claude/tasks/TASK-1/archive/<YYYYMMDD-HHMMSS>/02-plan.md");
+
+    // Without feedback, on-reject prompts show where it goes.
+    const sample = (await send("POST", "/api/config/workflow/render", { stepId: "investigate", kind: "onReject" })).json().text;
+    expect(sample).toContain("<góp ý của reviewer>");
 
     await send("POST", "/api/config/workflow/override");
     const yml = (await raw("workflow.yml")).content as string;
     const drafted = await send("POST", "/api/config/workflow/render", {
-      taskKey: "DEMO-1",
       stepId: "investigate",
       kind: "onReject",
       feedback: "Thêm test",
       drafts: { "workflow.yml": yml.replace("01-investigation.md", "01-dieu-tra.md") },
     });
     expect(drafted.json().text).toContain("Thêm test");
-    expect(drafted.json().text).toContain(".claude/tasks/DEMO-1/01-dieu-tra.md nếu liên quan");
-    expect((await send("POST", "/api/config/workflow/render", { taskKey: "NOPE", stepId: "investigate", kind: "prompt" })).statusCode).toBe(404);
+    expect(drafted.json().text).toContain(".claude/tasks/TASK-1/01-dieu-tra.md nếu liên quan");
+    expect((await send("POST", "/api/config/workflow/render", { stepId: "nope", kind: "prompt" })).statusCode).toBe(404);
   });
 
   it("shows how a file differs from the built-in one and removes the override with backups", async () => {

@@ -3,10 +3,10 @@ import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { HttpError } from "../../../core/errors.js";
 import { t } from "../../../core/i18n.js";
-import { getTask } from "../../tasks/index.js";
 import {
   DEFAULT_WORKFLOW_DIR,
   OVERRIDE_DIR,
+  PROMPT_TEXT,
   WORKFLOW_FILE,
   hasOverride,
   overrideDir,
@@ -71,6 +71,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
       errors,
       warnings,
       variables: templateVars,
+      newPrompt: PROMPT_TEXT.newPrompt,
       def: def && {
         permissionMode: def.permissionMode ?? null,
         history: { file: def.history.file, entry: def.history.entry, format: def.history.format ?? null },
@@ -220,11 +221,13 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     return { diff: diffText(target.display, builtIn, ours), same: ours === builtIn };
   });
 
-  /** The prompt a step would send for a task, from the workflow in use with unsaved `drafts` laid over it. */
+  /**
+   * The prompt a step would send, for a sample task, from the workflow in use with unsaved `drafts`
+   * laid over it. `restart` adds what a run after "Chạy lại từ đầu" is told, with every document archived.
+   */
   app.post("/api/config/workflow/render", async (req) => {
     const repo = requireRepo();
-    const body = (req.body ?? {}) as { drafts?: unknown; feedback?: unknown };
-    const taskKey = stringField(req.body, "taskKey");
+    const body = (req.body ?? {}) as { drafts?: unknown; feedback?: unknown; restart?: unknown };
     const stepId = stringField(req.body, "stepId");
     const kind = stringField(req.body, "kind");
     const drafts = isObject(body.drafts) ? (body.drafts as Record<string, string>) : {};
@@ -236,12 +239,10 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     const index = def.steps.findIndex((s) => s.id === stepId);
     if (index < 0) throw new HttpError(404, t("errors.stepNotFound", { step: stepId }));
     const step = def.steps[index];
-    const task = await getTask(repo, taskKey).catch(() => {
-      throw new HttpError(404, t("errors.taskNotFound", { key: taskKey }));
-    });
     const template = kind === "onReject" ? step.onReject : step.prompt;
     if (template === undefined) throw new HttpError(404, t("errors.noOnReject", { step: step.title }));
-    const feedback = kind === "onReject" ? (typeof body.feedback === "string" ? body.feedback : "<feedback>") : undefined;
-    return { text: renderPrompt(template, promptVars(def, index, task, { feedback })) };
+    const feedback = kind === "onReject" ? (typeof body.feedback === "string" && body.feedback.trim() ? body.feedback : PROMPT_TEXT.sampleFeedback) : undefined;
+    const previous = body.restart === true ? { dir: PROMPT_TEXT.sampleArchive, files: def.steps.flatMap((s) => s.outputs.map((o) => o.file)).sort() } : undefined;
+    return { task: PROMPT_TEXT.sampleTask, text: renderPrompt(template, promptVars(def, index, PROMPT_TEXT.sampleTask, { feedback, previous })) };
   });
 }

@@ -5,7 +5,6 @@ import { queryClient } from "../../../shared/api/queryClient";
 import { Button } from "../../../shared/ui/Button";
 import { DiffDialog } from "../../../shared/ui/DiffDialog";
 import { toast } from "../../../shared/ui/Toast";
-import { useWorkspace } from "../../workspace";
 import { clearDraft, getDraft, isDirty, setDraft, useDrafts } from "../shared/drafts";
 import { ConfigHeader, ConfigToolbar, DraftControls, LoadError } from "../shared/parts";
 import { useConfig } from "../shared/useConfig";
@@ -24,8 +23,6 @@ const WORKFLOW_FILE = "workflow.yml";
 const PROMPT_FILE = /^[a-z0-9][a-z0-9-]*\.md$/;
 const draftKey = (name: string) => `workflow:${name}`;
 const DRAFT_PREFIX = "workflow:";
-/** Starting text of a new prompt file; prompts are written in English like the built-in ones. */
-const NEW_PROMPT = 'Task {{key}}: "{{title}}". The requirements are in {{specDir}}/.\n\nWrite:\n{{outputs}}\n\nRules:\n{{rules}}\n';
 
 /**
  * The task workflow: TaskPilot's built-in one is shown read only; "Thêm config override" copies it
@@ -182,7 +179,7 @@ export function WorkflowPage() {
               onPick={setPicked}
               adding={adding && isOverride}
               onAdd={(name) => {
-                setDraft(draftKey(name), { name, path: `${data.overrideDir}/${name}`, content: NEW_PROMPT, baseHash: "absent", isNew: true } satisfies WorkflowDraft, null);
+                setDraft(draftKey(name), { name, path: `${data.overrideDir}/${name}`, content: data.newPrompt, baseHash: "absent", isNew: true } satisfies WorkflowDraft, null);
                 setPicked(name);
                 setAdding(false);
               }}
@@ -485,20 +482,24 @@ function FileEditor({ draft, config }: { draft: WorkflowDraft; config: WorkflowC
   );
 }
 
-/** The prompt a step would send for a task, rendered by the server from the workflow plus open drafts. */
+/**
+ * The prompt a step would send, rendered by the server for a sample task from the workflow plus open
+ * drafts. A real task's prompts are on its own screen ("Prompt đã gửi"): a task that already ran
+ * got the prompt of the workflow it started with, which this page cannot show.
+ */
 function PromptPreview({ config }: { config: WorkflowConfig }) {
   const { t } = useTranslation("config");
-  const { tasks } = useWorkspace();
   const steps = config.def?.steps ?? [];
-  const [taskKey, setTaskKey] = useState("");
   const [stepId, setStepId] = useState("");
   const [kind, setKind] = useState<"prompt" | "onReject">("prompt");
-  const [text, setText] = useState<string | null>(null);
+  const [restart, setRestart] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [result, setResult] = useState<{ task: { key: string; title: string }; text: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const dirty = useDrafts();
 
-  const task = taskKey || tasks[0]?.key || "";
   const step = steps.find((s) => s.id === stepId) ?? steps[0];
+  const onReject = kind === "onReject" && !!step?.onRejectFile;
 
   const show = async () => {
     setError(null);
@@ -510,9 +511,9 @@ function PromptPreview({ config }: { config: WorkflowConfig }) {
       }
     }
     try {
-      setText((await workflowConfigApi.render({ taskKey: task, stepId: step!.id, kind, drafts })).text);
+      setResult(await workflowConfigApi.render({ stepId: step!.id, kind: onReject ? "onReject" : "prompt", feedback, restart, drafts }));
     } catch (e) {
-      setText(null);
+      setResult(null);
       setError((e as Error).message);
     }
   };
@@ -522,39 +523,48 @@ function PromptPreview({ config }: { config: WorkflowConfig }) {
     <section className="card wf-preview" aria-label={t("workflow.preview.title")}>
       <h2 className="card-title">{t("workflow.preview.title")}</h2>
       <p className="field-help">{t("workflow.preview.help")}</p>
-      {tasks.length === 0 ? (
-        <p className="hint">{t("workflow.preview.noTasks")}</p>
-      ) : (
-        <div className="wf-preview-controls">
-          <select aria-label={t("workflow.preview.task")} value={task} onChange={(e) => setTaskKey(e.target.value)}>
-            {tasks.map((x) => (
-              <option key={x.key} value={x.key}>
-                {x.key} · {x.title}
-              </option>
-            ))}
-          </select>
-          <select aria-label={t("workflow.preview.step")} value={step.id} onChange={(e) => setStepId(e.target.value)}>
-            {steps.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.title}
-              </option>
-            ))}
-          </select>
-          <select aria-label={t("workflow.preview.kind")} value={kind} onChange={(e) => setKind(e.target.value as "prompt" | "onReject")}>
-            <option value="prompt">{t("workflow.promptLabel")}</option>
-            {step.onRejectFile && <option value="onReject">{t("workflow.onRejectLabel")}</option>}
-          </select>
-          <Button icon={Play} onClick={() => void show()}>
-            {t("workflow.preview.show")}
-          </Button>
-        </div>
+      <div className="wf-preview-controls">
+        <select aria-label={t("workflow.preview.step")} value={step.id} onChange={(e) => setStepId(e.target.value)}>
+          {steps.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.title}
+            </option>
+          ))}
+        </select>
+        <select aria-label={t("workflow.preview.kind")} value={onReject ? "onReject" : "prompt"} onChange={(e) => setKind(e.target.value as "prompt" | "onReject")}>
+          <option value="prompt">{t("workflow.promptLabel")}</option>
+          {step.onRejectFile && <option value="onReject">{t("workflow.onRejectLabel")}</option>}
+        </select>
+        {!onReject && (
+          <label className="wf-check">
+            <input type="checkbox" checked={restart} onChange={(e) => setRestart(e.target.checked)} />
+            {t("workflow.preview.restart")}
+          </label>
+        )}
+        <Button icon={Play} onClick={() => void show()}>
+          {t("workflow.preview.show")}
+        </Button>
+      </div>
+      {onReject && (
+        <input
+          className="wf-preview-feedback"
+          aria-label={t("workflow.preview.feedback")}
+          placeholder={t("workflow.preview.feedbackPlaceholder")}
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+        />
       )}
       {error && (
         <p className="error" role="alert">
           {error}
         </p>
       )}
-      {text !== null && <pre className="wf-rendered">{text}</pre>}
+      {result && (
+        <>
+          <p className="field-help">{t("workflow.preview.sample", { key: result.task.key, title: result.task.title })}</p>
+          <pre className="wf-rendered">{result.text}</pre>
+        </>
+      )}
     </section>
   );
 }

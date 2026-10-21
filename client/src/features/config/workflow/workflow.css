@@ -230,6 +230,18 @@
   max-width: 100%;
 }
 
+.wf-check {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.wf-preview-feedback {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
 .wf-rendered {
   max-height: 480px;
   margin: 0;
@@ -258,6 +270,7 @@
 /* Fields outside .form-grid (rule and output rows, preview pickers) look like the form's own. */
 .wf-row input,
 .wf-new input,
+.wf-preview-feedback,
 .wf-preview-controls select {
   height: 36px;
   padding: 0 10px;

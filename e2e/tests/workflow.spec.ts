@@ -54,10 +54,15 @@ test("workflow.yml is edited in the form, previewed and checked before saving", 
 
   // The preview renders the unsaved draft.
   await page.getByRole("button", { name: "Xem prompt" }).click();
-  await expect(page.locator(".wf-rendered")).toContainText(".claude/tasks/PROJ-1/02-ke-hoach.md");
+  await expect(page.locator(".wf-rendered")).toContainText(".claude/tasks/TASK-1/02-ke-hoach.md");
   // Each document comes with its skeleton.
-  await expect(page.locator(".wf-rendered")).toContainText("# PROJ-1 — Kế hoạch");
+  await expect(page.locator(".wf-rendered")).toContainText("# TASK-1 — Kế hoạch");
   await expect(page.locator(".wf-rendered")).toContainText("## 5. Cách verify");
+  await expect(page.getByText("Task mẫu: TASK-1 · Tên task mẫu")).toBeVisible();
+  // A simulated restart adds what a run after "Chạy lại từ đầu" is told to read first.
+  await page.getByRole("checkbox", { name: "Như sau khi Chạy lại từ đầu" }).check();
+  await page.getByRole("button", { name: "Xem prompt" }).click();
+  await expect(page.locator(".wf-rendered")).toContainText("Task này được chạy lại từ bước đầu.");
   await expect(page.getByRole("combobox", { name: "File khung" }).nth(1)).toHaveValue("format-plan.md");
 
   // A broken step id is reported live and refused at review.

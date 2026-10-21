@@ -71,7 +71,6 @@ export default {
     noOverride: "Repo chưa có config override; bấm Thêm config override trước",
     overrideChanged: "{{file}} trong override đã đổi từ lúc mở trang. Tải lại để xem bản mới nhất.",
     workflowFileDelete: "Không xoá riêng workflow.yml; dùng Xoá override để về mặc định",
-    taskNotFound: "Không tìm thấy task {{key}}",
     stepNotFound: "Không có bước {{step}}",
     noOnReject: "Bước {{step}} không có prompt on-reject",
   },

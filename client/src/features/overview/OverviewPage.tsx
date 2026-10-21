@@ -14,6 +14,9 @@ import "./inventory.css";
 // Last: the narrow-screen rules override the tiles above.
 import "./responsive.css";
 
+/** Waiting tasks listed in the hero; the rest are one click away on the task list. */
+const NEEDS_SHOWN = 5;
+
 /** Repo dashboard: what needs the user, what is running, and the shape of the Claude config. */
 export function OverviewPage() {
   const { t } = useTranslation(["overview", "shell", "config", "common"]);
@@ -48,7 +51,7 @@ export function OverviewPage() {
                 <h2 id="needs-title">{t("needs.title")}</h2>
               </div>
               <ul className="needs">
-                {needs.map((task, i) => {
+                {needs.slice(0, NEEDS_SHOWN).map((task, i) => {
                   const s = statusOf(task);
                   return (
                     <motion.li
@@ -61,7 +64,7 @@ export function OverviewPage() {
                         {s.glyph}
                       </span>
                       <span className="need-text">
-                        <span className="need-title">
+                        <span className="need-title" title={task.title !== task.key ? `${task.key} · ${task.title}` : task.key}>
                           <span className="mono">{task.key}</span>
                           {task.title !== task.key && ` · ${task.title}`}
                         </span>
@@ -74,6 +77,11 @@ export function OverviewPage() {
                   );
                 })}
               </ul>
+              {needs.length > NEEDS_SHOWN && (
+                <a className="tile-link needs-all" href={href({ page: "tasks" })}>
+                  {t("needs.all", { count: needs.length })} <ArrowRight aria-hidden="true" />
+                </a>
+              )}
             </>
           ) : (
             <div className="hero-calm">
@@ -237,7 +245,9 @@ function Live({ task, others }: { task: TaskSummary; others: number }) {
         {current ? (
           <>
             <CategoryIcon category={current.category} />
-            {current.summary}
+            <span className="live-tool-text" title={current.summary}>
+              {current.summary}
+            </span>
           </>
         ) : (
           t("running.starting")

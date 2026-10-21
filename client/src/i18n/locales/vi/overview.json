@@ -6,6 +6,7 @@
     "calmTitle": "Không có việc nào chờ ba",
     "calmBody": "Khi agent (Claude, Copilot) cần ba duyệt, trả lời hoặc cho phép, việc đó sẽ hiện ở đây đầu tiên.",
     "open": "Mở",
+    "all": "Xem tất cả {{count}} việc chờ",
     "cta": {
       "permission": "Trả lời",
       "gate": "Xem & duyệt",

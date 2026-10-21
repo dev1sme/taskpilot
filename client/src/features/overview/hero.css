@@ -5,6 +5,7 @@
   grid-row: span 2;
   gap: 14px;
   padding: 22px;
+  container: hero / inline-size;
 }
 
 .tile-hero.has-needs {
@@ -32,8 +33,10 @@
   font-weight: 600;
 }
 
+/* One shrinkable column: an auto column grows to the longest title and pushes rows out of the card. */
 .needs {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   margin: 0;
   padding: 0;
@@ -48,6 +51,7 @@
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
+  min-width: 0;
 }
 
 .need-glyph {
@@ -72,11 +76,15 @@
   min-width: 0;
 }
 
+/* Up to two lines, so the task stays recognisable; the full title is in the tooltip and the task. */
 .need-title {
+  display: -webkit-box;
   overflow: hidden;
   font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .need-sub {
@@ -87,6 +95,26 @@
 .needs .btn {
   flex: none;
   text-decoration: none;
+}
+
+.needs-all {
+  margin-top: 0;
+  align-self: flex-start;
+}
+
+/* Narrow card (phone, or two-column bento with a sidebar): the button drops under the text, full width. */
+@container hero (max-width: 460px) {
+  .needs li {
+    flex-wrap: wrap;
+  }
+
+  .need-text {
+    flex-basis: calc(100% - 52px);
+  }
+
+  .needs .btn {
+    flex: 1 1 100%;
+  }
 }
 
 .hero-calm {

@@ -39,8 +39,14 @@ A directory is a task when `<key>/spec/` contains at least one `.md` file.
 ```
 
 - The engine advances only when the Stop hook reports the turn ended **and** `done-when` holds.
-- Stop fired but `done-when` not met (e.g. Claude asked a question): stay on the step and show
-  "Claude is waiting for you in the terminal".
+- Stop fired but `done-when` not met (e.g. Claude asked a question): stay on the step (`waiting`);
+  the card answers Claude through `POST /api/tasks/:key/run/reply` (pasted into the session,
+  logged as "Ba trả lời"), or the user answers in the terminal.
+- `GET /api/tasks/:key/run` returns Claude's numbered questions (`questions`, parsed by
+  `modules/workflow/questions.ts`): at a gate from the done-when document's questions section, else
+  from Claude's last message; while waiting from that message. `POST …/run/approve` takes an
+  optional `note` (the answers), quoted in the "Ba duyệt" entry of the decision log.
+- The run keeps the latest prompt pasted into its session (`sentPrompt`), shown on the task screen.
 - Permission prompts are answered by the user in the terminal. `PermissionRequest` sets a "chờ quyền"
   badge on the session tab and task; `PostToolUse`, `Stop` or `UserPromptSubmit` clear it.
 - The first prompt is held until the session reports `SessionStart` (after any trust dialog).
@@ -63,7 +69,8 @@ Built-in default in `workflows/default/`; a repo overrides it with its own copy 
 `.claude/taskpilot/` (`workflow.yml` + prompt files, created from the Workflow page). Format
 (`version: 2`), template variables and checks: [CONFIGURATION.md](CONFIGURATION.md#custom-workflow).
 Each step declares its output documents; prompts are templates filled from the workflow (outputs,
-shared rules, language, history file). A run keeps a snapshot of the workflow it started with;
+shared rules, language, history file). The built-in prompts are written in Vietnamese; the wording
+TaskPilot adds around them (skeleton rule, restart notice) lives in `modules/workflow/prompt-text.ts`. A run keeps a snapshot of the workflow it started with;
 after a restart `{{previousRun}}` points Claude at the archived documents.
 
 `bypassPermissions` is not accepted from a workflow file.
@@ -116,7 +123,7 @@ server/ — Node 24 + TypeScript + Fastify + @fastify/websocket
 | `env` | `/api/env`, `/api/env/:key` | `store.ts` |
 | `usage` | `/api/usage` | `store.ts` |
 | `activity` | `/api/tasks/:key/activity` | `store.ts`, `describe.ts` |
-| `workflow` | `/api/tasks/:key/run*` | `engine.ts`, `definition.ts`, `vars.ts`, `stage.ts`, `history.ts`, `archive.ts` |
+| `workflow` | `/api/tasks/:key/run*` | `engine.ts`, `definition.ts`, `vars.ts`, `prompt-text.ts`, `questions.ts`, `stage.ts`, `history.ts`, `archive.ts` |
 | `events` | `/api/events` (SSE) | hub in `core/events.ts` |
 | `config` | `/api/config/*`, `/api/backups*` | one sub-folder per group: `memory`, `settings`, `hooks`, `library`, `mcp`, `workflow` (`/api/config/workflow*`), `backups`, `codegraph`, `shared` |
 
@@ -212,6 +219,10 @@ The embedded terminal is shell-equivalent access to the machine.
   server, guarded by `npm run i18n:lint` and a vitest scan for stray Vietnamese literals.
 - **TPL-007** code layout — done: server modules + core, client features with entry points +
   shared, tests mirror the source tree, import rules checked by a test (§5, "Server modules").
+- **TPL-008** default prompts — done: built-in prompts in Vietnamese and shorter (on-reject prompts
+  carry no skeletons; a size budget is tested), prompts previewed with a sample task, the prompt
+  sent to a task kept and shown, a *Định dạng tài liệu* page (`#/formats`), an override guide and
+  per-file restore on the Workflow page, and Claude's questions answered one by one (§3).
 - **Docs split** — done: README trimmed to the pitch, requirements and install/run; everything else
   moved into `docs/GUIDE.md` (daily use), `docs/CONFIGURATION.md` (Claude config, custom workflow),
   `docs/DEPLOY.md` (service, reverse proxy, security) and `docs/DEVELOP.md` (dev commands, layout,

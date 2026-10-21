@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useEffect, useId, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import { AgentBadge } from "../../shared/ui/AgentBadge";
 import { Button } from "../../shared/ui/Button";
 import { Markdown } from "../../shared/ui/Markdown";
 import { workspaceApi } from "../workspace";
@@ -71,7 +72,9 @@ export function GateCard(props: {
           <Diamond weight="fill" />
         </span>
         <div>
-          <h3 id={`${feedbackId}-title`}>{t("gate.title")}</h3>
+          <h3 id={`${feedbackId}-title`}>
+            {t("gate.title")} <AgentBadge agent={step.agent} />
+          </h3>
           <p>
             <Trans t={t} i18nKey="gate.body" values={{ step: step.title }} components={{ strong: <strong /> }} />
             {props.isLast ? t("gate.bodyLast") : t("gate.bodyNext")}

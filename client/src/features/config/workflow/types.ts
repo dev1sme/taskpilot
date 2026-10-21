@@ -1,3 +1,5 @@
+import type { Agent } from "../../../shared/agents";
+
 export interface WorkflowOutput {
   id: string;
   file: string;
@@ -9,6 +11,7 @@ export interface WorkflowOutput {
 export interface WorkflowStepView {
   id: string;
   title: string;
+  agent: Agent;
   gate: "approve" | "none";
   doneWhen: string | null;
   outputs: WorkflowOutput[];
@@ -38,6 +41,7 @@ export interface WorkflowConfig {
   /** Starting text of a new prompt file. */
   newPrompt: string;
   def: {
+    agent: Agent;
     permissionMode: string | null;
     history: { file: string; entry: string; format: string | null };
     language: string;

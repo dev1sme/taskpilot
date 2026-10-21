@@ -6,7 +6,7 @@ import { useRepoSessions } from "./useSessions";
 import { sessionsApi } from "./api";
 
 /**
- * Claude in the repo without a task, on every page. Rendered only while open; the footer's
+ * An agent in the repo without a task, on every page. Rendered only while open; the footer's
  * Terminal button opens it. Opens by itself when a repo session asks for permission.
  */
 export function RepoTerminal({ open, onToggle }: { open: boolean; onToggle: (open: boolean) => void }) {

@@ -1,3 +1,4 @@
+import type { Agent } from "../../shared/agents";
 import type { RunPhase } from "../workspace";
 
 export interface RunState {
@@ -24,6 +25,8 @@ export interface Question {
 export interface WorkflowStep {
   id: string;
   title: string;
+  /** The agent that runs the step. */
+  agent: Agent;
   gate: "approve" | "none";
   doneFile: string | null;
   /** Documents the step writes, from the workflow. */

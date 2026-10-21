@@ -2,6 +2,8 @@ import { ArrowClockwise, CaretDown, CaretUp, HandPalm, Plus, Stop, TerminalWindo
 import { AnimatePresence, motion } from "motion/react";
 import { lazy, Suspense, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AGENT_LABELS, AGENTS, type Agent } from "../../shared/agents";
+import { AgentBadge } from "../../shared/ui/AgentBadge";
 import { Button, SrOnly } from "../../shared/ui/Button";
 import "./sessions.css";
 import { sessionsApi } from "./api";
@@ -17,8 +19,8 @@ interface Props {
   scopeLabel: string;
   /** Hint shown while there is no session yet. */
   emptyHint: string;
-  /** Starts a new session in this drawer's scope. */
-  onCreate: () => Promise<SessionView>;
+  /** Starts a new session of `agent` in this drawer's scope. */
+  onCreate: (agent: Agent) => Promise<SessionView>;
   sessions: SessionView[];
   activeId: string | null;
   open: boolean;
@@ -30,8 +32,8 @@ interface Props {
 }
 
 /**
- * The real Claude terminal, tucked away at the bottom. Collapsed it is one bar with the session
- * tabs; it opens on demand (or when Claude needs an answer).
+ * The real agent terminal, tucked away at the bottom. Collapsed it is one bar with the session
+ * tabs; it opens on demand (or when the agent needs an answer).
  */
 export function TerminalDrawer(props: Props) {
   const { t } = useTranslation("sessions");
@@ -39,6 +41,8 @@ export function TerminalDrawer(props: Props) {
   const active = sessions.find((s) => s.id === props.activeId) ?? sessions[sessions.length - 1] ?? null;
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [choosing, setChoosing] = useState(false);
+  const menuId = useId();
   const [generation, setGeneration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const bodyId = useId();
@@ -87,6 +91,7 @@ export function TerminalDrawer(props: Props) {
             >
               <span className={`session-dot ${s.status}`} aria-hidden="true" />
               {s.title}
+              <AgentBadge agent={s.agent} />
               <SrOnly>{s.status === "running" ? t("running") : t("stopped")}</SrOnly>
               {s.activity === "permission" && (
                 <span className="drawer-flag">
@@ -96,21 +101,48 @@ export function TerminalDrawer(props: Props) {
               )}
             </button>
           ))}
-          <button
-            type="button"
-            className="drawer-add"
-            disabled={busy === "create"}
-            onClick={() =>
-              void act("create", async () => {
-                const s = await props.onCreate();
-                props.onSelect(s.id);
-                props.onToggle(true);
-              })
-            }
+          <div
+            className="drawer-add-wrap"
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget)) setChoosing(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setChoosing(false);
+            }}
           >
-            <Plus weight="bold" aria-hidden="true" />
-            <SrOnly>{t("new")}</SrOnly>
-          </button>
+            <button
+              type="button"
+              className="drawer-add"
+              disabled={busy === "create"}
+              aria-expanded={choosing}
+              aria-controls={menuId}
+              onClick={() => setChoosing((c) => !c)}
+            >
+              <Plus weight="bold" aria-hidden="true" />
+              <SrOnly>{t("new")}</SrOnly>
+            </button>
+            {choosing && (
+              <div id={menuId} className="drawer-add-menu" role="group" aria-label={t("newWith")}>
+                {AGENTS.map((agent) => (
+                  <button
+                    key={agent}
+                    type="button"
+                    autoFocus={agent === AGENTS[0]}
+                    onClick={() => {
+                      setChoosing(false);
+                      void act("create", async () => {
+                        const s = await props.onCreate(agent);
+                        props.onSelect(s.id);
+                        props.onToggle(true);
+                      });
+                    }}
+                  >
+                    {t("newAgent", { agent: AGENT_LABELS[agent] })}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {active && props.open && (

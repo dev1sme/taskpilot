@@ -74,6 +74,34 @@
   border-color: var(--line-strong);
 }
 
+/* The agent choice opens inline next to +: the drawer clips anything floating outside its bar. */
+.drawer-add-wrap {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.drawer-add-menu {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.drawer-add-menu button {
+  min-height: 32px;
+  padding: 4px 12px;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+}
+
+.drawer-add-menu button:hover,
+.drawer-add-menu button:focus-visible {
+  background: var(--hover);
+}
+
 .drawer-add {
   width: 32px;
   justify-content: center;

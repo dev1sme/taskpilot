@@ -50,6 +50,7 @@
     "asking": "{{count}} xin quyền",
     "claudeVersion": "claude {{version}}",
     "claudeMissing": "không tìm thấy claude",
+    "copilotVersion": "copilot {{version}}",
     "logout": "Đăng xuất",
     "usageLabel": "Usage Claude: ",
     "usageTitle": "Giới hạn gói Claude đã dùng (toàn tài khoản)",

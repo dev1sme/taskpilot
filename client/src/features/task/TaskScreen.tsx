@@ -209,7 +209,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
       <TerminalDrawer
         scopeLabel="task"
         emptyHint={t("terminalEmpty")}
-        onCreate={() => sessionsApi.createSession(task.key)}
+        onCreate={(agent) => sessionsApi.createSession(task.key, agent)}
         sessions={sessions}
         activeId={activeSession}
         open={drawerOpen}

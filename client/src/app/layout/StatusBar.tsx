@@ -53,6 +53,8 @@ export function StatusBar(props: { terminalOpen: boolean; onToggleTerminal: (ope
       )}
       {usage && <UsageItem usage={usage} />}
       <span className="status-item status-version">{info?.claudeVersion ? t("status.claudeVersion", { version: info.claudeVersion }) : t("status.claudeMissing")}</span>
+      {/* Copilot is optional: shown only when installed. */}
+      {info?.versions?.copilot && <span className="status-item status-version">{t("status.copilotVersion", { version: info.versions.copilot })}</span>}
       {mode === "password" && (
         <button type="button" className="status-item status-button status-logout" onClick={() => void logout()}>
           <SignOut aria-hidden="true" />

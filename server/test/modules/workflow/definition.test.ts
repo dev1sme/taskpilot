@@ -118,6 +118,56 @@ describe("workflow definition", () => {
     expect(errors).toEqual(["agent must be one of claude, copilot", "steps[0].agent must be one of claude, copilot"]);
   });
 
+  describe("dispatch step", () => {
+    const head = "version: 2\nsteps:\n  - id: plan\n    agent: copilot\n    prompt: p.md\n    outputs: [{id: plan, file: plan.md}]\n    done-when: plan\n    gate: approve\n";
+    const review = "  - id: review\n    prompt: p.md\n    outputs: [{id: rev, file: rev.md}]\n    done-when: rev\n";
+    const dispatch = (body: string) => `  - id: work\n    dispatch:\n${body}`;
+    const ok = "      from: plan\n      prompt: sub.md\n      report: 03-viec-{{n}}.md\n";
+    const subtask = { "sub.md": "{{subtask}} {{subtaskReport}} {{outputs}}" };
+
+    it("reads from, prompt, report, format and parallel, and takes the agent of the step that writes the table", () => {
+      const { def, errors } = parse(head + dispatch(`${ok}      format: fmt.md\n      parallel: 2\n`) + review, { ...subtask, "fmt.md": "# {{key}}" });
+      expect(errors).toEqual([]);
+      expect(def!.steps[1]).toMatchObject({
+        id: "work",
+        agent: "copilot",
+        gate: "none",
+        outputs: [],
+        dispatch: { from: "plan", promptFile: "sub.md", report: "03-viec-{{n}}.md", format: "fmt.md", formatText: "# {{key}}", parallel: 2 },
+      });
+    });
+
+    it("defaults parallel to 1, and a workflow without dispatch is unchanged", () => {
+      expect(parse(head + dispatch(ok) + review, subtask).def!.steps[1].dispatch!.parallel).toBe(1);
+      expect(parse(ONE_STEP).def!.steps[0].dispatch).toBeUndefined();
+    });
+
+    it.each([
+      ["a prompt of its own", `${dispatch(ok)}    prompt: p.md\n`, "steps[1]: a dispatch step has no `prompt`"],
+      ["a gate", `${dispatch(ok)}    gate: approve\n`, "steps[1]: a dispatch step has no `gate`"],
+      ["a `from` that is not an earlier output", dispatch(ok.replace("from: plan", "from: rev")), "steps[1].dispatch.from must be the id of an output of an earlier step"],
+      ["a report without {{n}}", dispatch(ok.replace("{{n}}", "x")), "steps[1].dispatch.report must contain {{n}}, e.g. 03-viec-{{n}}.md"],
+      ["a report outside the task directory", dispatch(ok.replace("03-viec-{{n}}.md", "a/{{n}}.md")), "steps[1].dispatch.report must be a .md file name at the top of the task directory"],
+      ["parallel above 4", dispatch(`${ok}      parallel: 5\n`), "steps[1].dispatch.parallel must be an integer from 1 to 4"],
+      ["parallel 0", dispatch(`${ok}      parallel: 0\n`), "steps[1].dispatch.parallel must be an integer from 1 to 4"],
+    ])("rejects %s", (_name, step, error) => {
+      const { def, errors } = parse(head + step + review, subtask);
+      expect(def).toBeNull();
+      expect(errors.some((e) => e.startsWith(error))).toBe(true);
+    });
+
+    it("needs a step after it and allows only one", () => {
+      expect(parse(head + dispatch(ok), subtask).errors).toContain("steps[1]: a dispatch step needs a review step after it");
+      const twice = parse(head + dispatch(ok) + dispatch(ok).replace("id: work", "id: work2") + review, subtask);
+      expect(twice.errors).toContain("steps[2]: only one dispatch step is allowed");
+    });
+
+    it("lets {{subtask}} and {{subtaskReport}} appear in the subtask prompt only; {{subtasks}} anywhere", () => {
+      const bad = parse(head + dispatch(ok) + review, { ...subtask, "p.md": "{{subtask}} {{subtasks}} {{outputs}}" });
+      expect(bad.errors).toEqual(Array(2).fill("p.md: {{subtask}} is only available in the dispatch step's prompt"));
+    });
+  });
+
   it("injects every hook through curl with the session's env", () => {
     const settings = JSON.parse(hookSettings()) as { hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>> };
     expect(Object.keys(settings.hooks)).toEqual([...HOOK_EVENTS]);

@@ -24,6 +24,9 @@ export const templateVars = [
   "archiveDir",
   "previousRun",
   "feedback",
+  "subtask",
+  "subtaskReport",
+  "subtasks",
 ] as const;
 
 /** Replaces {{name}} and {{out.id}}; unknown names are left as they are so mistakes stay visible. */

@@ -16,6 +16,7 @@ interface StepModel {
   gate?: string;
   "done-when"?: string;
   outputs?: Array<{ id?: string; file?: string; content?: string; format?: string }>;
+  dispatch?: { from?: string; prompt?: string; report?: string; format?: string; parallel?: number };
 }
 
 interface Model {
@@ -160,6 +161,18 @@ export function WorkflowForm(props: { text: string; prompts: string[]; onChange:
               <IconAction icon={Trash} label={t("workflow.form.removeStep")} disabled={steps.length === 1} onClick={() => remove(["steps", i])} />
             </div>
           </header>
+          {step.dispatch && (
+            <DispatchFields
+              step={step}
+              earlierOutputs={steps.slice(0, i).flatMap((s) => (s.outputs ?? []).map((o) => o.id ?? "")).filter(Boolean)}
+              prompts={props.prompts}
+              onSet={(key, value, optional) => set(["steps", i, "dispatch", key], value, optional)}
+              onParallel={(n) => edit((d) => d.setIn(["steps", i, "dispatch", "parallel"], n))}
+              onTitle={(v) => set(["steps", i, "title"], v, true)}
+              onId={(v) => set(["steps", i, "id"], v)}
+            />
+          )}
+          {!step.dispatch && (<>
           <div className="form-grid">
             <Field label={t("workflow.form.title")}>{(id) => <input id={id} value={step.title ?? ""} onChange={(e) => set(["steps", i, "title"], e.target.value, true)} />}</Field>
             <Field label={t("workflow.form.id")} help={t("workflow.form.idHelp")}>
@@ -239,6 +252,7 @@ export function WorkflowForm(props: { text: string; prompts: string[]; onChange:
           <Button icon={Plus} variant="quiet" onClick={() => add(["steps", i, "outputs"], { id: "", file: "", content: "" })}>
             {t("workflow.form.addOutput")}
           </Button>
+          </>)}
         </section>
       ))}
 
@@ -283,5 +297,60 @@ function IconAction(props: { icon: typeof Trash; label: string; disabled?: boole
     <Button icon={props.icon} variant="quiet" className="btn-icon-only" title={props.label} disabled={props.disabled} onClick={props.onClick}>
       <span className="sr-only">{props.label}</span>
     </Button>
+  );
+}
+
+/** A dispatch step: the plan table it reads, the subtask prompt and report, and how many subtasks run at once. */
+function DispatchFields(props: {
+  step: StepModel;
+  earlierOutputs: string[];
+  prompts: string[];
+  onSet: (key: "from" | "prompt" | "report" | "format", value: string, optional?: boolean) => void;
+  onParallel: (n: number) => void;
+  onTitle: (value: string) => void;
+  onId: (value: string) => void;
+}) {
+  const { t } = useTranslation("config");
+  const d = props.step.dispatch ?? {};
+  return (
+    <>
+      <p className="field-help">{t("workflow.form.dispatchHelp")}</p>
+      <div className="form-grid">
+        <Field label={t("workflow.form.title")}>{(id) => <input id={id} value={props.step.title ?? ""} onChange={(e) => props.onTitle(e.target.value)} />}</Field>
+        <Field label={t("workflow.form.id")} help={t("workflow.form.idHelp")}>
+          {(id) => <input id={id} className="mono" value={props.step.id ?? ""} onChange={(e) => props.onId(e.target.value)} />}
+        </Field>
+        <Field label={t("workflow.form.dispatchFrom")} help={t("workflow.form.dispatchFromHelp")}>
+          {(id) => (
+            <select id={id} value={d.from ?? ""} onChange={(e) => props.onSet("from", e.target.value)}>
+              {!props.earlierOutputs.includes(d.from ?? "") && <option value={d.from ?? ""}>{d.from || "—"}</option>}
+              {props.earlierOutputs.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+        <Field label={t("workflow.form.dispatchPrompt")}>{(id) => <FileSelect id={id} value={d.prompt ?? ""} files={props.prompts} onChange={(v) => props.onSet("prompt", v)} />}</Field>
+        <Field label={t("workflow.form.dispatchReport")} help={t("workflow.form.dispatchReportHelp", { v: "{{n}}" })}>
+          {(id) => <input id={id} className="mono" placeholder="03-viec-{{n}}.md" value={d.report ?? ""} onChange={(e) => props.onSet("report", e.target.value)} />}
+        </Field>
+        <Field label={t("workflow.form.dispatchFormat")}>
+          {(id) => <FileSelect id={id} value={d.format ?? ""} files={props.prompts} onChange={(v) => props.onSet("format", v, true)} />}
+        </Field>
+        <Field label={t("workflow.form.dispatchParallel")} help={t("workflow.form.dispatchParallelHelp")}>
+          {(id) => (
+            <select id={id} value={d.parallel ?? 1} onChange={(e) => props.onParallel(Number(e.target.value))}>
+              {[1, 2, 3, 4].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+      </div>
+    </>
   );
 }

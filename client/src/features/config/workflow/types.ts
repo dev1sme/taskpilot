@@ -17,6 +17,8 @@ export interface WorkflowStepView {
   outputs: WorkflowOutput[];
   promptFile: string;
   onRejectFile: string | null;
+  /** Set on a dispatch step: its subtask prompt and report. */
+  dispatch: { from: string; promptFile: string; report: string; format: string | null; parallel: number } | null;
 }
 
 export interface WorkflowFile {

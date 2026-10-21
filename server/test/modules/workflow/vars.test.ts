@@ -109,6 +109,63 @@ describe("prompt variables", () => {
     expect(promptVars(def, 0, task).historyFormat).toBe("```markdown\n### Plan · Claude\n```");
   });
 
+  describe("subtasks", () => {
+    const dispatchDef = (parallel: number): WorkflowDef => ({
+      ...def,
+      steps: [
+        def.steps[0],
+        {
+          id: "work",
+          title: "Giao việc",
+          agent: "claude",
+          prompt: "",
+          promptFile: "",
+          outputs: [],
+          gate: "none",
+          dispatch: { from: "plan", prompt: "", promptFile: "s.md", report: "03-viec-{{n}}.md", format: "f.md", formatText: "# {{key}} — Việc", parallel },
+        },
+        def.steps[1],
+      ],
+    });
+    const subs = [
+      { n: 1, title: "Parser", agent: "claude" as const, files: ["server/a.ts"], output: "parser", deps: [] },
+      { n: 2, title: "UI", agent: "copilot" as const, files: [], output: "", deps: [1] },
+    ];
+
+    it("describes the subtask, its dependencies' reports and its own report with the skeleton", () => {
+      const vars = promptVars(dispatchDef(1), 1, task, { subtask: subs[1], subtasks: subs });
+      expect(vars.agent).toBe("Copilot");
+      expect(vars.subtaskReport).toBe(".claude/tasks/A-1/03-viec-2.md");
+      expect(vars.subtask).toBe(
+        [
+          "Việc 2: UI",
+          "File được sửa: leader không khai; chỉ sửa những gì việc này cần.",
+          "",
+          "Các việc trước đó đã xong; đọc báo cáo của chúng trước khi làm:",
+          "- `.claude/tasks/A-1/03-viec-1.md` (việc 1: Parser)",
+        ].join("\n"),
+      );
+      expect(vars.outputs).toContain("- `.claude/tasks/A-1/03-viec-2.md`: báo cáo việc này");
+      expect(vars.outputs).toContain("# A-1 — Việc");
+      expect(vars.inputs).toContain(".claude/tasks/A-1/plan.md");
+    });
+
+    it("tells members not to commit only when subtasks run in parallel", () => {
+      expect(promptVars(dispatchDef(1), 1, task, { subtask: subs[0], subtasks: subs }).subtask).not.toContain("Không commit");
+      const parallel = promptVars(dispatchDef(2), 1, task, { subtask: subs[0], subtasks: subs }).subtask;
+      expect(parallel).toContain("File được sửa: `server/a.ts`");
+      expect(parallel).toContain("Đầu ra mong đợi: parser");
+      expect(parallel).toContain("Không commit");
+    });
+
+    it("lists every subtask for the review step, and nothing outside a run", () => {
+      expect(promptVars(dispatchDef(1), 2, task, { subtasks: subs }).subtasks).toBe(
+        "- Việc 1 · Claude · Parser → `.claude/tasks/A-1/03-viec-1.md`\n- Việc 2 · Copilot · UI → `.claude/tasks/A-1/03-viec-2.md`",
+      );
+      expect(promptVars(dispatchDef(1), 2, task).subtasks).toBe("");
+    });
+  });
+
   it("builds the built-in prompts from the workflow: sections, documents with skeletons, rules", async () => {
     const builtIn = await loadWorkflow(DEFAULT_WORKFLOW_DIR);
     const [investigate, implement] = builtIn.steps;

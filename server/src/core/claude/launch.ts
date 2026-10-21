@@ -1,7 +1,7 @@
 export interface LaunchOptions {
   resume: boolean;
-  /** JSON for --settings (hooks). */
-  settings: string;
+  /** JSON for --settings (hooks); agents without such a flag get their hooks from a file instead. */
+  settings?: string;
   permissionMode?: string;
 }
 
@@ -18,8 +18,7 @@ export const claudeLauncher: Launcher = (sessionId, opts) => ({
   args: [
     // --resume keeps the original session id unless --fork-session is given (claude 2.1.x).
     ...(opts.resume ? ["--resume", sessionId] : ["--session-id", sessionId]),
-    "--settings",
-    opts.settings,
+    ...(opts.settings ? ["--settings", opts.settings] : []),
     ...(opts.permissionMode ? ["--permission-mode", opts.permissionMode] : []),
   ],
 });

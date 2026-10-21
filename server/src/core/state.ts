@@ -2,7 +2,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { Agent } from "./agents.js";
-import type { UsageView } from "../modules/usage/index.js";
+import type { AgentQuota, ClaudeUsage } from "../modules/usage/index.js";
 import type { RunState } from "../modules/workflow/index.js";
 
 export interface SessionMeta {
@@ -23,8 +23,10 @@ export interface AppState {
   sessions: SessionMeta[];
   /** Latest workflow run per (repo, taskKey). */
   runs: RunState[];
-  /** Plan usage last reported by a session's status line. */
-  usage?: UsageView;
+  /** Claude plan usage last reported by a session's status line. */
+  usage?: ClaudeUsage;
+  /** Account quota of the other agents (Copilot). */
+  agentUsage?: Partial<Record<Exclude<Agent, "claude">, AgentQuota>>;
 }
 
 /**

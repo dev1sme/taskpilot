@@ -10,7 +10,7 @@ make service-logs                        # or service-status, service-uninstall
 ```
 
 The unit is a systemd *user* service so `claude` runs with your own `~/.claude`. It uses the `node`
-and `claude` on your `PATH` at install time: run `make service-install` again after changing the
+and `claude` (and `copilot`, when installed) on your `PATH` at install time: run `make service-install` again after changing the
 Node version. It only runs while you are logged in unless lingering is on
 (`loginctl enable-linger $USER`). Restarting stops running sessions; resume them from the UI.
 

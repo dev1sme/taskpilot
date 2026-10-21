@@ -75,6 +75,12 @@ after a restart `{{previousRun}}` points Claude at the archived documents.
 
 `bypassPermissions` is not accepted from a workflow file.
 
+`agent` (`claude` | `copilot`) at the top sets the agent of every step; a step's own `agent`
+overrides it. A step for another agent than the previous one runs in a new session of that agent
+(`WorkflowEngine.enterStep`): the previous session is stopped, the switch is logged, and the run's
+`sessionId` moves to the new session. Absent everywhere (and in snapshots saved before agents) =
+`claude`.
+
 ## 5. Architecture
 
 ```
@@ -82,7 +88,8 @@ client/ — browser UI (Vite + React + xterm.js)
    │  HTTP (REST) + WebSocket (PTY I/O, events)
 server/ — Node 24 + TypeScript + Fastify + @fastify/websocket
    ├─ RepoScanner      scan/watch .claude/tasks (chokidar)
-   ├─ SessionManager   node-pty spawn/resume claude, many sessions per task, scrollback buffer
+   ├─ SessionManager   node-pty spawn/resume an agent (claude | copilot) through its backend,
+   │                   many sessions per task, scrollback buffer
    ├─ /hook/:event     SessionStart, UserPromptSubmit, PreToolUse, PermissionRequest,
    │                   PostToolUse, PostToolUseFailure, Stop ← curl
    ├─ ActivityStore    hook events → per-session feed (<state>/activity/<id>.jsonl), pushed over SSE
@@ -98,6 +105,16 @@ server/ — Node 24 + TypeScript + Fastify + @fastify/websocket
   (plan usage `rate_limits`, shown in the footer) and then runs the user's own status line, passed in
   `$TASKPILOT_STATUSLINE_CMD`: a `--settings` status line replaces the user's instead of merging.
 - The child env must drop every `CLAUDE*` variable (see §7).
+- Agents: `core/agents.ts` lists them (`AGENTS`); `modules/sessions/backends/` has one
+  `AgentBackend` per agent: its launcher, how its hooks get in (`launchSettings` for a flag,
+  `prepare` for a file), an optional `readyMarker` (terminal text that stands in for a SessionStart
+  the agent fires late) and `normalize` (payload → Claude's hook fields, or null to drop it).
+  Everything past the backend — `/hook/:event`, the engine, the activity feed — reads Claude's
+  event names and payload fields. Copilot's backend writes `.github/copilot/settings.local.json`
+  (§7, Copilot table). To add an agent (e.g. Codex): add it to `AGENTS` (TypeScript then asks for
+  its entry in `BACKENDS` and in `/api/info`'s versions), write `core/<agent>/launch.ts` and
+  `version.ts` and `modules/sessions/backends/<agent>.ts`, add it to `client/src/shared/agents.ts`,
+  and spike its hooks first (§7).
 - Repo terminal: a Claude session with no task, under the reserved key `@repo`
   (`GET`/`POST /api/repo/sessions`); excluded from task lists, workflow runs and the activity feed.
 - i18n: client strings are i18next/react-i18next resources, one JSON file per feature namespace
@@ -157,10 +174,29 @@ The embedded terminal is shell-equivalent access to the machine.
 | MCP `${VAR}` source (C2 spike) | Expanded from the claude **process** environment only. `env` in `.claude/settings.local.json` does **not** reach MCP servers (`claude mcp get`: failed with settings env, connected with process env). Project `.mcp.json` servers stay "Pending approval" until approved in claude; `enabledMcpjsonServers` in settings.local.json did not approve them. |
 | First run in a new folder | Trust dialog appears; default choice is **"No, exit"**. Leave it to the user in the terminal; never auto-answer. |
 
+### GitHub Copilot CLI spike (TPL-009, 2026-10-21, copilot 1.0.100–1.0.101, interactive via node-pty)
+
+| Question | Result |
+|---|---|
+| `--session-id <uuid>` | Creates the session with that id, and resumes it on a later start (context kept, `SessionStart.source: "resume"`). No separate resume flag needed. |
+| Hook config | No `--settings` flag. Hooks in `.github/copilot/settings.local.json`, flat entries `{type: "command", bash, timeoutSec}`. Declared with **PascalCase** names (`Stop`…) Copilot sends Claude-style snake_case payloads (`session_id`, `tool_name` as Claude's `Bash`/`Read`/`Edit`, `tool_input`, `transcript_path`); camelCase names get camelCase payloads. |
+| `PermissionRequest` | Still camelCase despite the PascalCase name: `sessionId`, `toolName: "bash"`, `toolInput`. Not fired for pre-approved tools. |
+| `SessionStart` | **Not at startup**: fires only with the first prompt, next to `UserPromptSubmit`. TaskPilot treats the input box footer `/ commands` in the terminal output as SessionStart and drops Copilot's late one. |
+| Tool hooks | No `tool_use_id`, no `duration_ms`; parallel calls share a timestamp. A shell command exiting non-zero is a `PostToolUse` (`result_type: "success"`), not `PostToolUseFailure`. |
+| `Stop` | No last message: read the last non-empty `assistant.message` `data.content` from `transcript_path` (`~/.copilot/session-state/<id>/events.jsonl`). |
+| First run in a folder | "Confirm folder trust": 1. Yes (this session) / 2. Yes, and remember / 3. No. No hook fires before the answer; after "Yes" the repo hooks load in that same session. `trustedFolders` in `~/.copilot/settings.json` does not skip the question. The footer `/ commands` appears only after it. Leave it to the user; never auto-answer. |
+| Bracketed paste, multi-line | One prompt with newlines intact, submitted by `\r` 200 ms later. |
+| `statusLine` | Runs only from `~/.copilot/settings.json`, not from the repo's `settings.local.json`. Input: `session_id`, `model`, `cost.total_premium_requests`, `ai_used`, `context_window`; **no account quota**, so no Copilot plan usage in the footer. |
+| Settings files | JSONC (comments). Precedence: user < `.github/copilot/settings.json` < `settings.local.json` < env < flags. Copilot also runs hooks from `.claude/settings.json` and `.claude/settings.local.json`. |
+
 ## 8. Open items
 
 - Trust dialog vs. `SessionStart` order is inferred, not verified: in a never-trusted folder the first
   prompt waits for `SessionStart`; if it never arrives, "Gửi lại bước" pastes anyway.
+- Copilot plan usage: its status line has no quota and runs only from the user's settings; options
+  are a user-level status line or the Copilot SDK's `account.getQuota`.
+- Leader-driven runs: Claude reads its plan and hands sub-tasks to member agents (Copilot, later
+  Codex) while running; TPL-009 only assigns agents per step.
 
 ## 9. Milestones
 
@@ -223,6 +259,8 @@ The embedded terminal is shell-equivalent access to the machine.
   carry no skeletons; a size budget is tested), prompts previewed with a sample task, the prompt
   sent to a task kept and shown, a *Định dạng tài liệu* page (`#/formats`), an override guide and
   per-file restore on the Workflow page, and Claude's questions answered one by one (§3).
+- **TPL-009** GitHub Copilot CLI as a second session agent — done: `agent` per workflow and per
+  step, a new session when the agent changes, one backend per agent (§5), the Copilot spike (§7).
 - **Docs split** — done: README trimmed to the pitch, requirements and install/run; everything else
   moved into `docs/GUIDE.md` (daily use), `docs/CONFIGURATION.md` (Claude config, custom workflow),
   `docs/DEPLOY.md` (service, reverse proxy, security) and `docs/DEVELOP.md` (dev commands, layout,

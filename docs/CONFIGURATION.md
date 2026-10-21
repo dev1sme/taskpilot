@@ -46,7 +46,8 @@ When a step's agent differs from the previous step's, the run stops the previous
 listed), starts a new session of the step's agent and logs the switch in the decision log. The new
 agent knows the task from its documents and the decision log, which every built-in prompt has it
 read first; `{{agent}}` names the step's agent (the built-in history heading uses it). Restarting
-starts over with the first step's agent. The built-in workflow runs every step with Claude.
+starts over with the first step's agent. The built-in workflow investigates and plans with Claude and implements with Copilot (which needs
+`permission-mode: auto`, see below; the built-in has none).
 
 `permission-mode` maps to Copilot flags:
 

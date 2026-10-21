@@ -105,8 +105,9 @@ describe("workflow definition", () => {
   });
 
   it("runs every step with Claude unless the workflow or the step names another agent", async () => {
+    // The built-in workflow plans with Claude and implements with Copilot.
     const def = await loadWorkflow(await makeRepo());
-    expect([def.agent, ...def.steps.map((s) => s.agent)]).toEqual(["claude", "claude", "claude"]);
+    expect([def.agent, ...def.steps.map((s) => s.agent)]).toEqual(["claude", "claude", "copilot"]);
 
     const two = "version: 2\nagent: copilot\nsteps:\n  - id: a\n    prompt: p.md\n    agent: claude\n  - id: b\n    prompt: p.md\n";
     const parsed = parse(two).def!;

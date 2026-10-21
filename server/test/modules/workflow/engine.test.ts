@@ -86,7 +86,12 @@ describe("workflow engine", () => {
     repo = await makeRepo();
     state = new StateStore(await tempDir("taskpilot-state-"));
     fake = new FakeSessions(state);
-    engine = new WorkflowEngine(state, fake);
+    // The built-in workflow implements with Copilot; these tests drive a single Claude session.
+    engine = new WorkflowEngine(state, fake, async (r) => {
+      const def = await loadWorkflow(r);
+      def.steps.forEach((s) => (s.agent = "claude"));
+      return def;
+    });
     // The fixture's 02-plan.md predates every run.
     const past = new Date("2020-01-01");
     await utimes(path.join(taskDir(), "02-plan.md"), past, past);

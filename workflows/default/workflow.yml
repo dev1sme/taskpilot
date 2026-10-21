@@ -44,7 +44,7 @@ steps:
 
   - id: implement
     title: Triển khai
-    # agent: copilot
+    agent: copilot
     prompt: implement.md
     on-reject: revise-implementation.md
     outputs:

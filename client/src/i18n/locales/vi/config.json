@@ -326,8 +326,6 @@
     "ymlLabel": "Bước, tài liệu, luật chung",
     "promptLabel": "Prompt",
     "onRejectLabel": "Prompt khi bị góp ý",
-    "formatLabel": "Khung {{file}}",
-    "historyFormatLabel": "Khung entry trong {{file}}",
     "otherFiles": "File khác",
     "tag": {
       "new": "mới",
@@ -426,6 +424,24 @@
       "addOutput": "Thêm tài liệu",
       "newStep": "Bước mới",
       "addStep": "Thêm bước"
-    }
+    },
+    "formatsGroup": "Khung tài liệu",
+    "formatsLink": "Xem dạng tài liệu theo từng bước →"
+  },
+  "formats": {
+    "title": "Định dạng tài liệu",
+    "subtitle": "Tài liệu Claude viết ở mỗi bước và khung (format) mà mỗi tài liệu phải theo",
+    "editHintDefault": "Đây là khung của workflow mặc định. Muốn đổi, vào <link>Workflow</link> và bấm \"Thêm config override\".",
+    "editHintRepo": "Khung lấy từ override {{dir}}/. Bấm Sửa ở mỗi khung để sửa trong trang <link>Workflow</link>.",
+    "invalid": "Workflow đang có lỗi; danh sách dưới đây có thể thiếu. Xem trang Workflow.",
+    "noOutputs": "Bước này không khai báo tài liệu.",
+    "skeleton": "Khung: {{file}}",
+    "noSkeleton": "Không có khung: Claude tự trình bày theo mô tả",
+    "doneWhen": "bước xong khi Claude ghi file này",
+    "view": "Cách xem khung",
+    "rendered": "Xem trước",
+    "raw": "Nguồn",
+    "historyTitle": "Nhật ký quyết định",
+    "historyBody": "Mỗi bước Claude thêm một entry vào cuối file theo khung này; TaskPilot cũng ghi entry khi bắt đầu, duyệt, góp ý, chạy lại."
   }
 }

@@ -1,5 +1,6 @@
 import type { ConfigSection } from "../../shared/router";
 import { CodegraphPage } from "./codegraph/CodegraphPage";
+import { FormatsPage } from "./formats/FormatsPage";
 import { HooksPage } from "./hooks/HooksPage";
 import { LibraryPage } from "./library/LibraryPage";
 import { McpPage } from "./mcp/McpPage";
@@ -10,7 +11,7 @@ import { WorkflowPage } from "./workflow/WorkflowPage";
 import "./shared/responsive.css";
 
 /** Claude configuration pages (read-only in phase B). */
-export function ConfigPage({ section }: { section: ConfigSection }) {
+export function ConfigPage({ section, file }: { section: ConfigSection; file?: string }) {
   switch (section) {
     case "memory":
       return <MemoryPage />;
@@ -23,7 +24,9 @@ export function ConfigPage({ section }: { section: ConfigSection }) {
     case "skills":
       return <LibraryPage kind={section} />;
     case "workflow":
-      return <WorkflowPage />;
+      return <WorkflowPage file={file} />;
+    case "formats":
+      return <FormatsPage />;
     case "mcp":
       return <McpPage />;
     case "codegraph":

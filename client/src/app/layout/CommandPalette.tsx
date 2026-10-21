@@ -26,6 +26,7 @@ const PAGES = [
   { nav: "commands", hint: "config", route: { page: "config", section: "commands" } },
   { nav: "skills", hint: "config", route: { page: "config", section: "skills" } },
   { nav: "workflow", hint: "config", route: { page: "config", section: "workflow" } },
+  { nav: "formats", hint: "config", route: { page: "config", section: "formats" } },
   { nav: "mcp", hint: "integrations", route: { page: "config", section: "mcp" } },
   { nav: "backups", hint: "backup", route: { page: "backups" } },
 ] as const satisfies ReadonlyArray<{ nav: string; hint: string; route: Route }>;

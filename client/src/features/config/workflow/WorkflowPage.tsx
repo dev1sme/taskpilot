@@ -2,6 +2,7 @@ import { ArrowCounterClockwise, CheckCircle, Eye, FilePlus, GitDiff, PencilSimpl
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { queryClient } from "../../../shared/api/queryClient";
+import { href } from "../../../shared/router";
 import { Button } from "../../../shared/ui/Button";
 import { DiffDialog } from "../../../shared/ui/DiffDialog";
 import { toast } from "../../../shared/ui/Toast";
@@ -28,11 +29,11 @@ const DRAFT_PREFIX = "workflow:";
  * The task workflow: TaskPilot's built-in one is shown read only; "Thêm config override" copies it
  * into the repo's .claude/taskpilot/, where every file can then be edited, checked and previewed.
  */
-export function WorkflowPage() {
+export function WorkflowPage({ file: initialFile }: { file?: string }) {
   const { t } = useTranslation("config");
   const { data, error, loading, reload } = useConfig(["workflow"], workflowConfigApi.get);
   const dirty = useDrafts();
-  const [picked, setPicked] = useState(WORKFLOW_FILE);
+  const [picked, setPicked] = useState(initialFile ?? WORKFLOW_FILE);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<"reset" | "delete" | null>(null);
   const [adding, setAdding] = useState(false);
@@ -206,6 +207,13 @@ export function WorkflowPage() {
   );
 }
 
+/** Which documents a skeleton file shapes, for its label in the file list. */
+function formatUse(config: WorkflowConfig, name: string): string {
+  const files = (config.def?.steps ?? []).flatMap((s) => s.outputs).filter((o) => o.format === name).map((o) => o.file);
+  if (config.def?.history.format === name) files.push(config.def.history.file);
+  return files.join(", ");
+}
+
 /** Override files with an open draft (the picked one always counts, so its tab stays while it is open). */
 function openDraftNames(dirty: string[], picked: string): string[] {
   const names = new Set(dirty.filter((k) => k.startsWith(DRAFT_PREFIX)).map((k) => k.slice(DRAFT_PREFIX.length)));
@@ -275,12 +283,11 @@ function FileNav(props: {
   const { t } = useTranslation("config");
   const { config } = props;
   const steps = config.def?.steps ?? [];
-  const historyFormat = config.def?.history.format ?? null;
-  const known = new Set([
-    WORKFLOW_FILE,
-    historyFormat ?? "",
-    ...steps.flatMap((s) => [s.promptFile, s.onRejectFile ?? "", ...s.outputs.map((o) => o.format ?? "")]),
-  ]);
+  // Skeletons get their own group (and their own page, Định dạng tài liệu), apart from the steps' prompts.
+  const formats = [
+    ...new Set([config.def?.history.format ?? "", ...steps.flatMap((s) => s.outputs.map((o) => o.format ?? ""))].filter(Boolean)),
+  ];
+  const known = new Set([WORKFLOW_FILE, ...formats, ...steps.flatMap((s) => [s.promptFile, s.onRejectFile ?? ""])]);
   const loose = [...config.files.map((f) => f.name).filter((n) => !known.has(n)), ...props.newFiles];
 
   const item = (name: string, label?: string) => {
@@ -309,7 +316,6 @@ function FileNav(props: {
     <nav className="library-list wf-nav" aria-label={t("workflow.files")}>
       <ul>
         {item(WORKFLOW_FILE, t("workflow.ymlLabel"))}
-        {historyFormat && item(historyFormat, t("workflow.historyFormatLabel", { file: config.def!.history.file }))}
       </ul>
       {steps.map((s, i) => (
         <div key={s.id} className="wf-nav-step">
@@ -323,10 +329,18 @@ function FileNav(props: {
           <ul>
             {item(s.promptFile, t("workflow.promptLabel"))}
             {s.onRejectFile && item(s.onRejectFile, t("workflow.onRejectLabel"))}
-            {s.outputs.map((o) => o.format && item(o.format, t("workflow.formatLabel", { file: o.file })))}
           </ul>
         </div>
       ))}
+      {formats.length > 0 && (
+        <div className="wf-nav-step">
+          <div className="pane-label">{t("workflow.formatsGroup")}</div>
+          <p className="wf-step-meta">
+            <a href={href({ page: "config", section: "formats" })}>{t("workflow.formatsLink")}</a>
+          </p>
+          <ul>{formats.map((n) => item(n, formatUse(config, n)))}</ul>
+        </div>
+      )}
       {loose.length > 0 && (
         <div className="wf-nav-step">
           <div className="pane-label">{t("workflow.otherFiles")}</div>

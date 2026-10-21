@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { AGENT_LABELS, DEFAULT_AGENT, type Agent } from "../../core/agents.js";
 import { HttpError } from "../../core/errors.js";
 import { getTask, TASKS_DIR } from "../tasks/index.js";
 import type { HookEvent, SessionView } from "../sessions/index.js";
@@ -8,13 +9,14 @@ import type { SessionMeta, StateStore } from "../../core/state.js";
 import { loadWorkflow, OVERRIDE_DIR } from "./definition.js";
 import { archiveOutputs } from "./archive.js";
 import { appendHistory, HISTORY_TEXT } from "./history.js";
+import { parseQuestions, type Question } from "./questions.js";
 import type { RunState, StepDef, WorkflowDef } from "./types.js";
 import { promptVars, renderPrompt } from "./vars.js";
 import { t } from "../../core/i18n.js";
 
 /** The parts of SessionManager the engine uses. */
 export interface SessionPort {
-  create(repo: string, taskKey: string, opts: { permissionMode?: string }): Promise<SessionView>;
+  create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent }): Promise<SessionView>;
   resume(id: string): Promise<SessionView>;
   stop(id: string): Promise<void>;
   get(id: string): Promise<SessionView>;
@@ -29,6 +31,7 @@ export interface RunView {
     steps: Array<{
       id: string;
       title: string;
+      agent: Agent;
       gate: StepDef["gate"];
       doneFile: string | null;
       outputs: Array<{ id: string; file: string }>;
@@ -38,6 +41,8 @@ export interface RunView {
   };
   /** Without the workflow snapshot, which only the engine needs. */
   run: Omit<RunState, "workflow"> | null;
+  /** Claude's numbered questions for the reviewer, at a gate or while it waits for an answer. */
+  questions: Question[];
 }
 
 const MTIME_SLACK_MS = 100;
@@ -75,6 +80,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
         steps: def.steps.map((s) => ({
           id: s.id,
           title: s.title,
+          agent: s.agent ?? DEFAULT_AGENT,
           gate: s.gate,
           doneFile: s.doneWhen?.file ?? null,
           outputs: s.outputs.map((o) => ({ id: o.id, file: o.file })),
@@ -82,7 +88,19 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
         outdated: !!pinned && JSON.stringify(pinned) !== JSON.stringify(current),
       },
       run: run ? withoutSnapshot(run) : null,
+      questions: run ? await this.questionsOf(run, def) : [],
     };
+  }
+
+  /** At a gate: the open questions of the step's done-when document, else of Claude's last message. */
+  private async questionsOf(run: RunState, def: WorkflowDef): Promise<Question[]> {
+    if (run.phase === "gate") {
+      const file = def.steps[run.stepIndex]?.doneWhen?.file;
+      const doc = file ? await readFile(path.join(taskDirOf(run), file), "utf8").catch(() => "") : "";
+      const fromDoc = parseQuestions(doc);
+      if (fromDoc.length > 0) return fromDoc;
+    }
+    return run.phase === "gate" || run.phase === "waiting" ? parseQuestions(run.lastMessage ?? "") : [];
   }
 
   start(repo: string, taskKey: string): Promise<RunState> {
@@ -119,7 +137,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
    */
   private async begin(repo: string, taskKey: string, previous?: RunState["previous"]): Promise<RunState> {
     const def = await this.loadDef(repo);
-    const session = await this.sessions.create(repo, taskKey, { permissionMode: def.permissionMode });
+    const session = await this.sessions.create(repo, taskKey, { permissionMode: def.permissionMode, agent: def.steps[0].agent ?? DEFAULT_AGENT });
     const now = Date.now();
     const run: RunState = {
       repo,
@@ -140,17 +158,20 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     return run;
   }
 
-  approve(repo: string, taskKey: string): Promise<RunState> {
+  /**
+   * Approves the gate. `note` (e.g. answers to Claude's open questions) is quoted in the decision
+   * log, which the next step's prompt has Claude read first.
+   */
+  approve(repo: string, taskKey: string, note = ""): Promise<RunState> {
     return this.serial(async () => {
       const run = await this.require(repo, taskKey, ["gate"]);
       const def = await this.defOf(run);
       const last = run.stepIndex + 1 >= def.steps.length;
-      await this.log(run, HISTORY_TEXT.approve, last ? { body: HISTORY_TEXT.done } : {});
+      await this.log(run, HISTORY_TEXT.approve, { ...(note.trim() ? { quote: note.trim() } : {}), ...(last ? { body: HISTORY_TEXT.done } : {}) });
       if (last) {
         return this.save(run, { phase: "done", message: t("run.done") });
       }
-      run.stepIndex += 1;
-      await this.deliver(run, await this.prompt(run, def.steps[run.stepIndex].prompt));
+      await this.enterStep(run, def, run.stepIndex + 1);
       return run;
     });
   }
@@ -167,13 +188,28 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     });
   }
 
+  /** Answers Claude while it waits (it ended its turn without the step's document): logged, then pasted as it is. */
+  reply(repo: string, taskKey: string, text: string): Promise<RunState> {
+    return this.serial(async () => {
+      if (!text.trim()) throw new HttpError(400, "Reply is empty");
+      const run = await this.require(repo, taskKey, ["waiting"]);
+      const session = await this.sessions.get(run.sessionId);
+      if (session.status === "running" && session.activity === "busy") {
+        throw new HttpError(409, "The agent is still working; wait for it or stop it in the terminal");
+      }
+      await this.log(run, HISTORY_TEXT.reply, { quote: text.trim() });
+      await this.deliver(run, text.trim());
+      return run;
+    });
+  }
+
   /** Sends the current step again, resuming the session first if it has exited. */
   retry(repo: string, taskKey: string): Promise<RunState> {
     return this.serial(async () => {
       const run = await this.require(repo, taskKey, ["starting", "running", "waiting", "interrupted"]);
       const session = await this.sessions.get(run.sessionId);
       if (session.status === "running" && session.activity === "busy") {
-        throw new HttpError(409, "Claude is still working; wait for it or stop it in the terminal");
+        throw new HttpError(409, "The agent is still working; wait for it or stop it in the terminal");
       }
       const step = (await this.defOf(run)).steps[run.stepIndex];
       await this.deliver(run, run.pendingPrompt ?? (await this.prompt(run, step.prompt)), { force: true });
@@ -219,7 +255,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       if (event === "SessionStart" && run.phase === "starting" && run.pendingPrompt) {
         await this.send(run, run.pendingPrompt);
       } else if (event === "UserPromptSubmit" && run.phase === "waiting") {
-        await this.save(run, { phase: "running", message: t("run.working") });
+        await this.save(run, { phase: "running", message: t("run.working", { agent: agentLabel(run) }) });
       } else if (event === "Stop" && (run.phase === "running" || run.phase === "waiting")) {
         await this.onStop(run);
       }
@@ -244,7 +280,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     if (step.doneWhen && !(await this.writtenSince(run, step.doneWhen.file))) {
       await this.save(run, {
         phase: "waiting",
-        message: t("run.notWritten", { file: step.doneWhen.file }),
+        message: t("run.notWritten", { file: step.doneWhen.file, agent: agentLabel(run) }),
       });
     } else if (step.gate === "approve") {
       const message = step.doneWhen ? t("run.gateFile", { step: step.title, file: step.doneWhen.file }) : t("run.gate", { step: step.title });
@@ -252,9 +288,26 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     } else if (run.stepIndex + 1 >= def.steps.length) {
       await this.save(run, { phase: "done", message: t("run.done") });
     } else {
-      run.stepIndex += 1;
-      await this.deliver(run, await this.prompt(run, def.steps[run.stepIndex].prompt));
+      await this.enterStep(run, def, run.stepIndex + 1);
     }
+  }
+
+  /**
+   * Moves the run to step `index` and sends its prompt. A step for another agent gets a new session
+   * of that agent: the previous one is stopped (it stays listed) and the switch goes into the decision
+   * log, which the step's prompt has the agent read with the task's documents.
+   */
+  private async enterStep(run: RunState, def: WorkflowDef, index: number): Promise<void> {
+    run.stepIndex = index;
+    const agent = def.steps[index].agent ?? DEFAULT_AGENT;
+    const current = await this.sessions.get(run.sessionId).catch(() => null);
+    if (current && current.agent !== agent) {
+      if (current.status === "running") await this.sessions.stop(run.sessionId);
+      const session = await this.sessions.create(run.repo, run.taskKey, { permissionMode: def.permissionMode, agent });
+      await this.log(run, HISTORY_TEXT.switchAgent, { body: HISTORY_TEXT.switchAgentBody(AGENT_LABELS[current.agent], AGENT_LABELS[agent]) });
+      await this.save(run, { sessionId: session.id });
+    }
+    await this.deliver(run, await this.prompt(run, def.steps[index].prompt));
   }
 
   /**
@@ -270,7 +323,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     } else if (session.activity === "starting" && !opts.force) {
       await this.save(run, {
         phase: "starting",
-        message: t("run.starting"),
+        message: t("run.starting", { agent: agentLabel(run) }),
         pendingPrompt: text,
       });
     } else {
@@ -281,10 +334,12 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   private async send(run: RunState, text: string): Promise<void> {
     const step = (await this.defOf(run)).steps[run.stepIndex];
     this.sessions.paste(run.sessionId, text);
+    const now = Date.now();
     await this.save(run, {
       phase: "running",
-      stepStartedAt: Date.now(),
-      message: t("run.step", { step: step.title }),
+      stepStartedAt: now,
+      sentPrompt: { stepIndex: run.stepIndex, text, at: now },
+      message: t("run.step", { step: step.title, agent: agentLabel(run) }),
       pendingPrompt: undefined,
     });
   }
@@ -356,6 +411,11 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
 function withoutSnapshot(run: RunState): Omit<RunState, "workflow"> {
   const { workflow: _workflow, ...rest } = run;
   return rest;
+}
+
+/** Name of the agent that runs the run's current step, for run messages. */
+function agentLabel(run: RunState): string {
+  return AGENT_LABELS[run.workflow?.steps[run.stepIndex]?.agent ?? DEFAULT_AGENT];
 }
 
 function taskDirOf(run: RunState): string {

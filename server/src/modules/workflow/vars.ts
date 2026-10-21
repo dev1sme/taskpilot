@@ -1,6 +1,7 @@
 import path from "node:path";
+import { AGENT_LABELS, DEFAULT_AGENT } from "../../core/agents.js";
 import { SPEC_DIR, TASKS_DIR } from "../tasks/index.js";
-import { HISTORY_TEXT } from "./history.js";
+import { PROMPT_TEXT } from "./prompt-text.js";
 import type { RunState, WorkflowDef } from "./types.js";
 
 /** Variables every template may use, besides {{out.<id>}}. Shown as chips on the Workflow page. */
@@ -8,6 +9,7 @@ export const templateVars = [
   "key",
   "title",
   "step",
+  "agent",
   "stepNumber",
   "stepCount",
   "taskDir",
@@ -51,20 +53,20 @@ export function promptVars(
   const historyFile = `${taskDir}/${def.history.file}`;
   const list = (outs: WorkflowDef["steps"][number]["outputs"]) =>
     outs.map((o) => `- \`${taskDir}/${o.file}\`${o.content ? `: ${o.content}` : ""}`).join("\n");
-  /** Each document of the step, with its skeleton when the workflow gives one. */
-  const documents = (outs: WorkflowDef["steps"][number]["outputs"]) =>
-    outs
-      .map((o) => {
-        const line = `- \`${taskDir}/${o.file}\`${o.content ? `: ${o.content}` : ""}`;
-        if (o.formatText === undefined) return line;
-        return `${line}\n  Follow this structure: keep the headings in this order, fill every section, drop the <!-- --> hints.\n\n${fence(render(o.formatText, base).trim())}`;
-      })
-      .join("\n\n");
+  /** Each document of the step, with its skeleton when the workflow gives one; the skeleton rule is said once. */
+  const documents = (outs: WorkflowDef["steps"][number]["outputs"]) => {
+    const items = outs.map((o) => {
+      const line = `- \`${taskDir}/${o.file}\`${o.content ? `: ${o.content}` : ""}`;
+      return o.formatText === undefined ? line : `${line}\n\n${fence(render(o.formatText, base).trim())}`;
+    });
+    return [...(outs.some((o) => o.formatText !== undefined) ? [PROMPT_TEXT.skeleton] : []), ...items].join("\n\n");
+  };
 
   const base: Record<string, string> = {
     key: task.key,
     title: task.title,
     step: step?.title ?? "",
+    agent: AGENT_LABELS[step?.agent ?? DEFAULT_AGENT],
     stepNumber: String(stepIndex + 1),
     stepCount: String(def.steps.length),
     taskDir,
@@ -98,23 +100,11 @@ function fence(text: string): string {
 function previousRun(def: WorkflowDef, previous: RunState["previous"], taskDir: string, historyFile: string): string {
   if (!previous) return "";
   const dir = `${taskDir}/${previous.dir}`;
-  const log = `- ${historyFile} (the latest "${HISTORY_TEXT.restart}" entry and the feedback before it)`;
-  if (previous.files.length === 0) {
-    return [
-      "This task was restarted from the first step; the previous run had no documents to archive.",
-      "Before anything else, read this to learn what was done before and why it was restarted:",
-      log,
-    ].join("\n");
-  }
+  const log = PROMPT_TEXT.restartLog(historyFile);
+  if (previous.files.length === 0) return [PROMPT_TEXT.restartedEmpty, PROMPT_TEXT.readFirst, log].join("\n");
   const wanted = def.restart
     ? def.restart.read.flatMap((id) => def.steps.flatMap((s) => s.outputs).filter((o) => o.id === id).map((o) => o.file))
     : previous.files;
   const read = wanted.filter((f) => previous.files.includes(f));
-  return [
-    "This task was restarted from the first step. The previous run's documents were archived to",
-    `${dir}/ (${previous.files.join(", ")}).`,
-    "Before anything else, read these to learn what was done before and why it was restarted:",
-    ...read.map((f) => `- ${dir}/${f}`),
-    log,
-  ].join("\n");
+  return [PROMPT_TEXT.restarted(dir, previous.files), PROMPT_TEXT.readFirst, ...read.map((f) => `- ${dir}/${f}`), log].join("\n");
 }

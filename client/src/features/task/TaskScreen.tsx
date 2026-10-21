@@ -1,10 +1,10 @@
-import { ArrowCounterClockwise, CheckCircle, ChatCircleDots, CircleNotch, Diamond, PlugsConnected, X } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, CheckCircle, ChatCircleDots, CircleNotch, Diamond, PlugsConnected, Scroll, X } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { href } from "../../shared/router";
 import { Button } from "../../shared/ui/Button";
 import { ActivityFeed, useActivity } from "../activity";
-import { DocsPanel, DocViewer } from "../docs";
+import { DocsPanel, DocViewer, TextViewer } from "../docs";
 import { TerminalDrawer, useSessions, sessionsApi } from "../sessions";
 import { PageHeader } from "../../shared/ui/PageHeader";
 import { Toolbar } from "../../shared/ui/Toolbar";
@@ -35,6 +35,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
   const [doc, setDoc] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [restart, setRestart] = useState<"idle" | "confirm" | "busy">("idle");
+  const [showPrompt, setShowPrompt] = useState(false);
 
   const run = view?.run ?? null;
   const steps = view?.workflow.steps ?? [];
@@ -66,6 +67,8 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
     setDrawerOpen(true);
   };
   const closeDoc = useCallback(() => setDoc(null), []);
+  const closePrompt = useCallback(() => setShowPrompt(false), []);
+  const sent = run?.sentPrompt;
 
   const pillPhase = run && run.phase !== "cancelled" ? run.phase : undefined;
   const pill = pillPhase && PHASE_PILL[pillPhase];
@@ -104,6 +107,11 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
           }
           actions={
             <>
+              {sent && (
+                <Button icon={Scroll} variant="quiet" title={t("sentPromptTitle")} onClick={() => setShowPrompt(true)}>
+                  {t("sentPrompt")}
+                </Button>
+              )}
               {restart === "confirm" && <span className="toolbar-hint">{t("restartHint")}</span>}
               {toolbarRestart &&
                 (restart === "idle" ? (
@@ -163,6 +171,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                     taskKey={task.key}
                     run={run}
                     step={steps[run.stepIndex]}
+                    questions={view.questions}
                     isLast={run.stepIndex === steps.length - 1}
                     docVersion={task.updatedAt}
                     onOpenDoc={setDoc}
@@ -175,6 +184,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                     run={run}
                     session={runSession}
                     activity={activity}
+                    questions={view.questions}
                     onOpenTerminal={openTerminal}
                     onOpenDoc={setDoc}
                     onChanged={changed}
@@ -199,7 +209,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
       <TerminalDrawer
         scopeLabel="task"
         emptyHint={t("terminalEmpty")}
-        onCreate={() => sessionsApi.createSession(task.key)}
+        onCreate={(agent) => sessionsApi.createSession(task.key, agent)}
         sessions={sessions}
         activeId={activeSession}
         open={drawerOpen}
@@ -209,6 +219,11 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
         onChanged={changed}
       />
       <DocViewer taskKey={task.key} path={doc} version={task.updatedAt} onClose={closeDoc} />
+      <TextViewer
+        title={showPrompt && sent ? t("sentPromptHead", { step: steps[sent.stepIndex]?.title ?? sent.stepIndex + 1, time: new Date(sent.at).toLocaleString("vi-VN") }) : null}
+        text={sent?.text ?? ""}
+        onClose={closePrompt}
+      />
     </div>
   );
 }

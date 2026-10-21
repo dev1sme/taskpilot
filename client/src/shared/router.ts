@@ -4,18 +4,19 @@ export type Route =
   | { page: "overview" }
   | { page: "tasks" }
   | { page: "task"; key: string }
-  | { page: "config"; section: ConfigSection }
+  | { page: "config"; section: ConfigSection; file?: string }
   | { page: "backups" };
 
-export type ConfigSection = "memory" | "settings" | "hooks" | "agents" | "commands" | "skills" | "workflow" | "mcp" | "codegraph";
+export type ConfigSection = "memory" | "settings" | "hooks" | "agents" | "commands" | "skills" | "workflow" | "formats" | "mcp" | "codegraph";
 
-const CONFIG: ConfigSection[] = ["memory", "settings", "hooks", "agents", "commands", "skills", "workflow", "mcp", "codegraph"];
+const CONFIG: ConfigSection[] = ["memory", "settings", "hooks", "agents", "commands", "skills", "workflow", "formats", "mcp", "codegraph"];
 
-/** Hash routes keep the server a plain static host: #/, #/tasks, #/tasks/PROJ-1, #/mcp … */
+/** Hash routes keep the server a plain static host: #/, #/tasks, #/tasks/PROJ-1, #/mcp, #/workflow/format-plan.md … */
 export function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
   if (parts[0] === "tasks") return parts[1] ? { page: "task", key: parts[1] } : { page: "tasks" };
   if (parts[0] === "backups") return { page: "backups" };
+  if (parts[0] === "workflow" && parts[1]) return { page: "config", section: "workflow", file: parts[1] };
   if (CONFIG.includes(parts[0] as ConfigSection)) return { page: "config", section: parts[0] as ConfigSection };
   return { page: "overview" };
 }
@@ -29,7 +30,7 @@ export function href(route: Route): string {
     case "task":
       return `#/tasks/${encodeURIComponent(route.key)}`;
     case "config":
-      return `#/${route.section}`;
+      return `#/${route.section}${route.file ? `/${encodeURIComponent(route.file)}` : ""}`;
     case "backups":
       return "#/backups";
   }

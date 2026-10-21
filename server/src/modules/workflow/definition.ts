@@ -3,6 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
+import { AGENTS, DEFAULT_AGENT, isAgent, type Agent } from "../../core/agents.js";
 import { HttpError } from "../../core/errors.js";
 import type { OutputDef, StepDef, WorkflowDef } from "./types.js";
 import { templateVars } from "./vars.js";
@@ -20,7 +21,7 @@ const PERMISSION_MODES = ["default", "acceptEdits", "plan", "auto"];
 const ID = /^[a-z][a-z0-9-]*$/;
 /** A document at the top of the task directory (where restarts archive from and stages are read). */
 const TASK_DOC = /^[A-Za-z0-9][\w.-]*\.md$/;
-const DEFAULT_HISTORY = { file: "00-history.md", entry: "## <YYYY-MM-DD HH:MM> · {{step}} · Claude" };
+const DEFAULT_HISTORY = { file: "00-history.md", entry: "## <YYYY-MM-DD HH:MM> · {{step}} · {{agent}}" };
 
 export interface ParseResult {
   def: WorkflowDef | null;
@@ -90,6 +91,15 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
   if (permissionMode !== undefined && (typeof permissionMode !== "string" || !PERMISSION_MODES.includes(permissionMode))) {
     errors.push(`permission-mode must be one of ${PERMISSION_MODES.join(", ")}`);
   }
+
+  /** `agent` of the workflow or of a step; undefined when absent or invalid (then reported). */
+  const readAgent = (where: string, value: unknown): Agent | undefined => {
+    if (value === undefined) return undefined;
+    if (isAgent(value)) return value;
+    errors.push(`${where} must be one of ${AGENTS.join(", ")}`);
+    return undefined;
+  };
+  const agent = readAgent("agent", doc.agent) ?? DEFAULT_AGENT;
 
   const used = new Set<string>();
   /** A prompt or format file next to workflow.yml; it then counts as used. */
@@ -181,6 +191,7 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
     steps.push({
       id: String(id),
       title: typeof raw.title === "string" ? raw.title : String(id),
+      agent: readAgent(`${at}.agent`, raw.agent) ?? agent,
       prompt: prompt?.text ?? "",
       promptFile: prompt?.file ?? "",
       outputs,
@@ -208,6 +219,7 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
     source: path.join(where.dir, WORKFLOW_FILE),
     origin: where.origin,
     dir: where.dir,
+    agent,
     permissionMode: permissionMode as string | undefined,
     history,
     language,

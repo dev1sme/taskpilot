@@ -71,7 +71,7 @@ function Shell() {
       <main id="main" className="main">
         {route.page === "overview" && <OverviewPage />}
         {route.page === "tasks" && <TasksPage />}
-        {route.page === "config" && <ConfigPage key={route.section} section={route.section} />}
+        {route.page === "config" && <ConfigPage key={`${route.section}/${route.file ?? ""}`} section={route.section} file={route.file} />}
         {route.page === "backups" && <BackupsPage />}
         {route.page === "task" &&
           (task ? (

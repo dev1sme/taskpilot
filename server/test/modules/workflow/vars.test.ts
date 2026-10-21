@@ -63,18 +63,18 @@ describe("prompt variables", () => {
     expect(vars.archiveDir).toBe(".claude/tasks/A-1/archive/20261020-150000");
     expect(vars.previousRun).toBe(
       [
-        "This task was restarted from the first step. The previous run's documents were archived to",
+        "Task này được chạy lại từ bước đầu. Tài liệu của lần chạy trước đã được lưu vào",
         ".claude/tasks/A-1/archive/20261020-150000/ (notes.md, plan.md).",
-        "Before anything else, read these to learn what was done before and why it was restarted:",
+        "Trước tiên, đọc các file sau để biết lần trước đã làm gì và vì sao chạy lại:",
         "- .claude/tasks/A-1/archive/20261020-150000/plan.md",
-        '- .claude/tasks/A-1/log.md (the latest "Chạy lại từ đầu" entry and the feedback before it)',
+        '- .claude/tasks/A-1/log.md (entry "Chạy lại từ đầu" mới nhất và góp ý ngay trước nó)',
       ].join("\n"),
     );
     // Without restart.read every archived file is listed; listed ids that were not archived are skipped.
     const all = promptVars({ ...def, restart: undefined }, 0, task, { previous: { dir: "archive/x", files: ["notes.md"] } });
     expect(all.previousRun).toContain("- .claude/tasks/A-1/archive/x/notes.md\n");
     const none = promptVars(def, 0, task, { previous: { dir: "archive/x", files: [] } });
-    expect(none.previousRun).toContain("had no documents to archive");
+    expect(none.previousRun).toContain("lần chạy trước chưa có tài liệu nào để lưu");
     expect(none.previousRun).not.toContain("archive/x");
   });
 
@@ -90,8 +90,9 @@ describe("prompt variables", () => {
     const vars = promptVars(withFormats, 0, task);
     expect(vars.outputs).toBe(
       [
+        "Tài liệu có khung: giữ heading đúng thứ tự, điền mọi mục, bỏ gợi ý <!-- -->.",
+        "",
         "- `.claude/tasks/A-1/plan.md`: the plan",
-        "  Follow this structure: keep the headings in this order, fill every section, drop the <!-- --> hints.",
         "",
         "````markdown",
         "# A-1 — Plan",
@@ -112,35 +113,59 @@ describe("prompt variables", () => {
     const builtIn = await loadWorkflow(DEFAULT_WORKFLOW_DIR);
     const [investigate, implement] = builtIn.steps;
     const first = renderPrompt(investigate.prompt, promptVars(builtIn, 0, task));
-    for (const heading of ["## Context", "## Your job", "## Write", "## Rules", "## When done"]) expect(first).toContain(heading);
-    expect(first).toContain('You are working on task A-1: "Health" (step 1 of 2: Điều tra & lên kế hoạch).');
-    expect(first).toContain("Do not change source code.");
-    expect(first).toContain("- `.claude/tasks/A-1/02-plan.md`: goal, changes per file");
+    for (const heading of ["## Bối cảnh", "## Việc cần làm", "## Tài liệu cần viết", "## Quy tắc", "## Khi xong"]) expect(first).toContain(heading);
+    expect(first).toContain('Bạn đang làm task A-1: "Health" (bước 1/2: Điều tra & lên kế hoạch).');
+    expect(first).toContain("Không sửa source code.");
+    expect(first).toContain("- `.claude/tasks/A-1/02-plan.md`: mục tiêu, thay đổi theo file");
     expect(first).toContain("# A-1 — Kế hoạch\n\n## 1. Mục tiêu");
     expect(first).toContain("## 5. Cách verify");
     expect(first).toContain("# A-1 — Điều tra");
     expect(first).toContain("## <YYYY-MM-DD HH:MM> · Điều tra & lên kế hoạch · Claude\n\n**Quyết định:**");
-    expect(first).toContain("- Append only to .claude/tasks/A-1/00-history.md: add new entries at the end with Edit");
-    expect(first).toContain("Write the documents in the same language as the spec.");
+    expect(first).toContain("- Chỉ thêm entry mới vào cuối .claude/tasks/A-1/00-history.md bằng Edit");
+    expect(first).toContain("Không dùng tool AskUserQuestion");
+    expect(first).toContain("Viết tài liệu bằng cùng ngôn ngữ với spec.");
+    // The skeleton rule is said once, not once per document.
+    expect(first.split("Tài liệu có khung").length).toBe(2);
     expect(first).not.toMatch(/\{\{/);
     expect(first).not.toMatch(/\n{3}/);
 
     const second = renderPrompt(implement.prompt, promptVars(builtIn, 1, task));
-    expect(second).toContain("Implement the plan in .claude/tasks/A-1/02-plan.md.");
+    expect(second).toContain("Thực hiện kế hoạch trong .claude/tasks/A-1/02-plan.md.");
+    expect(second).toContain("(bước 2/2: Triển khai)");
     expect(second).toContain("- `.claude/tasks/A-1/01-investigation.md`");
-    expect(second).toContain("Keep .claude/tasks/A-1/03-progress.md up to date");
+    expect(second).toContain("Cập nhật .claude/tasks/A-1/03-progress.md trong lúc làm");
     expect(second).toContain("# A-1 — Tóm tắt");
     expect(second).toContain("- [ ] 1. <bước 1 của kế hoạch>");
-    expect(second).toContain("- Do not push or merge.");
+    expect(second).toContain("- Không push, không merge.");
     expect(second).not.toMatch(/\{\{/);
 
     const reject = renderPrompt(investigate.onReject!, promptVars(builtIn, 0, task, { feedback: "More tests" }));
-    expect(reject).toMatch(/^## Feedback\n\nReviewer feedback on the plan for task A-1: "Health":\n\nMore tests\n/);
-    expect(reject).toContain("Update .claude/tasks/A-1/02-plan.md (and .claude/tasks/A-1/01-investigation.md if relevant)");
+    expect(reject).toMatch(/^## Góp ý\n\nGóp ý của reviewer cho kế hoạch của task A-1: "Health":\n\nMore tests\n/);
+    expect(reject).toContain("Cập nhật .claude/tasks/A-1/02-plan.md (và .claude/tasks/A-1/01-investigation.md nếu liên quan)");
     expect(reject).not.toMatch(/\{\{/);
     const fix = renderPrompt(implement.onReject!, promptVars(builtIn, 1, task, { feedback: "Fix lint" }));
-    expect(fix).toContain("rewrite .claude/tasks/A-1/04-summary.md so it describes the final state");
+    expect(fix).toContain("viết lại .claude/tasks/A-1/04-summary.md để mô tả trạng thái cuối cùng");
     expect(fix).not.toMatch(/\{\{/);
+
+    // No English sentences left from the old prompts.
+    for (const text of [first, second, reject, fix]) {
+      expect(text).not.toMatch(/Your job|When done|Follow this structure|Do not|Read them all|Append only/);
+    }
+  });
+
+  it("keeps the built-in prompts within their size budget; on-reject prompts carry no skeletons", async () => {
+    const builtIn = await loadWorkflow(DEFAULT_WORKFLOW_DIR);
+    const sizes = builtIn.steps.map((s, i) => ({
+      prompt: renderPrompt(s.prompt, promptVars(builtIn, i, { key: "TPL-008", title: "Prompt mặc định" })),
+      onReject: renderPrompt(s.onReject!, promptVars(builtIn, i, { key: "TPL-008", title: "Prompt mặc định" }, { feedback: "x" })),
+    }));
+    // Budgets from TPL-008: main prompts no longer than the English ones were, on-reject prompts ≤ 1500 characters.
+    expect(sizes[0].prompt.length).toBeLessThanOrEqual(2809);
+    expect(sizes[1].prompt.length).toBeLessThanOrEqual(2730);
+    for (const { onReject } of sizes) {
+      expect(onReject.length).toBeLessThanOrEqual(1500);
+      expect(onReject).not.toContain("```markdown\n# TPL-008");
+    }
   });
 });
 

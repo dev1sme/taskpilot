@@ -5,10 +5,10 @@ import { describe, expect, it } from "vitest";
 const ROOT = path.resolve(import.meta.dirname, "../..");
 
 /** Where Vietnamese text is expected: the resources, and the task log wording (a document, not UI). */
-const ALLOWED = ["client/src/i18n/", "server/src/core/locales/", "server/src/modules/workflow/history.ts"];
+const ALLOWED = ["client/src/i18n/", "server/src/core/locales/", "server/src/modules/workflow/history.ts", "server/src/modules/workflow/prompt-text.ts"];
 
-/** Lines that hold Vietnamese letters as data rather than text. */
-const ALLOWED_LINES = [/\.replace\(\/đ\/g, "d"\)/];
+/** Lines that hold Vietnamese letters as data rather than text: here, patterns matching what Claude writes. */
+const ALLOWED_LINES = [/\.replace\(\/đ\/g, "d"\)/, /^const [A-Z_]+ = \/.*\/i;$/];
 
 // Vietnamese letters with diacritics; plain ASCII words are covered by `npm run i18n:lint` for JSX.
 const VIETNAMESE = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;

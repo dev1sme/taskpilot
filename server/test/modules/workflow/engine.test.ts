@@ -4,6 +4,8 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { SessionView } from "../../../src/modules/sessions/manager.js";
 import type { SessionMeta } from "../../../src/core/state.js";
 import { StateStore } from "../../../src/core/state.js";
+import type { Agent } from "../../../src/core/agents.js";
+import { loadWorkflow } from "../../../src/modules/workflow/definition.js";
 import { WorkflowEngine, type SessionPort } from "../../../src/modules/workflow/engine.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
@@ -20,11 +22,11 @@ class FakeSessions implements SessionPort {
   resumed: string[] = [];
   constructor(private readonly state: StateStore) {}
 
-  async create(repo: string, taskKey: string, opts: { permissionMode?: string }): Promise<SessionView> {
+  async create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent }): Promise<SessionView> {
     const id = `00000000-0000-4000-8000-${String(this.sessions.size).padStart(12, "0")}`;
     const meta: SessionMeta = { id, repo, taskKey, title: "Session", createdAt: Date.now(), ...opts };
     await this.state.update((s) => void s.sessions.push(meta));
-    const view: SessionView = { ...meta, status: "running", exitCode: null, activity: "starting" };
+    const view: SessionView = { ...meta, agent: opts.agent ?? "claude", status: "running", exitCode: null, activity: "starting" };
     this.sessions.set(id, view);
     return view;
   }
@@ -101,15 +103,57 @@ describe("workflow engine", () => {
     await sleep(150);
     await engine.feedback(repo, "DEMO-1", "Cover the error case");
     expect(fake.pasted[1]).toContain("Cover the error case");
+    // The run keeps the prompt as it was pasted, for the task screen.
+    expect((await state.load()).runs[0].sentPrompt).toMatchObject({ stepIndex: 0, text: fake.pasted[1] });
     expect(await hook("Stop")).toMatchObject({ phase: "waiting" });
     await write("02-plan.md");
     expect(await hook("Stop")).toMatchObject({ phase: "gate" });
 
     await engine.approve(repo, "DEMO-1");
-    expect(fake.pasted[2]).toContain("is approved");
+    expect(fake.pasted[2]).toContain("đã được duyệt");
+    expect((await engine.view(repo, "DEMO-1")).run?.sentPrompt).toMatchObject({ stepIndex: 1, text: fake.pasted[2] });
     await write("04-summary.md");
     expect(await hook("Stop")).toMatchObject({ phase: "gate", stepIndex: 1 });
     expect(await engine.approve(repo, "DEMO-1")).toMatchObject({ phase: "done" });
+  });
+
+  it("shows Claude's questions: from its last message while it waits, from the plan at the gate", async () => {
+    await engine.start(repo, "DEMO-1");
+    await hook("SessionStart");
+    const id = (await state.load()).runs[0].sessionId;
+    fake.sessions.get(id)!.activity = "idle";
+    await engine.onHook(fake.meta(id), "Stop", { last_assistant_message: "Cần ba chốt:\n\n1. Dùng Redis? — Đề xuất: không\n" });
+    expect(await engine.view(repo, "DEMO-1")).toMatchObject({ run: { phase: "waiting" }, questions: [{ n: 1, text: "Dùng Redis?", proposal: "không" }] });
+
+    await hook("UserPromptSubmit");
+    await mkdir(taskDir(), { recursive: true });
+    await writeFile(path.join(taskDir(), "02-plan.md"), "# Plan\n\n## 6. Câu hỏi mở\n\n1. Tách task? — Đề xuất: không\n2. Đổi tên bước?\n");
+    await engine.onHook(fake.meta(id), "Stop", { last_assistant_message: "Xong.\n\n1. Câu khác?" });
+    const view = await engine.view(repo, "DEMO-1");
+    expect(view.run?.phase).toBe("gate");
+    expect(view.questions).toEqual([
+      { n: 1, text: "Tách task?", proposal: "không" },
+      { n: 2, text: "Đổi tên bước?" },
+    ]);
+  });
+
+  it("answers Claude while it waits and approves a gate with answers, both logged", async () => {
+    await engine.start(repo, "DEMO-1");
+    await hook("SessionStart");
+    await expect(engine.reply(repo, "DEMO-1", "Có")).rejects.toMatchObject({ status: 409 });
+    expect(await hook("Stop")).toMatchObject({ phase: "waiting" });
+    await expect(engine.reply(repo, "DEMO-1", "  ")).rejects.toMatchObject({ status: 400 });
+
+    expect(await engine.reply(repo, "DEMO-1", "1. Dùng Redis?\n   → Theo đề xuất: không")).toMatchObject({ phase: "running" });
+    expect(fake.pasted.at(-1)).toBe("1. Dùng Redis?\n   → Theo đề xuất: không");
+
+    await write("02-plan.md");
+    expect(await hook("Stop")).toMatchObject({ phase: "gate" });
+    expect(await engine.approve(repo, "DEMO-1", "1. Tách task?\n   → Không")).toMatchObject({ phase: "running", stepIndex: 1 });
+
+    const log = await readFile(path.join(taskDir(), HISTORY_FILE), "utf8");
+    expect(log).toContain("· Điều tra & lên kế hoạch · Ba trả lời\n\n> 1. Dùng Redis?\n>    → Theo đề xuất: không\n");
+    expect(log).toContain("· Điều tra & lên kế hoạch · Ba duyệt\n\n> 1. Tách task?\n>    → Không\n");
   });
 
   it("resumes an exited session on retry and sends the step again after SessionStart", async () => {
@@ -124,6 +168,68 @@ describe("workflow engine", () => {
     expect((await state.load()).runs[0]).toMatchObject({ phase: "starting" });
     expect(await hook("SessionStart")).toMatchObject({ phase: "running" });
     expect(fake.pasted).toHaveLength(2);
+  });
+
+  it("runs a step for another agent in a new session and logs the switch", async () => {
+    engine = new WorkflowEngine(state, fake, async (r) => {
+      const def = await loadWorkflow(r);
+      def.steps[1].agent = "copilot";
+      return def;
+    });
+    // The run object is updated in place; keep the first session's id.
+    const first = (await engine.start(repo, "DEMO-1")).sessionId;
+    expect(fake.sessions.get(first)?.agent).toBe("claude");
+    await hook("SessionStart");
+    await write("02-plan.md");
+    await hook("Stop");
+    expect((await engine.view(repo, "DEMO-1")).workflow.steps.map((s) => s.agent)).toEqual(["claude", "copilot"]);
+
+    const next = await engine.approve(repo, "DEMO-1");
+    expect(fake.stopped).toEqual([first]);
+    expect(next.sessionId).not.toBe(first);
+    expect(fake.sessions.get(next.sessionId)).toMatchObject({ agent: "copilot" });
+    // The new session gets the step once it reports SessionStart.
+    expect(next).toMatchObject({ phase: "starting", stepIndex: 1 });
+    expect(await hook("SessionStart")).toMatchObject({ phase: "running" });
+    expect(fake.pasted.at(-1)).toContain("· Triển khai · Copilot");
+
+    // The old session's exit no longer belongs to the run.
+    await engine.onExit(fake.meta(first));
+    expect((await state.load()).runs[0]).toMatchObject({ phase: "running", sessionId: next.sessionId });
+
+    // The Copilot session stopping interrupts the run; retry resumes that session, not Claude's.
+    fake.exit(next.sessionId);
+    await engine.onExit(fake.meta(next.sessionId));
+    expect((await state.load()).runs[0]).toMatchObject({ phase: "interrupted" });
+    await engine.retry(repo, "DEMO-1");
+    expect(fake.resumed).toEqual([next.sessionId]);
+    await hook("SessionStart");
+    await write("04-summary.md");
+    expect(await hook("Stop")).toMatchObject({ phase: "gate", stepIndex: 1 });
+
+    const log = await readFile(path.join(taskDir(), HISTORY_FILE), "utf8");
+    expect(log).toContain("· Triển khai · Đổi agent\n\nBước này chạy bằng Copilot trong session mới; session Claude của bước trước đã dừng.");
+
+    // A restart starts over with step 1's agent.
+    const again = await engine.restart(repo, "DEMO-1");
+    expect(fake.sessions.get(again.sessionId)).toMatchObject({ agent: "claude" });
+    expect(again.stepIndex).toBe(0);
+  });
+
+  it("keeps one session when every step uses the same agent, also for snapshots saved without agents", async () => {
+    engine = new WorkflowEngine(state, fake, async (r) => {
+      const def = await loadWorkflow(r);
+      // As saved by a TaskPilot without agents.
+      for (const s of def.steps) delete (s as { agent?: Agent }).agent;
+      delete (def as { agent?: Agent }).agent;
+      return def;
+    });
+    const run = await engine.start(repo, "DEMO-1");
+    await hook("SessionStart");
+    await write("02-plan.md");
+    await hook("Stop");
+    expect(await engine.approve(repo, "DEMO-1")).toMatchObject({ sessionId: run.sessionId, phase: "running", stepIndex: 1 });
+    expect(fake.stopped).toEqual([]);
   });
 
   it("refuses a second active run and allows one after cancel", async () => {
@@ -158,7 +264,7 @@ describe("workflow engine", () => {
     expect(log).toContain("· Điều tra & lên kế hoạch · Bắt đầu quy trình\n\nQuy trình: mặc định của TaskPilot, 2 bước.");
     expect(log).toContain("· Điều tra & lên kế hoạch · Ba góp ý\n\n> Tách task riêng\n>\n> Thêm 00-history.md\n");
     expect(log).toContain("· Điều tra & lên kế hoạch · Ba duyệt");
-    expect(log).toContain("· Implement · Huỷ quy trình");
+    expect(log).toContain("· Triển khai · Huỷ quy trình");
     expect(log.indexOf("Ba góp ý")).toBeLessThan(log.indexOf("Ba duyệt"));
   });
 
@@ -201,17 +307,17 @@ describe("workflow engine", () => {
     expect((await readdir(taskDir())).sort()).toEqual([HISTORY_FILE, "02-plan.md", "03-progress.md", "archive", "notes.txt", "spec"].sort());
 
     const log = await readFile(path.join(taskDir(), HISTORY_FILE), "utf8");
-    expect(log).toContain(`· Implement · Chạy lại từ đầu\n\nBản cũ: archive/${stamp}/ (02-plan.md, 03-progress.md)`);
+    expect(log).toContain(`· Triển khai · Chạy lại từ đầu\n\nBản cũ: archive/${stamp}/ (02-plan.md, 03-progress.md)`);
     expect(log.lastIndexOf("Bắt đầu quy trình")).toBeGreaterThan(log.indexOf("Chạy lại từ đầu"));
 
     // The new run's first prompt sends Claude to the archived plan and progress first.
     expect(run.previous).toEqual({ dir: `archive/${stamp}`, files: ["02-plan.md", "03-progress.md"] });
     await hook("SessionStart");
     const prompt = fake.pasted.at(-1)!;
-    expect(prompt).toContain("This task was restarted from the first step.");
+    expect(prompt).toContain("Task này được chạy lại từ bước đầu.");
     expect(prompt).toContain(`- .claude/tasks/DEMO-1/archive/${stamp}/02-plan.md\n- .claude/tasks/DEMO-1/archive/${stamp}/03-progress.md\n`);
     expect(prompt).not.toMatch(/\n{3}/);
-    expect(fake.pasted[0]).not.toContain("restarted");
+    expect(fake.pasted[0]).not.toContain("chạy lại từ bước đầu");
   });
 
   it("keeps a run on the workflow it started with; a restart picks up edits", async () => {
@@ -244,7 +350,7 @@ describe("workflow engine", () => {
 
     await engine.restart(repo, "DEMO-1");
     await hook("SessionStart");
-    expect(fake.pasted.at(-1)).toMatch(/^Edited This task was restarted/);
+    expect(fake.pasted.at(-1)).toMatch(/^Edited Task này được chạy lại/);
     expect((await engine.view(repo, "DEMO-1")).workflow).toMatchObject({ outdated: false });
   });
 

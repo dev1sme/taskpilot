@@ -4,12 +4,15 @@ import * as pty from "node-pty";
 import type { WebSocket } from "ws";
 import { HttpError } from "../../core/errors.js";
 import type { SessionMeta, StateStore } from "../../core/state.js";
-import { hookSettings, nextActivity, type Activity, type HookEvent } from "./hooks.js";
-import { childEnv, claudeLauncher, type Launcher } from "../../core/claude/launch.js";
+import { nextActivity, type Activity, type HookEvent } from "./hooks.js";
+import { childEnv, type Launcher } from "../../core/claude/launch.js";
+import { DEFAULT_AGENT, type Agent } from "../../core/agents.js";
+import { backendOf, type HookState } from "./backends/index.js";
 
 export type SessionStatus = "running" | "exited";
 
 export interface SessionView extends SessionMeta {
+  agent: Agent;
   status: SessionStatus;
   exitCode: number | null;
   /** null while the session is not running. */
@@ -27,6 +30,10 @@ interface Live {
   activity: Activity;
   /** Authenticates hook callbacks from this process; new for every spawn. */
   hookToken: string | null;
+  /** The backend's memory between hook callbacks of this process. */
+  hookState: HookState;
+  /** Recent output as plain text, while waiting for the backend's ready marker. */
+  pendingOutput: string | null;
   /** Raw PTY output replayed to clients that attach later (page reload, second tab). */
   scrollback: string[];
   scrollbackSize: number;
@@ -34,7 +41,10 @@ interface Live {
 }
 
 export interface SessionManagerOptions {
+  /** Replaces Claude's command (tests). */
   launcher?: Launcher;
+  /** Replaces an agent's command (tests). */
+  launchers?: Partial<Record<Agent, Launcher>>;
   scrollbackLimit?: number;
   /** Base URL the hook commands post to, e.g. http://127.0.0.1:8790/hook; null before listen(). */
   hookUrl?: () => string | null;
@@ -49,16 +59,20 @@ export interface SessionEvents {
   /** Input of the session's status line (plan usage, cost). */
   statusline: [meta: SessionMeta, payload: Record<string, unknown>];
   exit: [meta: SessionMeta];
+  /** Something went wrong that does not stop the session, e.g. writing an agent's hook file. */
+  warning: [error: unknown];
 }
 
 const DEFAULT_SIZE = { cols: 120, rows: 32 };
 /** Delay between a bracketed paste and the Enter that submits it (M0 spike used 200–300 ms). */
 const SUBMIT_DELAY_MS = 200;
+/** Plain-text output kept while looking for a ready marker; the marker is a short footer. */
+const PENDING_OUTPUT_CHARS = 8192;
 
 export class SessionManager extends EventEmitter<SessionEvents> {
   private readonly live = new Map<string, Live>();
   private readonly byHookToken = new Map<string, string>();
-  private readonly launcher: Launcher;
+  private readonly launchers: Partial<Record<Agent, Launcher>>;
   private readonly scrollbackLimit: number;
   private readonly hookUrl: () => string | null;
   private readonly extraEnv: (repo: string) => Promise<Record<string, string>>;
@@ -68,7 +82,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     opts: SessionManagerOptions = {},
   ) {
     super();
-    this.launcher = opts.launcher ?? claudeLauncher;
+    this.launchers = { ...(opts.launcher ? { claude: opts.launcher } : {}), ...opts.launchers };
     this.scrollbackLimit = opts.scrollbackLimit ?? 2_000_000;
     this.hookUrl = opts.hookUrl ?? (() => null);
     this.extraEnv = opts.extraEnv ?? (async () => ({}));
@@ -86,7 +100,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     return this.view(await this.find(id));
   }
 
-  async create(repo: string, taskKey: string, opts: { permissionMode?: string } = {}): Promise<SessionView> {
+  async create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent } = {}): Promise<SessionView> {
     const count = (await this.list(repo, taskKey)).length;
     const meta: SessionMeta = {
       id: randomUUID(),
@@ -95,6 +109,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       title: `Session ${count + 1}`,
       createdAt: Date.now(),
       ...(opts.permissionMode ? { permissionMode: opts.permissionMode } : {}),
+      ...(opts.agent && opts.agent !== DEFAULT_AGENT ? { agent: opts.agent } : {}),
     };
     await this.state.update((s) => void s.sessions.push(meta));
     await this.spawn(meta, false);
@@ -113,7 +128,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     this.live.get(id)?.proc?.kill();
   }
 
-  /** Removes the session from the task. The Claude transcript itself is left untouched. */
+  /** Removes the session from the task. The agent's own transcript is left untouched. */
   async forget(id: string): Promise<void> {
     const meta = await this.find(id);
     if (this.isRunning(id)) throw new HttpError(409, "Stop the session first");
@@ -134,19 +149,58 @@ export class SessionManager extends EventEmitter<SessionEvents> {
   }
 
   /** Applies a hook callback. Returns false when the token does not belong to a live session. */
-  async handleHook(token: string, event: HookEvent, payload: Record<string, unknown>): Promise<boolean> {
+  async handleHook(token: string, event: HookEvent, raw: Record<string, unknown>): Promise<boolean> {
     const id = this.byHookToken.get(token);
     const live = id ? this.live.get(id) : undefined;
     if (!id || !live) return false;
-    if (typeof payload.session_id === "string" && payload.session_id !== id) return false;
     const meta = await this.find(id);
+    const backend = backendOf(meta.agent);
+    const payload = backend.normalize ? await backend.normalize(event, raw, live.hookState) : raw;
+    if (payload && typeof payload.session_id === "string" && payload.session_id !== id) return false;
+    if (!payload) return true;
+    if (backend.permissionGraceMs) this.graced(meta, live, event, payload, backend.permissionGraceMs);
+    else this.apply(meta, live, event, payload);
+    return true;
+  }
+
+  /**
+   * For agents whose PermissionRequest also fires for tools they then allow on their own: the
+   * request is held back and dropped when the tool finishes within `graceMs` (hooks can also arrive
+   * in the other order, so a tool that just finished drops it at once).
+   */
+  private graced(meta: SessionMeta, live: Live, event: HookEvent, payload: Record<string, unknown>, graceMs: number): void {
+    const { finishedAt, heldPermissions: held } = live.hookState;
+    const tool = toolCallKey(payload);
+    if (event === "PermissionRequest") {
+      if (Date.now() - (finishedAt.get(tool) ?? 0) < graceMs) return;
+      clearTimeout(held.get(tool));
+      held.set(
+        tool,
+        setTimeout(() => {
+          held.delete(tool);
+          if (live.proc) this.apply(meta, live, event, payload);
+        }, graceMs),
+      );
+      return;
+    }
+    if (event === "PostToolUse" || event === "PostToolUseFailure") {
+      finishedAt.set(tool, Date.now());
+      clearTimeout(held.get(tool));
+      held.delete(tool);
+    } else if (event === "Stop") {
+      for (const timer of held.values()) clearTimeout(timer);
+      held.clear();
+    }
+    this.apply(meta, live, event, payload);
+  }
+
+  private apply(meta: SessionMeta, live: Live, event: HookEvent, payload: Record<string, unknown>): void {
     const activity = nextActivity(event);
     if (activity !== live.activity) {
       live.activity = activity;
       this.emit("change", meta);
     }
     this.emit("hook", meta, event, payload);
-    return true;
   }
 
   /** Applies a status line callback; same token check as hooks. */
@@ -214,9 +268,13 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     const hookToken = randomBytes(24).toString("base64url");
     const hookUrl = this.hookUrl();
     const extra = await this.extraEnv(meta.repo);
-    const { file, args } = this.launcher(meta.id, {
+    const backend = backendOf(meta.agent);
+    // Without its hooks the session still runs; the run then waits and can be retried by hand.
+    await backend.prepare?.(meta.repo).catch((e: unknown) => this.emit("warning", e));
+    const launcher = this.launchers[meta.agent ?? DEFAULT_AGENT] ?? backend.launcher;
+    const { file, args } = launcher(meta.id, {
       resume,
-      settings: hookSettings(),
+      settings: backend.launchSettings?.(),
       permissionMode: meta.permissionMode,
     });
     const proc = pty.spawn(file, args, {
@@ -226,7 +284,15 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       ...DEFAULT_SIZE,
     });
     // On resume, keep the previous run's scrollback and attached clients.
-    const live: Live = { ...(this.live.get(meta.id) ?? emptyLive()), proc, exitCode: null, activity: "starting", hookToken };
+    const live: Live = {
+      ...(this.live.get(meta.id) ?? emptyLive()),
+      proc,
+      exitCode: null,
+      activity: "starting",
+      hookToken,
+      hookState: emptyHookState(),
+      pendingOutput: backend.readyMarker ? "" : null,
+    };
     this.live.set(meta.id, live);
     this.byHookToken.set(hookToken, meta.id);
 
@@ -237,9 +303,18 @@ export class SessionManager extends EventEmitter<SessionEvents> {
         live.scrollbackSize -= live.scrollback.shift()!.length;
       }
       for (const ws of live.clients) send(ws, { t: "o", d: data });
+      if (live.pendingOutput !== null && backend.readyMarker) {
+        live.pendingOutput = (live.pendingOutput + stripAnsi(data)).slice(-PENDING_OUTPUT_CHARS);
+        if (live.pendingOutput.includes(backend.readyMarker)) {
+          live.pendingOutput = null;
+          // Stands in for the SessionStart hook the agent sends only with its first prompt.
+          this.apply(meta, live, "SessionStart", { session_id: meta.id, source: resume ? "resume" : "startup" });
+        }
+      }
     });
     proc.onExit(({ exitCode }) => {
       live.proc = null;
+      for (const timer of live.hookState.heldPermissions.values()) clearTimeout(timer);
       live.exitCode = exitCode;
       this.byHookToken.delete(hookToken);
       live.hookToken = null;
@@ -264,6 +339,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     const live = this.live.get(meta.id);
     return {
       ...meta,
+      agent: meta.agent ?? DEFAULT_AGENT,
       status: live?.proc ? "running" : "exited",
       exitCode: live?.exitCode ?? null,
       activity: live?.proc ? live.activity : null,
@@ -277,10 +353,28 @@ function emptyLive(): Live {
     exitCode: null,
     activity: "starting",
     hookToken: null,
+    hookState: emptyHookState(),
+    pendingOutput: null,
     scrollback: [],
     scrollbackSize: 0,
     clients: new Set(),
   };
+}
+
+/** Tool name and what it acts on: tells two calls of the same tool apart (inputs differ in extras like `description`). */
+function toolCallKey(payload: Record<string, unknown>): string {
+  const input = typeof payload.tool_input === "object" && payload.tool_input !== null ? (payload.tool_input as Record<string, unknown>) : {};
+  const subject = ["command", "file_path", "path", "url", "query", "pattern"].map((k) => input[k]).find((v) => typeof v === "string");
+  return `${typeof payload.tool_name === "string" ? payload.tool_name : ""}\0${subject ?? ""}`;
+}
+
+function emptyHookState(): HookState {
+  return { openTools: new Map(), nextToolId: 1, finishedAt: new Map(), heldPermissions: new Map() };
+}
+
+/** Terminal output without escape sequences, enough to find a line of text in it. */
+function stripAnsi(s: string): string {
+  return s.replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "").replace(/\x1b\[[0-9;?<>=]*[ -\/]*[@-~]/g, "").replace(/\x1b[()][A-Za-z0-9]/g, "");
 }
 
 function send(ws: WebSocket, frame: ServerFrame): void {

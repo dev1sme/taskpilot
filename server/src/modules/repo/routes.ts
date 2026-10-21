@@ -1,12 +1,17 @@
 import type { FastifyInstance } from "fastify";
 import { existsSync } from "node:fs";
+import type { Agent } from "../../core/agents.js";
 import { claudeVersion } from "../../core/claude/version.js";
+import { copilotVersion } from "../../core/copilot/version.js";
 import { HttpError } from "../../core/errors.js";
 import { tasksRoot } from "../tasks/index.js";
 import type { RepoContext } from "./context.js";
 import { readInventory } from "./inventory.js";
 
-/** The selected repo, its config inventory and the claude version. */
+/** Version of each agent's command; null when it is not installed. */
+const VERSIONS: Record<Agent, () => Promise<string | null>> = { claude: claudeVersion, copilot: copilotVersion };
+
+/** The selected repo, its config inventory and the agents' versions. */
 export function registerRepoRoutes(app: FastifyInstance, opts: { repo: RepoContext }) {
   const requireRepo = opts.repo.require;
 
@@ -25,7 +30,11 @@ export function registerRepoRoutes(app: FastifyInstance, opts: { repo: RepoConte
     return { path: resolved, tasksDir: tasksRoot(resolved), tasksDirExists: existsSync(tasksRoot(resolved)) };
   });
 
-  app.get("/api/info", async () => ({ claudeVersion: await claudeVersion() }));
+  app.get("/api/info", async () => {
+    const entries = await Promise.all(Object.entries(VERSIONS).map(async ([agent, version]) => [agent, await version()] as const));
+    const versions = Object.fromEntries(entries) as Record<Agent, string | null>;
+    return { claudeVersion: versions.claude, versions };
+  });
 
   app.get("/api/inventory", async () => readInventory(requireRepo()));
 }

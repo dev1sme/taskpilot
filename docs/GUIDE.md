@@ -25,17 +25,25 @@ task's documents like the others, but it doesn't count in the task list's "N Cla
    read, command run and document written. The terminal stays folded at the bottom; it opens by
    itself when Claude asks for a permission. If Claude asks to trust the folder, answer there.
 3. At a gate, the review card shows Claude's closing message and the document it wrote; **Duyệt**
-   moves on, **Gửi góp ý** sends feedback and Claude revises in the same session.
+   moves on, **Gửi góp ý** sends feedback and Claude revises in the same session. Claude's numbered
+   questions (the plan's *Câu hỏi mở*, or its closing message) get one field each: keep its
+   proposal, write another answer, or leave it. **Duyệt kèm trả lời** writes the answers into
+   `00-history.md`, which the next step reads first; **Gửi góp ý** sends them back for a revision.
 4. If Claude ends its turn without writing the expected file (for example it asked you a question),
-   reply in the terminal. **Gửi lại bước** re-sends the step; if the session has exited it is resumed
-   first (`claude --resume`, same session id).
+   answer it on the card — question by question when it numbered them, or as free text; the answer
+   is pasted into the session as if typed in the terminal. The terminal still works too.
+   **Gửi lại bước** re-sends the step; if the session has exited it is resumed first
+   (`claude --resume`, same session id).
 5. **Chạy lại từ đầu** restarts the whole workflow in a new session at step 1, from any phase —
    running, interrupted, done or cancelled. A confirmation step warns that the current session
    stops (it's kept, not deleted; resume it from its tab) and that the task's `*.md` documents are
    copied to `archive/<stamp>/` before Claude writes them again. The new run's first prompt tells
    Claude which archived documents to read first, so it knows what was done before.
 
-Every one of these events — start, your feedback (quoted verbatim), approvals, cancel, restart — is
+**Prompt đã gửi** in the task toolbar shows the latest prompt TaskPilot pasted into the run's
+session, exactly as Claude got it.
+
+Every one of these events — start, your feedback and answers (quoted verbatim), approvals, cancel, restart — is
 appended to `00-history.md`, and the built-in prompts read it before writing anything, so it stays
 clear why a plan or implementation changed.
 

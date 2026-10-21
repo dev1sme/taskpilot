@@ -1,6 +1,7 @@
 # TaskPilot
 
-Run Claude Code task workflows from your repo, with a person approving each step.
+Run Claude Code (and GitHub Copilot CLI) task workflows from your repo, with a person approving
+each step.
 
 TaskPilot reads tasks from `.claude/tasks/<key>/spec/*.md`, opens real interactive `claude`
 sessions in an embedded terminal, feeds each workflow step into the session as a prompt and stops
@@ -18,6 +19,10 @@ spec/*.md ──▶ Investigate ──▶ ◆ you approve 02-plan.md ──▶ I
 - Node 22+ (tested on 24), with a C/C++ toolchain for `node-pty` (`g++`, `make`, `python3`)
 - Claude Code (`claude`) on `PATH`, signed in
 - `curl` on `PATH`: session hooks use it to report back to TaskPilot
+- Optional: GitHub Copilot CLI (`copilot`, `npm install -g @github/copilot`) on `PATH`, signed in,
+  to run steps or sessions with Copilot (see [docs/CONFIGURATION.md](docs/CONFIGURATION.md#agents-claude-and-copilot)).
+  TaskPilot writes its hooks into the repo's `.github/copilot/settings.local.json`; add that file
+  to `.gitignore` yourself if the repo should not share it.
 
 ## Install and run
 
@@ -48,6 +53,7 @@ shows a login screen instead.
 | `TASKPILOT_TOKEN` | without a login: fixed token instead of a random one per start; with a login: optional API token for scripts (`x-taskpilot-token` header) |
 | `TASKPILOT_ALLOWED_HOSTS` | comma-separated hostnames accepted in `Host` / `Origin` besides loopback and `--host`, e.g. a reverse proxy's domain |
 | `TASKPILOT_CLAUDE` | claude command, default `claude` |
+| `TASKPILOT_COPILOT` | GitHub Copilot CLI command, default `copilot` |
 | `TASKPILOT_CLAUDE_HOME` / `TASKPILOT_CLAUDE_JSON` | where user-scope config is read from, default `~/.claude` / `~/.claude.json` |
 
 Variables not set in the environment are read from `.env` in the TaskPilot directory (next to

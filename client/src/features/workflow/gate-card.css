@@ -90,6 +90,12 @@
   justify-self: start;
 }
 
+.gate-hint {
+  margin: 0 0 -6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .gate-feedback label {
   display: block;
   margin-bottom: 6px;

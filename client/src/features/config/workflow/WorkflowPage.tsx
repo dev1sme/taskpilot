@@ -1,11 +1,11 @@
-import { ArrowCounterClockwise, CheckCircle, Eye, FilePlus, GitDiff, PencilSimple, Play, Plus, Trash, Warning } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, ArrowUUpLeft, CheckCircle, Eye, FilePlus, GitDiff, PencilSimple, Play, Plus, Trash, Warning } from "@phosphor-icons/react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { queryClient } from "../../../shared/api/queryClient";
+import { href } from "../../../shared/router";
 import { Button } from "../../../shared/ui/Button";
 import { DiffDialog } from "../../../shared/ui/DiffDialog";
 import { toast } from "../../../shared/ui/Toast";
-import { useWorkspace } from "../../workspace";
 import { clearDraft, getDraft, isDirty, setDraft, useDrafts } from "../shared/drafts";
 import { ConfigHeader, ConfigToolbar, DraftControls, LoadError } from "../shared/parts";
 import { useConfig } from "../shared/useConfig";
@@ -24,18 +24,16 @@ const WORKFLOW_FILE = "workflow.yml";
 const PROMPT_FILE = /^[a-z0-9][a-z0-9-]*\.md$/;
 const draftKey = (name: string) => `workflow:${name}`;
 const DRAFT_PREFIX = "workflow:";
-/** Starting text of a new prompt file; prompts are written in English like the built-in ones. */
-const NEW_PROMPT = 'Task {{key}}: "{{title}}". The requirements are in {{specDir}}/.\n\nWrite:\n{{outputs}}\n\nRules:\n{{rules}}\n';
 
 /**
  * The task workflow: TaskPilot's built-in one is shown read only; "Thêm config override" copies it
  * into the repo's .claude/taskpilot/, where every file can then be edited, checked and previewed.
  */
-export function WorkflowPage() {
+export function WorkflowPage({ file: initialFile }: { file?: string }) {
   const { t } = useTranslation("config");
   const { data, error, loading, reload } = useConfig(["workflow"], workflowConfigApi.get);
   const dirty = useDrafts();
-  const [picked, setPicked] = useState(WORKFLOW_FILE);
+  const [picked, setPicked] = useState(initialFile ?? WORKFLOW_FILE);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<"reset" | "delete" | null>(null);
   const [adding, setAdding] = useState(false);
@@ -98,6 +96,14 @@ export function WorkflowPage() {
     run(async () => {
       const raw = await workflowConfigApi.file(picked);
       setDraft(draftKey(picked), { name: picked, path: raw.path, content: raw.content, baseHash: raw.hash, isNew: false } satisfies WorkflowDraft);
+    });
+
+  // A draft holding the built-in text: reviewed and saved like any edit, so the diff shows what is lost.
+  const restoreDefault = () =>
+    run(async () => {
+      const raw = await workflowConfigApi.file(picked);
+      if (raw.defaultContent === null) return;
+      setDraft(draftKey(picked), { name: picked, path: raw.path, content: raw.defaultContent, baseHash: raw.hash, isNew: false } satisfies WorkflowDraft);
     });
 
   const flow = useSaveFlow({
@@ -171,7 +177,7 @@ export function WorkflowPage() {
             </section>
           )}
           {isOverride && confirm === "reset" && <p className="alert-warn">{t("workflow.resetHint", { dir: data.overrideDir })}</p>}
-          <p className="hint">{t("workflow.runNote")}</p>
+          <OverrideGuide dir={data.overrideDir} open={!isOverride} />
           <Checks config={data} draft={draft} />
 
           <div className="library">
@@ -182,7 +188,7 @@ export function WorkflowPage() {
               onPick={setPicked}
               adding={adding && isOverride}
               onAdd={(name) => {
-                setDraft(draftKey(name), { name, path: `${data.overrideDir}/${name}`, content: NEW_PROMPT, baseHash: "absent", isNew: true } satisfies WorkflowDraft, null);
+                setDraft(draftKey(name), { name, path: `${data.overrideDir}/${name}`, content: data.newPrompt, baseHash: "absent", isNew: true } satisfies WorkflowDraft, null);
                 setPicked(name);
                 setAdding(false);
               }}
@@ -197,6 +203,7 @@ export function WorkflowPage() {
                   confirmDelete={confirm === "delete"}
                   busy={busy}
                   onDelete={() => (confirm === "delete" ? void removeFile() : setConfirm("delete"))}
+                  onRestore={() => void restoreDefault()}
                 />
               ) : null}
               <PromptPreview config={data} />
@@ -206,6 +213,49 @@ export function WorkflowPage() {
       )}
       {draft && <DiffDialog {...flow.dialog} confirmLabel={draft.isNew ? t("library.createFile") : t("library.saveFile")} />}
     </div>
+  );
+}
+
+/** Which documents a skeleton file shapes, for its label in the file list. */
+function formatUse(config: WorkflowConfig, name: string): string {
+  const files = (config.def?.steps ?? []).flatMap((s) => s.outputs).filter((o) => o.format === name).map((o) => o.file);
+  if (config.def?.history.format === name) files.push(config.def.history.file);
+  return files.join(", ");
+}
+
+/** What an override is, what each file changes, when changes apply and how to go back. */
+function OverrideGuide({ dir, open }: { dir: string; open: boolean }) {
+  const { t } = useTranslation("config");
+  const files = ["yml", "prompt", "onReject", "format"] as const;
+  const points = ["when", "tasks", "updates", "back", "share"] as const;
+  return (
+    <details className="card wf-guide" open={open}>
+      <summary className="card-title">{t("workflow.guide.title")}</summary>
+      <p>{t("workflow.guide.intro", { dir })}</p>
+      <table className="wf-guide-files">
+        <thead>
+          <tr>
+            <th scope="col">{t("workflow.guide.fileHead")}</th>
+            <th scope="col">{t("workflow.guide.effectHead")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {files.map((f) => (
+            <tr key={f}>
+              <td className="mono">{t(`workflow.guide.file.${f}.name`)}</td>
+              <td>{t(`workflow.guide.file.${f}.effect`, { v: "{{key}}" })}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <ul className="wf-guide-points">
+        {points.map((p) => (
+          <li key={p}>
+            <strong>{t(`workflow.guide.point.${p}.title`)}</strong> {t(`workflow.guide.point.${p}.body`, { dir })}
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 
@@ -278,12 +328,11 @@ function FileNav(props: {
   const { t } = useTranslation("config");
   const { config } = props;
   const steps = config.def?.steps ?? [];
-  const historyFormat = config.def?.history.format ?? null;
-  const known = new Set([
-    WORKFLOW_FILE,
-    historyFormat ?? "",
-    ...steps.flatMap((s) => [s.promptFile, s.onRejectFile ?? "", ...s.outputs.map((o) => o.format ?? "")]),
-  ]);
+  // Skeletons get their own group (and their own page, Định dạng tài liệu), apart from the steps' prompts.
+  const formats = [
+    ...new Set([config.def?.history.format ?? "", ...steps.flatMap((s) => s.outputs.map((o) => o.format ?? ""))].filter(Boolean)),
+  ];
+  const known = new Set([WORKFLOW_FILE, ...formats, ...steps.flatMap((s) => [s.promptFile, s.onRejectFile ?? ""])]);
   const loose = [...config.files.map((f) => f.name).filter((n) => !known.has(n)), ...props.newFiles];
 
   const item = (name: string, label?: string) => {
@@ -312,7 +361,6 @@ function FileNav(props: {
     <nav className="library-list wf-nav" aria-label={t("workflow.files")}>
       <ul>
         {item(WORKFLOW_FILE, t("workflow.ymlLabel"))}
-        {historyFormat && item(historyFormat, t("workflow.historyFormatLabel", { file: config.def!.history.file }))}
       </ul>
       {steps.map((s, i) => (
         <div key={s.id} className="wf-nav-step">
@@ -326,10 +374,18 @@ function FileNav(props: {
           <ul>
             {item(s.promptFile, t("workflow.promptLabel"))}
             {s.onRejectFile && item(s.onRejectFile, t("workflow.onRejectLabel"))}
-            {s.outputs.map((o) => o.format && item(o.format, t("workflow.formatLabel", { file: o.file })))}
           </ul>
         </div>
       ))}
+      {formats.length > 0 && (
+        <div className="wf-nav-step">
+          <div className="pane-label">{t("workflow.formatsGroup")}</div>
+          <p className="wf-step-meta">
+            <a href={href({ page: "config", section: "formats" })}>{t("workflow.formatsLink")}</a>
+          </p>
+          <ul>{formats.map((n) => item(n, formatUse(config, n)))}</ul>
+        </div>
+      )}
       {loose.length > 0 && (
         <div className="wf-nav-step">
           <div className="pane-label">{t("workflow.otherFiles")}</div>
@@ -368,7 +424,7 @@ function NewPromptForm({ existing, onAdd }: { existing: string[]; onAdd: (name: 
   );
 }
 
-function FileView(props: { file: WorkflowFile; editable: boolean; confirmDelete: boolean; busy: boolean; onDelete: () => void }) {
+function FileView(props: { file: WorkflowFile; editable: boolean; confirmDelete: boolean; busy: boolean; onDelete: () => void; onRestore: () => void }) {
   const { t } = useTranslation("config");
   const { file } = props;
   const [diff, setDiff] = useState<string | null>(null);
@@ -393,6 +449,11 @@ function FileView(props: { file: WorkflowFile; editable: boolean; confirmDelete:
             }
           >
             {diff === null ? t("workflow.compare") : t("workflow.hideCompare")}
+          </Button>
+        )}
+        {props.editable && file.sameAsDefault === false && (
+          <Button icon={ArrowUUpLeft} variant="quiet" busy={props.busy} title={t("workflow.restoreTitle")} onClick={props.onRestore}>
+            {t("workflow.restore")}
           </Button>
         )}
         {props.editable && file.name !== WORKFLOW_FILE && file.usedBy.length === 0 && (
@@ -485,20 +546,24 @@ function FileEditor({ draft, config }: { draft: WorkflowDraft; config: WorkflowC
   );
 }
 
-/** The prompt a step would send for a task, rendered by the server from the workflow plus open drafts. */
+/**
+ * The prompt a step would send, rendered by the server for a sample task from the workflow plus open
+ * drafts. A real task's prompts are on its own screen ("Prompt đã gửi"): a task that already ran
+ * got the prompt of the workflow it started with, which this page cannot show.
+ */
 function PromptPreview({ config }: { config: WorkflowConfig }) {
   const { t } = useTranslation("config");
-  const { tasks } = useWorkspace();
   const steps = config.def?.steps ?? [];
-  const [taskKey, setTaskKey] = useState("");
   const [stepId, setStepId] = useState("");
   const [kind, setKind] = useState<"prompt" | "onReject">("prompt");
-  const [text, setText] = useState<string | null>(null);
+  const [restart, setRestart] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [result, setResult] = useState<{ task: { key: string; title: string }; text: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const dirty = useDrafts();
 
-  const task = taskKey || tasks[0]?.key || "";
   const step = steps.find((s) => s.id === stepId) ?? steps[0];
+  const onReject = kind === "onReject" && !!step?.onRejectFile;
 
   const show = async () => {
     setError(null);
@@ -510,9 +575,9 @@ function PromptPreview({ config }: { config: WorkflowConfig }) {
       }
     }
     try {
-      setText((await workflowConfigApi.render({ taskKey: task, stepId: step!.id, kind, drafts })).text);
+      setResult(await workflowConfigApi.render({ stepId: step!.id, kind: onReject ? "onReject" : "prompt", feedback, restart, drafts }));
     } catch (e) {
-      setText(null);
+      setResult(null);
       setError((e as Error).message);
     }
   };
@@ -522,39 +587,48 @@ function PromptPreview({ config }: { config: WorkflowConfig }) {
     <section className="card wf-preview" aria-label={t("workflow.preview.title")}>
       <h2 className="card-title">{t("workflow.preview.title")}</h2>
       <p className="field-help">{t("workflow.preview.help")}</p>
-      {tasks.length === 0 ? (
-        <p className="hint">{t("workflow.preview.noTasks")}</p>
-      ) : (
-        <div className="wf-preview-controls">
-          <select aria-label={t("workflow.preview.task")} value={task} onChange={(e) => setTaskKey(e.target.value)}>
-            {tasks.map((x) => (
-              <option key={x.key} value={x.key}>
-                {x.key} · {x.title}
-              </option>
-            ))}
-          </select>
-          <select aria-label={t("workflow.preview.step")} value={step.id} onChange={(e) => setStepId(e.target.value)}>
-            {steps.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.title}
-              </option>
-            ))}
-          </select>
-          <select aria-label={t("workflow.preview.kind")} value={kind} onChange={(e) => setKind(e.target.value as "prompt" | "onReject")}>
-            <option value="prompt">{t("workflow.promptLabel")}</option>
-            {step.onRejectFile && <option value="onReject">{t("workflow.onRejectLabel")}</option>}
-          </select>
-          <Button icon={Play} onClick={() => void show()}>
-            {t("workflow.preview.show")}
-          </Button>
-        </div>
+      <div className="wf-preview-controls">
+        <select aria-label={t("workflow.preview.step")} value={step.id} onChange={(e) => setStepId(e.target.value)}>
+          {steps.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.title}
+            </option>
+          ))}
+        </select>
+        <select aria-label={t("workflow.preview.kind")} value={onReject ? "onReject" : "prompt"} onChange={(e) => setKind(e.target.value as "prompt" | "onReject")}>
+          <option value="prompt">{t("workflow.promptLabel")}</option>
+          {step.onRejectFile && <option value="onReject">{t("workflow.onRejectLabel")}</option>}
+        </select>
+        {!onReject && (
+          <label className="wf-check">
+            <input type="checkbox" checked={restart} onChange={(e) => setRestart(e.target.checked)} />
+            {t("workflow.preview.restart")}
+          </label>
+        )}
+        <Button icon={Play} onClick={() => void show()}>
+          {t("workflow.preview.show")}
+        </Button>
+      </div>
+      {onReject && (
+        <input
+          className="wf-preview-feedback"
+          aria-label={t("workflow.preview.feedback")}
+          placeholder={t("workflow.preview.feedbackPlaceholder")}
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+        />
       )}
       {error && (
         <p className="error" role="alert">
           {error}
         </p>
       )}
-      {text !== null && <pre className="wf-rendered">{text}</pre>}
+      {result && (
+        <>
+          <p className="field-help">{t("workflow.preview.sample", { key: result.task.key, title: result.task.title })}</p>
+          <pre className="wf-rendered">{result.text}</pre>
+        </>
+      )}
     </section>
   );
 }

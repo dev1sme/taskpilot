@@ -44,6 +44,14 @@ describe("api", () => {
     expect(escape.statusCode).toBe(400);
   });
 
+  it("reports the version of every agent's command, null when missing", async () => {
+    const { app } = await start();
+    const info = (await app.inject({ url: "/api/info", headers: ok })).json();
+    expect(Object.keys(info.versions).sort()).toEqual(["claude", "copilot"]);
+    expect(info.claudeVersion).toBe(info.versions.claude);
+    for (const v of Object.values(info.versions)) expect(v === null || /^\d+\.\d+\.\d+/.test(v as string)).toBe(true);
+  });
+
   it("rejects a missing repo path", async () => {
     const { app } = await start();
     const res = await app.inject({ method: "PUT", url: "/api/repo", headers: ok, payload: { path: "/no/such/dir" } });

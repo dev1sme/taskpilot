@@ -306,7 +306,7 @@
   },
   "workflow": {
     "title": "Workflow",
-    "subtitle": "Các bước TaskPilot chạy cho mỗi task: tài liệu Claude phải viết và prompt gửi vào",
+    "subtitle": "Các bước TaskPilot chạy cho mỗi task: agent chạy bước, tài liệu phải viết và prompt gửi vào",
     "originDefault": "Mặc định của TaskPilot",
     "originRepo": "Override của repo · {{dir}}/",
     "defaultTitle": "Repo đang dùng workflow mặc định của TaskPilot",
@@ -319,15 +319,12 @@
     "resetConfirm": "Xác nhận xoá override",
     "resetHint": "Mọi file trong {{dir}}/ sẽ bị xoá; repo dùng lại workflow mặc định. Bản cũ còn trong Lịch sử thay đổi, khôi phục được.",
     "resetDone": "Đã xoá override; repo dùng workflow mặc định. Có thể khôi phục trong Lịch sử thay đổi.",
-    "runNote": "Run đang chạy giữ workflow lúc bắt đầu; thay đổi áp dụng cho run mới hoặc khi Chạy lại từ đầu.",
     "valid": "Workflow hợp lệ",
     "checks": "Kiểm tra workflow",
     "files": "File của workflow",
     "ymlLabel": "Bước, tài liệu, luật chung",
     "promptLabel": "Prompt",
     "onRejectLabel": "Prompt khi bị góp ý",
-    "formatLabel": "Khung {{file}}",
-    "historyFormatLabel": "Khung entry trong {{file}}",
     "otherFiles": "File khác",
     "tag": {
       "new": "mới",
@@ -348,12 +345,13 @@
       "key": "Mã task",
       "title": "Tiêu đề task (heading đầu tiên của spec)",
       "step": "Tên bước hiện tại",
+      "agent": "Agent chạy bước hiện tại (Claude, Copilot)",
       "stepNumber": "Thứ tự bước hiện tại",
       "stepCount": "Tổng số bước",
       "taskDir": "Thư mục task",
       "specDir": "Thư mục spec của task",
       "historyFile": "File history của task",
-      "historyEntry": "Heading Claude dùng cho entry trong history",
+      "historyEntry": "Heading agent dùng cho entry trong history",
       "outputs": "Danh sách tài liệu của bước này, kèm nội dung phải có và khung",
       "inputs": "Tài liệu của các bước trước",
       "rules": "Luật chung (rules trong workflow.yml)",
@@ -369,19 +367,26 @@
       "none": "Chạy tiếp"
     },
     "preview": {
-      "title": "Xem prompt thực tế",
-      "help": "Prompt cuối cùng TaskPilot sẽ gửi cho một task, tính cả các thay đổi chưa lưu.",
-      "noTasks": "Repo chưa có task để thử.",
-      "task": "Task",
+      "title": "Xem prompt mẫu",
+      "help": "Prompt TaskPilot sẽ gửi, dựng với một task mẫu từ workflow hiện tại, tính cả thay đổi chưa lưu. Prompt đã gửi thật cho một task xem ở màn hình của task đó.",
       "step": "Bước",
       "kind": "Loại prompt",
+      "restart": "Như sau khi Chạy lại từ đầu",
+      "feedback": "Góp ý mẫu",
+      "feedbackPlaceholder": "Góp ý của reviewer (để trống: hiện chỗ góp ý sẽ chèn vào)",
+      "sample": "Task mẫu: {{key}} · {{title}}",
       "show": "Xem prompt"
     },
     "form": {
       "yamlError": "YAML lỗi, sửa ở tab YAML: {{error}}",
       "general": "Chung",
+      "agent": "Agent",
+      "agentHelp": "Agent chạy các bước (agent); bước có thể chọn riêng",
+      "agentDefault": "Mặc định ({{agent}})",
+      "stepAgentHelp": "Đổi agent so với bước trước thì bước này chạy trong session mới",
+      "stepAgentDefault": "Theo workflow ({{agent}})",
       "permissionMode": "permission-mode",
-      "permissionModeHelp": "Chế độ quyền của session Claude cho mỗi run",
+      "permissionModeHelp": "Chế độ quyền của session agent cho mỗi run",
       "permissionDefault": "Theo settings của repo",
       "historyFile": "File history",
       "historyFileHelp": "Nhật ký quyết định trong thư mục task",
@@ -424,6 +429,72 @@
       "addOutput": "Thêm tài liệu",
       "newStep": "Bước mới",
       "addStep": "Thêm bước"
+    },
+    "formatsGroup": "Khung tài liệu",
+    "formatsLink": "Xem dạng tài liệu theo từng bước →",
+    "restore": "Lấy lại bản mặc định",
+    "restoreTitle": "Mở bản nháp với nội dung mặc định của TaskPilot; xem thay đổi rồi lưu như mọi lần sửa",
+    "guide": {
+      "title": "Override hoạt động thế nào",
+      "intro": "Mặc định repo dùng workflow có sẵn của TaskPilot (chỉ xem). Override là bản chép workflow vào {{dir}}/ của repo: khi có {{dir}}/workflow.yml, TaskPilot dùng toàn bộ thư mục này thay cho bản mặc định, không lấy lẫn file nào từ bản mặc định.",
+      "fileHead": "File",
+      "effectHead": "Sửa file này thì đổi gì",
+      "file": {
+        "yml": {
+          "name": "workflow.yml",
+          "effect": "Các bước, tài liệu mỗi bước phải viết (tên file, nội dung), file báo bước xong (done-when), có dừng chờ duyệt không, luật chung, câu về ngôn ngữ, quyền của session."
+        },
+        "prompt": {
+          "name": "investigate.md, implement.md…",
+          "effect": "Prompt gửi cho Claude khi bắt đầu mỗi bước. Biến dạng {{v}} được TaskPilot điền khi gửi."
+        },
+        "onReject": {
+          "name": "revise-*.md",
+          "effect": "Prompt gửi kèm góp ý khi ba không duyệt. Không có thì TaskPilot gửi nguyên văn góp ý."
+        },
+        "format": {
+          "name": "format-*.md",
+          "effect": "Khung tài liệu: heading Claude phải giữ và gợi ý cho từng mục. Xem ở trang Định dạng tài liệu."
+        }
+      },
+      "point": {
+        "when": {
+          "title": "Khi nào có hiệu lực:",
+          "body": "run đang chạy giữ workflow lúc nó bắt đầu; thay đổi áp dụng cho run mới hoặc khi Chạy lại từ đầu."
+        },
+        "tasks": {
+          "title": "Ảnh hưởng tới task đang có:",
+          "body": "tiến độ trong danh sách task được tính theo tên file tài liệu. Đổi tên file hoặc thêm, bớt bước thì task cũ có thể hiện chưa xong dù đã làm."
+        },
+        "updates": {
+          "title": "Khi TaskPilot cập nhật bản mặc định:",
+          "body": "override không tự đổi theo. File khác bản mặc định có tag \"đã sửa\"; dùng \"So với mặc định\" để xem khác gì và \"Lấy lại bản mặc định\" để nhận bản mới."
+        },
+        "back": {
+          "title": "Quay lại:",
+          "body": "\"Xoá override\" xoá {{dir}}/ và repo dùng lại bản mặc định; mọi file được lưu trong Lịch sử thay đổi, khôi phục được."
+        },
+        "share": {
+          "title": "Dùng chung cho cả team:",
+          "body": "commit {{dir}}/ vào repo; ai mở repo bằng TaskPilot cũng chạy cùng workflow."
+        }
+      }
     }
+  },
+  "formats": {
+    "title": "Định dạng tài liệu",
+    "subtitle": "Tài liệu Claude viết ở mỗi bước và khung (format) mà mỗi tài liệu phải theo",
+    "editHintDefault": "Đây là khung của workflow mặc định. Muốn đổi, vào <link>Workflow</link> và bấm \"Thêm config override\".",
+    "editHintRepo": "Khung lấy từ override {{dir}}/. Bấm Sửa ở mỗi khung để sửa trong trang <link>Workflow</link>.",
+    "invalid": "Workflow đang có lỗi; danh sách dưới đây có thể thiếu. Xem trang Workflow.",
+    "noOutputs": "Bước này không khai báo tài liệu.",
+    "skeleton": "Khung: {{file}}",
+    "noSkeleton": "Không có khung: Claude tự trình bày theo mô tả",
+    "doneWhen": "bước xong khi Claude ghi file này",
+    "view": "Cách xem khung",
+    "rendered": "Xem trước",
+    "raw": "Nguồn",
+    "historyTitle": "Nhật ký quyết định",
+    "historyBody": "Mỗi bước Claude thêm một entry vào cuối file theo khung này; TaskPilot cũng ghi entry khi bắt đầu, duyệt, góp ý, chạy lại."
   }
 }

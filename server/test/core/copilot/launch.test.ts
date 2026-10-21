@@ -1,0 +1,21 @@
+import { describe, expect, it } from "vitest";
+import { copilotLauncher } from "../../../src/core/copilot/launch.js";
+
+describe("copilotLauncher", () => {
+  it("uses --session-id for both a new session and a resume", () => {
+    expect(copilotLauncher("s1", { resume: false }).args).toEqual(["--session-id", "s1"]);
+    expect(copilotLauncher("s1", { resume: true }).args).toEqual(["--session-id", "s1"]);
+  });
+
+  it("maps each workflow permission-mode to Copilot flags", () => {
+    const args = (permissionMode: string) => copilotLauncher("s1", { resume: false, permissionMode }).args.slice(2);
+    expect(args("default")).toEqual([]);
+    expect(args("acceptEdits")).toEqual(["--allow-tool=write"]);
+    expect(args("plan")).toEqual(["--mode", "plan"]);
+    expect(args("auto")).toEqual(["--allow-all-tools"]);
+  });
+
+  it("ignores --settings, which copilot does not have", () => {
+    expect(copilotLauncher("s1", { resume: false, settings: "{}" }).args).not.toContain("--settings");
+  });
+});

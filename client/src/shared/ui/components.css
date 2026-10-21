@@ -129,6 +129,27 @@
   border-color: transparent;
 }
 
+/* ------------------------------------------------------------------ agent badge */
+
+.agent-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+
+.agent-badge.agent-claude {
+  color: var(--cat-web);
+}
+
+.agent-badge.agent-copilot {
+  color: var(--cat-search);
+}
+
 /* ------------------------------------------------------------------ markdown */
 
 .markdown {

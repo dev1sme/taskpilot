@@ -1,34 +1,32 @@
-## Feedback
+## Góp ý
 
-Reviewer feedback on the plan for task {{key}}: "{{title}}":
+Góp ý của reviewer cho kế hoạch của task {{key}}: "{{title}}":
 
 {{feedback}}
 
-## Context
+## Bối cảnh
 
-- The feedback is already recorded in {{historyFile}}; read the earlier entries for context.
-- Current documents: {{out.investigation}} and {{out.plan}}.
+- Góp ý đã được ghi vào {{historyFile}}; đọc các entry trước để nắm bối cảnh.
+- Tài liệu hiện tại: {{out.investigation}} và {{out.plan}}.
 
-## Your job
+## Việc cần làm
 
-Address every point of the feedback. Investigate further if needed. Still no source code changes.
+Xử lý từng điểm góp ý. Điều tra thêm nếu cần. Vẫn không sửa source code.
 
-## Write
+## Tài liệu cần viết
 
-Update {{out.plan}} (and {{out.investigation}} if relevant), keeping their structure:
+Cập nhật {{out.plan}} (và {{out.investigation}} nếu liên quan). Giữ nguyên các heading hiện có của tài liệu.
 
-{{outputs}}
-
-## Rules
+## Quy tắc
 
 {{rules}}
 
 {{language}}
 
-## When done
+## Khi xong
 
-1. Append an entry to {{historyFile}}: what you decided for each point, which open questions are now closed and how. Use this structure:
+1. Thêm một entry vào cuối {{historyFile}}: quyết định cho từng điểm góp ý, câu hỏi mở nào đã đóng và đóng thế nào. Theo khung:
 
 {{historyFormat}}
 
-2. End your reply with a short summary of what changed in the plan.
+2. Kết thúc câu trả lời bằng tóm tắt ngắn những gì đã đổi trong kế hoạch.

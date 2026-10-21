@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp, Plus, Trash } from "@phosphor-icons/react";
 import { useId, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { isSeq, parseDocument, type Document } from "yaml";
+import { AGENT_LABELS, AGENTS, isAgent } from "../../../shared/agents";
 import { Button } from "../../../shared/ui/Button";
 
 const PERMISSION_MODES = ["default", "acceptEdits", "plan", "auto"];
@@ -9,6 +10,7 @@ const PERMISSION_MODES = ["default", "acceptEdits", "plan", "auto"];
 interface StepModel {
   id?: string;
   title?: string;
+  agent?: string;
   prompt?: string;
   "on-reject"?: string;
   gate?: string;
@@ -17,6 +19,7 @@ interface StepModel {
 }
 
 interface Model {
+  agent?: string;
   "permission-mode"?: string;
   history?: { file?: string; entry?: string; format?: string };
   language?: string;
@@ -43,6 +46,8 @@ export function WorkflowForm(props: { text: string; prompts: string[]; onChange:
   }
   const model = (doc.toJS() ?? {}) as Model;
   const steps = model.steps ?? [];
+  /** What a step without its own `agent` runs. */
+  const workflowAgent = isAgent(model.agent) ? model.agent : "claude";
   const outputIds = steps.flatMap((s) => (s.outputs ?? []).map((o) => o.id ?? "")).filter(Boolean);
 
   const edit = (fn: (d: Document) => void) => {
@@ -71,6 +76,18 @@ export function WorkflowForm(props: { text: string; prompts: string[]; onChange:
       <section className="card wf-section">
         <h3 className="card-title">{t("workflow.form.general")}</h3>
         <div className="form-grid">
+          <Field label={t("workflow.form.agent")} help={t("workflow.form.agentHelp")}>
+            {(id) => (
+              <select id={id} value={model.agent ?? ""} onChange={(e) => set(["agent"], e.target.value, true)}>
+                <option value="">{t("workflow.form.agentDefault", { agent: AGENT_LABELS.claude })}</option>
+                {AGENTS.map((a) => (
+                  <option key={a} value={a}>
+                    {AGENT_LABELS[a]}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
           <Field label={t("workflow.form.permissionMode")} help={t("workflow.form.permissionModeHelp")}>
             {(id) => (
               <select id={id} value={model["permission-mode"] ?? ""} onChange={(e) => set(["permission-mode"], e.target.value, true)}>
@@ -167,6 +184,18 @@ export function WorkflowForm(props: { text: string; prompts: string[]; onChange:
                   {props.prompts.map((p) => (
                     <option key={p} value={p}>
                       {p}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+            <Field label={t("workflow.form.agent")} help={t("workflow.form.stepAgentHelp")}>
+              {(id) => (
+                <select id={id} value={step.agent ?? ""} onChange={(e) => set(["steps", i, "agent"], e.target.value, true)}>
+                  <option value="">{t("workflow.form.stepAgentDefault", { agent: AGENT_LABELS[workflowAgent] })}</option>
+                  {AGENTS.map((a) => (
+                    <option key={a} value={a}>
+                      {AGENT_LABELS[a]}
                     </option>
                   ))}
                 </select>

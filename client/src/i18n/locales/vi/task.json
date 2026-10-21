@@ -1,7 +1,7 @@
 {
   "phase": {
     "starting": "Đang khởi động",
-    "running": "Claude đang làm",
+    "running": "Agent đang làm",
     "waiting": "Chờ ba trả lời",
     "gate": "Chờ duyệt",
     "interrupted": "Gián đoạn",
@@ -17,5 +17,8 @@
   "sourceRepo": "override .claude/taskpilot/ của repo",
   "sourceDefault": "mặc định của TaskPilot",
   "outdated": "workflow đã đổi từ lúc run này bắt đầu; run vẫn theo bản cũ, bản mới áp dụng khi Chạy lại từ đầu",
-  "terminalEmpty": "Chưa có session. Bắt đầu quy trình hoặc bấm + để mở một session Claude."
+  "terminalEmpty": "Chưa có session. Bắt đầu quy trình hoặc bấm + để mở một session Claude hoặc Copilot.",
+  "sentPrompt": "Prompt đã gửi",
+  "sentPromptTitle": "Prompt TaskPilot đã gửi vào session gần nhất, đúng như agent nhận được",
+  "sentPromptHead": "Prompt đã gửi · {{step}} · {{time}}"
 }

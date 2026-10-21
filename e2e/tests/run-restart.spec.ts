@@ -39,7 +39,7 @@ async function fakeRun(page: Page, phase: string) {
   ];
   const restarts: string[] = [];
   await page.route("**/api/tasks/PROJ-1/run", (route) =>
-    route.request().method() === "GET" ? route.fulfill({ json: { workflow: { source: "default", origin: "default", historyFile: "00-history.md", steps, outdated: false }, run } }) : route.fallback(),
+    route.request().method() === "GET" ? route.fulfill({ json: { workflow: { source: "default", origin: "default", historyFile: "00-history.md", steps, outdated: false }, run, questions: [] } }) : route.fallback(),
   );
   await page.route("**/api/tasks/PROJ-1/run/restart", (route) => {
     restarts.push(route.request().method());

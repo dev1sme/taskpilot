@@ -5,6 +5,7 @@ import type { HookEvent } from "../sessions/index.js";
 import type { SessionMeta } from "../../core/state.js";
 import { describeTool, firstLine, type ToolCategory } from "./describe.js";
 import { t } from "../../core/i18n.js";
+import { AGENT_LABELS, DEFAULT_AGENT } from "../../core/agents.js";
 
 export type ActivityKind = "session" | "prompt" | "tool" | "permission" | "stop";
 
@@ -117,7 +118,7 @@ export class ActivityStore extends EventEmitter<{ item: [item: ActivityItem] }> 
           ...base,
           id: this.newId(),
           kind: "stop",
-          summary: firstLine(str("last_assistant_message"), 140) || t("activity.stop"),
+          summary: firstLine(str("last_assistant_message"), 140) || t("activity.stop", { agent: AGENT_LABELS[meta.agent ?? DEFAULT_AGENT] }),
           detail: str("last_assistant_message"),
         });
     }

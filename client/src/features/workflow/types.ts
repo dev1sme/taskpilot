@@ -1,3 +1,4 @@
+import type { Agent } from "../../shared/agents";
 import type { RunPhase } from "../workspace";
 
 export interface RunState {
@@ -7,14 +8,25 @@ export interface RunState {
   phase: RunPhase;
   message: string;
   lastMessage?: string;
+  /** The latest prompt pasted into the session, as sent. */
+  sentPrompt?: { stepIndex: number; text: string; at: number };
   stepStartedAt: number;
   startedAt: number;
   updatedAt: number;
 }
 
+/** A question Claude left for the reviewer (numbered in its document or message). */
+export interface Question {
+  n: number;
+  text: string;
+  proposal?: string;
+}
+
 export interface WorkflowStep {
   id: string;
   title: string;
+  /** The agent that runs the step. */
+  agent: Agent;
   gate: "approve" | "none";
   doneFile: string | null;
   /** Documents the step writes, from the workflow. */
@@ -31,4 +43,6 @@ export interface RunView {
     outdated: boolean;
   };
   run: RunState | null;
+  /** Claude's questions at a gate or while it waits. */
+  questions: Question[];
 }

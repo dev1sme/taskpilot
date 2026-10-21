@@ -1,3 +1,5 @@
+import type { Agent } from "../../core/agents.js";
+
 /** A document a step writes into the task directory. */
 export interface OutputDef {
   id: string;
@@ -13,6 +15,8 @@ export interface OutputDef {
 export interface StepDef {
   id: string;
   title: string;
+  /** The agent that runs this step: the step's own `agent`, else the workflow's. */
+  agent: Agent;
   /** Prompt template text, already loaded. */
   prompt: string;
   /** Prompt file name, inside the workflow directory. */
@@ -33,6 +37,8 @@ export interface WorkflowDef {
   origin: "repo" | "default";
   /** Directory holding workflow.yml and its prompt files. */
   dir: string;
+  /** Default agent of the steps (`agent` at the top of workflow.yml); claude when absent. */
+  agent: Agent;
   permissionMode?: string;
   /**
    * The task's decision log: file name in the task dir, the heading Claude uses for its entries, and
@@ -68,6 +74,8 @@ export interface RunState {
   message: string;
   /** Claude's last message of the latest turn (Stop hook), shown at gates. */
   lastMessage?: string;
+  /** The latest prompt pasted into the session, as sent: a real task's prompt, not a preview. */
+  sentPrompt?: { stepIndex: number; text: string; at: number };
   /** Prompt to send once the session reports SessionStart. */
   pendingPrompt?: string;
   /** The workflow as it was when the run started; later edits apply to new runs only. */

@@ -15,6 +15,7 @@
     "commands": "Commands",
     "skills": "Skills",
     "workflow": "Workflow",
+    "formats": "Định dạng tài liệu",
     "backups": "Lịch sử thay đổi",
     "mcp": "MCP servers",
     "codegraph": "Codegraph"
@@ -42,13 +43,14 @@
     "escape": "Esc"
   },
   "status": {
-    "terminalTitle": "Claude trong repo, không cần task",
+    "terminalTitle": "Claude hoặc Copilot trong repo, không cần task",
     "terminal": "Terminal",
     "waitingPermission": "chờ quyền",
     "sessionsRunning": "{{count}} session đang chạy",
     "asking": "{{count}} xin quyền",
     "claudeVersion": "claude {{version}}",
     "claudeMissing": "không tìm thấy claude",
+    "copilotVersion": "copilot {{version}}",
     "logout": "Đăng xuất",
     "usageLabel": "Usage Claude: ",
     "usageTitle": "Giới hạn gói Claude đã dùng (toàn tài khoản)",

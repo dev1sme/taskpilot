@@ -14,4 +14,6 @@ export { WorkflowEngine } from "./engine.js";
 export { registerWorkflowRoutes } from "./routes.js";
 export { stageOf, type Stage } from "./stage.js";
 export { type OutputDef, type RunState, type StepDef, type WorkflowDef } from "./types.js";
+export { PROMPT_TEXT } from "./prompt-text.js";
+export { parseQuestions, type Question } from "./questions.js";
 export { promptVars, render, renderPrompt, templateVars } from "./vars.js";

@@ -1,23 +1,27 @@
 import { ArrowsOut, ChatText, Check, Diamond } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import { AGENT_LABELS } from "../../shared/agents";
+import { AgentBadge } from "../../shared/ui/AgentBadge";
 import { Button } from "../../shared/ui/Button";
 import { Markdown } from "../../shared/ui/Markdown";
 import { workspaceApi } from "../workspace";
 import { workflowApi } from "./api";
-import type { RunState, WorkflowStep } from "./types";
+import { composeAnswers, initialAnswers, QuestionForm } from "./QuestionForm";
+import type { Question, RunState, WorkflowStep } from "./types";
 import "./gate-card.css";
 
 /**
- * The approval gate, front and center: what Claude produced (file preview + its closing message)
- * and the two ways forward.
+ * The approval gate, front and center: what Claude produced (file preview + its closing message),
+ * its open questions with one answer field each, and the two ways forward.
  */
 export function GateCard(props: {
   taskKey: string;
   run: RunState;
   step: WorkflowStep;
+  questions: Question[];
   isLast: boolean;
   docVersion: number;
   onOpenDoc: (path: string) => void;
@@ -25,6 +29,7 @@ export function GateCard(props: {
 }) {
   const { t } = useTranslation("workflow");
   const { taskKey, step } = props;
+  const agent = AGENT_LABELS[step.agent];
   const docQuery = useQuery({
     queryKey: ["doc", taskKey, step.doneFile, props.docVersion],
     queryFn: () => workspaceApi.file(taskKey, step.doneFile!),
@@ -35,6 +40,12 @@ export function GateCard(props: {
   const [busy, setBusy] = useState<"approve" | "feedback" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const feedbackId = useId();
+  const [answers, setAnswers] = useState(() => initialAnswers(props.questions));
+  const asked = JSON.stringify(props.questions);
+  // New questions (Claude revised the document) start from their own proposals.
+  useEffect(() => setAnswers(initialAnswers(JSON.parse(asked) as Question[])), [asked]);
+  const answered = composeAnswers(props.questions, answers, t("questions.agree"));
+  const feedbackText = [answered, feedback.trim()].filter(Boolean).join("\n\n");
 
   const act = async (name: "approve" | "feedback", action: () => Promise<unknown>) => {
     setBusy(name);
@@ -63,7 +74,9 @@ export function GateCard(props: {
           <Diamond weight="fill" />
         </span>
         <div>
-          <h3 id={`${feedbackId}-title`}>{t("gate.title")}</h3>
+          <h3 id={`${feedbackId}-title`}>
+            {t("gate.title")} <AgentBadge agent={step.agent} />
+          </h3>
           <p>
             <Trans t={t} i18nKey="gate.body" values={{ step: step.title }} components={{ strong: <strong /> }} />
             {props.isLast ? t("gate.bodyLast") : t("gate.bodyNext")}
@@ -73,7 +86,7 @@ export function GateCard(props: {
 
       {props.run.lastMessage && (
         <figure className="gate-claude">
-          <figcaption>{t("gate.summary")}</figcaption>
+          <figcaption>{t("gate.summary", { agent })}</figcaption>
           <Markdown source={props.run.lastMessage} />
         </figure>
       )}
@@ -97,24 +110,26 @@ export function GateCard(props: {
       )}
 
       <div className="gate-decide">
+        {props.questions.length > 0 && <QuestionForm agent={agent} questions={props.questions} answers={answers} onChange={setAnswers} disabled={busy !== null} />}
+        {answered && <p className="gate-hint">{t("questions.approveHint")}</p>}
         <Button
           icon={Check}
           variant="attention"
           size="lg"
           busy={busy === "approve"}
           disabled={busy !== null}
-          onClick={() => void act("approve", () => workflowApi.approve(taskKey))}
+          onClick={() => void act("approve", () => workflowApi.approve(taskKey, answered))}
         >
-          {props.isLast ? t("gate.approveLast") : t("gate.approveNext")}
+          {answered ? (props.isLast ? t("gate.approveLastAnswered") : t("gate.approveNextAnswered")) : props.isLast ? t("gate.approveLast") : t("gate.approveNext")}
         </Button>
         <form
           className="gate-feedback"
           onSubmit={(e) => {
             e.preventDefault();
-            void act("feedback", () => workflowApi.feedback(taskKey, feedback));
+            void act("feedback", () => workflowApi.feedback(taskKey, feedbackText));
           }}
         >
-          <label htmlFor={feedbackId}>{t("gate.feedbackLabel")}</label>
+          <label htmlFor={feedbackId}>{answered ? t("gate.feedbackLabelAnswered", { agent }) : t("gate.feedbackLabel", { agent })}</label>
           <div className="gate-feedback-row">
             <textarea
               id={feedbackId}
@@ -123,7 +138,7 @@ export function GateCard(props: {
               placeholder={t("gate.feedbackPlaceholder")}
               rows={2}
             />
-            <Button type="submit" icon={ChatText} busy={busy === "feedback"} disabled={busy !== null || !feedback.trim()}>
+            <Button type="submit" icon={ChatText} busy={busy === "feedback"} disabled={busy !== null || !feedbackText}>
               {t("gate.sendFeedback")}
             </Button>
           </div>

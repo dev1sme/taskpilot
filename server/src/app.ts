@@ -4,6 +4,7 @@ import fastifyWebsocket from "@fastify/websocket";
 import Fastify, { LogController, type FastifyInstance } from "fastify";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import type { Agent } from "./core/agents.js";
 import type { Launcher } from "./core/claude/launch.js";
 import { HttpError } from "./core/errors.js";
 import { EventHub } from "./core/events.js";
@@ -38,6 +39,8 @@ export interface AppOptions {
   login?: Credentials;
   /** Overrides the claude command (tests). */
   launcher?: Launcher;
+  /** Overrides an agent's command (tests). */
+  launchers?: Partial<Record<Agent, Launcher>>;
   /** Overrides workflow loading (tests). */
   loadWorkflow?: (repo: string) => Promise<WorkflowDef>;
 }
@@ -64,6 +67,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   const envStore = new EnvStore(opts.state.dir);
   const sessions = new SessionManager(opts.state, {
     launcher: opts.launcher,
+    launchers: opts.launchers,
     extraEnv: async (repo) => {
       // The status line TaskPilot installs runs the user's own one after reporting usage.
       const statusLine = await statusLineCommand(repo).catch(() => null);
@@ -85,8 +89,12 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     void engine.onHook(meta, event, payload).catch(logError);
   });
   sessions.on("exit", (meta) => void engine.onExit(meta).catch(logError));
+  sessions.on("warning", logError);
   const usage = new UsageStore(opts.state);
-  sessions.on("statusline", (_meta, payload) => void usage.apply(payload).catch(logError));
+  // Plan usage comes from Claude's status line only; copilot's input has no account quota (TPL-009 spike).
+  sessions.on("statusline", (meta, payload) => {
+    if ((meta.agent ?? "claude") === "claude") void usage.apply(payload).catch(logError);
+  });
   usage.on("change", (view) => hub.publish("usage", view));
   engine.on("change", (run) => hub.publish("run", { taskKey: run.taskKey }));
   engine.on("warning", logError);

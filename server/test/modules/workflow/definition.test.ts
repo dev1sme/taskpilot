@@ -32,7 +32,7 @@ describe("workflow definition", () => {
   it("loads the built-in workflow with its outputs and prompts, without warnings", async () => {
     const def = await loadWorkflow(await makeRepo());
     expect(def).toMatchObject({ origin: "default", source: path.join(DEFAULT_WORKFLOW_DIR, "workflow.yml") });
-    expect(def.history).toMatchObject({ file: "00-history.md", entry: "## <YYYY-MM-DD HH:MM> · {{step}} · Claude", format: "format-history.md" });
+    expect(def.history).toMatchObject({ file: "00-history.md", entry: "## <YYYY-MM-DD HH:MM> · {{step}} · {{agent}}", format: "format-history.md" });
     expect(def.steps.flatMap((s) => s.outputs.map((o) => o.format))).toEqual(["format-investigation.md", "format-plan.md", "format-progress.md", "format-summary.md"]);
     expect(def.restart).toEqual({ read: ["plan", "summary", "progress"] });
     expect(def.steps.map((s) => [s.id, s.gate, s.doneWhen?.file, s.outputs.map((o) => o.file)])).toEqual([
@@ -101,6 +101,21 @@ describe("workflow definition", () => {
       "p.md: without {{previousRun}}, a restarted run is not told to read the archived documents",
       "old.md is not used by any step",
     ]);
+  });
+
+  it("runs every step with Claude unless the workflow or the step names another agent", async () => {
+    const def = await loadWorkflow(await makeRepo());
+    expect([def.agent, ...def.steps.map((s) => s.agent)]).toEqual(["claude", "claude", "claude"]);
+
+    const two = "version: 2\nagent: copilot\nsteps:\n  - id: a\n    prompt: p.md\n    agent: claude\n  - id: b\n    prompt: p.md\n";
+    const parsed = parse(two).def!;
+    expect([parsed.agent, ...parsed.steps.map((s) => s.agent)]).toEqual(["copilot", "claude", "copilot"]);
+  });
+
+  it("rejects an unknown agent", () => {
+    const { def, errors } = parse("version: 2\nagent: codex\nsteps:\n  - id: a\n    prompt: p.md\n    agent: gpt\n");
+    expect(def).toBeNull();
+    expect(errors).toEqual(["agent must be one of claude, copilot", "steps[0].agent must be one of claude, copilot"]);
   });
 
   it("injects every hook through curl with the session's env", () => {

@@ -5,5 +5,7 @@ dist/
 .env
 .vitest/
 # Playwright CLI output (may contain credentials)
+.playwright/
 .playwright-cli/
+.playwright-mcp/
 .claude/tasks

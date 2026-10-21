@@ -55,6 +55,13 @@
     "usageLabel": "Usage Claude: ",
     "usageTitle": "Giới hạn gói Claude đã dùng (toàn tài khoản)",
     "usageReset": "{{window}} reset lúc {{time}}",
-    "usageUpdated": "Cập nhật lúc {{time}}"
+    "usageUpdated": "Cập nhật lúc {{time}}",
+    "copilotUsageLabel": "Usage Copilot: ",
+    "copilotUsageTitle": "Ngân sách Copilot đã dùng (toàn tài khoản, {{unit}})",
+    "copilotUsageUnlimited": "Không giới hạn ở mức tài khoản ({{unit}})",
+    "copilotUsageUsed": "Đã dùng {{used}}/{{entitlement}} {{unit}}",
+    "copilotUsageReset": "Reset lúc {{time}}",
+    "copilotUnitAiCredits": "AI credits",
+    "copilotUnitPremiumRequests": "premium requests"
   }
 }

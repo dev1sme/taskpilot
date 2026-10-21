@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 
-/** Where Vietnamese text is expected: the resources, and the task log wording (a document, not UI). */
-const ALLOWED = ["client/src/i18n/", "server/src/core/locales/", "server/src/modules/workflow/history.ts", "server/src/modules/workflow/prompt-text.ts"];
+/** Where Vietnamese text is expected: the resources, and the task log wording (a document, not UI), and the column names of the plan's assignment table. */
+const ALLOWED = ["client/src/i18n/", "server/src/core/locales/", "server/src/modules/workflow/history.ts", "server/src/modules/workflow/prompt-text.ts", "server/src/modules/workflow/assignments.ts"];
 
 /** Lines that hold Vietnamese letters as data rather than text: here, patterns matching what Claude writes. */
 const ALLOWED_LINES = [/\.replace\(\/đ\/g, "d"\)/, /^const [A-Z_]+ = \/.*\/i;$/];

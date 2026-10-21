@@ -101,12 +101,15 @@ describe("workflow engine", () => {
     await sleep(150);
     await engine.feedback(repo, "DEMO-1", "Cover the error case");
     expect(fake.pasted[1]).toContain("Cover the error case");
+    // The run keeps the prompt as it was pasted, for the task screen.
+    expect((await state.load()).runs[0].sentPrompt).toMatchObject({ stepIndex: 0, text: fake.pasted[1] });
     expect(await hook("Stop")).toMatchObject({ phase: "waiting" });
     await write("02-plan.md");
     expect(await hook("Stop")).toMatchObject({ phase: "gate" });
 
     await engine.approve(repo, "DEMO-1");
     expect(fake.pasted[2]).toContain("đã được duyệt");
+    expect((await engine.view(repo, "DEMO-1")).run?.sentPrompt).toMatchObject({ stepIndex: 1, text: fake.pasted[2] });
     await write("04-summary.md");
     expect(await hook("Stop")).toMatchObject({ phase: "gate", stepIndex: 1 });
     expect(await engine.approve(repo, "DEMO-1")).toMatchObject({ phase: "done" });

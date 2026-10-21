@@ -7,6 +7,8 @@ export interface RunState {
   phase: RunPhase;
   message: string;
   lastMessage?: string;
+  /** The latest prompt pasted into the session, as sent. */
+  sentPrompt?: { stepIndex: number; text: string; at: number };
   stepStartedAt: number;
   startedAt: number;
   updatedAt: number;

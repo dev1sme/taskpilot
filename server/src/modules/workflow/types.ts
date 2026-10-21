@@ -68,6 +68,8 @@ export interface RunState {
   message: string;
   /** Claude's last message of the latest turn (Stop hook), shown at gates. */
   lastMessage?: string;
+  /** The latest prompt pasted into the session, as sent: a real task's prompt, not a preview. */
+  sentPrompt?: { stepIndex: number; text: string; at: number };
   /** Prompt to send once the session reports SessionStart. */
   pendingPrompt?: string;
   /** The workflow as it was when the run started; later edits apply to new runs only. */

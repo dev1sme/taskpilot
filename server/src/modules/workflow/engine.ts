@@ -281,9 +281,11 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   private async send(run: RunState, text: string): Promise<void> {
     const step = (await this.defOf(run)).steps[run.stepIndex];
     this.sessions.paste(run.sessionId, text);
+    const now = Date.now();
     await this.save(run, {
       phase: "running",
-      stepStartedAt: Date.now(),
+      stepStartedAt: now,
+      sentPrompt: { stepIndex: run.stepIndex, text, at: now },
       message: t("run.step", { step: step.title }),
       pendingPrompt: undefined,
     });

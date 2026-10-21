@@ -238,7 +238,7 @@ describe("copilot sessions", () => {
   async function startCopilot() {
     const state = new StateStore(await tempDir("taskpilot-state-"));
     const repo = await makeRepo();
-    app = await buildApp({ token: TOKEN, state, repo, launcher: fakeClaude, launchers: { copilot: fakeCopilot } });
+    app = await buildApp({ token: TOKEN, state, repo, launcher: fakeClaude, launchers: { copilot: fakeCopilot }, copilotQuota: async () => ({ ok: true, snapshots: { premium_interactions: { remainingPercentage: 75 } } }) });
     await app.listen({ host: "127.0.0.1", port: 0 });
     return { app, repo };
   }
@@ -271,6 +271,13 @@ describe("copilot sessions", () => {
     expect(feed.map((f) => f.kind)).toEqual(["session", "prompt", "tool", "stop"]);
     expect(feed.find((f) => f.kind === "tool")).toMatchObject({ status: "done", summary: expect.stringContaining("npm test") });
     expect((await list())[0].activity).toBe("idle");
+    // The turn's Stop refreshes Copilot's account quota.
+    let usage: { agents?: { copilot?: { usedPercentage: number } } } | null = null;
+    for (let i = 0; i < 50 && !usage?.agents?.copilot; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+      usage = (await app.inject({ url: "/api/usage", headers: ok })).json();
+    }
+    expect(usage?.agents?.copilot).toMatchObject({ usedPercentage: 25, unlimited: false });
 
     term.ws.send(JSON.stringify({ t: "i", d: "ask\r" }));
     for (let i = 0; i < 100 && (await list())[0].activity !== "permission"; i++) await new Promise((r) => setTimeout(r, 50));

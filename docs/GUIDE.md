@@ -61,3 +61,8 @@ The status bar also shows Claude's plan usage, e.g. `5h 42% · 7d 18%`, once a s
 has reported it (after its first response); the figure turns into a warning past 80%, and its
 tooltip has the reset times. This is account-wide usage (Pro/Max plans or a spend-based gateway),
 not just this repo's sessions.
+
+With Copilot installed and logged in, a separate `Copilot 42%` item shows the share of the Copilot
+account's budget used (AI credits, or premium requests on the legacy plans), read from Copilot when
+a Copilot session ends a turn, at most once a minute. An account without a limit of its own (e.g.
+Copilot Business on AI credits) shows `Copilot ∞`.

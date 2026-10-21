@@ -1,11 +1,12 @@
 import { Gauge, HandPalm, SignOut, TerminalWindow } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
+import { AGENT_LABELS } from "../../shared/agents";
 import { href } from "../../shared/router";
 import { useWorkspace } from "../../features/workspace";
 import { locale } from "../../i18n";
 import { logout, useAuthMode } from "../../features/auth";
 import { useRepoSessions } from "../../features/sessions";
-import { useUsage, type UsageView } from "../../features/usage";
+import { useUsage, type AgentQuota, type UsageView } from "../../features/usage";
 import "./status-bar.css";
 
 /** Live, repo-wide counters at the bottom of every page. */
@@ -51,7 +52,8 @@ export function StatusBar(props: { terminalOpen: boolean; onToggleTerminal: (ope
           {t("status.asking", { count: asking.length })}
         </a>
       )}
-      {usage && <UsageItem usage={usage} />}
+      {usage && (usage.fiveHour || usage.sevenDay || usage.spend) && <UsageItem usage={usage} />}
+      {usage?.agents?.copilot && <CopilotUsageItem quota={usage.agents.copilot} />}
       <span className="status-item status-version">{info?.claudeVersion ? t("status.claudeVersion", { version: info.claudeVersion }) : t("status.claudeMissing")}</span>
       {/* Copilot is optional: shown only when installed. */}
       {info?.versions?.copilot && <span className="status-item status-version">{t("status.copilotVersion", { version: info.versions.copilot })}</span>}
@@ -83,13 +85,33 @@ function UsageItem({ usage }: { usage: UsageView }) {
   }
   if (usage.spend) parts.push(`spend ${Math.round(usage.spend.usedPercentage)}%`);
   const max = Math.max(usage.fiveHour?.usedPercentage ?? 0, usage.sevenDay?.usedPercentage ?? 0, usage.spend?.usedPercentage ?? 0);
-  const title = [t("status.usageTitle"), ...resets, t("status.usageUpdated", { time: formatTime(usage.updatedAt, true) })].join("\n");
+  const updated = usage.updatedAt ? [t("status.usageUpdated", { time: formatTime(usage.updatedAt, true) })] : [];
+  const title = [t("status.usageTitle"), ...resets, ...updated].join("\n");
 
   return (
     <span className={`status-item status-usage${max >= WARN_PERCENT ? " is-warn" : ""}`} title={title}>
       <Gauge aria-hidden="true" />
       <span className="sr-only">{t("status.usageLabel")}</span>
       {parts.join(" · ")}
+    </span>
+  );
+}
+
+/** Copilot's account quota as its runtime last reported it: "Copilot 42%", or "Copilot ∞" when unlimited. */
+function CopilotUsageItem({ quota }: { quota: AgentQuota }) {
+  const { t } = useTranslation("shell");
+  const unit = t(quota.unit === "ai_credits" ? "status.copilotUnitAiCredits" : "status.copilotUnitPremiumRequests");
+  const lines = [quota.unlimited ? t("status.copilotUsageUnlimited", { unit }) : t("status.copilotUsageTitle", { unit })];
+  if (quota.used !== null && quota.entitlement !== null) lines.push(t("status.copilotUsageUsed", { used: quota.used, entitlement: quota.entitlement, unit }));
+  if (quota.resetsAt) lines.push(t("status.copilotUsageReset", { time: formatTime(quota.resetsAt, true) }));
+  lines.push(t("status.usageUpdated", { time: formatTime(quota.updatedAt, true) }));
+  const warn = quota.usedPercentage !== null && quota.usedPercentage >= WARN_PERCENT;
+
+  return (
+    <span className={`status-item status-usage status-usage-copilot${warn ? " is-warn" : ""}`} title={lines.join("\n")}>
+      <Gauge aria-hidden="true" />
+      <span className="sr-only">{t("status.copilotUsageLabel")}</span>
+      {`${AGENT_LABELS.copilot} ${quota.usedPercentage === null ? "∞" : `${Math.round(quota.usedPercentage)}%`}`}
     </span>
   );
 }

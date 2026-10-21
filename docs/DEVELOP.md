@@ -16,7 +16,8 @@ Layout (import rules are checked by `server/test/architecture.test.ts`, part of 
     every module's routes)
   - `core/`: infrastructure with no feature logic: `errors`, `events` (SSE hub), `dotenv`, `state`
     (`~/.taskpilot/state.json`), `markdown`, `i18n` + `locales/` (strings the server itself sends
-    to the UI), `claude/` (launching and calling the `claude` binary)
+    to the UI), `claude/` (launching and calling the `claude` binary), `copilot/` (launching `copilot`, its version and
+    account quota)
   - `modules/<name>/`: one folder per feature, each with `routes.ts`
     (`register<Name>Routes(app, deps)`) and an `index.ts` that is its only entry for other modules:
     `auth`, `repo` (selected repo, inventory), `tasks` (scanning `.claude/tasks`, watcher),

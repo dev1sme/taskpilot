@@ -105,6 +105,13 @@ server/ — Node 24 + TypeScript + Fastify + @fastify/websocket
   (plan usage `rate_limits`, shown in the footer) and then runs the user's own status line, passed in
   `$TASKPILOT_STATUSLINE_CMD`: a `--settings` status line replaces the user's instead of merging.
 - The child env must drop every `CLAUDE*` variable (see §7).
+- Copilot's account quota (footer, next to Claude's usage) comes from its runtime, not a status line:
+  when a Copilot session ends a turn (`Stop`), `CopilotQuotaPoller` (`modules/usage/copilot.ts`)
+  runs `core/copilot/quota.ts`, at most once a minute with one catch-up read at the end of that
+  minute. It starts `copilot --headless --no-auto-update --log-level none --log-dir <temp> --stdio`
+  (what `@github/copilot-sdk` spawns; the SDK itself is not a dependency), sends one JSON-RPC
+  `account.getQuota` and stops it. `premium_interactions` becomes `UsageView.agents.copilot`.
+  Copilot missing or logged out removes it; other failures keep the last numbers, silently.
 - Agents: `core/agents.ts` lists them (`AGENTS`); `modules/sessions/backends/` has one
   `AgentBackend` per agent: its launcher, how its hooks get in (`launchSettings` for a flag,
   `prepare` for a file), an optional `readyMarker` (terminal text that stands in for a SessionStart
@@ -138,7 +145,7 @@ server/ — Node 24 + TypeScript + Fastify + @fastify/websocket
 | `sessions` | `/api/tasks/:key/sessions`, `/api/repo/sessions`, `/api/sessions/:id/*` (+ PTY WebSocket) | `manager.ts`, `hooks.ts` |
 | `hooks` | `/hook/:event`, `/hook/statusline` | `routes.ts` |
 | `env` | `/api/env`, `/api/env/:key` | `store.ts` |
-| `usage` | `/api/usage` | `store.ts` |
+| `usage` | `/api/usage` | `store.ts`, `copilot.ts` (Copilot quota) |
 | `activity` | `/api/tasks/:key/activity` | `store.ts`, `describe.ts` |
 | `workflow` | `/api/tasks/:key/run*` | `engine.ts`, `definition.ts`, `vars.ts`, `prompt-text.ts`, `questions.ts`, `stage.ts`, `history.ts`, `archive.ts` |
 | `events` | `/api/events` (SSE) | hub in `core/events.ts` |
@@ -186,7 +193,8 @@ The embedded terminal is shell-equivalent access to the machine.
 | `Stop` | No last message: read the last non-empty `assistant.message` `data.content` from `transcript_path` (`~/.copilot/session-state/<id>/events.jsonl`). The turn's last lines reach the file after the hook fires: TaskPilot waits (up to 3 s) for that turn's `assistant.turn_end`. |
 | First run in a folder | "Confirm folder trust": 1. Yes (this session) / 2. Yes, and remember / 3. No. No hook fires before the answer; after "Yes" the repo hooks load in that same session. `trustedFolders` in `~/.copilot/settings.json` does not skip the question. The footer `/ commands` appears only after it. Leave it to the user; never auto-answer. |
 | Bracketed paste, multi-line | One prompt with newlines intact, submitted by `\r` 200 ms later. |
-| `statusLine` | Runs only from `~/.copilot/settings.json`, not from the repo's `settings.local.json`. Input: `session_id`, `model`, `cost.total_premium_requests`, `ai_used`, `context_window`; **no account quota**, so no Copilot plan usage in the footer. |
+| `statusLine` | Runs only from `~/.copilot/settings.json`, not from the repo's `settings.local.json`. Input: `session_id`, `model`, `cost.total_premium_requests`, `ai_used`, `context_window`; **no account quota**; the footer reads it with `account.getQuota` instead (next row). |
+| `account.getQuota` (TPL-010, SDK 1.0.24 / copilot 1.0.101) | `copilot --headless --stdio` answers JSON-RPC (`Content-Length` frames, protocol 3) without a `connect` first; start + reply ≈0.4-0.55 s, ~250 MB RSS. `quotaSnapshots.premium_interactions` is the main budget on both billing models: `tokenBasedBilling: true` → AI credits, otherwise premium requests. Fields beyond the SDK type: `hasQuota`, `tokenBasedBilling`, `overageEntitlement`. A Business account on AI credits reads unlimited (`isUnlimitedEntitlement`, 100 % remaining, `resetDate` = time of the call). Logged out: error `-32603 … Not authenticated`. Each start writes a log file (even `--log-level none`), hence `--log-dir`. |
 | Settings files | JSONC (comments). Precedence: user < `.github/copilot/settings.json` < `settings.local.json` < env < flags. Copilot also runs hooks from `.claude/settings.json` and `.claude/settings.local.json`. |
 
 ## 8. Open items
@@ -195,8 +203,10 @@ The embedded terminal is shell-equivalent access to the machine.
   prompt waits for `SessionStart`; if it never arrives, "Gửi lại bước" pastes anyway.
 - Copilot ready marker (`/ commands`, `modules/sessions/backends/copilot.ts`): checked on copilot
   1.0.101; check it again, with the spike table above, after every Copilot upgrade.
-- Follow-up tasks from TPL-009: **TPL-010** Copilot plan usage (Copilot SDK `account.getQuota`, not
-  a status line in `~/.copilot/settings.json`), **TPL-011** leader-driven runs (Claude reads its
+- Copilot `account.getQuota` over `--headless --stdio` (`core/copilot/quota.ts`): checked on copilot
+  1.0.101 (protocol 3); check it again after every Copilot upgrade. If it breaks, the footer keeps
+  the last numbers and logs nothing.
+- Follow-up tasks from TPL-009: **TPL-011** leader-driven runs (Claude reads its
   plan and hands sub-tasks to member agents while running; TPL-009 only assigns agents per step),
   **TPL-012** Codex backend, **TPL-013** Copilot config pages (`.github/copilot/*`, `copilot mcp`).
 
@@ -263,6 +273,9 @@ The embedded terminal is shell-equivalent access to the machine.
   per-file restore on the Workflow page, and Claude's questions answered one by one (§3).
 - **TPL-009** GitHub Copilot CLI as a second session agent — done: `agent` per workflow and per
   step, a new session when the agent changes, one backend per agent (§5), the Copilot spike (§7).
+- **TPL-010** Copilot quota in the footer — done: read from the Copilot runtime's
+  `account.getQuota` when a Copilot session ends a turn (§5, §7), shown as its own item
+  (`Copilot 42%`, `Copilot ∞` when unlimited) next to Claude's usage.
 - **Docs split** — done: README trimmed to the pitch, requirements and install/run; everything else
   moved into `docs/GUIDE.md` (daily use), `docs/CONFIGURATION.md` (Claude config, custom workflow),
   `docs/DEPLOY.md` (service, reverse proxy, security) and `docs/DEVELOP.md` (dev commands, layout,

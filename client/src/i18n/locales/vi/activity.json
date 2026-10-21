@@ -1,9 +1,9 @@
 {
   "title": "Hoạt động",
   "count": "{{count}} thao tác",
-  "empty": "Chưa có hoạt động. Khi Claude đọc file, chạy lệnh hay ghi tài liệu, mọi thứ hiện ở đây.",
+  "empty": "Chưa có hoạt động. Khi agent đọc file, chạy lệnh hay ghi tài liệu, mọi thứ hiện ở đây.",
   "more": "Xem thêm {{count}} hoạt động cũ hơn",
-  "stop": "Claude kết thúc lượt",
+  "stop": "Agent kết thúc lượt",
   "running": "đang chạy",
   "error": "lỗi",
   "category": {

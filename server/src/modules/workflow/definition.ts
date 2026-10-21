@@ -1,21 +1,21 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 import { AGENTS, DEFAULT_AGENT, isAgent, type Agent } from "../../core/agents.js";
 import { HttpError } from "../../core/errors.js";
+import { t } from "../../core/i18n.js";
 import { MAX_PARALLEL } from "./assignments.js";
+import { mergeOverride, type Provenance } from "./merge.js";
+import { CUSTOM_MODE, DEFAULT_MODE, WORKFLOW_FILE, isMode, listModes, modeDir } from "./modes.js";
 import type { DispatchDef, OutputDef, StepDef, WorkflowDef } from "./types.js";
 import { templateVars } from "./vars.js";
 
-/** <package>/workflows/default; four levels up from both server/src/modules/workflow and dist/server/modules/workflow. */
-export const DEFAULT_WORKFLOW_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../workflows/default");
-/** The leader / member template a repo can copy into its override. */
-export const LEADER_WORKFLOW_DIR = path.join(path.dirname(DEFAULT_WORKFLOW_DIR), "leader");
+/** <package>/workflows/default: the "Mặc định" mode. */
+export const DEFAULT_WORKFLOW_DIR = modeDir(DEFAULT_MODE);
 /** A repo's own workflow: workflow.yml plus its prompt files, all in this one directory. */
 export const OVERRIDE_DIR = path.join(".claude", "taskpilot");
-export const WORKFLOW_FILE = "workflow.yml";
+export { WORKFLOW_FILE };
 /** Prompt files sit next to workflow.yml: no sub-directories, no lookup elsewhere. */
 export const PROMPT_FILE = /^[a-z0-9][a-z0-9-]*\.md$/;
 
@@ -40,13 +40,103 @@ export function hasOverride(repo: string): boolean {
   return existsSync(path.join(overrideDir(repo), WORKFLOW_FILE));
 }
 
-/** The repo's .claude/taskpilot/ override if it has a workflow.yml, else TaskPilot's built-in workflow. */
-export async function loadWorkflow(repo: string): Promise<WorkflowDef> {
-  const origin = hasOverride(repo) ? "repo" : "default";
-  const dir = origin === "repo" ? overrideDir(repo) : DEFAULT_WORKFLOW_DIR;
-  const { def, errors } = parseWorkflowFiles(await readWorkflowDir(dir), { dir, origin });
-  if (!def) throw new HttpError(400, `${path.join(dir, WORKFLOW_FILE)}: ${errors.join("; ")}`);
-  return def;
+/**
+ * The repo's override: none; `legacy` (a complete workflow, no `extends`: it is the mode "custom");
+ * or `extends` a mode, with only what differs from it.
+ */
+export type OverrideInfo =
+  | { kind: "none"; files: Map<string, string> }
+  | { kind: "legacy"; files: Map<string, string> }
+  | { kind: "extends"; extends: string; files: Map<string, string> };
+
+export async function readOverride(repo: string): Promise<OverrideInfo> {
+  const files = await readWorkflowDir(overrideDir(repo));
+  return classifyOverride(files);
+}
+
+/** Which kind of override these files make; one without a readable `extends` is a legacy one. */
+export function classifyOverride(files: Map<string, string>): OverrideInfo {
+  const text = files.get(WORKFLOW_FILE);
+  if (text === undefined) return { kind: "none", files };
+  try {
+    const doc: unknown = parse(text);
+    if (isObject(doc) && doc.extends !== undefined && doc.extends !== null) return { kind: "extends", extends: String(doc.extends), files };
+  } catch {
+    // Invalid YAML: reported by the parser, as for any override.
+  }
+  return { kind: "legacy", files };
+}
+
+/**
+ * The mode a run gets: `selected` (the repo's choice) when it still exists, else the override's own
+ * (`extends` its mode, or "custom" for a legacy one), else the default mode.
+ */
+export function resolveMode(info: OverrideInfo, selected?: string): string {
+  if (selected === CUSTOM_MODE ? info.kind === "legacy" : isMode(selected)) return selected!;
+  if (info.kind === "legacy") return CUSTOM_MODE;
+  if (info.kind === "extends") return info.extends;
+  return DEFAULT_MODE;
+}
+
+/** Whether the override takes part in `mode`: a legacy one is the mode "custom", an `extends` one applies to its own mode only. */
+export function overrideApplies(info: OverrideInfo, mode: string): boolean {
+  return (info.kind === "legacy" && mode === CUSTOM_MODE) || (info.kind === "extends" && info.extends === mode);
+}
+
+export interface Composed {
+  parsed: ParseResult;
+  /** The files the workflow was parsed from (merged for an `extends` override). */
+  files: Map<string, string>;
+  dir: string;
+  mode: NonNullable<WorkflowDef["mode"]>;
+  provenance?: Provenance;
+}
+
+/**
+ * Builds mode `modeId`: its built-in files, or the override's complete files (mode "custom"), or the
+ * built-in ones with the `extends` override merged in. `override` is what the repo has now, possibly
+ * with unsaved drafts laid over it.
+ */
+export async function composeWorkflow(repo: string, modeId: string, override: OverrideInfo): Promise<Composed> {
+  const applies = overrideApplies(override, modeId);
+  const modes = await listModes();
+  const name = modeId === CUSTOM_MODE ? t("workflow.customMode") : (modes.find((m) => m.id === modeId)?.name ?? modeId);
+  const mode = { id: modeId, name, override: applies };
+  if (modeId !== CUSTOM_MODE && !isMode(modeId)) {
+    return { parsed: { def: null, errors: [t("errors.unknownMode", { mode: modeId })], warnings: [] }, files: new Map(), dir: modeDir(modeId), mode };
+  }
+  const done = (files: Map<string, string>, dir: string, origin: WorkflowDef["origin"], extra: Partial<Composed> = {}): Composed => {
+    const parsed = parseWorkflowFiles(files, { dir, origin });
+    if (parsed.def) parsed.def.mode = mode;
+    return { parsed, files, dir, mode, ...extra };
+  };
+  const dir = overrideDir(repo);
+  if (!applies) return done(await readWorkflowDir(modeDir(modeId)), modeDir(modeId), "default");
+  if (override.kind === "legacy") return done(override.files, dir, "repo");
+  const merged = mergeOverride(await readWorkflowDir(modeDir(modeId)), override.files);
+  if (merged.errors.length) {
+    return { parsed: { def: null, errors: merged.errors, warnings: [] }, files: merged.files, dir, mode, provenance: merged.provenance };
+  }
+  return done(merged.files, dir, "repo", { provenance: merged.provenance });
+}
+
+/**
+ * Loads a workflow for a new run: `mode`, else the repo's `selected` mode, else the override's own or
+ * the default mode. An unknown `mode` is a 400; a workflow that does not parse is a 400 with its errors.
+ */
+export async function loadWorkflow(repo: string, mode?: string, selected?: string): Promise<WorkflowDef> {
+  const info = await readOverride(repo);
+  if (mode !== undefined && !(mode === CUSTOM_MODE ? info.kind === "legacy" : isMode(mode))) {
+    throw new HttpError(400, t("errors.unknownMode", { mode }));
+  }
+  const { parsed, dir } = await composeWorkflow(repo, mode ?? resolveMode(info, selected), info);
+  if (!parsed.def) throw new HttpError(400, `${path.join(dir, WORKFLOW_FILE)}: ${parsed.errors.join("; ")}`);
+  return parsed.def;
+}
+
+/** The mode of a workflow snapshot; one saved before modes existed is "custom" if it was the repo's override, else the default. */
+export function modeOf(def: WorkflowDef): NonNullable<WorkflowDef["mode"]> {
+  return def.mode ?? (def.origin === "repo" ? { id: CUSTOM_MODE, name: t("workflow.customMode"), override: true } : { id: DEFAULT_MODE, name: t("workflow.defaultMode"), override: false });
 }
 
 /** workflow.yml and the prompt files of a workflow directory, by name. */

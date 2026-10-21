@@ -21,6 +21,8 @@ export interface SessionMeta {
 export interface AppState {
   lastRepo?: string;
   sessions: SessionMeta[];
+  /** The workflow mode a repo runs by default (`workflows/<id>/`, or "custom"); absent = what its override says, else "default". */
+  repoModes?: Record<string, string>;
   /** Latest workflow run per (repo, taskKey). */
   runs: RunState[];
   /** Claude plan usage last reported by a session's status line. */

@@ -5,8 +5,11 @@ import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../../src/app.js";
 import type { Launcher } from "../../../src/core/claude/launch.js";
 import { StateStore } from "../../../src/core/state.js";
-import { LEADER_WORKFLOW_DIR, loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
+import { loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
+import { modeDir } from "../../../src/modules/workflow/modes.js";
+
+const LEADER_WORKFLOW_DIR = modeDir("leader");
 
 const TOKEN = "test-token";
 const ok = { host: "127.0.0.1:8790", "x-taskpilot-token": TOKEN };
@@ -95,6 +98,12 @@ async function waitFor<T>(read: () => Promise<T>, pred: (v: T) => boolean, ms = 
 }
 
 describe("workflow run end to end", () => {
+  it("rejects a mode that is not a string", async () => {
+    const app = await start();
+    const res = await app.inject({ method: "POST", url: "/api/tasks/DEMO-1/run", headers: ok, payload: { mode: 5 } });
+    expect(res.statusCode).toBe(400);
+  });
+
   it("starts a session, sends the prompt after SessionStart and stops at the plan gate", async () => {
     const app = await start();
     const started = await app.inject({ method: "POST", url: "/api/tasks/DEMO-1/run", headers: ok });

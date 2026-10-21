@@ -12,7 +12,7 @@ export interface TaskStage {
 }
 
 /** What the repo's workflow says about task documents; supplied by the app so tasks does not depend on workflow. */
-export type DescribeTasks = (repo: string) => Promise<{ stageOf: (files: string[]) => TaskStage; historyFile: string }>;
+export type DescribeTasks = (repo: string) => Promise<{ stageOf: (files: string[], taskKey: string) => TaskStage; historyFile: string }>;
 
 const UNKNOWN = { stageOf: () => ({ done: 0, total: 0, step: null }), historyFile: "" };
 
@@ -27,7 +27,7 @@ export function registerTasksRoutes(
   const describe = (repo: string) => opts.describe?.(repo).catch(() => UNKNOWN) ?? Promise.resolve(UNKNOWN);
   const withStage = (task: TaskSummary, d: Awaited<ReturnType<typeof describe>>) => ({
     ...task,
-    stage: d.stageOf(task.outputFiles.map((f) => f.path)),
+    stage: d.stageOf(task.outputFiles.map((f) => f.path), task.key),
     historyFile: d.historyFile,
   });
 

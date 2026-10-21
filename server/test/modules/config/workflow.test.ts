@@ -1,8 +1,9 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { DEFAULT_WORKFLOW_DIR, LEADER_WORKFLOW_DIR } from "../../../src/modules/workflow/definition.js";
-import { get, repo, send, useConfigApp } from "../../helpers/configApp.js";
+import { DEFAULT_WORKFLOW_DIR } from "../../../src/modules/workflow/definition.js";
+import { modeDir } from "../../../src/modules/workflow/modes.js";
+import { app, get, ok, repo, send, state, useConfigApp } from "../../helpers/configApp.js";
 
 useConfigApp();
 
@@ -31,6 +32,12 @@ async function builtInUnchanged() {
   for (const [n, text] of Object.entries(pristine)) expect(await readFile(path.join(DEFAULT_WORKFLOW_DIR, n), "utf8")).toBe(text);
 }
 
+/** A complete override (no `extends`), as repos had before modes: a copy of a built-in mode's files. */
+async function legacy(mode = "default") {
+  await mkdir(dir(), { recursive: true });
+  for (const n of await readdir(modeDir(mode))) await writeFile(path.join(dir(), n), await readFile(path.join(modeDir(mode), n), "utf8"));
+}
+
 const raw = (name: string) => get(`/api/config/workflow/file?name=${name}`);
 const put = async (name: string, content: string) => send("PUT", "/api/config/workflow/file", { name, content, baseHash: (await raw(name)).hash });
 
@@ -51,33 +58,27 @@ describe("workflow config", () => {
     await builtInUnchanged();
   });
 
-  it("creates the override as a copy of the built-in workflow, with backups", async () => {
-    const res = await send("POST", "/api/config/workflow/override");
-    expect(res.statusCode).toBe(200);
-    expect(res.json().files.at(-1)).toBe(".claude/taskpilot/workflow.yml");
-    expect((await readdir(dir())).sort()).toEqual(BUILT_IN);
-    for (const n of BUILT_IN) expect(await readFile(path.join(dir(), n), "utf8")).toBe(pristine[n]);
+  it("lists the modes, keeps the repo's choice and shows each mode read only", async () => {
+    const { modes, selected } = await get("/api/config/workflow/modes");
+    expect(modes.map((m: { id: string }) => m.id)).toEqual(["default", "leader"]);
+    expect(modes.map((m: { name: string }) => m.name)).toEqual(["Mặc định", "Leader"]);
+    expect(selected).toBe("default");
+
+    expect((await send("PUT", "/api/config/workflow/mode", { mode: "nope" })).statusCode).toBe(400);
+    expect((await send("PUT", "/api/config/workflow/mode", { mode: "custom" })).statusCode).toBe(400);
+    expect((await send("PUT", "/api/config/workflow/mode", { mode: "leader" })).statusCode).toBe(200);
+    expect((await get("/api/config/workflow/modes")).selected).toBe("leader");
+    expect((await state.load()).repoModes).toEqual({ [repo]: "leader" });
 
     const view = await get("/api/config/workflow");
-    expect(view).toMatchObject({ origin: "repo", dir: ".claude/taskpilot" });
-    expect(view.files.every((f: { sameAsDefault: boolean }) => f.sameAsDefault)).toBe(true);
-    expect((await get("/api/backups")).filter((b: { existed: boolean }) => !b.existed)).toHaveLength(BUILT_IN.length);
-    expect((await send("POST", "/api/config/workflow/override")).statusCode).toBe(409);
-  });
-
-  it("creates the override from the leader template, and shows its dispatch step and subtask prompt", async () => {
-    expect((await send("POST", "/api/config/workflow/override", { template: "other" })).statusCode).toBe(400);
-    const res = await send("POST", "/api/config/workflow/override", { template: "leader" });
-    expect(res.statusCode).toBe(200);
-    expect((await readdir(dir())).sort()).toEqual((await readdir(LEADER_WORKFLOW_DIR)).sort());
-
-    const view = await get("/api/config/workflow");
-    expect(view).toMatchObject({ origin: "repo", errors: [], warnings: [] });
+    expect(view).toMatchObject({ origin: "default", mode: { id: "leader", override: false }, errors: [], warnings: [] });
     expect(view.def.steps.map((s: { id: string }) => s.id)).toEqual(["investigate", "dispatch", "review"]);
     expect(view.def.steps[1].dispatch).toMatchObject({ from: "plan", promptFile: "subtask.md", report: "03-viec-{{n}}.md", format: "format-subtask.md", parallel: 1 });
     const used = (name: string) => view.files.find((f: { name: string }) => f.name === name).usedBy;
     expect(used("subtask.md")).toEqual([view.def.steps[1].title]);
-    expect(used("format-subtask.md")).toEqual(["03-viec-{{n}}.md"]);
+    // Another mode on request, whatever the repo's choice.
+    expect((await get("/api/config/workflow?mode=default")).def.steps.map((s: { id: string }) => s.id)).toEqual(["investigate", "implement"]);
+    expect((await app.inject({ url: "/api/config/workflow?mode=nope", headers: ok })).statusCode).toBe(400);
 
     const text = (await send("POST", "/api/config/workflow/render", { stepId: "dispatch", kind: "subtask" })).json().text;
     expect(text).toContain("Tên việc mẫu");
@@ -85,22 +86,90 @@ describe("workflow config", () => {
     expect((await send("POST", "/api/config/workflow/render", { stepId: "dispatch", kind: "prompt" })).statusCode).toBe(404);
     expect((await send("POST", "/api/config/workflow/render", { stepId: "review", kind: "subtask" })).statusCode).toBe(404);
     expect((await send("POST", "/api/config/workflow/render", { stepId: "review", kind: "prompt" })).statusCode).toBe(200);
+    expect((await send("POST", "/api/config/workflow/render", { stepId: "implement", kind: "prompt", mode: "default" })).statusCode).toBe(200);
     await builtInUnchanged();
   });
 
-  it("refuses to create the override over files already in .claude/taskpilot/", async () => {
-    await send("POST", "/api/config/workflow/override");
-    await send("POST", "/api/config/workflow/reset", { hashes: Object.fromEntries((await get("/api/config/workflow")).files.map((f: { name: string; hash: string }) => [f.name, f.hash])) });
+  it("creates an `extends` override of one file, applied to its own mode only", async () => {
+    expect((await send("POST", "/api/config/workflow/override", { mode: "other" })).statusCode).toBe(400);
+    const res = await send("POST", "/api/config/workflow/override", { mode: "leader" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().files).toEqual([".claude/taskpilot/workflow.yml"]);
+    expect(await readdir(dir())).toEqual(["workflow.yml"]);
+    expect(await readFile(path.join(dir(), "workflow.yml"), "utf8")).toContain("extends: leader");
+    expect((await send("POST", "/api/config/workflow/override", { mode: "default" })).statusCode).toBe(409);
+    expect((await get("/api/backups")).filter((b: { existed: boolean }) => !b.existed)).toHaveLength(1);
+
+    // With nothing chosen, the repo follows its override's mode, whose view is the merge: all of Leader here.
+    const view = await get("/api/config/workflow");
+    expect(view).toMatchObject({ origin: "repo", overrideKind: "extends", overrideExtends: "leader", selected: "leader", mode: { id: "leader", override: true }, errors: [], warnings: [] });
+    expect(view.def.steps.map((s: { id: string }) => s.id)).toEqual(["investigate", "dispatch", "review"]);
+    expect(view.files.map((f: { name: string }) => f.name)).toEqual(["workflow.yml"]);
+
+    // Patch a step and add one: the page shows where each comes from.
+    const yml = (await raw("workflow.yml")).content as string;
+    const patched = `${yml}steps:\n  - id: investigate\n    agent: copilot\n  - id: lint\n    before: investigate\n    prompt: lint.md\n`;
+    expect((await put("workflow.yml", patched)).statusCode).toBe(400);
+    expect((await send("PUT", "/api/config/workflow/file", { name: "lint.md", content: "Lint {{key}}", baseHash: "absent" })).statusCode).toBe(200);
+    expect((await put("workflow.yml", patched)).statusCode).toBe(200);
+    const merged = await get("/api/config/workflow");
+    expect(merged.def.steps.map((s: { id: string }) => s.id)).toEqual(["lint", "investigate", "dispatch", "review"]);
+    expect(merged.provenance.steps.map((s: { status: string }) => s.status)).toEqual(["added", "patched", "builtin", "builtin"]);
+    expect(merged.def.steps[1].agent).toBe("copilot");
+    expect(merged.files.find((f: { name: string }) => f.name === "lint.md").provenance).toBe("added");
+
+    // The override does not apply to another mode.
+    const other = await get("/api/config/workflow?mode=default");
+    expect(other).toMatchObject({ origin: "default", mode: { id: "default", override: false } });
+    expect(other.def.steps.map((s: { id: string }) => s.id)).toEqual(["investigate", "implement"]);
+
+    // A change that breaks the engine's part of the merged workflow is refused.
+    expect((await put("workflow.yml", `${yml}steps:\n  - id: dispatch\n    dispatch:\n      from: investigation\n`)).statusCode).toBe(400);
+    expect((await put("workflow.yml", `${yml}steps:\n  - id: x\n    before: dispatch\n    prompt: lint.md\n`)).json().error).toContain("dispatch");
+    await builtInUnchanged();
+  });
+
+  it("refuses to create the override over files of the mode already in .claude/taskpilot/", async () => {
     await mkdir(dir(), { recursive: true });
     await writeFile(path.join(dir(), "implement.md"), "mine");
-    const res = await send("POST", "/api/config/workflow/override");
+    const res = await send("POST", "/api/config/workflow/override", { mode: "default" });
     expect(res.statusCode).toBe(409);
     expect(res.json().error).toContain("implement.md");
     expect(await readFile(path.join(dir(), "implement.md"), "utf8")).toBe("mine");
   });
 
+  it("moves a complete override to `extends`, keeping only what differs from its base", async () => {
+    await legacy("leader");
+    await writeFile(path.join(dir(), "review.md"), `${await readFile(path.join(dir(), "review.md"), "utf8")}\nMine`);
+    const files = (await get("/api/config/workflow")).files as Array<{ name: string; hash: string }>;
+    const hashes = Object.fromEntries(files.map((f) => [f.name, f.hash]));
+    expect(await get("/api/config/workflow")).toMatchObject({ overrideKind: "legacy", selected: "custom", mode: { id: "custom", override: true } });
+
+    const preview = await send("POST", "/api/config/workflow/override/migrate", {});
+    expect(preview.json()).toMatchObject({ base: "leader", errors: [], applied: false });
+    expect(preview.json().remove).toContain("investigate.md");
+    expect(preview.json().remove).not.toContain("review.md");
+    expect(await readdir(dir())).toHaveLength(files.length);
+
+    expect((await send("POST", "/api/config/workflow/override/migrate", { apply: true, hashes: { ...hashes, "review.md": "old" } })).statusCode).toBe(409);
+    expect((await send("POST", "/api/config/workflow/override/migrate", { apply: true, hashes })).json().applied).toBe(true);
+    expect((await readdir(dir())).sort()).toEqual(["review.md", "workflow.yml"]);
+    const after = await get("/api/config/workflow");
+    expect(after).toMatchObject({ overrideKind: "extends", overrideExtends: "leader", errors: [], warnings: [] });
+    expect(after.def.steps.map((s: { id: string }) => s.id)).toEqual(["investigate", "dispatch", "review"]);
+    expect((await send("POST", "/api/config/workflow/override/migrate", {})).statusCode).toBe(409);
+
+    // A complete workflow without a step of its base cannot be written as `extends`.
+    await send("POST", "/api/config/workflow/reset", { hashes: Object.fromEntries(after.files.map((f: { name: string; hash: string }) => [f.name, f.hash])) });
+    await legacy("default");
+    const yml = await readFile(path.join(dir(), "workflow.yml"), "utf8");
+    await writeFile(path.join(dir(), "workflow.yml"), yml.slice(0, yml.indexOf("  - id: implement")));
+    const refused = (await send("POST", "/api/config/workflow/override/migrate", { base: "default" })).json();
+    expect(refused.errors[0]).toContain("implement");
+  });
+
   it("validates every save and delete against the whole override", async () => {
-    await send("POST", "/api/config/workflow/override");
+    await legacy();
     const yml = (await raw("workflow.yml")).content as string;
 
     const bad = await put("workflow.yml", yml.replace("done-when: plan", "done-when: nope"));
@@ -137,7 +206,7 @@ describe("workflow config", () => {
   });
 
   it("lets a hand-broken override be fixed one file at a time", async () => {
-    await send("POST", "/api/config/workflow/override");
+    await legacy();
     const yml = (await raw("workflow.yml")).content as string;
     await writeFile(path.join(dir(), "workflow.yml"), yml.replace("prompt: implement.md", "prompt: code.md"));
     const view = await get("/api/config/workflow");
@@ -163,7 +232,7 @@ describe("workflow config", () => {
     const sample = (await send("POST", "/api/config/workflow/render", { stepId: "investigate", kind: "onReject" })).json().text;
     expect(sample).toContain("<góp ý của reviewer>");
 
-    await send("POST", "/api/config/workflow/override");
+    await legacy();
     const yml = (await raw("workflow.yml")).content as string;
     const drafted = await send("POST", "/api/config/workflow/render", {
       stepId: "investigate",
@@ -177,7 +246,7 @@ describe("workflow config", () => {
   });
 
   it("shows how a file differs from the built-in one and removes the override with backups", async () => {
-    await send("POST", "/api/config/workflow/override");
+    await legacy();
     await put("implement.md", "Mine {{out.plan}}");
     const diff = await get("/api/config/workflow/default-diff?name=implement.md");
     expect(diff.same).toBe(false);
@@ -203,7 +272,7 @@ describe("workflow config", () => {
     expect(await get("/api/tasks/DEMO-2")).toMatchObject({ stage: { done: 0, total: 2, step: null } });
 
     // A broken override must not hide the tasks.
-    await send("POST", "/api/config/workflow/override");
+    await legacy();
     await writeFile(path.join(dir(), "workflow.yml"), "version: 2\nsteps: nope\n");
     expect((await get("/api/tasks")).find((t: { key: string }) => t.key === "DEMO-1").stage).toEqual({ done: 0, total: 0, step: null });
   });

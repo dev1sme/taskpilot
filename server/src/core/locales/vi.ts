@@ -22,6 +22,10 @@ export default {
     subtaskTitle: "Việc {{n}}",
     assignmentsInvalid: "Bảng phân công chưa dùng được: {{errors}}",
   },
+  workflow: {
+    defaultMode: "Mặc định",
+    customMode: "Override của repo (toàn bộ)",
+  },
   activity: {
     sessionStart: "Session bắt đầu",
     sessionResume: "Session được resume",
@@ -79,6 +83,14 @@ export default {
     workflowFileDelete: "Không xoá riêng workflow.yml; dùng Xoá override để về mặc định",
     stepNotFound: "Không có bước {{step}}",
     noOnReject: "Bước {{step}} không có prompt on-reject",
+    unknownMode: "Không có cách chạy {{mode}}",
+    modeNotUsable: "Repo không có override cũ nên không chọn được cách chạy custom",
+    overrideNotLegacy: "Override của repo không phải dạng toàn bộ (không extends); không cần chuyển",
+    migrateBase: "Không chuyển được: cách chạy cơ sở {{base}} không tồn tại",
+    migrateUnreadable: "Không đọc được workflow.yml của override hoặc của cách chạy cơ sở",
+    migrateRemoves: "Không chuyển được: override bỏ {{what}} của cách chạy cơ sở, mà dạng extends không bỏ được",
+    migrateEngine: "Không chuyển được: {{what}} khác cách chạy cơ sở, mà phần này do TaskPilot giữ",
+    migrateMismatch: "Không chuyển được: workflow sau khi chuyển khác workflow hiện tại (thứ tự step hoặc khoá lạ)",
   },
   permissions: {
     notList: "{{key}} phải là danh sách chuỗi",
@@ -149,6 +161,7 @@ export default {
     delete: "Xoá trong TaskPilot",
     overrideCreate: "Thêm config override",
     overrideReset: "Xoá config override (về mặc định)",
+    overrideMigrate: "Chuyển override sang dạng extends",
     beforeRestore: "Trước khi khôi phục",
     beforeRestoreAt: "Trước khi khôi phục bản lúc {{time}}",
     mcpEdit: "Sửa MCP server {{name}}",

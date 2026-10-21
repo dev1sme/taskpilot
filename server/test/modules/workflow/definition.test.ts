@@ -4,12 +4,14 @@ import { afterAll, describe, expect, it } from "vitest";
 import { hookSettings, HOOK_EVENTS } from "../../../src/modules/sessions/hooks.js";
 import {
   DEFAULT_WORKFLOW_DIR,
-  LEADER_WORKFLOW_DIR,
   loadWorkflow,
   parseWorkflowFiles,
   readWorkflowDir,
 } from "../../../src/modules/workflow/definition.js";
 import { cleanupTempDirs, makeRepo } from "../../helpers/fixtures.js";
+import { modeDir } from "../../../src/modules/workflow/modes.js";
+
+const LEADER_WORKFLOW_DIR = modeDir("leader");
 
 afterAll(cleanupTempDirs);
 
@@ -53,6 +55,42 @@ describe("workflow definition", () => {
     const def = await loadWorkflow(repo);
     expect(def).toMatchObject({ origin: "repo", permissionMode: "acceptEdits", dir: path.join(repo, ".claude", "taskpilot") });
     expect(def.steps[0]).toMatchObject({ id: "a", title: "a", gate: "none", prompt: "Custom {{key}}", doneWhen: { output: "doc", file: "doc.md" } });
+  });
+
+  describe("modes", () => {
+    const extendsLeader = "extends: leader\nsteps:\n  - id: investigate\n    title: Mine\n";
+
+    it("is the default mode with no override and the leader mode when asked or selected, no override needed", async () => {
+      const repo = await makeRepo();
+      expect((await loadWorkflow(repo)).mode).toMatchObject({ id: "default", override: false });
+      expect((await loadWorkflow(repo, "leader")).steps.some((s) => s.dispatch)).toBe(true);
+      expect((await loadWorkflow(repo, undefined, "leader")).mode).toMatchObject({ id: "leader", override: false });
+      expect((await loadWorkflow(repo, undefined, "nope")).mode?.id).toBe("default");
+    });
+
+    it("rejects an unknown explicit mode with 400", async () => {
+      await expect(loadWorkflow(await makeRepo(), "nope")).rejects.toMatchObject({ status: 400 });
+      await expect(loadWorkflow(await makeRepo(), "custom")).rejects.toMatchObject({ status: 400 });
+    });
+
+    it("takes a legacy override as the mode custom", async () => {
+      const repo = await makeRepo();
+      await writeOverride(repo, { "workflow.yml": ONE_STEP, "p.md": "x" });
+      expect((await loadWorkflow(repo)).mode).toMatchObject({ id: "custom", override: true });
+      expect((await loadWorkflow(repo, "default")).mode).toMatchObject({ id: "default", override: false });
+    });
+
+    it("applies an `extends` override to its own mode only", async () => {
+      const repo = await makeRepo();
+      await writeOverride(repo, { "workflow.yml": extendsLeader });
+      const own = await loadWorkflow(repo);
+      expect(own.mode).toMatchObject({ id: "leader", override: true });
+      expect(own.steps[0].title).toBe("Mine");
+      const other = await loadWorkflow(repo, "default");
+      expect(other.mode).toMatchObject({ id: "default", override: false });
+      expect(other.steps[0].title).not.toBe("Mine");
+      expect((await loadWorkflow(repo, undefined, "default")).mode?.id).toBe("default");
+    });
   });
 
   it("never falls back to a built-in prompt the override does not have", async () => {

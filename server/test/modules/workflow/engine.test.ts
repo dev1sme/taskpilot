@@ -5,9 +5,12 @@ import type { SessionView } from "../../../src/modules/sessions/manager.js";
 import type { SessionMeta } from "../../../src/core/state.js";
 import { StateStore } from "../../../src/core/state.js";
 import type { Agent } from "../../../src/core/agents.js";
-import { LEADER_WORKFLOW_DIR, loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
+import { loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
 import { WorkflowEngine, type SessionPort } from "../../../src/modules/workflow/engine.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
+import { modeDir } from "../../../src/modules/workflow/modes.js";
+
+const LEADER_WORKFLOW_DIR = modeDir("leader");
 
 afterAll(cleanupTempDirs);
 
@@ -315,7 +318,7 @@ describe("workflow engine", () => {
 
     const log = await readFile(path.join(taskDir(), HISTORY_FILE), "utf8");
     expect(log.startsWith("# DEMO-1 — Lịch sử quyết định\n\n## ")).toBe(true);
-    expect(log).toContain("· Điều tra & lên kế hoạch · Bắt đầu quy trình\n\nQuy trình: mặc định của TaskPilot, 2 bước.");
+    expect(log).toContain("· Điều tra & lên kế hoạch · Bắt đầu quy trình\n\nQuy trình: Mặc định, 2 bước.");
     expect(log).toContain("· Điều tra & lên kế hoạch · Ba góp ý\n\n> Tách task riêng\n>\n> Thêm 00-history.md\n");
     expect(log).toContain("· Điều tra & lên kế hoạch · Ba duyệt");
     expect(log).toContain("· Triển khai · Huỷ quy trình");
@@ -431,6 +434,29 @@ describe("workflow engine", () => {
     await hook("SessionStart");
     await new WorkflowEngine(state, fake).recover();
     expect((await state.load()).runs[0]).toMatchObject({ phase: "interrupted" });
+  });
+
+  it("starts and restarts in the chosen mode, snapshots it and logs it", async () => {
+    const asked: Array<string | undefined> = [];
+    engine = new WorkflowEngine(state, fake, async (r, mode) => (asked.push(mode), loadWorkflow(r, mode)));
+    await expect(engine.start(repo, "DEMO-1", "nope")).rejects.toMatchObject({ status: 400 });
+    expect(fake.sessions.size).toBe(0);
+
+    await engine.start(repo, "DEMO-1", "leader");
+    const view = await engine.view(repo, "DEMO-1");
+    expect(view.workflow.mode).toMatchObject({ id: "leader", override: false });
+    expect(view.workflow.outdated).toBe(false);
+    expect(await readFile(path.join(taskDir(), HISTORY_FILE), "utf8")).toContain("Quy trình: Leader, 3 bước.");
+
+    await engine.restart(repo, "DEMO-1", "default");
+    expect((await engine.view(repo, "DEMO-1")).workflow.mode?.id).toBe("default");
+    expect(asked).toContain("default");
+  });
+
+  it("reads a snapshot saved before modes existed", async () => {
+    await engine.start(repo, "DEMO-1");
+    await state.update((s) => void delete s.runs[0].workflow!.mode);
+    expect((await engine.view(repo, "DEMO-1")).workflow.mode).toMatchObject({ id: "default", override: false });
   });
 });
 

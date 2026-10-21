@@ -7,13 +7,17 @@ import { getTask, TASKS_DIR } from "../tasks/index.js";
 import type { HookEvent, SessionView } from "../sessions/index.js";
 import type { SessionMeta, StateStore } from "../../core/state.js";
 import { checkForParallel, overlaps, parseAssignments, type ParsedAssignments } from "./assignments.js";
-import { loadWorkflow, OVERRIDE_DIR, reportOf } from "./definition.js";
+import { loadWorkflow, modeOf, OVERRIDE_DIR, reportOf } from "./definition.js";
+import { CUSTOM_MODE } from "./modes.js";
 import { archiveOutputs } from "./archive.js";
 import { appendHistory, HISTORY_TEXT } from "./history.js";
 import { parseQuestions, type Question } from "./questions.js";
 import type { Assignment, RunPhase, RunState, StepDef, SubtaskPhase, SubtaskRun, WorkflowDef } from "./types.js";
 import { promptVars, renderPrompt } from "./vars.js";
 import { t } from "../../core/i18n.js";
+
+/** Loads the workflow for a new run: `mode` when given, else the repo's own choice. */
+export type LoadDef = (repo: string, mode?: string) => Promise<WorkflowDef>;
 
 /** The parts of SessionManager the engine uses. */
 export interface SessionPort {
@@ -30,6 +34,8 @@ export interface RunView {
   workflow: {
     source: string;
     origin: WorkflowDef["origin"];
+    /** The mode the run follows; `override`: the repo's override is part of it. */
+    mode: NonNullable<WorkflowDef["mode"]>;
     historyFile: string;
     steps: Array<{
       id: string;
@@ -82,7 +88,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   constructor(
     private readonly state: StateStore,
     private readonly sessions: SessionPort,
-    private readonly loadDef: (repo: string) => Promise<WorkflowDef> = loadWorkflow,
+    private readonly loadDef: LoadDef = (repo, mode) => loadWorkflow(repo, mode),
     private readonly noHookWarnMs: number = NO_HOOK_WARN_MS,
   ) {
     super();
@@ -92,7 +98,8 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   async view(repo: string, taskKey: string): Promise<RunView> {
     const run = await this.find(repo, taskKey);
     const pinned = run && ACTIVE.includes(run.phase) ? run.workflow : undefined;
-    const current = await this.loadDef(repo).catch((e: unknown) => {
+    // A running run is compared with its own mode as it is now; the repo's mode when no run is active.
+    const current = await this.loadDef(repo, pinned ? modeOf(pinned).id : undefined).catch((e: unknown) => {
       if (pinned) return null;
       throw e;
     });
@@ -101,6 +108,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       workflow: {
         source: def.source,
         origin: def.origin,
+        mode: modeOf(def),
         historyFile: def.history.file,
         steps: def.steps.map((s) => ({
           id: s.id,
@@ -134,11 +142,12 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     return run.phase === "gate" || run.phase === "waiting" ? parseQuestions(run.lastMessage ?? "") : [];
   }
 
-  start(repo: string, taskKey: string): Promise<RunState> {
+  /** Starts a run in `mode` (a workflows/ directory, or "custom"); the repo's own mode when absent. */
+  start(repo: string, taskKey: string, mode?: string): Promise<RunState> {
     return this.serial(async () => {
       const existing = await this.find(repo, taskKey);
       if (existing && ACTIVE.includes(existing.phase)) throw new HttpError(409, "A workflow run is already active");
-      return this.begin(repo, taskKey);
+      return this.begin(repo, taskKey, await this.loadDef(repo, mode));
     });
   }
 
@@ -147,10 +156,12 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
    * is stopped (it stays listed) and the task's documents are copied to archive/ first: Claude then
    * rewrites them in place, so the step names and done-when files do not change.
    */
-  restart(repo: string, taskKey: string): Promise<RunState> {
+  restart(repo: string, taskKey: string, mode?: string): Promise<RunState> {
     return this.serial(async () => {
       const existing = await this.find(repo, taskKey);
       if (!existing) throw new HttpError(409, "No workflow run to restart; start one first");
+      // Loaded before anything is stopped or archived: a bad mode or a broken workflow changes nothing.
+      const next = await this.loadDef(repo, mode);
       const old = await this.sessions.get(existing.sessionId).catch(() => null);
       if (old?.status === "running") await this.sessions.stop(existing.sessionId);
       for (const sub of existing.subtasks ?? []) {
@@ -161,7 +172,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       await this.log(existing, HISTORY_TEXT.restart, {
         body: previous.files.length ? HISTORY_TEXT.archived(previous.dir, previous.files) : HISTORY_TEXT.nothingArchived,
       });
-      return this.begin(repo, taskKey, previous);
+      return this.begin(repo, taskKey, next, previous);
     });
   }
 
@@ -169,8 +180,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
    * A new run on a new session at step 1, pinned to the workflow as it is now; callers hold the
    * queue. `previous` is what a restart archived, for {{previousRun}}.
    */
-  private async begin(repo: string, taskKey: string, previous?: RunState["previous"]): Promise<RunState> {
-    const def = await this.loadDef(repo);
+  private async begin(repo: string, taskKey: string, def: WorkflowDef, previous?: RunState["previous"]): Promise<RunState> {
     const session = await this.sessions.create(repo, taskKey, { permissionMode: def.permissionMode, agent: def.steps[0].agent ?? DEFAULT_AGENT });
     const now = Date.now();
     const run: RunState = {
@@ -186,8 +196,11 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       startedAt: now,
       updatedAt: now,
     };
-    const source = def.origin === "repo" ? `${OVERRIDE_DIR.split(path.sep).join("/")}/` : HISTORY_TEXT.defaultSource;
-    await this.log(run, HISTORY_TEXT.start, { body: HISTORY_TEXT.startBody(source, def.steps.length) });
+    const mode = modeOf(def);
+    // A "custom" workflow is the override itself; for the others the override is added to the built-in one.
+    const override = mode.override && mode.id !== CUSTOM_MODE ? `${OVERRIDE_DIR.split(path.sep).join("/")}/` : null;
+    const name = mode.id === CUSTOM_MODE ? `${OVERRIDE_DIR.split(path.sep).join("/")}/` : mode.name;
+    await this.log(run, HISTORY_TEXT.start, { body: HISTORY_TEXT.startBody(name, override, def.steps.length) });
     await this.deliver(run, await this.prompt(run, def.steps[0].prompt));
     return run;
   }

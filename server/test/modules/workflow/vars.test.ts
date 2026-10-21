@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_WORKFLOW_DIR, LEADER_WORKFLOW_DIR, loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
+import { DEFAULT_WORKFLOW_DIR, loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
 import { stageOf } from "../../../src/modules/workflow/stage.js";
 import type { WorkflowDef } from "../../../src/modules/workflow/types.js";
 import { promptVars, render, renderPrompt } from "../../../src/modules/workflow/vars.js";
+import { modeDir } from "../../../src/modules/workflow/modes.js";
+
+const LEADER_WORKFLOW_DIR = modeDir("leader");
 
 const task = { key: "A-1", title: "Health" };
 

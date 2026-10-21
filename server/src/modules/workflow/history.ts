@@ -20,8 +20,7 @@ export interface HistoryEntry {
 export const HISTORY_TEXT = {
   title: (taskKey: string) => `# ${taskKey} — Lịch sử quyết định`,
   start: "Bắt đầu quy trình",
-  startBody: (source: string, steps: number) => `Quy trình: ${source}, ${steps} bước.`,
-  defaultSource: "mặc định của TaskPilot",
+  startBody: (mode: string, override: string | null, steps: number) => `Quy trình: ${mode}${override ? ` (+ override ${override})` : ""}, ${steps} bước.`,
   approve: "Ba duyệt",
   done: "Quy trình hoàn tất.",
   feedback: "Ba góp ý",

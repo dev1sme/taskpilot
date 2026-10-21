@@ -1,18 +1,28 @@
 export {
   DEFAULT_WORKFLOW_DIR,
-  LEADER_WORKFLOW_DIR,
   OVERRIDE_DIR,
   PROMPT_FILE,
   WORKFLOW_FILE,
+  classifyOverride,
+  composeWorkflow,
   hasOverride,
   loadWorkflow,
+  modeOf,
+  overrideApplies,
+  readOverride,
+  resolveMode,
   overrideDir,
   parseWorkflowFiles,
   readWorkflowDir,
   reportOf,
+  type Composed,
+  type OverrideInfo,
   type ParseResult,
 } from "./definition.js";
-export { WorkflowEngine } from "./engine.js";
+export { CUSTOM_MODE, DEFAULT_MODE, isMode, listModes, modeDir, type ModeInfo } from "./modes.js";
+export { guessBase, migrateLegacy, type Migration } from "./migrate.js";
+export { mergeOverride, type Provenance } from "./merge.js";
+export { WorkflowEngine, type LoadDef } from "./engine.js";
 export { registerWorkflowRoutes } from "./routes.js";
 export { stageOf, type Stage } from "./stage.js";
 export { MAX_PARALLEL, overlaps, parseAssignments } from "./assignments.js";

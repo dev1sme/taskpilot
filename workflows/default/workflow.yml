@@ -1,5 +1,8 @@
-# Built-in TaskPilot workflow. A repo replaces it with its own copy in .claude/taskpilot/
-# (Workflow page → "Thêm config override"); this directory is never edited from the UI.
+# Built-in TaskPilot workflow ("Mặc định"): Claude investigates, then implements. A repo changes it with
+# .claude/taskpilot/workflow.yml containing `extends: default` and only what differs (Workflow page →
+# "Tạo override"); this directory is never edited from the UI.
+name: Mặc định
+description: Điều tra & lên kế hoạch, rồi triển khai trong một session.
 version: 2
 # permission-mode: acceptEdits        # default | acceptEdits | plan | auto
 # Agent of every step: claude | copilot. A step's own `agent` overrides it, e.g. Claude

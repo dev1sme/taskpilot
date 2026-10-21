@@ -81,6 +81,8 @@ export interface WorkflowDef {
   origin: "repo" | "default";
   /** Directory holding workflow.yml and its prompt files. */
   dir: string;
+  /** The mode it was built for; absent in a snapshot saved before modes existed. `override`: the repo's override is merged in (or is the whole workflow, for "custom"). */
+  mode?: { id: string; name: string; override: boolean };
   /** Default agent of the steps (`agent` at the top of workflow.yml); claude when absent. */
   agent: Agent;
   permissionMode?: string;

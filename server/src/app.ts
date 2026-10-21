@@ -20,7 +20,7 @@ import { createRepoContext, registerRepoRoutes } from "./modules/repo/index.js";
 import { SessionManager, registerSessionsRoutes } from "./modules/sessions/index.js";
 import { registerTasksRoutes, TasksWatcher } from "./modules/tasks/index.js";
 import { CopilotQuotaPoller, registerUsageRoutes, UsageStore } from "./modules/usage/index.js";
-import { WorkflowEngine, loadWorkflow, registerWorkflowRoutes, stageOf, type WorkflowDef } from "./modules/workflow/index.js";
+import { WorkflowEngine, loadWorkflow, type LoadDef, registerWorkflowRoutes, stageOf } from "./modules/workflow/index.js";
 
 export interface AppOptions {
   /**
@@ -43,7 +43,7 @@ export interface AppOptions {
   /** Overrides an agent's command (tests). */
   launchers?: Partial<Record<Agent, Launcher>>;
   /** Overrides workflow loading (tests). */
-  loadWorkflow?: (repo: string) => Promise<WorkflowDef>;
+  loadWorkflow?: LoadDef;
   /** Overrides reading Copilot's account quota (tests). */
   copilotQuota?: () => Promise<CopilotQuotaResult>;
 }
@@ -81,7 +81,10 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
       return addr && typeof addr === "object" ? `http://${hookHost(addr.address)}:${addr.port}/hook` : null;
     },
   });
-  const loadDef = opts.loadWorkflow ?? loadWorkflow;
+  /** A mode's workflow; the repo's own choice (state.json) when `mode` is absent. */
+  const loadDef: LoadDef =
+    opts.loadWorkflow ??
+    (async (r, mode) => loadWorkflow(r, mode, (await opts.state.load()).repoModes?.[r]));
   const engine = new WorkflowEngine(opts.state, sessions, loadDef);
   const logError = (e: unknown) => app.log.error(e);
   sessions.on("change", (meta) => hub.publish("sessions", { taskKey: meta.taskKey }));
@@ -133,7 +136,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   registerAuthRoutes(app, { sessions: authSessions, login: opts.login, token: opts.token });
   registerRepoRoutes(app, { repo });
   registerUsageRoutes(app, { usage });
-  registerConfigRoutes(app, { requireRepo: repo.require, envStore, backups: new BackupStore(path.join(opts.state.dir, "backups")) });
+  registerConfigRoutes(app, { requireRepo: repo.require, state: opts.state, envStore, backups: new BackupStore(path.join(opts.state.dir, "backups")) });
   registerEnvRoutes(app, { requireRepo: repo.require, envStore });
   registerTasksRoutes(app, {
     repo,
@@ -141,7 +144,10 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     sessions,
     describe: async (r) => {
       const def = await loadDef(r);
-      return { stageOf: (files) => stageOf(def, files), historyFile: def.history.file };
+      const { runs } = await opts.state.load();
+      // A task follows the workflow its latest run started with, whatever mode that was.
+      const of = (key: string) => runs.find((run) => run.repo === r && run.taskKey === key)?.workflow ?? def;
+      return { stageOf: (files, key) => stageOf(of(key), files), historyFile: def.history.file };
     },
   });
   registerSessionsRoutes(app, { repo, sessions, runs: engine });

@@ -8,7 +8,7 @@ import { DocsPanel, DocViewer, TextViewer } from "../docs";
 import { TerminalDrawer, useSessions, sessionsApi } from "../sessions";
 import { PageHeader } from "../../shared/ui/PageHeader";
 import { Toolbar } from "../../shared/ui/Toolbar";
-import { GateCard, NowCard, Stepper, ACTIVE_PHASES, useRun, workflowApi } from "../workflow";
+import { GateCard, ModePicker, NowCard, Stepper, ACTIVE_PHASES, useRun, workflowApi } from "../workflow";
 import "./task.css";
 import type { RunPhase, TaskSummary } from "../workspace";
 
@@ -35,6 +35,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
   const [doc, setDoc] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [restart, setRestart] = useState<"idle" | "confirm" | "busy">("idle");
+  const [restartMode, setRestartMode] = useState<string | undefined>();
   const [showPrompt, setShowPrompt] = useState(false);
 
   const run = view?.run ?? null;
@@ -122,20 +123,23 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                     {t("restart")}
                   </Button>
                 ) : (
-                  <Button
-                    icon={ArrowCounterClockwise}
-                    variant="attention"
-                    busy={restart === "busy"}
-                    onClick={() => {
-                      setRestart("busy");
-                      void workflowApi
-                        .restartRun(task.key)
-                        .then(changed)
-                        .finally(() => setRestart("idle"));
-                    }}
-                  >
-                    {t("restartConfirm")}
-                  </Button>
+                  <>
+                    <ModePicker value={restartMode} onChange={setRestartMode} disabled={restart === "busy"} />
+                    <Button
+                      icon={ArrowCounterClockwise}
+                      variant="attention"
+                      busy={restart === "busy"}
+                      onClick={() => {
+                        setRestart("busy");
+                        void workflowApi
+                          .restartRun(task.key, restartMode)
+                          .then(changed)
+                          .finally(() => setRestart("idle"));
+                      }}
+                    >
+                      {t("restartConfirm")}
+                    </Button>
+                  </>
                 ))}
               {active && (
                 <Button
@@ -205,7 +209,9 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
             </div>
             <p className="workflow-source" title={view.workflow.source}>
               <a href={href({ page: "config", section: "workflow" })}>
-                {t("source", { source: view.workflow.origin === "repo" ? t("sourceRepo") : t("sourceDefault") })}
+                {view.workflow.mode
+                  ? t("source", { source: view.workflow.mode.override ? t("sourceModeOverride", { name: view.workflow.mode.name }) : view.workflow.mode.name })
+                  : t("source", { source: view.workflow.origin === "repo" ? t("sourceRepo") : t("sourceDefault") })}
               </a>
               {view.workflow.outdated && <span className="workflow-outdated"> · {t("outdated")}</span>}
             </p>

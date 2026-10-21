@@ -194,3 +194,20 @@
   border-radius: var(--r-sm);
   resize: vertical;
 }
+
+.mode-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.mode-picker select {
+  padding: 4px 8px;
+  font: inherit;
+  color: var(--text);
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}

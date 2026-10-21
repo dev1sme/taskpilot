@@ -11,7 +11,7 @@ import { ConfigHeader, ConfigToolbar, DraftControls, LoadError } from "../shared
 import { useConfig } from "../shared/useConfig";
 import { useSaveFlow } from "../shared/useSaveFlow";
 import { workflowConfigApi } from "./api";
-import type { WorkflowConfig, WorkflowDraft, WorkflowFile } from "./types";
+import type { MigrationPreview, WorkflowConfig, WorkflowDraft, WorkflowFile } from "./types";
 import "../shared/code-view.css";
 import "../shared/library-view.css";
 import "./workflow.css";
@@ -31,7 +31,8 @@ const DRAFT_PREFIX = "workflow:";
  */
 export function WorkflowPage({ file: initialFile }: { file?: string }) {
   const { t } = useTranslation("config");
-  const { data, error, loading, reload } = useConfig(["workflow"], workflowConfigApi.get);
+  const [viewMode, setViewMode] = useState<string | undefined>();
+  const { data, error, loading, reload } = useConfig(["workflow", viewMode], () => workflowConfigApi.get(viewMode));
   const dirty = useDrafts();
   const [picked, setPicked] = useState(initialFile ?? WORKFLOW_FILE);
   const [busy, setBusy] = useState(false);
@@ -68,12 +69,25 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
     }
   };
 
-  const createOverride = (template: "default" | "leader" = "default") =>
+  const createOverride = () =>
     run(async () => {
-      const res = await workflowConfigApi.createOverride(template);
+      const res = await workflowConfigApi.createOverride(data!.mode.id);
       toast(t("workflow.created", { count: res.files.length }));
       await refresh();
     });
+
+  const setDefaultMode = () =>
+    run(async () => {
+      await workflowConfigApi.setMode(data!.mode.id);
+      toast(t("workflow.modes.setDone", { name: data!.mode.name }));
+      void queryClient.invalidateQueries({ queryKey: ["workflow-modes"] });
+      await refresh();
+    });
+
+  const switchMode = (id: string) => {
+    setViewMode(id);
+    setPicked(WORKFLOW_FILE);
+  };
 
   const reset = () =>
     run(async () => {
@@ -117,14 +131,19 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
     },
   });
 
+  const canCreate = data?.overrideKind === "none";
   const actions = !data ? null : !isOverride ? (
     <>
-      <Button icon={Plus} variant="quiet" busy={busy} title={t("workflow.createLeaderTitle", { dir: data.overrideDir })} onClick={() => void createOverride("leader")}>
-        {t("workflow.createLeader")}
-      </Button>
-      <Button icon={Plus} variant="primary" busy={busy} title={t("workflow.createTitle", { dir: data.overrideDir })} onClick={() => void createOverride("default")}>
-        {t("workflow.create")}
-      </Button>
+      {data.mode.id !== data.selected && (
+        <Button icon={CheckCircle} variant="quiet" busy={busy} onClick={() => void setDefaultMode()}>
+          {t("workflow.modes.setDefault")}
+        </Button>
+      )}
+      {canCreate && (
+        <Button icon={Plus} variant="primary" busy={busy} title={t("workflow.createTitle", { dir: data.overrideDir, mode: data.mode.id })} onClick={() => void createOverride()}>
+          {t("workflow.create", { name: data.mode.name })}
+        </Button>
+      )}
     </>
   ) : draft ? (
     <>
@@ -135,7 +154,11 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
     </>
   ) : (
     <>
-      <Button icon={FilePlus} variant="quiet" onClick={() => setAdding((a) => !a)}>
+      {data.mode.id !== data.selected && (
+        <Button icon={CheckCircle} variant="quiet" busy={busy} onClick={() => void setDefaultMode()}>
+          {t("workflow.modes.setDefault")}
+        </Button>
+      )}      <Button icon={FilePlus} variant="quiet" onClick={() => setAdding((a) => !a)}>
         {t("workflow.addPrompt")}
       </Button>
       {confirm === "reset" ? (
@@ -168,14 +191,19 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
       <LoadError error={error} />
       {data && (
         <div className="page-body wf-page">
+          <ModeBar config={data} onPick={switchMode} />
+          {data.overrideKind === "legacy" && data.mode.id === "custom" && <LegacyBanner config={data} onDone={() => void refresh()} />}
           {!isOverride && (
             <section className="card wf-intro">
-              <h2 className="card-title">{t("workflow.defaultTitle")}</h2>
+              <h2 className="card-title">{t("workflow.defaultTitle", { name: data.mode.name })}</h2>
               <p>{t("workflow.defaultBody", { dir: data.overrideDir })}</p>
+              {data.overrideKind !== "none" && (
+                <p className="alert-warn">{t("workflow.notApplied", { dir: data.overrideDir, base: data.overrideExtends ?? "custom" })}</p>
+              )}
               <ul className="file-list">
                 {data.files.map((f) => (
                   <li key={f.name} className="mono">
-                    {data.overrideDir}/{f.name}
+                    {data.dir}/{f.name}
                   </li>
                 ))}
               </ul>
@@ -275,8 +303,83 @@ function OriginBadge({ config }: { config: WorkflowConfig }) {
   const { t } = useTranslation("config");
   return (
     <span className={`wf-origin wf-origin-${config.origin}`} title={config.dir}>
-      {config.origin === "repo" ? t("workflow.originRepo", { dir: config.overrideDir }) : t("workflow.originDefault")}
+      {config.origin === "repo" ? t("workflow.originRepo", { name: config.mode.name, dir: config.overrideDir }) : t("workflow.originDefault", { name: config.mode.name })}
     </span>
+  );
+}
+
+/** The ways the repo can run a workflow: pick one to look at it; the repo's own is marked. */
+function ModeBar({ config, onPick }: { config: WorkflowConfig; onPick: (id: string) => void }) {
+  const { t } = useTranslation("config");
+  return (
+    <section className="card wf-modes" aria-label={t("workflow.modes.label")}>
+      <h2 className="card-title">{t("workflow.modes.label")}</h2>
+      <p className="field-help">{t("workflow.modes.help")}</p>
+      <div className="segmented" role="tablist" aria-label={t("workflow.modes.tabs")}>
+        {config.modes.map((m) => (
+          <button key={m.id} type="button" role="tab" aria-selected={m.id === config.mode.id} title={m.description} onClick={() => onPick(m.id)}>
+            {m.name}
+            {m.id === config.selected && <span className="wf-tag"> · {t("workflow.modes.repoDefault")}</span>}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** A complete override (the old format): offers to rewrite it as `extends`, with a diff to review first. */
+function LegacyBanner({ config, onDone }: { config: WorkflowConfig; onDone: () => void }) {
+  const { t } = useTranslation("config");
+  const [preview, setPreview] = useState<MigrationPreview | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+
+  const open = async () => {
+    setBusy(true);
+    try {
+      setPreview(await workflowConfigApi.migrate({}));
+      setFailure(null);
+    } catch (e) {
+      toast((e as Error).message, { error: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const apply = async () => {
+    setBusy(true);
+    try {
+      const res = await workflowConfigApi.migrate({ apply: true, hashes: Object.fromEntries(config.files.map((f) => [f.name, f.hash])) });
+      if (!res.applied) return setFailure(res.errors.join("; "));
+      toast(t("workflow.legacy.applied"));
+      setPreview(null);
+      onDone();
+    } catch (e) {
+      setFailure((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="card wf-legacy">
+      <h2 className="card-title">{t("workflow.legacy.title")}</h2>
+      <p className="alert-warn">{t("workflow.legacy.body", { dir: config.overrideDir })}</p>
+      <Button icon={ArrowUUpLeft} busy={busy} onClick={() => void open()}>
+        {t("workflow.legacy.migrate")}
+      </Button>
+      <DiffDialog
+        open={preview !== null}
+        title={t("workflow.legacy.base", { base: preview?.base ?? "" })}
+        diff={preview?.diff ?? null}
+        changed
+        busy={busy}
+        error={failure ?? (preview?.errors.length ? `${t("workflow.legacy.blocked")} ${preview.errors.join("; ")}` : null)}
+        confirmLabel={t("workflow.legacy.confirm")}
+        onConfirm={() => void apply()}
+        onClose={() => setPreview(null)}
+      />
+    </section>
   );
 }
 
@@ -342,12 +445,27 @@ function FileNav(props: {
 
   const item = (name: string, label?: string) => {
     const file = config.files.find((f) => f.name === name);
+    const mine = config.provenance !== null;
+    // An `extends` override only holds its own files: the mode's other ones are not the repo's to open.
+    if (mine && !file && !isDirty(draftKey(name))) {
+      return (
+        <li key={`${label ?? ""}${name}`}>
+          <span className="lib-item wf-item">
+            <span className="lib-name mono">{name}</span>
+            <span className="wf-tag">{t("workflow.tag.builtin")}</span>
+            {label && <span className="lib-desc">{label}</span>}
+          </span>
+        </li>
+      );
+    }
     return (
       <li key={`${label ?? ""}${name}`}>
         <button type="button" className="lib-item wf-item" aria-current={props.picked === name} onClick={() => props.onPick(name)}>
           <span className="lib-name mono">{name}</span>
           {isDirty(draftKey(name)) ? (
             <span className="unsaved-pill">{t("draft.unsaved")}</span>
+          ) : file?.provenance ? (
+            <span className={`wf-tag${file.provenance === "builtin" ? "" : " is-changed"}`}>{t(`workflow.tag.${file.provenance}`)}</span>
           ) : (
             config.origin === "repo" &&
             file?.sameAsDefault !== undefined && (
@@ -375,6 +493,10 @@ function FileNav(props: {
           <p className="wf-step-meta">
             {t(`workflow.gate.${s.gate}`)}
             {s.outputs.length > 0 && <> · {s.outputs.map((o) => (o.id === s.doneWhen ? `${o.file} ✓` : o.file)).join(", ")}</>}
+            {(() => {
+              const p = config.provenance?.steps.find((x) => x.id === s.id);
+              return p && <> · {t(`workflow.step.${p.status}`, { keys: p.keys.join(", ") })}</>;
+            })()}
           </p>
           <ul>
             {item(s.promptFile, t("workflow.promptLabel"))}
@@ -508,7 +630,7 @@ function highlightVars(text: string) {
 
 function FileEditor({ draft, config }: { draft: WorkflowDraft; config: WorkflowConfig }) {
   const { t } = useTranslation("config");
-  const [tab, setTab] = useState<"form" | "yaml">("form");
+  const [tab, setTab] = useState<"form" | "yaml">(config.overrideKind === "extends" ? "yaml" : "form");
   const insert = useRef<((text: string) => void) | null>(null);
   const update = (content: string) => setDraft(draftKey(draft.name), { ...draft, content });
   const isYml = draft.name === WORKFLOW_FILE;
@@ -519,7 +641,7 @@ function FileEditor({ draft, config }: { draft: WorkflowDraft; config: WorkflowC
     <section className="card lib-editor wf-editor" aria-label={t("library.editLabel", { path: draft.path })}>
       <header className="lib-head">
         <h2 className="mono">{draft.path}</h2>
-        {isYml && (
+        {isYml && config.overrideKind !== "extends" && (
           <div className="segmented" role="tablist" aria-label={t("workflow.editorTabs")}>
             <button type="button" role="tab" aria-selected={tab === "form"} onClick={() => setTab("form")}>
               {t("workflow.tabForm")}
@@ -581,7 +703,7 @@ function PromptPreview({ config }: { config: WorkflowConfig }) {
       }
     }
     try {
-      setResult(await workflowConfigApi.render({ stepId: step!.id, kind: dispatch ? "subtask" : onReject ? "onReject" : "prompt", feedback, restart, drafts }));
+      setResult(await workflowConfigApi.render({ stepId: step!.id, kind: dispatch ? "subtask" : onReject ? "onReject" : "prompt", feedback, restart, drafts, mode: config.mode.id }));
     } catch (e) {
       setResult(null);
       setError((e as Error).message);

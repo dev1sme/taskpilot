@@ -63,10 +63,19 @@ export interface WorkflowStep {
   dispatch: { from: string; report: string; parallel: number } | null;
 }
 
+/** The ways a repo can run a workflow, and the one it uses by default. */
+export interface ModesInfo {
+  modes: Array<{ id: string; name: string; description: string }>;
+  selected: string;
+  override: { kind: "none" | "legacy" | "extends"; extends: string | null };
+}
+
 export interface RunView {
   workflow: {
     source: string;
     origin: "repo" | "default";
+    /** The way the run goes; absent in a snapshot saved before modes existed. */
+    mode?: { id: string; name: string; override: boolean };
     historyFile: string;
     steps: WorkflowStep[];
     /** The run follows the workflow as it was when it started, which has been edited since. */

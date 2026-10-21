@@ -19,6 +19,7 @@ import { CategoryIcon, type ActivityItem } from "../activity";
 import { workflowApi } from "./api";
 import type { SessionView } from "../sessions";
 import { ReplyForm } from "./ReplyForm";
+import { ModePicker } from "./ModePicker";
 import { SubtaskTree } from "./SubtaskTree";
 import type { Question, RunState, WorkflowStep } from "./types";
 import "./now-card.css";
@@ -45,7 +46,7 @@ export function NowCard(props: Props) {
   const { run, session } = props;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
+  const [mode, setMode] = useState<string | undefined>();
   const act = async (action: () => Promise<unknown>) => {
     setBusy(true);
     try {
@@ -104,12 +105,13 @@ export function NowCard(props: Props) {
               {t("now.readDoc", { file: lastDoc })}
             </Button>
           )}
+          <ModePicker value={mode} onChange={setMode} disabled={busy} />
           <Button
             icon={Play}
             variant={done ? "default" : "primary"}
             size={done ? "md" : "lg"}
             busy={busy}
-            onClick={() => void act(() => (run ? workflowApi.restartRun(props.taskKey) : workflowApi.startRun(props.taskKey)))}
+            onClick={() => void act(() => (run ? workflowApi.restartRun(props.taskKey, mode) : workflowApi.startRun(props.taskKey, mode)))}
           >
             {run ? t("now.restart") : t("now.start")}
           </Button>

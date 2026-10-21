@@ -307,15 +307,36 @@
   "workflow": {
     "title": "Workflow",
     "subtitle": "Các bước TaskPilot chạy cho mỗi task: agent chạy bước, tài liệu phải viết và prompt gửi vào",
-    "originDefault": "Mặc định của TaskPilot",
-    "originRepo": "Override của repo · {{dir}}/",
-    "defaultTitle": "Repo đang dùng workflow mặc định của TaskPilot",
-    "defaultBody": "Bản mặc định chỉ xem được ở đây, không sửa. Muốn đổi bước, tài liệu hay prompt cho repo này, bấm \"Thêm config override\": TaskPilot chép các file dưới đây vào {{dir}}/ để sửa.",
-    "create": "Thêm config override",
-    "createLeader": "Thêm override từ mẫu leader",
-    "createLeaderTitle": "Chép mẫu leader / member vào {{dir}}/: Claude chia việc trong kế hoạch, mỗi việc chạy trong session của agent được giao",
-    "subtaskLabel": "Prompt việc con",
-    "createTitle": "Chép workflow mặc định vào {{dir}}/ để sửa cho repo này",
+    "originDefault": "{{name}} · có sẵn của TaskPilot",
+    "originRepo": "{{name}} · override {{dir}}/",
+    "defaultTitle": "{{name}}: bản có sẵn của TaskPilot",
+    "defaultBody": "Bản có sẵn chỉ xem được ở đây, không sửa. Muốn đổi bước, tài liệu hay prompt, bấm \"Tạo override\": TaskPilot tạo {{dir}}/workflow.yml chỉ ghi phần khác với bản này (extends), file còn lại vẫn theo bản có sẵn.",
+    "create": "Tạo override dựa trên {{name}}",
+    "createTitle": "Tạo {{dir}}/workflow.yml (extends: {{mode}}) để sửa riêng cho repo này; không đổi cách chạy mặc định của repo",
+    "modes": {
+      "label": "Cách chạy của repo",
+      "help": "Mỗi task chạy theo cách này khi ba bấm Bắt đầu, trừ khi chọn khác lúc bấm. Không cần override để đổi.",
+      "repoDefault": "mặc định của repo",
+      "setDefault": "Dùng làm mặc định của repo",
+      "setDone": "Repo sẽ chạy theo \"{{name}}\"",
+      "tabs": "Xem từng cách chạy"
+    },
+    "notApplied": "Override của repo ({{dir}}/) dựa trên \"{{base}}\", nên không áp dụng cho cách chạy này; đang hiện bản có sẵn của TaskPilot. Mỗi repo có một override.",
+    "legacy": {
+      "title": "Override dạng cũ (đủ bộ file)",
+      "body": "{{dir}}/ đang chứa cả workflow, không lấy gì từ bản có sẵn nên không nhận cập nhật của TaskPilot. Chuyển sang dạng extends để chỉ giữ phần khác bản có sẵn.",
+      "migrate": "Chuyển sang dạng extends",
+      "base": "Dựa trên {{base}}",
+      "applied": "Đã chuyển sang dạng extends. Bản cũ còn trong Lịch sử thay đổi.",
+      "blocked": "Chưa chuyển được:",
+      "confirm": "Chuyển",
+      "removes": "Xoá {{count}} file giống bản có sẵn"
+    },
+    "step": {
+      "builtin": "có sẵn",
+      "patched": "đã sửa: {{keys}}",
+      "added": "bước thêm"
+    },
     "created": "Đã tạo {{count}} file trong .claude/taskpilot/",
     "reset": "Xoá override",
     "resetTitle": "Xoá {{dir}}/ và dùng lại workflow mặc định",
@@ -332,8 +353,12 @@
     "tag": {
       "new": "mới",
       "same": "giống mặc định",
-      "changed": "đã sửa"
+      "changed": "đã sửa",
+      "builtin": "có sẵn",
+      "replaced": "thay file có sẵn",
+      "added": "file thêm"
     },
+    "subtaskLabel": "Prompt việc con",
     "addPrompt": "Thêm file prompt",
     "promptNameHelp": "Chữ thường, số và dấu gạch, đuôi .md, ví dụ review.md",
     "usedBy": "Dùng ở: {{steps}}",
@@ -448,7 +473,7 @@
     "restoreTitle": "Mở bản nháp với nội dung mặc định của TaskPilot; xem thay đổi rồi lưu như mọi lần sửa",
     "guide": {
       "title": "Override hoạt động thế nào",
-      "intro": "Mặc định repo dùng workflow có sẵn của TaskPilot (chỉ xem). Override là bản chép workflow vào {{dir}}/ của repo: khi có {{dir}}/workflow.yml, TaskPilot dùng toàn bộ thư mục này thay cho bản mặc định, không lấy lẫn file nào từ bản mặc định.",
+      "intro": "Repo chạy theo một cách có sẵn của TaskPilot (chỉ xem), chọn ở đầu trang. Override là {{dir}}/workflow.yml của repo với `extends: <cách chạy>` và chỉ phần khác bản có sẵn: sửa vài key, sửa hoặc thêm bước theo id, đổi prompt. Mọi thứ không ghi vẫn theo bản có sẵn, nên nhận cập nhật của TaskPilot. Override chỉ áp dụng cho cách chạy nó dựa trên.",
       "fileHead": "File",
       "effectHead": "Sửa file này thì đổi gì",
       "file": {
@@ -480,7 +505,7 @@
         },
         "updates": {
           "title": "Khi TaskPilot cập nhật bản mặc định:",
-          "body": "override không tự đổi theo. File khác bản mặc định có tag \"đã sửa\"; dùng \"So với mặc định\" để xem khác gì và \"Lấy lại bản mặc định\" để nhận bản mới."
+          "body": "override dạng extends chỉ ghi phần khác, nên phần còn lại tự theo bản mới. File thay hay thêm có tag riêng; dùng \"So với mặc định\" để xem khác gì bản có sẵn, \"Lấy lại bản mặc định\" để bỏ phần đã sửa của file đó."
         },
         "back": {
           "title": "Quay lại:",
@@ -496,7 +521,7 @@
   "formats": {
     "title": "Định dạng tài liệu",
     "subtitle": "Tài liệu Claude viết ở mỗi bước và khung (format) mà mỗi tài liệu phải theo",
-    "editHintDefault": "Đây là khung của workflow mặc định. Muốn đổi, vào <link>Workflow</link> và bấm \"Thêm config override\".",
+    "editHintDefault": "Đây là khung có sẵn của TaskPilot. Muốn đổi, vào <link>Workflow</link> và bấm \"Tạo override\".",
     "editHintRepo": "Khung lấy từ override {{dir}}/. Bấm Sửa ở mỗi khung để sửa trong trang <link>Workflow</link>.",
     "invalid": "Workflow đang có lỗi; danh sách dưới đây có thể thiếu. Xem trang Workflow.",
     "noOutputs": "Bước này không khai báo tài liệu.",

@@ -1,4 +1,7 @@
 {
+  "mode": {
+    "label": "Cách chạy"
+  },
   "stepper": {
     "label": "Các bước của quy trình",
     "gate": "Ba duyệt",

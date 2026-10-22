@@ -61,6 +61,14 @@ Chọn `leader` ở **Cách chạy**, hoặc đặt làm mặc định của rep
 
 Sau khi duyệt, mỗi dòng trở thành một việc con với phiên riêng. Trả lời ở ô của từng việc; dùng **Gửi lại việc** nếu bị gián đoạn. Khi các việc hoàn tất, leader đọc báo cáo và tổng kết để bạn duyệt. Cách chia việc, chọn model và chạy song song nằm trong [cấu hình leader](CONFIGURATION.md#leader-và-việc-con).
 
+### Subagent và model
+
+Leader xem danh sách subagent dùng được của repo khi lập kế hoạch: dò code bằng subagent chỉ đọc với model rẻ, rồi điền cột **Subagent** và **Model** cho từng việc (việc dễ dùng `haiku`, thông thường `sonnet`, khó hoặc cần rà soát kỹ dùng `opus`; `-` là mặc định). Bạn kiểm tra hai cột này ở bảng xem trước khi duyệt; tên subagent sai hoặc subagent chỉ đọc làm việc con sẽ chặn duyệt.
+
+Repo chưa có subagent thì màn hình task báo thiếu, kèm liên kết tới trang **Agents**. Ở đó bấm **Ghi subagent mẫu của TaskPilot**, xem diff rồi ghi; badge trên từng agent cho biết dùng được cho leader hay làm việc con ([chi tiết](CONFIGURATION.md#subagent-và-model)).
+
+Mỗi việc con hiển thị subagent, model, và khi xong có thêm model thật, thời gian và chi phí (Claude). Bước rà soát của leader dùng số liệu này để viết mục **Đánh giá subagent / model** trong tổng kết: việc nào nên đổi model, subagent nào hiệu quả. Số liệu thiếu được ghi là không có, không ước đoán; hãy đọc cùng chất lượng kết quả trước khi đổi lựa chọn cho lần sau.
+
 ## Terminal và mức sử dụng
 
 Một task có thể có nhiều tab phiên; **+ Session mới** mở phiên tự do ngoài workflow. Tải lại trang giữ các phiên; khởi động lại server sẽ dừng chúng và cho phép tiếp tục.

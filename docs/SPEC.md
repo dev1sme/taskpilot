@@ -46,6 +46,10 @@ Sau khi kế hoạch được duyệt, `dispatch` chuyển từng dòng trong b�
 
 Việc con hoàn thành khi đã ghi báo cáo trong lượt hiện tại và nhận tín hiệu kết thúc. Việc thiếu báo cáo chuyển sang chờ trả lời; việc mất phiên chuyển sang gián đoạn. Leader không điều khiển tiến độ trong lúc dispatch; khi mọi việc xong, phiên leader tiếp tục bước rà soát và đọc các báo cáo.
 
+Bảng có thể có thêm cột `Subagent` và `Model`. Khi duyệt gate, `assignments.ts` kiểm cú pháp và model theo agent của dòng (Claude chỉ nhận alias hoặc id `claude-…`), rồi engine kiểm subagent của dòng `claude` bằng `subagentsOf(repo)` (bản project trước bản user): phải tồn tại và có vai trò `member` theo [`library/check.ts`](../server/src/modules/config/library/check.ts). Lỗi nào cũng chặn duyệt. Việc con mở phiên với `--agent`/`--model` tương ứng; `default` và `inherit` không truyền `--model`.
+
+Khi chạy, engine ghi `startedAt` ở prompt đầu, nhận `model.id` và `cost.total_cost_usd` từ status line của phiên Claude đang chạy việc con, và khi xong ghi `finishedAt`, `durationMs`, `model`. Phiên Copilot không có status line nên model lấy từ cờ đã truyền, chi phí để trống. Số liệu đi vào nhật ký (`Số liệu: …`), `{{subtasks}}` và cây việc con; run cũ thiếu các trường này vẫn đọc được.
+
 Bảng phân công, trạng thái và câu hỏi việc con được trả về cùng dữ liệu lần chạy. Quy tắc phân tích nằm trong [`assignments.ts`](../server/src/modules/workflow/assignments.ts). Các phiên cùng dùng repo đang mở; kiểm tra phạm vi file không thay thế worktree hay sandbox.
 
 ## 4. Tích hợp CLI
@@ -93,6 +97,7 @@ Các kết quả đã quan sát trên Claude Code `2.1.303–2.1.307` và Copilo
 - `PermissionRequest` của Copilot có thể đến sau khi tool đã xong; backend trì hoãn báo chờ quyền để loại tín hiệu thừa. `Stop` không có lời nhắn cuối nên cần đọc transcript và chờ ghi đủ cuối lượt.
 - Khi Copilot không gửi hook trong một phút, giao diện báo tình trạng này; backend có thể nhận biết kết thúc từ transcript sau 15 giây yên lặng. Hoàn thành thủ công vẫn yêu cầu file đầu ra hợp lệ.
 - Đọc hạn mức Copilot phụ thuộc giao thức headless JSON-RPC, đã thử với protocol 3. Nâng CLI cần kiểm tra cả hooks, dấu sẵn sàng và hạn mức.
-- Claude giữ subagent khi resume nhưng từng không giữ model truyền bằng flag; model và hooks hoạt động cùng `--agent`. Copilot nhận tên agent/model, nhưng cấu hình thực tế còn phụ thuộc bản CLI và tài khoản.
+- Claude 2.1.307, spike `--agent`/`--model`: `--agent` vẫn nạp CLAUDE.md và hooks của `--settings` (cả `-p` lẫn interactive), nên không cần chèn mô tả agent vào prompt. `--model` đè `model:` của agent. `--resume` giữ agent nhưng mất `--model`, vì vậy launcher truyền lại cả hai mỗi lần. Agent hoặc model không tồn tại làm Claude và Copilot thoát code 1 ngay khi mở, nên tên phải được kiểm trước khi chạy. Status line có `model.id`, `cost.total_cost_usd`, `cost.total_duration_ms`, `agent.name`.
+- Copilot 1.0.102 nhận `--agent`/`--model` và liệt kê agent cả trong `.claude/agents/`. Chưa chạy với model/agent hợp lệ (tốn premium request), nên cấu hình thực tế còn phụ thuộc bản CLI và tài khoản.
 
 Leader với CLI thật và khả năng khôi phục dispatch sau khởi động lại cần được kiểm tra khi thay đổi engine; xem các bài E2E [`subtasks.spec.ts`](../e2e/tests/subtasks.spec.ts) và [`run-restart.spec.ts`](../e2e/tests/run-restart.spec.ts) để biết phạm vi kiểm tra tự động.

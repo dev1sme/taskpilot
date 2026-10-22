@@ -31,7 +31,7 @@ Các trang cấu hình cho phép chỉnh `CLAUDE.md`, settings, quyền, hooks, 
 
 MCP project nằm trong `.mcp.json`; local và user nằm trong `~/.claude.json` và được sửa thông qua `claude mcp`. Với MCP dùng chung, đánh dấu giá trị là bí mật để lưu `${VAR}` trong file, còn giá trị thật nằm trong kho môi trường của TaskPilot. Các phiên do TaskPilot mở nhận biến này; phiên CLI tự mở cần biến tương ứng trong shell. Giá trị bí mật được che trước khi trả về trình duyệt.
 
-TaskPilot cung cấp các mẫu subagent tại [`subagents/claude/`](../subagents/claude). Chép mẫu cần dùng vào `.claude/agents/` của repo để CLI nhận diện. Subagent làm việc con cần quyền ghi báo cáo.
+TaskPilot cung cấp các mẫu subagent tại [`subagents/claude/`](../subagents/claude); cách ghi và kiểm tra nằm ở [Subagent và model](#subagent-và-model).
 
 ## Agent và model
 
@@ -47,6 +47,52 @@ steps:
 ```
 
 Thêm `model: sonnet` vào một bước để chọn model Claude cho bước đó. Bỏ `model`, hoặc dùng `default` / `inherit`, để CLI dùng model mặc định. Model Copilot phụ thuộc tài khoản; không mặc định coi alias của Claude là model Copilot hợp lệ. Nếu đặt model chung rồi đổi CLI ở một bước, nên đặt model riêng cho bước ấy.
+
+## Subagent và model
+
+Subagent là file Markdown trong `.claude/agents/` (project) hoặc `~/.claude/agents/` (user); khi trùng tên, bản project được dùng. Trong chế độ `leader`, leader dùng subagent theo hai cách:
+
+- **Dò code:** gọi subagent có vai trò `leader` bằng Task tool trong phiên của mình, nên chọn model rẻ.
+- **Làm việc con:** ghi tên subagent `member` vào cột `Subagent` của bảng Phân công. Phiên của việc con mở bằng `claude --agent <subagent>`; tools, prompt và model do subagent quyết định. Cờ này chỉ dùng cho dòng `claude`, dòng `copilot` chỉ nhận `--agent` nếu cột có giá trị và không được kiểm tên.
+
+Cột `Model` ghi đè `model:` của subagent bằng `--model`. `default` hoặc `inherit` không truyền `--model`. Giá trị hợp lệ theo CLI của dòng:
+
+| Agent | Model hợp lệ |
+|---|---|
+| `claude` | `default`, `inherit`, `haiku`, `sonnet`, `opus`, `fable`, `opusplan`, hoặc id `claude-…`; `haiku`/`sonnet`/`opus`/`fable` và id nhận thêm hậu tố `[1m]` |
+| `copilot` | Một từ bất kỳ, không bắt đầu bằng `-`; TaskPilot không kiểm tên model |
+
+Cùng quy tắc áp dụng cho `model` trong `workflow.yml` ở cấp chung và cấp bước (không áp dụng cho bước `dispatch`; model của việc con lấy từ bảng). Bước chạy `agent` khác agent chung mà thừa hưởng model chung không hợp lệ cho agent của bước sẽ bị chặn; hãy đặt model riêng cho bước đó. Override `extends` vá được `model` của workflow và của từng bước.
+
+### Mẫu subagent
+
+Repo chưa có subagent nào trong `.claude/agents/` thì trang **Agents** hiện banner với nút **Ghi subagent mẫu của TaskPilot**; nút **Subagent mẫu** trên thanh công cụ vẫn dùng được khi repo đã có agent. Bộ mẫu (tiếng Anh, tiền tố `taskpilot-`):
+
+| Subagent | Model | Vai trò |
+|---|---|---|
+| `taskpilot-explorer` | `haiku` | `leader`: dò code, chỉ đọc |
+| `taskpilot-implementer` | `sonnet` | `leader`, `member`: sửa code theo việc được giao |
+| `taskpilot-reviewer` | `opus` | `leader`: rà soát, chỉ đọc |
+| `taskpilot-tester` | `sonnet` | `leader`, `member`: viết và chạy test |
+
+Bản mẫu chỉ được ghi vào `.claude/agents/` của repo; muốn dùng ở user scope, tự chép. Hộp thoại liệt kê từng mẫu kèm trạng thái: chưa có, đã có và giống mẫu (khoá), hoặc đã có nhưng khác mẫu (mặc định không chọn; chọn để ghi đè). **Xem diff** trước khi ghi. Việc ghi đè tạo bản sao lưu, xem ở **Lịch sử thay đổi**. Nếu file đổi sau lúc xem diff, hoặc tên đã bị file khác trong `.claude/agents/` dùng, server trả 409 và không ghi file nào.
+
+### Kiểm tra tương thích
+
+Trang **Agents** hiện badge và mục **Kiểm tra cho TaskPilot** cho từng subagent:
+
+| Badge | Nghĩa |
+|---|---|
+| `leader · member` | Dùng được cho cả dò code và việc con |
+| `chỉ leader` | Không có `Write`/`Edit`/`MultiEdit` (tính cả `disallowedTools`; không khai `tools` nghĩa là mọi tool). Hợp lệ cho helper chỉ đọc nhưng không được ghi vào bảng Phân công |
+| `không dùng được` | Không có vai trò nào, ví dụ bị subagent project cùng tên che |
+| `lỗi` | Lỗi frontmatter, thiếu `name`/`description`, hoặc `model` không hợp lệ |
+
+Cảnh báo khác: subagent khai `AskUserQuestion` (việc con không nên hỏi giữa chừng; câu hỏi ghi vào báo cáo), hai file trùng `name` trong một scope. Khi duyệt bảng Phân công, TaskPilot chặn nếu dòng `claude` chọn subagent không tồn tại hoặc không có vai trò `member`. Trên màn hình task có thông báo khi workflow có bước `dispatch` mà không subagent nào ở hai scope làm được `member`.
+
+### Số liệu từng việc
+
+Với việc con chạy Claude, TaskPilot ghi model thật (từ status line), thời gian và chi phí. Số liệu hiện ở cây việc con, nhật ký và biến `{{subtasks}}`; chạy Copilot không có chi phí, thiếu số liệu ghi `model không rõ` / `chi phí không có`, không ước đoán. Bước rà soát của leader dùng chúng để đánh giá từng subagent/model trong mục **Đánh giá subagent / model** của tổng kết.
 
 `permission-mode` áp dụng cho các phiên workflow:
 
@@ -135,7 +181,7 @@ Kế hoạch cần mục **Phân công** chứa bảng, ví dụ:
 | 1 | Sửa trạng thái rỗng | claude | - | sonnet | client/src/features/tasks/ | Giao diện và kiểm tra | - |
 | 2 | Cập nhật hướng dẫn | claude | - | sonnet | docs/GUIDE.md | Hướng dẫn mới | 1 |
 
-`Subagent` và `Model` là tùy chọn; `-` nghĩa là dùng mặc định. `Subagent` chọn cấu hình agent cho cả phiên bằng `--agent`, khác với cột `Agent` chọn CLI. Model khai báo trực tiếp ưu tiên hơn model của subagent. Subagent phải tồn tại và có quyền ghi báo cáo.
+`Subagent` và `Model` là tùy chọn (`-`, `—` hoặc ô trống nghĩa là dùng mặc định); bảng 6 cột cũ vẫn chạy. `Subagent` chọn cấu hình agent cho cả phiên bằng `--agent`, khác với cột `Agent` chọn CLI; `Model` ưu tiên hơn model của subagent. Quy tắc ở [Subagent và model](#subagent-và-model).
 
 `File` liệt kê file/thư mục được sửa, phân cách bằng dấu phẩy; `Phụ thuộc` liệt kê số việc cần hoàn tất trước. Bảng sai agent, số việc, phụ thuộc hoặc có vòng lặp sẽ chặn duyệt.
 

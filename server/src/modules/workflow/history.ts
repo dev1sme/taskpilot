@@ -1,5 +1,6 @@
 import { appendFile, stat } from "node:fs/promises";
 import path from "node:path";
+import type { SubtaskMetrics } from "./types.js";
 
 export interface HistoryEntry {
   at: number;
@@ -16,6 +17,24 @@ export interface HistoryEntry {
 /** Who works on a subtask: "Claude · taskpilot-implementer · haiku", or just the agent for its defaults. */
 function worker(agent: string, subagent?: string, model?: string): string {
   return [agent, subagent, model].filter(Boolean).join(" · ");
+}
+
+/** "1 giờ 5 phút", "12 phút 3 giây", "40 giây": precise enough to compare subtasks. */
+function duration(ms: number): string {
+  const s = Math.round(ms / 1000);
+  const [h, m, sec] = [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60];
+  if (h > 0) return `${h} giờ${m ? ` ${m} phút` : ""}`;
+  if (m > 0) return `${m} phút${sec ? ` ${sec} giây` : ""}`;
+  return `${sec} giây`;
+}
+
+/** A subtask's numbers on one line: "model `claude-haiku-4-5` · 12 phút 3 giây · $0.42"; what is unknown is said so. */
+function metrics(m: SubtaskMetrics): string {
+  return [
+    m.model ? `model \`${m.model}\`` : "model không rõ",
+    ...(m.durationMs !== undefined ? [duration(m.durationMs)] : []),
+    m.costUsd !== undefined ? `$${m.costUsd.toFixed(2)}` : "chi phí không có",
+  ].join(" · ");
 }
 
 /**
@@ -50,7 +69,8 @@ export const HISTORY_TEXT = {
       .join("\n")
       .trim(),
   subtaskDone: (n: number, agent: string, subagent?: string, model?: string) => `Việc ${n} xong · ${worker(agent, subagent, model)}`,
-  subtaskDoneBody: (report: string) => `Báo cáo: ${report}`,
+  metrics,
+  subtaskDoneBody: (report: string, m?: SubtaskMetrics) => `Báo cáo: ${report}${m ? `\nSố liệu: ${metrics(m)}` : ""}`,
   subtaskReply: (n: number) => `Ba trả lời việc ${n}`,
   subtaskInterrupted: (n: number) => `Việc ${n} gián đoạn`,
   subtaskSessionStopped: "Session của việc dừng giữa chừng.",

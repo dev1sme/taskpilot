@@ -14,6 +14,7 @@ Các việc con của task {{key}}: "{{title}}" đã xong (bước {{stepNumber}
 
 - Chạy build và test ghi trong kế hoạch. Sửa chỗ sai hoặc thiếu, hoặc ghi rõ vì sao không sửa được.
 - Nếu các việc chạy song song, member không commit: commit thay đổi ở bước này.
+- Đánh giá subagent / model của từng việc: so số liệu ở danh sách trên với chất lượng kết quả; lần sau nên chọn gì. Thiếu số liệu thì ghi "không có", không ước đoán.
 
 ## Tài liệu cần viết
 

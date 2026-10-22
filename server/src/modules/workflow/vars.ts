@@ -3,7 +3,7 @@ import { AGENT_LABELS, DEFAULT_AGENT } from "../../core/agents.js";
 import { SPEC_DIR, TASKS_DIR } from "../tasks/index.js";
 import { HISTORY_TEXT } from "./history.js";
 import { PROMPT_TEXT } from "./prompt-text.js";
-import type { Assignment, RunState, WorkflowDef } from "./types.js";
+import type { Assignment, RunState, SubtaskMetrics, WorkflowDef } from "./types.js";
 
 /** Variables every template may use, besides {{out.<id>}}. Shown as chips on the Workflow page. */
 export const templateVars = [
@@ -76,8 +76,8 @@ export function promptVars(
     feedback?: string;
     /** The subtask a dispatch step's prompt is for. */
     subtask?: Assignment & { report?: string };
-    /** Every subtask of the run, for the step that reviews them. */
-    subtasks?: Array<Assignment & { report?: string }>;
+    /** Every subtask of the run, for the step that reviews them; with the numbers of those done. */
+    subtasks?: Array<Assignment & { report?: string; metrics?: SubtaskMetrics }>;
     /** The subagents a leader may assign, for {{subagents}}. */
     subagents?: SubagentInfo[];
   } = {},
@@ -128,8 +128,10 @@ export function promptVars(
   }
   const all = opts.subtasks ?? [];
   const lastDispatch = def.steps.find((s) => s.dispatch)?.dispatch;
-  const listed = all.map((a) =>
-    PROMPT_TEXT.subtaskLine(a.n, HISTORY_TEXT.worker(AGENT_LABELS[a.agent], a.subagent, a.model), a.title, `${taskDir}/${a.report ?? lastDispatch?.report.replaceAll("{{n}}", String(a.n)) ?? ""}`),
+  const listed = all.map(
+    (a) =>
+      PROMPT_TEXT.subtaskLine(a.n, HISTORY_TEXT.worker(AGENT_LABELS[a.agent], a.subagent, a.model), a.title, `${taskDir}/${a.report ?? lastDispatch?.report.replaceAll("{{n}}", String(a.n)) ?? ""}`) +
+      (a.metrics ? ` · ${HISTORY_TEXT.metrics(a.metrics)}` : ""),
   );
 
   return {

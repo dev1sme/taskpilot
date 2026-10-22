@@ -649,6 +649,56 @@ describe("workflow engine: dispatch", () => {
     expect(log).toContain("· Việc 1 xong · Claude · taskpilot-implementer · haiku\n\nBáo cáo: 03-viec-1.md");
   });
 
+  it("keeps each subtask's model, cost and time for the log and the review", async () => {
+    const leader = await dispatch();
+    let r = await run();
+    const first = r.subtasks![0].sessionId!;
+    await hookOn(first, "SessionStart");
+    const status = { model: { id: "claude-haiku-4-5", display_name: "Haiku 4.5" }, cost: { total_cost_usd: 0.4213, total_duration_ms: 9000 } };
+    await engine.onStatusLine(fake.meta(first), status);
+    // The leader's own status line is not a subtask's.
+    await engine.onStatusLine(fake.meta(leader), status);
+    r = await run();
+    expect(r.subtasks![0].metrics).toEqual({ model: "claude-haiku-4-5", costUsd: 0.4213 });
+    expect(r.subtasks![0].startedAt).toBeGreaterThan(0);
+
+    r = await finish(1);
+    expect(r.subtasks![0]).toMatchObject({ phase: "done", finishedAt: expect.any(Number), metrics: { model: "claude-haiku-4-5", costUsd: 0.4213, durationMs: expect.any(Number) } });
+    // Once done, the numbers stay those the log got.
+    await engine.onStatusLine(fake.meta(first), { cost: { total_cost_usd: 9 } });
+    expect((await run()).subtasks![0].metrics!.costUsd).toBe(0.4213);
+
+    // Copilot reports no cost; its status line, if any, is not read.
+    const second = (await run()).subtasks![1].sessionId!;
+    await hookOn(second, "SessionStart");
+    await engine.onStatusLine(fake.meta(second), status);
+    r = await finish(2);
+    expect(r.subtasks![1].metrics).toEqual({ durationMs: expect.any(Number) });
+
+    const log = await readFile(path.join(taskDir(), "00-history.md"), "utf8");
+    expect(log).toMatch(/· Việc 1 xong · Claude\n\nBáo cáo: 03-viec-1\.md\nSố liệu: model `claude-haiku-4-5` · \d+ giây · \$0\.42\n/);
+    expect(log).toMatch(/· Việc 2 xong · Copilot\n\nBáo cáo: 03-viec-2\.md\nSố liệu: model không rõ · \d+ giây · chi phí không có\n/);
+    expect(fake.pastedBy.get(leader)!.at(-1)).toMatch(/- Việc 1 · Claude · Parser → `\.claude\/tasks\/DEMO-1\/03-viec-1\.md` · model `claude-haiku-4-5` · \d+ giây · \$0\.42/);
+  });
+
+  it("falls back to the table's model when no status line names one", async () => {
+    await dispatch(
+      [
+        "## 7. Phân công",
+        "",
+        "| # | Việc | Agent | Subagent | Model | File | Đầu ra | Phụ thuộc |",
+        "|---|---|---|---|---|---|---|---|",
+        "| 1 | UI | copilot | - | gpt-5 | client/ | ui | - |",
+        "| 2 | Docs | claude | - | default | docs/ | docs | 1 |",
+      ].join("\n"),
+    );
+    let r = await finish(1);
+    expect(r.subtasks![0].metrics).toMatchObject({ model: "gpt-5" });
+    r = await finish(2);
+    // `default` passes no --model, so the model the session ran is unknown.
+    expect(r.subtasks![1].metrics).not.toHaveProperty("model");
+  });
+
   it("ignores hooks of the leader's idle session while subtasks work", async () => {
     const leader = await dispatch();
     expect(await hookOn(leader, "Stop")).toMatchObject({ stepIndex: 1, phase: "running" });

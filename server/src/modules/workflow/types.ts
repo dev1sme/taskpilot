@@ -47,10 +47,28 @@ export interface Assignment {
 /** pending: not started; starting/running/waiting/interrupted/done as for a run (done: its report was written). */
 export type SubtaskPhase = "pending" | "starting" | "running" | "waiting" | "done" | "interrupted";
 
+/**
+ * What a subtask's session reported, for the leader's review. Claude's status line gives the model and
+ * the session's cost; Copilot's gives neither, so they stay absent.
+ */
+export interface SubtaskMetrics {
+  /** Model id the session ran, from Claude's status line; else the model passed with --model. */
+  model?: string;
+  /** Cost of the whole session in USD (Claude only). */
+  costUsd?: number;
+  /** From the first prompt to the report, answers to the subtask's questions included. */
+  durationMs?: number;
+}
+
 export interface SubtaskRun extends Assignment {
   phase: SubtaskPhase;
   sessionId?: string;
   stepStartedAt?: number;
+  /** When the subtask's first prompt was sent. */
+  startedAt?: number;
+  /** When the subtask was done (its report written). */
+  finishedAt?: number;
+  metrics?: SubtaskMetrics;
   pendingPrompt?: string;
   sentPrompt?: { stepIndex: number; text: string; at: number };
   lastMessage?: string;

@@ -173,6 +173,19 @@ describe("prompt variables", () => {
       );
     });
 
+    it("adds each done subtask's numbers to the review list", () => {
+      const measured = [
+        { ...subs[0], metrics: { model: "claude-haiku-4-5", costUsd: 0.4213, durationMs: 725_000 } },
+        { ...subs[1], metrics: { model: "gpt-5", durationMs: 40_000 } },
+      ];
+      expect(promptVars(dispatchDef(1), 2, task, { subtasks: measured }).subtasks).toBe(
+        [
+          "- Việc 1 · Claude · Parser → `.claude/tasks/A-1/03-viec-1.md` · model `claude-haiku-4-5` · 12 phút 5 giây · $0.42",
+          "- Việc 2 · Copilot · UI → `.claude/tasks/A-1/03-viec-2.md` · model `gpt-5` · 40 giây · chi phí không có",
+        ].join("\n"),
+      );
+    });
+
     it("lists every subtask for the review step, and nothing outside a run", () => {
       expect(promptVars(dispatchDef(1), 2, task, { subtasks: subs }).subtasks).toBe(
         "- Việc 1 · Claude · Parser → `.claude/tasks/A-1/03-viec-1.md`\n- Việc 2 · Copilot · UI → `.claude/tasks/A-1/03-viec-2.md`",
@@ -264,10 +277,12 @@ describe("leader template prompts", () => {
     expect(subtask).toContain("- `.claude/tasks/TPL-011/03-viec-1.md` (việc 1: Parser)");
     expect(subtask).toContain("# TPL-011 — Báo cáo việc");
     expect(review).toContain("- Việc 2 · Copilot · UI → `.claude/tasks/TPL-011/03-viec-2.md`");
+    expect(review).toContain("Đánh giá subagent / model của từng việc");
+    expect(review).toContain("## Đánh giá subagent / model\n<!-- Bảng: | Việc | Subagent | Model | Thời gian | Chi phí | Nhận xét | Lần sau |");
     // Without subagents; each one the repo has adds a line of {{subagents}}.
     expect(plan.length).toBeLessThanOrEqual(4600);
     expect(subtask.length).toBeLessThanOrEqual(2000);
-    expect(review.length).toBeLessThanOrEqual(2800);
+    expect(review.length).toBeLessThanOrEqual(2900);
     expect(reviseReview.length).toBeLessThanOrEqual(1500);
   });
 });

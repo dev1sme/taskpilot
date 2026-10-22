@@ -13,7 +13,7 @@ import { launchModel } from "./models.js";
 import { archiveOutputs } from "./archive.js";
 import { appendHistory, HISTORY_TEXT } from "./history.js";
 import { parseQuestions, type Question } from "./questions.js";
-import type { Assignment, RunPhase, RunState, StepDef, SubtaskPhase, SubtaskRun, WorkflowDef } from "./types.js";
+import type { Assignment, RunPhase, RunState, StepDef, SubtaskMetrics, SubtaskPhase, SubtaskRun, WorkflowDef } from "./types.js";
 import { promptVars, renderPrompt, subagentNamed, type SubagentInfo } from "./vars.js";
 import { t } from "../../core/i18n.js";
 
@@ -72,6 +72,8 @@ interface Lane {
   sessionId?: string;
   phase: RunPhase | SubtaskPhase;
   stepStartedAt?: number;
+  /** A subtask's first prompt; the run's own is set once when it begins. */
+  startedAt?: number;
   pendingPrompt?: string;
   sentPrompt?: { stepIndex: number; text: string; at: number };
   lastMessage?: string;
@@ -421,6 +423,25 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     });
   }
 
+  /**
+   * Claude's status line of a subtask's session: the model it really runs and the session's cost so
+   * far, kept for the review. The leader's own session and finished subtasks are left alone, so the
+   * numbers stay those the decision log got.
+   */
+  onStatusLine(meta: SessionMeta, payload: Record<string, unknown>): Promise<void> {
+    return this.serial(async () => {
+      if ((meta.agent ?? DEFAULT_AGENT) !== "claude") return;
+      const run = await this.bySession(meta.id);
+      const sub = run && laneOf(run, meta.id);
+      if (!run || !sub || sub === run || sub.phase === "done" || sub.phase === "pending") return;
+      const read = statusLineMetrics(payload);
+      const metrics = { ...(sub as SubtaskRun).metrics, ...read };
+      if (JSON.stringify(metrics) === JSON.stringify((sub as SubtaskRun).metrics ?? {})) return;
+      (sub as SubtaskRun).metrics = metrics;
+      await this.save(run, {});
+    });
+  }
+
   private async onStop(run: RunState): Promise<void> {
     const def = await this.defOf(run);
     const step = def.steps[run.stepIndex];
@@ -447,8 +468,17 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       await this.saveLane(run, sub, { phase: "waiting" }, "");
       return;
     }
+    const now = Date.now();
+    // Without a status line (Copilot) the model is the one the session was opened with, if any.
+    const model = sub.metrics?.model ?? launchModel(sub.model);
+    sub.metrics = {
+      ...sub.metrics,
+      ...(model ? { model } : {}),
+      ...(sub.startedAt !== undefined ? { durationMs: now - sub.startedAt } : {}),
+    };
+    sub.finishedAt = now;
     await this.saveLane(run, sub, { phase: "done", pendingPrompt: undefined }, "");
-    await this.log(run, HISTORY_TEXT.subtaskDone(sub.n, AGENT_LABELS[sub.agent], sub.subagent, sub.model), { body: HISTORY_TEXT.subtaskDoneBody(sub.report) });
+    await this.log(run, HISTORY_TEXT.subtaskDone(sub.n, AGENT_LABELS[sub.agent], sub.subagent, sub.model), { body: HISTORY_TEXT.subtaskDoneBody(sub.report, sub.metrics) });
     if ((await this.sessions.get(sub.sessionId!).catch(() => null))?.status === "running") await this.sessions.stop(sub.sessionId!);
     if ((run.subtasks ?? []).every((s) => s.phase === "done")) {
       await this.log(run, HISTORY_TEXT.backToLeader, { body: HISTORY_TEXT.backToLeaderBody(run.subtasks!.length) });
@@ -558,7 +588,14 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     await this.saveLane(
       run,
       lane,
-      { phase: "running", stepStartedAt: now, sentPrompt: { stepIndex: run.stepIndex, text, at: now }, pendingPrompt: undefined, noHook: undefined },
+      {
+        phase: "running",
+        stepStartedAt: now,
+        ...(lane !== run && lane.startedAt === undefined ? { startedAt: now } : {}),
+        sentPrompt: { stepIndex: run.stepIndex, text, at: now },
+        pendingPrompt: undefined,
+        noHook: undefined,
+      },
       t("run.step", { step: step.title, agent: agentLabel(run) }),
     );
     this.watchForHooks(run, lane, now);
@@ -756,6 +793,16 @@ function agentLabel(run: RunState): string {
 
 function taskDirOf(run: RunState): string {
   return path.join(run.repo, TASKS_DIR, run.taskKey);
+}
+
+/** The model id and session cost in a Claude status line payload; fields it lacks are left out. */
+function statusLineMetrics(payload: Record<string, unknown>): Pick<SubtaskMetrics, "model" | "costUsd"> {
+  const model = payload.model as { id?: unknown } | undefined;
+  const cost = payload.cost as { total_cost_usd?: unknown } | undefined;
+  return {
+    ...(typeof model?.id === "string" && model.id ? { model: model.id } : {}),
+    ...(typeof cost?.total_cost_usd === "number" && Number.isFinite(cost.total_cost_usd) ? { costUsd: cost.total_cost_usd } : {}),
+  };
 }
 
 /** An agent with the model its session runs, for the decision log: "Claude (opus)", or "Claude" for its default. */

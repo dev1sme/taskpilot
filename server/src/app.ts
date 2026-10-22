@@ -107,6 +107,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   // it works and when a turn ends. The poller limits reads to one a minute.
   sessions.on("statusline", (meta, payload) => {
     if ((meta.agent ?? "claude") === "claude") void usage.apply(payload).catch(logError);
+    // A subtask's model and cost, for the leader's review of the subtasks.
+    void engine.onStatusLine(meta, payload).catch(logError);
   });
   const copilotQuota = new CopilotQuotaPoller(usage, opts.copilotQuota, logError);
   sessions.on("hook", (meta, event) => {

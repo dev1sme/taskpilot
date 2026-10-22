@@ -44,6 +44,10 @@ describe("parseCodegraphStatus", () => {
     expect(parseCodegraphStatus(stale)?.upToDate).toBe(false);
   });
 
+  it("reports upToDate null when the output has no index state line", () => {
+    expect(parseCodegraphStatus(SAMPLE.replace("✓ Index is up to date", ""))?.upToDate).toBeNull();
+  });
+
   it("returns null when a required field is missing", () => {
     expect(parseCodegraphStatus(SAMPLE.replace(/ {2}Edges:.*\n/, ""))).toBeNull();
     expect(parseCodegraphStatus(SAMPLE.replace(/ {2}DB Size:.*\n/, ""))).toBeNull();

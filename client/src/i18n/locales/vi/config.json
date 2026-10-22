@@ -29,6 +29,7 @@
     "indexed": "Đã index",
     "notIndexed": "Chưa index",
     "noIndex": "Chưa có .codegraph cho repo này.",
+    "noDetail": "cg-status không trả thông tin nào. Thử Re-index hoặc chạy make cg-status trong environments.",
     "upToDate": "Mới nhất",
     "stale": "Cần index lại",
     "details": "Xem chi tiết",

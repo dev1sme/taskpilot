@@ -11,7 +11,8 @@ export interface CodegraphSummary {
   nodes: number;
   edges: number;
   dbSize: string;
-  upToDate: boolean;
+  /** null when the output says neither "up to date" nor "out of date". */
+  upToDate: boolean | null;
 }
 
 export interface CodegraphStatus {
@@ -68,7 +69,8 @@ export function parseCodegraphStatus(stdout: string): CodegraphSummary | null {
   const edges = count(field(stdout, "Edges"));
   const dbSize = field(stdout, "DB Size");
   if (files === null || nodes === null || edges === null || dbSize === null) return null;
-  return { files, nodes, edges, dbSize, upToDate: /index is up to date/i.test(stdout) };
+  const upToDate = /index is up to date/i.test(stdout) ? true : /out of date|stale/i.test(stdout) ? false : null;
+  return { files, nodes, edges, dbSize, upToDate };
 }
 
 /** Dir of the `environments` checkout that runs the codegraph container. */
@@ -111,8 +113,9 @@ export async function getCodegraphStatus(repoPath: string): Promise<CodegraphSta
   if (!indexed) return { supported: true, indexed: false, detail: null, summary: null, error: null };
   try {
     const { stdout } = await run("make", ["-C", r.envDir, "cg-status", `p=${r.rel}`], 15_000);
-    const detail = stripMakeNoise(stdout);
-    return { supported: true, indexed: true, detail, summary: parseCodegraphStatus(detail), error: null };
+    // Empty once the make lines are gone: null, so the page says there is nothing to show.
+    const detail = stripMakeNoise(stdout) || null;
+    return { supported: true, indexed: true, detail, summary: detail === null ? null : parseCodegraphStatus(detail), error: null };
   } catch (e) {
     return { supported: true, indexed: true, detail: null, summary: null, error: (e as Error).message };
   }
@@ -123,7 +126,7 @@ export async function runCodegraphIndex(repoPath: string): Promise<{ ok: true; o
   if (!r) throw new HttpError(409, t("codegraph.outside"));
   try {
     const { stdout, stderr } = await run("make", ["-C", r.envDir, "cg-index", `p=${r.rel}`], 120_000);
-    return { ok: true, output: (stdout + stderr).trim() };
+    return { ok: true, output: stripMakeNoise(stdout + stderr) };
   } catch (e) {
     throw new HttpError(502, t("codegraph.indexFailed", { error: (e as Error).message }));
   }

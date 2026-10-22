@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { queryClient } from "../../../shared/api/queryClient";
 import { useWorkspace } from "../../workspace";
+import { locale } from "../../../i18n";
 import { Button } from "../../../shared/ui/Button";
 import { toast } from "../../../shared/ui/Toast";
 import { McpForm } from "../mcp/McpForm";
@@ -36,7 +37,8 @@ export function CodegraphPage() {
     }
   };
 
-  const hasMcp = inventory?.mcp.servers.some((s) => s.name === "codegraph") ?? false;
+  // null while the inventory loads: neither state is shown yet, so the add button does not flash.
+  const hasMcp = inventory ? inventory.mcp.servers.some((s) => s.name === "codegraph") : null;
 
   const startAddMcp = async () => {
     try {
@@ -72,9 +74,9 @@ export function CodegraphPage() {
                 <dl className="cg-stats">
                   {(
                     [
-                      ["files", status.summary.files.toLocaleString()],
-                      ["nodes", status.summary.nodes.toLocaleString()],
-                      ["edges", status.summary.edges.toLocaleString()],
+                      ["files", status.summary.files.toLocaleString(locale())],
+                      ["nodes", status.summary.nodes.toLocaleString(locale())],
+                      ["edges", status.summary.edges.toLocaleString(locale())],
                       ["dbSize", status.summary.dbSize],
                     ] as const
                   ).map(([key, value]) => (
@@ -83,10 +85,12 @@ export function CodegraphPage() {
                       <dd>{value}</dd>
                     </div>
                   ))}
-                  <div className="cg-stat">
-                    <dt>{t("codegraph.stat.state")}</dt>
-                    <dd>{status.summary.upToDate ? t("codegraph.upToDate") : t("codegraph.stale")}</dd>
-                  </div>
+                  {status.summary.upToDate !== null && (
+                    <div className="cg-stat">
+                      <dt>{t("codegraph.stat.state")}</dt>
+                      <dd>{status.summary.upToDate ? t("codegraph.upToDate") : t("codegraph.stale")}</dd>
+                    </div>
+                  )}
                 </dl>
               )}
               {status.detail && (
@@ -96,6 +100,7 @@ export function CodegraphPage() {
                 </details>
               )}
               {!status.indexed && !status.error && <p className="hint">{t("codegraph.noIndex")}</p>}
+              {status.indexed && !status.detail && !status.error && <p className="hint">{t("codegraph.noDetail")}</p>}
               {indexError && (
                 <p className="error" role="alert">
                   {indexError}
@@ -130,7 +135,7 @@ export function CodegraphPage() {
                   <Plugs weight="fill" aria-hidden="true" />
                   <h2>{t("codegraph.mcpTitle")}</h2>
                 </header>
-                {hasMcp ? (
+                {hasMcp === null ? null : hasMcp ? (
                   <p className="hint">{t("codegraph.mcpPresent")}</p>
                 ) : (
                   <>

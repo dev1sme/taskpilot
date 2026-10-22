@@ -3,7 +3,8 @@ export interface CodegraphSummary {
   nodes: number;
   edges: number;
   dbSize: string;
-  upToDate: boolean;
+  /** null when cg-status says neither "up to date" nor "out of date". */
+  upToDate: boolean | null;
 }
 
 export interface CodegraphStatus {

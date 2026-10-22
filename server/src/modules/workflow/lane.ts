@@ -1,0 +1,87 @@
+import { stat } from "node:fs/promises";
+import path from "node:path";
+import { AGENT_LABELS, DEFAULT_AGENT, type Agent } from "../../core/agents.js";
+import { TASKS_DIR } from "../tasks/index.js";
+import { t } from "../../core/i18n.js";
+import type { RunPhase, RunState, SubtaskMetrics, SubtaskPhase, WorkflowDef } from "./types.js";
+
+/**
+ * What the engine drives in one session: the run itself (the leader) or one of its subtasks. Both
+ * hold the same fields, so delivering a prompt and reading a hook work the same way for either.
+ */
+export interface Lane {
+  sessionId?: string;
+  phase: RunPhase | SubtaskPhase;
+  stepStartedAt?: number;
+  /** A subtask's first prompt; the run's own is set once when it begins. */
+  startedAt?: number;
+  pendingPrompt?: string;
+  sentPrompt?: { stepIndex: number; text: string; at: number };
+  lastMessage?: string;
+  noHook?: boolean;
+}
+
+export const MTIME_SLACK_MS = 100;
+export const ACTIVE: ReadonlyArray<RunState["phase"]> = ["starting", "running", "waiting", "gate", "interrupted"];
+
+/** The run itself when `sessionId` is its leader's session, else the subtask that session works on. */
+export function laneOf(run: RunState, sessionId: string): Lane | undefined {
+  return run.sessionId === sessionId ? run : run.subtasks?.find((s) => s.sessionId === sessionId);
+}
+
+/** The run is at its dispatch step: subtasks are being handed out and worked on. */
+export function dispatching(run: RunState, def: WorkflowDef): boolean {
+  return !!run.subtasks && !!def.steps[run.stepIndex]?.dispatch;
+}
+
+export function withoutSnapshot(run: RunState): Omit<RunState, "workflow"> {
+  const { workflow: _workflow, ...rest } = run;
+  return rest;
+}
+
+/** Name of the agent that runs the run's current step, for run messages. */
+export function agentLabel(run: RunState): string {
+  return AGENT_LABELS[run.workflow?.steps[run.stepIndex]?.agent ?? DEFAULT_AGENT];
+}
+
+export function taskDirOf(run: RunState): string {
+  return path.join(run.repo, TASKS_DIR, run.taskKey);
+}
+
+/** The model id and session cost in a Claude status line payload; fields it lacks are left out. */
+export function statusLineMetrics(payload: Record<string, unknown>): Pick<SubtaskMetrics, "model" | "costUsd"> {
+  const model = payload.model as { id?: unknown } | undefined;
+  const cost = payload.cost as { total_cost_usd?: unknown } | undefined;
+  return {
+    ...(typeof model?.id === "string" && model.id ? { model: model.id } : {}),
+    ...(typeof cost?.total_cost_usd === "number" && Number.isFinite(cost.total_cost_usd) ? { costUsd: cost.total_cost_usd } : {}),
+  };
+}
+
+/** An agent with the model its session runs, for the decision log: "Claude (opus)", or "Claude" for its default. */
+export function sessionLabel(agent: Agent, model?: string): string {
+  return model ? `${AGENT_LABELS[agent]} (${model})` : AGENT_LABELS[agent];
+}
+
+/** The run's own phase and message while its subtasks work: the one needing attention first. */
+export function syncDispatch(run: RunState): void {
+  const subs = run.subtasks ?? [];
+  const interrupted = subs.find((s) => s.phase === "interrupted");
+  const waiting = subs.find((s) => s.phase === "waiting");
+  const silent = subs.find((s) => s.noHook && (s.phase === "running" || s.phase === "starting"));
+  const done = subs.filter((s) => s.phase === "done").length;
+  if (interrupted) Object.assign(run, { phase: "interrupted", message: t("run.subtaskInterrupted", { n: interrupted.n }) });
+  else if (waiting) Object.assign(run, { phase: "waiting", message: t("run.subtaskWaiting", { n: waiting.n, file: waiting.report }) });
+  else if (silent) Object.assign(run, { phase: "running", message: t("run.subtaskNoHook", { n: silent.n, agent: AGENT_LABELS[silent.agent], file: silent.report }) });
+  else Object.assign(run, { phase: "running", message: t("run.dispatching", { done, total: subs.length }) });
+}
+
+export async function writtenSince(run: RunState, file: string, since: number = run.stepStartedAt): Promise<boolean> {
+  try {
+    const s = await stat(path.join(taskDirOf(run), file));
+    // File timestamps come from the kernel's coarse clock and can trail Date.now() by a few ms.
+    return s.mtimeMs >= since - MTIME_SLACK_MS;
+  } catch {
+    return false;
+  }
+}

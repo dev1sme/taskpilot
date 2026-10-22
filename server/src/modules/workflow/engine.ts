@@ -1,89 +1,30 @@
 import { EventEmitter } from "node:events";
-import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { AGENT_LABELS, DEFAULT_AGENT, type Agent } from "../../core/agents.js";
+import { AGENT_LABELS, DEFAULT_AGENT } from "../../core/agents.js";
 import { HttpError } from "../../core/errors.js";
-import { getTask, TASKS_DIR, writeTaskStatus, type TaskStatus } from "../tasks/index.js";
-import type { HookEvent, SessionView } from "../sessions/index.js";
+import { getTask, TASKS_DIR, writeTaskStatus } from "../tasks/index.js";
+import type { HookEvent } from "../sessions/index.js";
 import type { SessionMeta, StateStore } from "../../core/state.js";
-import { checkForParallel, overlaps, parseAssignments, type ParsedAssignments } from "./assignments.js";
+import { overlaps } from "./assignments.js";
 import { loadWorkflow, modeOf, OVERRIDE_DIR, reportOf } from "./definition.js";
 import { CUSTOM_MODE } from "./modes.js";
 import { launchModel } from "./models.js";
 import { archiveOutputs } from "./archive.js";
-import { appendHistory, HISTORY_TEXT } from "./history.js";
-import { parseQuestions, type Question } from "./questions.js";
-import type { Assignment, RunPhase, RunState, StepDef, SubtaskMetrics, SubtaskPhase, SubtaskRun, WorkflowDef } from "./types.js";
-import { promptVars, renderPrompt, subagentNamed, type SubagentInfo } from "./vars.js";
+import { HISTORY_TEXT } from "./history.js";
+import { ACTIVE, agentLabel, dispatching, laneOf, sessionLabel, statusLineMetrics, syncDispatch, taskDirOf, writtenSince, type Lane } from "./lane.js";
+import type { LoadDef, SessionPort, SubagentsOf } from "./ports.js";
+import { assignmentsFor } from "./run-checks.js";
+import { RunStore } from "./run-store.js";
+import { buildRunView, type RunView } from "./run-view.js";
+import type { Assignment, RunState, SubtaskPhase, SubtaskRun, WorkflowDef } from "./types.js";
+import { promptVars, renderPrompt } from "./vars.js";
 import { t } from "../../core/i18n.js";
 
-/** Loads the workflow for a new run: `mode` when given, else the repo's own choice. */
-export type LoadDef = (repo: string, mode?: string) => Promise<WorkflowDef>;
+export type { LoadDef, SubagentsOf, SessionPort } from "./ports.js";
+export type { RunView } from "./run-view.js";
 
-/** The repo's and the user's Claude subagents with their checks; handed in so workflow does not import config. */
-export type SubagentsOf = (repo: string) => Promise<SubagentInfo[]>;
-
-/** The parts of SessionManager the engine uses. */
-export interface SessionPort {
-  create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent; title?: string; model?: string; subagent?: string }): Promise<SessionView>;
-  resume(id: string): Promise<SessionView>;
-  stop(id: string): Promise<void>;
-  get(id: string): Promise<SessionView>;
-  paste(id: string, text: string): void;
-  /** Whether the session's running process has sent a hook of its own yet. */
-  hookSeen(id: string): boolean;
-}
-
-export interface RunView {
-  workflow: {
-    source: string;
-    origin: WorkflowDef["origin"];
-    /** The mode the run follows; `override`: the repo's override is part of it. */
-    mode: NonNullable<WorkflowDef["mode"]>;
-    historyFile: string;
-    steps: Array<{
-      id: string;
-      title: string;
-      agent: Agent;
-      gate: StepDef["gate"];
-      doneFile: string | null;
-      outputs: Array<{ id: string; file: string }>;
-      /** Set on a dispatch step. */
-      dispatch: { from: string; report: string; parallel: number } | null;
-    }>;
-    /** The run follows the workflow as it was when it started, which has been edited since. */
-    outdated: boolean;
-  };
-  /** Without the workflow snapshot, which only the engine needs. */
-  run: Omit<RunState, "workflow"> | null;
-  /** Claude's numbered questions for the reviewer, at a gate or while it waits for an answer. */
-  questions: Question[];
-  /** At a gate whose next step is a dispatch step: the subtasks the plan's table gives, or why it is not usable. */
-  assignments: ParsedAssignments | null;
-  /** Questions of each subtask that waits for an answer, by subtask number. */
-  subtaskQuestions: Record<number, Question[]>;
-}
-
-/**
- * What the engine drives in one session: the run itself (the leader) or one of its subtasks. Both
- * hold the same fields, so delivering a prompt and reading a hook work the same way for either.
- */
-interface Lane {
-  sessionId?: string;
-  phase: RunPhase | SubtaskPhase;
-  stepStartedAt?: number;
-  /** A subtask's first prompt; the run's own is set once when it begins. */
-  startedAt?: number;
-  pendingPrompt?: string;
-  sentPrompt?: { stepIndex: number; text: string; at: number };
-  lastMessage?: string;
-  noHook?: boolean;
-}
-
-const MTIME_SLACK_MS = 100;
 /** How long a Copilot session may stay without any hook after its prompt before the run says so. */
 const NO_HOOK_WARN_MS = 60_000;
-const ACTIVE: ReadonlyArray<RunState["phase"]> = ["starting", "running", "waiting", "gate", "interrupted"];
 
 /**
  * Drives one workflow run per task: sends each step's prompt into the run's Claude session,
@@ -91,6 +32,8 @@ const ACTIVE: ReadonlyArray<RunState["phase"]> = ["starting", "running", "waitin
  */
 export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warning: [error: unknown] }> {
   private queue: Promise<unknown> = Promise.resolve();
+
+  private readonly store: RunStore;
 
   constructor(
     private readonly state: StateStore,
@@ -101,58 +44,23 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     private readonly noHookWarnMs: number = NO_HOOK_WARN_MS,
   ) {
     super();
+    this.store = new RunStore(
+      state,
+      loadDef,
+      (run) => this.emit("change", run),
+      (e) => this.emit("warning", e),
+    );
   }
 
   /** The active run's workflow snapshot, else the workflow a new run would get. */
   async view(repo: string, taskKey: string): Promise<RunView> {
-    const run = await this.find(repo, taskKey);
-    const pinned = run && ACTIVE.includes(run.phase) ? run.workflow : undefined;
-    // A running run is compared with its own mode as it is now; the repo's mode when no run is active.
-    const current = await this.loadDef(repo, pinned ? modeOf(pinned).id : undefined).catch((e: unknown) => {
-      if (pinned) return null;
-      throw e;
-    });
-    const def = pinned ?? current!;
-    return {
-      workflow: {
-        source: def.source,
-        origin: def.origin,
-        mode: modeOf(def),
-        historyFile: def.history.file,
-        steps: def.steps.map((s) => ({
-          id: s.id,
-          title: s.title,
-          agent: s.agent ?? DEFAULT_AGENT,
-          gate: s.gate,
-          doneFile: s.doneWhen?.file ?? null,
-          outputs: s.outputs.map((o) => ({ id: o.id, file: o.file })),
-          dispatch: s.dispatch ? { from: s.dispatch.from, report: s.dispatch.report, parallel: s.dispatch.parallel } : null,
-        })),
-        outdated: !!pinned && JSON.stringify(pinned) !== JSON.stringify(current),
-      },
-      run: run ? withoutSnapshot(run) : null,
-      questions: run ? await this.questionsOf(run, def) : [],
-      assignments: run?.phase === "gate" && def.steps[run.stepIndex + 1]?.dispatch ? await this.assignmentsFor(run, def, run.stepIndex + 1) : null,
-      subtaskQuestions: Object.fromEntries((run?.subtasks ?? []).filter((s) => s.phase === "waiting").map((s) => [s.n, parseQuestions(s.lastMessage ?? "")])),
-    };
-  }
-
-  /** At a gate: the open questions of the step's done-when document, else of Claude's last message. */
-  private async questionsOf(run: RunState, def: WorkflowDef): Promise<Question[]> {
-    if (dispatching(run, def)) return [];
-    if (run.phase === "gate") {
-      const file = def.steps[run.stepIndex]?.doneWhen?.file;
-      const doc = file ? await readFile(path.join(taskDirOf(run), file), "utf8").catch(() => "") : "";
-      const fromDoc = parseQuestions(doc);
-      if (fromDoc.length > 0) return fromDoc;
-    }
-    return run.phase === "gate" || run.phase === "waiting" ? parseQuestions(run.lastMessage ?? "") : [];
+    return buildRunView(repo, await this.store.find(repo, taskKey), this.loadDef, (run, def, index) => assignmentsFor(run, def, index, this.subagents));
   }
 
   /** Starts a run in `mode` (a workflows/ directory, or "custom"); the repo's own mode when absent. */
   start(repo: string, taskKey: string, mode?: string): Promise<RunState> {
     return this.serial(async () => {
-      const existing = await this.find(repo, taskKey);
+      const existing = await this.store.find(repo, taskKey);
       if (existing && ACTIVE.includes(existing.phase)) throw new HttpError(409, "A workflow run is already active");
       return this.begin(repo, taskKey, await this.loadDef(repo, mode));
     });
@@ -165,7 +73,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
    */
   restart(repo: string, taskKey: string, mode?: string): Promise<RunState> {
     return this.serial(async () => {
-      const existing = await this.find(repo, taskKey);
+      const existing = await this.store.find(repo, taskKey);
       if (!existing) throw new HttpError(409, "No workflow run to restart; start one first");
       // Loaded before anything is stopped or archived: a bad mode or a broken workflow changes nothing.
       const next = await this.loadDef(repo, mode);
@@ -174,9 +82,9 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       for (const sub of existing.subtasks ?? []) {
         if (sub.sessionId && (await this.sessions.get(sub.sessionId).catch(() => null))?.status === "running") await this.sessions.stop(sub.sessionId);
       }
-      const before = await this.defOf(existing);
+      const before = await this.store.defOf(existing);
       const previous = await archiveOutputs(taskDirOf(existing), before.history.file, new Date());
-      await this.log(existing, HISTORY_TEXT.restart, {
+      await this.store.log(existing, HISTORY_TEXT.restart, {
         body: previous.files.length ? HISTORY_TEXT.archived(previous.dir, previous.files) : HISTORY_TEXT.nothingArchived,
       });
       return this.begin(repo, taskKey, next, previous);
@@ -207,8 +115,8 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     // A "custom" workflow is the override itself; for the others the override is added to the built-in one.
     const override = mode.override && mode.id !== CUSTOM_MODE ? `${OVERRIDE_DIR.split(path.sep).join("/")}/` : null;
     const name = mode.id === CUSTOM_MODE ? `${OVERRIDE_DIR.split(path.sep).join("/")}/` : mode.name;
-    await this.markTask(run, "open");
-    await this.log(run, HISTORY_TEXT.start, { body: HISTORY_TEXT.startBody(name, override, def.steps.length) });
+    await this.store.markTask(run, "open");
+    await this.store.log(run, HISTORY_TEXT.start, { body: HISTORY_TEXT.startBody(name, override, def.steps.length) });
     await this.deliver(run, await this.prompt(run, def.steps[0].prompt));
     return run;
   }
@@ -219,15 +127,15 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
    */
   approve(repo: string, taskKey: string, note = ""): Promise<RunState> {
     return this.serial(async () => {
-      const run = await this.require(repo, taskKey, ["gate"]);
-      const def = await this.defOf(run);
+      const run = await this.store.require(repo, taskKey, ["gate"]);
+      const def = await this.store.defOf(run);
       const last = run.stepIndex + 1 >= def.steps.length;
-      const table = !last && def.steps[run.stepIndex + 1].dispatch ? await this.assignmentsFor(run, def, run.stepIndex + 1) : null;
+      const table = !last && def.steps[run.stepIndex + 1].dispatch ? await assignmentsFor(run, def, run.stepIndex + 1, this.subagents) : null;
       if (table && table.errors.length > 0) throw new HttpError(400, t("run.assignmentsInvalid", { errors: table.errors.join("; ") }));
-      await this.log(run, HISTORY_TEXT.approve, { ...(note.trim() ? { quote: note.trim() } : {}), ...(last ? { body: HISTORY_TEXT.done } : {}) });
+      await this.store.log(run, HISTORY_TEXT.approve, { ...(note.trim() ? { quote: note.trim() } : {}), ...(last ? { body: HISTORY_TEXT.done } : {}) });
       if (last) {
-        await this.markTask(run, "done");
-        return this.save(run, { phase: "done", message: t("run.done") });
+        await this.store.markTask(run, "done");
+        return this.store.save(run, { phase: "done", message: t("run.done") });
       }
       await this.enterStep(run, def, run.stepIndex + 1, table?.items);
       return run;
@@ -237,10 +145,10 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   feedback(repo: string, taskKey: string, text: string): Promise<RunState> {
     return this.serial(async () => {
       if (!text.trim()) throw new HttpError(400, "Feedback is empty");
-      const run = await this.require(repo, taskKey, ["gate"]);
-      const step = (await this.defOf(run)).steps[run.stepIndex];
+      const run = await this.store.require(repo, taskKey, ["gate"]);
+      const step = (await this.store.defOf(run)).steps[run.stepIndex];
       const template = step.onReject ?? "{{feedback}}";
-      await this.log(run, HISTORY_TEXT.feedback, { quote: text.trim() });
+      await this.store.log(run, HISTORY_TEXT.feedback, { quote: text.trim() });
       await this.deliver(run, await this.prompt(run, template, { feedback: text.trim() }));
       return run;
     });
@@ -250,13 +158,13 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   reply(repo: string, taskKey: string, text: string): Promise<RunState> {
     return this.serial(async () => {
       if (!text.trim()) throw new HttpError(400, "Reply is empty");
-      const run = await this.require(repo, taskKey, ["waiting"]);
+      const run = await this.store.require(repo, taskKey, ["waiting"]);
       await this.notWhileDispatching(run);
       const session = await this.sessions.get(run.sessionId);
       if (session.status === "running" && session.activity === "busy") {
         throw new HttpError(409, "The agent is still working; wait for it or stop it in the terminal");
       }
-      await this.log(run, HISTORY_TEXT.reply, { quote: text.trim() });
+      await this.store.log(run, HISTORY_TEXT.reply, { quote: text.trim() });
       await this.deliver(run, text.trim());
       return run;
     });
@@ -265,13 +173,13 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   /** Sends the current step again, resuming the session first if it has exited. */
   retry(repo: string, taskKey: string): Promise<RunState> {
     return this.serial(async () => {
-      const run = await this.require(repo, taskKey, ["starting", "running", "waiting", "interrupted"]);
+      const run = await this.store.require(repo, taskKey, ["starting", "running", "waiting", "interrupted"]);
       await this.notWhileDispatching(run);
       const session = await this.sessions.get(run.sessionId);
       if (session.status === "running" && session.activity === "busy") {
         throw new HttpError(409, "The agent is still working; wait for it or stop it in the terminal");
       }
-      const step = (await this.defOf(run)).steps[run.stepIndex];
+      const step = (await this.store.defOf(run)).steps[run.stepIndex];
       await this.deliver(run, run.pendingPrompt ?? (await this.prompt(run, step.prompt)), { force: true });
       return run;
     });
@@ -283,19 +191,19 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
    */
   setDone(repo: string, taskKey: string, done: boolean): Promise<{ done: { at: number | null } | null }> {
     return this.serial(async () => {
-      const run = await this.find(repo, taskKey);
+      const run = await this.store.find(repo, taskKey);
       if (run && ACTIVE.includes(run.phase)) throw new HttpError(409, t("run.activeForDone"));
       const status = await writeTaskStatus(path.join(repo, TASKS_DIR, taskKey), done ? "done" : "open");
-      if (run) await this.log(run, done ? HISTORY_TEXT.taskDone : HISTORY_TEXT.taskReopened);
+      if (run) await this.store.log(run, done ? HISTORY_TEXT.taskDone : HISTORY_TEXT.taskReopened);
       return { done: status.status === "done" ? { at: status.doneAt } : null };
     });
   }
 
   cancel(repo: string, taskKey: string): Promise<RunState> {
     return this.serial(async () => {
-      const run = await this.require(repo, taskKey, ACTIVE);
-      await this.log(run, HISTORY_TEXT.cancel);
-      return this.save(run, { phase: "cancelled", message: t("run.cancelled"), pendingPrompt: undefined });
+      const run = await this.store.require(repo, taskKey, ACTIVE);
+      await this.store.log(run, HISTORY_TEXT.cancel);
+      return this.store.save(run, { phase: "cancelled", message: t("run.cancelled"), pendingPrompt: undefined });
     });
   }
 
@@ -305,7 +213,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       if (!text.trim()) throw new HttpError(400, "Reply is empty");
       const { run, sub } = await this.requireSubtask(repo, taskKey, n, ["waiting"]);
       await this.ensureIdle(sub);
-      await this.log(run, HISTORY_TEXT.subtaskReply(n), { quote: text.trim() });
+      await this.store.log(run, HISTORY_TEXT.subtaskReply(n), { quote: text.trim() });
       await this.deliver(run, text.trim(), { lane: sub });
       return run;
     });
@@ -328,8 +236,8 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   completeSubtask(repo: string, taskKey: string, n: number): Promise<RunState> {
     return this.serial(async () => {
       const { run, sub } = await this.requireSubtask(repo, taskKey, n, ["running", "waiting"]);
-      if (!(await this.writtenSince(run, sub.report, sub.stepStartedAt))) throw new HttpError(409, `${sub.report} was not written since the prompt was sent`);
-      await this.log(run, HISTORY_TEXT.subtaskMarkedDone(n), { body: HISTORY_TEXT.markedDoneBody(sub.report) });
+      if (!(await writtenSince(run, sub.report, sub.stepStartedAt))) throw new HttpError(409, `${sub.report} was not written since the prompt was sent`);
+      await this.store.log(run, HISTORY_TEXT.subtaskMarkedDone(n), { body: HISTORY_TEXT.markedDoneBody(sub.report) });
       await this.onSubtaskStop(run, sub);
       return run;
     });
@@ -338,13 +246,13 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   /** The same for the leader's step: its `done-when` file must have been written since the prompt. */
   completeStep(repo: string, taskKey: string): Promise<RunState> {
     return this.serial(async () => {
-      const run = await this.require(repo, taskKey, ["running", "waiting"]);
-      const def = await this.defOf(run);
+      const run = await this.store.require(repo, taskKey, ["running", "waiting"]);
+      const def = await this.store.defOf(run);
       await this.notWhileDispatching(run);
       const file = def.steps[run.stepIndex].doneWhen?.file;
       if (!file) throw new HttpError(409, "This step has no done-when file to check");
-      if (!(await this.writtenSince(run, file))) throw new HttpError(409, `${file} was not written since the prompt was sent`);
-      await this.log(run, HISTORY_TEXT.markedDone, { body: HISTORY_TEXT.markedDoneBody(file) });
+      if (!(await writtenSince(run, file))) throw new HttpError(409, `${file} was not written since the prompt was sent`);
+      await this.store.log(run, HISTORY_TEXT.markedDone, { body: HISTORY_TEXT.markedDoneBody(file) });
       await this.onStop(run);
       return run;
     });
@@ -352,7 +260,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
 
   /** True when an active run drives this session (as the leader or as a subtask); such a session must not be removed. */
   async usesSession(sessionId: string): Promise<boolean> {
-    return (await this.bySession(sessionId)) !== undefined;
+    return (await this.store.bySession(sessionId)) !== undefined;
   }
 
   /** After a server restart no session is running; active runs cannot continue on their own. */
@@ -360,11 +268,11 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     return this.serial(async () => {
       for (const run of (await this.state.load()).runs) {
         if (["starting", "running", "waiting"].includes(run.phase)) {
-          await this.log(run, HISTORY_TEXT.interrupted, { body: HISTORY_TEXT.serverRestarted });
+          await this.store.log(run, HISTORY_TEXT.interrupted, { body: HISTORY_TEXT.serverRestarted });
           for (const sub of run.subtasks ?? []) {
             if (["starting", "running", "waiting"].includes(sub.phase)) sub.phase = "interrupted";
           }
-          await this.save(run, { phase: "interrupted", message: t("run.restarted") });
+          await this.store.save(run, { phase: "interrupted", message: t("run.restarted") });
         }
       }
     });
@@ -372,22 +280,22 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
 
   onHook(meta: SessionMeta, event: HookEvent, payload: Record<string, unknown> = {}): Promise<void> {
     return this.serial(async () => {
-      const run = await this.bySession(meta.id);
+      const run = await this.store.bySession(meta.id);
       if (!run) return;
       const lane = laneOf(run, meta.id)!;
       // While subtasks run, the leader's session sits idle; nothing it reports concerns the run.
-      if (lane === run && dispatching(run, await this.defOf(run))) return;
+      if (lane === run && dispatching(run, await this.store.defOf(run))) return;
       if (lane === run && run.phase === "running" && run.message === t("run.noHook", { agent: agentLabel(run) })) {
-        await this.save(run, { noHook: undefined, message: t("run.step", { step: (await this.defOf(run)).steps[run.stepIndex].title, agent: agentLabel(run) }) });
+        await this.store.save(run, { noHook: undefined, message: t("run.step", { step: (await this.store.defOf(run)).steps[run.stepIndex].title, agent: agentLabel(run) }) });
       }
       const fromTranscript = event === "Stop" && payload.source === "transcript";
       if (lane !== run && (lane as SubtaskRun).noHook && !fromTranscript) {
         delete (lane as SubtaskRun).noHook;
-        this.syncDispatch(run);
-        await this.save(run, {});
+        syncDispatch(run);
+        await this.store.save(run, {});
       }
       if (fromTranscript && (lane.phase === "running" || lane.phase === "waiting")) {
-        await this.log(run, HISTORY_TEXT.transcriptStop, { body: HISTORY_TEXT.transcriptStopBody });
+        await this.store.log(run, HISTORY_TEXT.transcriptStop, { body: HISTORY_TEXT.transcriptStopBody });
       }
       if (event === "Stop" && typeof payload.last_assistant_message === "string") {
         lane.lastMessage = payload.last_assistant_message;
@@ -405,17 +313,17 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
 
   onExit(meta: SessionMeta): Promise<void> {
     return this.serial(async () => {
-      const run = await this.bySession(meta.id);
+      const run = await this.store.bySession(meta.id);
       if (!run) return;
       const lane = laneOf(run, meta.id)!;
       if (!["starting", "running", "waiting"].includes(lane.phase)) return;
       if (lane === run) {
-        if (dispatching(run, await this.defOf(run))) return;
-        await this.log(run, HISTORY_TEXT.interrupted, { body: HISTORY_TEXT.sessionStopped });
-        await this.save(run, { phase: "interrupted", message: t("run.sessionStopped") });
+        if (dispatching(run, await this.store.defOf(run))) return;
+        await this.store.log(run, HISTORY_TEXT.interrupted, { body: HISTORY_TEXT.sessionStopped });
+        await this.store.save(run, { phase: "interrupted", message: t("run.sessionStopped") });
       } else {
         const sub = lane as SubtaskRun;
-        await this.log(run, HISTORY_TEXT.subtaskInterrupted(sub.n), { body: HISTORY_TEXT.subtaskSessionStopped });
+        await this.store.log(run, HISTORY_TEXT.subtaskInterrupted(sub.n), { body: HISTORY_TEXT.subtaskSessionStopped });
         await this.saveLane(run, sub, { phase: "interrupted" }, "");
       }
     });
@@ -429,31 +337,31 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   onStatusLine(meta: SessionMeta, payload: Record<string, unknown>): Promise<void> {
     return this.serial(async () => {
       if ((meta.agent ?? DEFAULT_AGENT) !== "claude") return;
-      const run = await this.bySession(meta.id);
+      const run = await this.store.bySession(meta.id);
       const sub = run && laneOf(run, meta.id);
       if (!run || !sub || sub === run || sub.phase === "done" || sub.phase === "pending") return;
       const read = statusLineMetrics(payload);
       const metrics = { ...(sub as SubtaskRun).metrics, ...read };
       if (JSON.stringify(metrics) === JSON.stringify((sub as SubtaskRun).metrics ?? {})) return;
       (sub as SubtaskRun).metrics = metrics;
-      await this.save(run, {});
+      await this.store.save(run, {});
     });
   }
 
   private async onStop(run: RunState): Promise<void> {
-    const def = await this.defOf(run);
+    const def = await this.store.defOf(run);
     const step = def.steps[run.stepIndex];
-    if (step.doneWhen && !(await this.writtenSince(run, step.doneWhen.file))) {
-      await this.save(run, {
+    if (step.doneWhen && !(await writtenSince(run, step.doneWhen.file))) {
+      await this.store.save(run, {
         phase: "waiting",
         message: t("run.notWritten", { file: step.doneWhen.file, agent: agentLabel(run) }),
       });
     } else if (step.gate === "approve") {
       const message = step.doneWhen ? t("run.gateFile", { step: step.title, file: step.doneWhen.file }) : t("run.gate", { step: step.title });
-      await this.save(run, { phase: "gate", message });
+      await this.store.save(run, { phase: "gate", message });
     } else if (run.stepIndex + 1 >= def.steps.length) {
-      await this.markTask(run, "done");
-      await this.save(run, { phase: "done", message: t("run.done") });
+      await this.store.markTask(run, "done");
+      await this.store.save(run, { phase: "done", message: t("run.done") });
     } else {
       await this.enterStep(run, def, run.stepIndex + 1);
     }
@@ -461,8 +369,8 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
 
   /** A subtask's turn ended: done when its report was written since the prompt, else it waits for an answer. */
   private async onSubtaskStop(run: RunState, sub: SubtaskRun): Promise<void> {
-    const def = await this.defOf(run);
-    if (!(await this.writtenSince(run, sub.report, sub.stepStartedAt))) {
+    const def = await this.store.defOf(run);
+    if (!(await writtenSince(run, sub.report, sub.stepStartedAt))) {
       await this.saveLane(run, sub, { phase: "waiting" }, "");
       return;
     }
@@ -476,10 +384,10 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     };
     sub.finishedAt = now;
     await this.saveLane(run, sub, { phase: "done", pendingPrompt: undefined }, "");
-    await this.log(run, HISTORY_TEXT.subtaskDone(sub.n, AGENT_LABELS[sub.agent], sub.subagent, sub.model), { body: HISTORY_TEXT.subtaskDoneBody(sub.report, sub.metrics) });
+    await this.store.log(run, HISTORY_TEXT.subtaskDone(sub.n, AGENT_LABELS[sub.agent], sub.subagent, sub.model), { body: HISTORY_TEXT.subtaskDoneBody(sub.report, sub.metrics) });
     if ((await this.sessions.get(sub.sessionId!).catch(() => null))?.status === "running") await this.sessions.stop(sub.sessionId!);
     if ((run.subtasks ?? []).every((s) => s.phase === "done")) {
-      await this.log(run, HISTORY_TEXT.backToLeader, { body: HISTORY_TEXT.backToLeaderBody(run.subtasks!.length) });
+      await this.store.log(run, HISTORY_TEXT.backToLeader, { body: HISTORY_TEXT.backToLeaderBody(run.subtasks!.length) });
       await this.enterStep(run, def, run.stepIndex + 1);
     } else await this.launchReady(run, def);
   }
@@ -499,10 +407,10 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     if (current && (current.agent !== agent || current.model !== step.model)) {
       if (current.status === "running") await this.sessions.stop(run.sessionId);
       const session = await this.sessions.create(run.repo, run.taskKey, { permissionMode: def.permissionMode, agent, model: step.model });
-      await this.log(run, current.agent === agent ? HISTORY_TEXT.switchModel : HISTORY_TEXT.switchAgent, {
+      await this.store.log(run, current.agent === agent ? HISTORY_TEXT.switchModel : HISTORY_TEXT.switchAgent, {
         body: HISTORY_TEXT.switchAgentBody(sessionLabel(current.agent, current.model), sessionLabel(agent, step.model)),
       });
-      await this.save(run, { sessionId: session.id });
+      await this.store.save(run, { sessionId: session.id });
     }
     await this.deliver(run, await this.prompt(run, step.prompt));
   }
@@ -510,8 +418,8 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   private async startDispatch(run: RunState, def: WorkflowDef, report: string, items: Assignment[]): Promise<void> {
     const dispatch = def.steps[run.stepIndex].dispatch!;
     const subtasks: SubtaskRun[] = items.map((a) => ({ ...a, phase: "pending", report: reportOf(report, a.n) }));
-    await this.save(run, { subtasks, pendingPrompt: undefined, phase: "running", message: t("run.dispatching", { done: 0, total: subtasks.length }) });
-    await this.log(run, HISTORY_TEXT.dispatch, {
+    await this.store.save(run, { subtasks, pendingPrompt: undefined, phase: "running", message: t("run.dispatching", { done: 0, total: subtasks.length }) });
+    await this.store.log(run, HISTORY_TEXT.dispatch, {
       body: HISTORY_TEXT.dispatchBody(
         items.map((a) => ({ ...a, agent: AGENT_LABELS[a.agent] })),
         dispatch.parallel,
@@ -543,24 +451,11 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       });
       next.sessionId = session.id;
       next.phase = "starting";
-      await this.save(run, {});
+      await this.store.save(run, {});
       await this.deliver(run, await this.subtaskPrompt(run, next), { lane: next });
     }
-    this.syncDispatch(run);
-    await this.save(run, {});
-  }
-
-  /** The run's own phase and message while its subtasks work: the one needing attention first. */
-  private syncDispatch(run: RunState) {
-    const subs = run.subtasks ?? [];
-    const interrupted = subs.find((s) => s.phase === "interrupted");
-    const waiting = subs.find((s) => s.phase === "waiting");
-    const silent = subs.find((s) => s.noHook && (s.phase === "running" || s.phase === "starting"));
-    const done = subs.filter((s) => s.phase === "done").length;
-    if (interrupted) Object.assign(run, { phase: "interrupted", message: t("run.subtaskInterrupted", { n: interrupted.n }) });
-    else if (waiting) Object.assign(run, { phase: "waiting", message: t("run.subtaskWaiting", { n: waiting.n, file: waiting.report }) });
-    else if (silent) Object.assign(run, { phase: "running", message: t("run.subtaskNoHook", { n: silent.n, agent: AGENT_LABELS[silent.agent], file: silent.report }) });
-    else Object.assign(run, { phase: "running", message: t("run.dispatching", { done, total: subs.length }) });
+    syncDispatch(run);
+    await this.store.save(run, {});
   }
 
   /**
@@ -582,7 +477,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   }
 
   private async send(run: RunState, text: string, lane: Lane = run): Promise<void> {
-    const step = (await this.defOf(run)).steps[run.stepIndex];
+    const step = (await this.store.defOf(run)).steps[run.stepIndex];
     this.sessions.paste(lane.sessionId!, text);
     const now = Date.now();
     await this.saveLane(
@@ -613,14 +508,14 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     const sessionId = lane.sessionId!;
     const timer = setTimeout(() => {
       void this.serial(async () => {
-        const current = await this.find(run.repo, run.taskKey);
+        const current = await this.store.find(run.repo, run.taskKey);
         const target = current && (sub ? current.subtasks?.find((s) => s.n === sub.n) : current);
         if (!current || !target || target.sentPrompt?.at !== sentAt || target.phase !== "running" || this.sessions.hookSeen(sessionId)) return;
-        if (target === current) await this.save(current, { noHook: true, message: t("run.noHook", { agent: AGENT_LABELS.copilot }) });
+        if (target === current) await this.store.save(current, { noHook: true, message: t("run.noHook", { agent: AGENT_LABELS.copilot }) });
         else {
           (target as SubtaskRun).noHook = true;
-          this.syncDispatch(current);
-          await this.save(current, {});
+          syncDispatch(current);
+          await this.store.save(current, {});
         }
       }).catch((e: unknown) => this.emit("warning", e));
     }, this.noHookWarnMs);
@@ -629,11 +524,11 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
 
   /** Saves a lane's change: the run's own fields with `message`, or a subtask's with the run's phase following. */
   private async saveLane(run: RunState, lane: Lane, patch: Partial<Lane>, message: string): Promise<void> {
-    if (lane === run) await this.save(run, { ...patch, message } as Partial<RunState>);
+    if (lane === run) await this.store.save(run, { ...patch, message } as Partial<RunState>);
     else {
       Object.assign(lane, patch);
-      this.syncDispatch(run);
-      await this.save(run, {});
+      syncDispatch(run);
+      await this.store.save(run, {});
     }
   }
 
@@ -641,55 +536,23 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     const task = await getTask(run.repo, run.taskKey);
     // Read only for a prompt that lists them: the agent folders are read on every call.
     const subagents = template.includes("{{subagents}}") && this.subagents ? await this.subagents(run.repo) : undefined;
-    return renderPrompt(template, promptVars(await this.defOf(run), run.stepIndex, task, { previous: run.previous, subtasks: run.subtasks, subagents, ...extra }));
+    return renderPrompt(template, promptVars(await this.store.defOf(run), run.stepIndex, task, { previous: run.previous, subtasks: run.subtasks, subagents, ...extra }));
   }
 
   private async subtaskPrompt(run: RunState, sub: SubtaskRun): Promise<string> {
-    const def = await this.defOf(run);
+    const def = await this.store.defOf(run);
     const task = await getTask(run.repo, run.taskKey);
     return renderPrompt(def.steps[run.stepIndex].dispatch!.prompt, promptVars(def, run.stepIndex, task, { previous: run.previous, subtask: sub, subtasks: run.subtasks }));
   }
 
-  /** The subtasks a dispatch step would get from the plan's table, with the problems that keep them from running. */
-  private async assignmentsFor(run: RunState, def: WorkflowDef, index: number): Promise<ParsedAssignments> {
-    const dispatch = def.steps[index].dispatch!;
-    const file = def.steps.flatMap((s) => s.outputs).find((o) => o.id === dispatch.from)?.file ?? "";
-    const doc = await readFile(path.join(taskDirOf(run), file), "utf8").catch(() => "");
-    const parsed = parseAssignments(doc);
-    const errors = [...(parsed.errors.length ? parsed.errors : checkForParallel(parsed.items, dispatch.parallel)), ...(await this.subagentProblems(run.repo, parsed.items))];
-    return { items: errors.length ? [] : parsed.items, errors };
-  }
-
-  /**
-   * Why a Claude row's subagent cannot run its subtask: it must exist and be able to write, since a
-   * member writes its report. Copilot's custom agents are not checked (TPL-019, question 2).
-   */
-  private async subagentProblems(repo: string, items: Assignment[]): Promise<string[]> {
-    const named = items.filter((a) => a.agent === "claude" && a.subagent);
-    if (!this.subagents || named.length === 0) return [];
-    let list: SubagentInfo[];
-    try {
-      list = await this.subagents(repo);
-    } catch (e) {
-      return [`cannot read the subagents: ${(e as Error).message}`];
-    }
-    return named.flatMap((a) => {
-      const agent = subagentNamed(list, a.subagent!);
-      if (!agent) return [`subtask ${a.n}: subagent "${a.subagent}" not found in .claude/agents/ or ~/.claude/agents/`];
-      if (!agent.check || agent.check.roles.includes("member")) return [];
-      const why = agent.check.problems.length ? `: ${agent.check.problems.join("; ")}` : "";
-      return [`subtask ${a.n}: subagent "${a.subagent}" cannot run a subtask${why}`];
-    });
-  }
-
   /** The run-level reply and retry talk to the leader's session, which has nothing to answer while subtasks work. */
   private async notWhileDispatching(run: RunState): Promise<void> {
-    if (dispatching(run, await this.defOf(run))) throw new HttpError(409, "Subtasks are running; answer or retry them one by one");
+    if (dispatching(run, await this.store.defOf(run))) throw new HttpError(409, "Subtasks are running; answer or retry them one by one");
   }
 
   private async requireSubtask(repo: string, taskKey: string, n: number, phases: ReadonlyArray<SubtaskPhase>): Promise<{ run: RunState; sub: SubtaskRun }> {
-    const run = await this.require(repo, taskKey, ["starting", "running", "waiting", "interrupted"]);
-    if (!dispatching(run, await this.defOf(run))) throw new HttpError(409, "The run is not handing out subtasks");
+    const run = await this.store.require(repo, taskKey, ["starting", "running", "waiting", "interrupted"]);
+    if (!dispatching(run, await this.store.defOf(run))) throw new HttpError(409, "The run is not handing out subtasks");
     const sub = run.subtasks?.find((s) => s.n === n);
     if (!sub) throw new HttpError(404, `No subtask ${n}`);
     if (!phases.includes(sub.phase)) throw new HttpError(409, `Not allowed while subtask ${n} is ${sub.phase}`);
@@ -703,109 +566,10 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     }
   }
 
-  /** The workflow the run started with; runs saved before snapshots existed follow the current one. */
-  private defOf(run: RunState): Promise<WorkflowDef> {
-    return run.workflow ? Promise.resolve(run.workflow) : this.loadDef(run.repo);
-  }
-
-  private async writtenSince(run: RunState, file: string, since: number = run.stepStartedAt): Promise<boolean> {
-    try {
-      const s = await stat(path.join(taskDirOf(run), file));
-      // File timestamps come from the kernel's coarse clock and can trail Date.now() by a few ms.
-      return s.mtimeMs >= since - MTIME_SLACK_MS;
-    } catch {
-      return false;
-    }
-  }
-
-  /** Appends to the task's decision log; a failed write is reported but never blocks the run. */
-  private async log(run: RunState, source: string, extra: { body?: string; quote?: string } = {}): Promise<void> {
-    try {
-      const def = await this.defOf(run);
-      const step = def.steps[run.stepIndex];
-      await appendHistory(taskDirOf(run), def.history.file, run.taskKey, { at: Date.now(), step: step?.title ?? "", source, ...extra });
-    } catch (e) {
-      this.emit("warning", e);
-    }
-  }
-
-  /** Records in `task.yml` that the run finished or started; a failed write is reported but never blocks the run. */
-  private async markTask(run: RunState, status: TaskStatus["status"]): Promise<void> {
-    try {
-      await writeTaskStatus(taskDirOf(run), status);
-    } catch (e) {
-      this.emit("warning", e);
-    }
-  }
-
-  private async save(run: RunState, patch: Partial<RunState>): Promise<RunState> {
-    Object.assign(run, patch, { updatedAt: Date.now() });
-    await this.state.update((s) => {
-      s.runs = s.runs.filter((r) => !(r.repo === run.repo && r.taskKey === run.taskKey));
-      s.runs.push(run);
-    });
-    this.emit("change", run);
-    return run;
-  }
-
-  private async find(repo: string, taskKey: string): Promise<RunState | undefined> {
-    return (await this.state.load()).runs.find((r) => r.repo === repo && r.taskKey === taskKey);
-  }
-
-  private async bySession(sessionId: string): Promise<RunState | undefined> {
-    return (await this.state.load()).runs.find((r) => laneOf(r, sessionId) && ACTIVE.includes(r.phase));
-  }
-
-  private async require(repo: string, taskKey: string, phases: ReadonlyArray<RunState["phase"]>): Promise<RunState> {
-    const run = await this.find(repo, taskKey);
-    if (!run) throw new HttpError(404, "No workflow run for this task");
-    if (!phases.includes(run.phase)) throw new HttpError(409, `Not allowed while the run is ${run.phase}`);
-    return run;
-  }
-
   /** Engine operations and hook handling run one at a time, so a Stop hook cannot race a click. */
   private serial<T>(fn: () => Promise<T>): Promise<T> {
     const next = this.queue.then(fn);
     this.queue = next.catch(() => undefined);
     return next;
   }
-}
-
-/** The run itself when `sessionId` is its leader's session, else the subtask that session works on. */
-function laneOf(run: RunState, sessionId: string): Lane | undefined {
-  return run.sessionId === sessionId ? run : run.subtasks?.find((s) => s.sessionId === sessionId);
-}
-
-/** The run is at its dispatch step: subtasks are being handed out and worked on. */
-function dispatching(run: RunState, def: WorkflowDef): boolean {
-  return !!run.subtasks && !!def.steps[run.stepIndex]?.dispatch;
-}
-
-function withoutSnapshot(run: RunState): Omit<RunState, "workflow"> {
-  const { workflow: _workflow, ...rest } = run;
-  return rest;
-}
-
-/** Name of the agent that runs the run's current step, for run messages. */
-function agentLabel(run: RunState): string {
-  return AGENT_LABELS[run.workflow?.steps[run.stepIndex]?.agent ?? DEFAULT_AGENT];
-}
-
-function taskDirOf(run: RunState): string {
-  return path.join(run.repo, TASKS_DIR, run.taskKey);
-}
-
-/** The model id and session cost in a Claude status line payload; fields it lacks are left out. */
-function statusLineMetrics(payload: Record<string, unknown>): Pick<SubtaskMetrics, "model" | "costUsd"> {
-  const model = payload.model as { id?: unknown } | undefined;
-  const cost = payload.cost as { total_cost_usd?: unknown } | undefined;
-  return {
-    ...(typeof model?.id === "string" && model.id ? { model: model.id } : {}),
-    ...(typeof cost?.total_cost_usd === "number" && Number.isFinite(cost.total_cost_usd) ? { costUsd: cost.total_cost_usd } : {}),
-  };
-}
-
-/** An agent with the model its session runs, for the decision log: "Claude (opus)", or "Claude" for its default. */
-function sessionLabel(agent: Agent, model?: string): string {
-  return model ? `${AGENT_LABELS[agent]} (${model})` : AGENT_LABELS[agent];
 }

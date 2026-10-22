@@ -2,6 +2,7 @@ import { Eye, MagnifyingGlass, PencilSimple, Plus, Trash, X } from "@phosphor-ic
 import { AnimatePresence, motion } from "motion/react";
 import { lazy, Suspense, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { href } from "../../../shared/router";
 import { useWorkspace } from "../../workspace";
 import { Button } from "../../../shared/ui/Button";
 import { DiffDialog } from "../../../shared/ui/DiffDialog";
@@ -69,6 +70,22 @@ interface LibraryDraft {
 
 const draftKey = (kind: LibraryKind) => `library:${kind}`;
 
+const KINDS: readonly LibraryKind[] = ["agents", "commands", "skills"];
+
+/** Switches between the three library sections; each tab is the section's own route. */
+function KindTabs({ kind }: { kind: LibraryKind }) {
+  const { t } = useTranslation("config");
+  return (
+    <nav className="segmented library-tabs" aria-label={t("library.tabsLabel")}>
+      {KINDS.map((k) => (
+        <a key={k} href={href({ page: "config", section: k })} aria-current={k === kind ? "page" : undefined}>
+          {t(`library.kind.${k}.title`)}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
 /** Agents, commands or skills: list + detail, with create, edit (diff review) and delete (backed up). */
 export function LibraryPage({ kind }: { kind: LibraryKind }) {
   const { t } = useTranslation("config");
@@ -120,6 +137,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
 
   return (
     <div className="page">
+      <KindTabs kind={kind} />
       <ConfigHeader title={copy.title} subtitle={copy.subtitle} />
       <ConfigToolbar
         start={

@@ -37,6 +37,7 @@
     "mcpAdd": "Thêm"
   },
   "library": {
+    "tabsLabel": "Loại mục trong thư viện",
     "kind": {
       "agents": {
         "title": "Agents",

@@ -34,6 +34,8 @@ interface NavItem {
   label: string;
   icon: Icon;
   route: Route;
+  /** Config sections that keep this item active. */
+  sections?: string[];
   badge?: number;
   warn?: boolean;
   /** Has unsaved edits. */
@@ -101,6 +103,7 @@ export function Sidebar({
   const dirty = (prefix: string) => drafts.some((k) => k.startsWith(prefix));
   const waiting = tasks.filter((x) => statusOf(x).tone === "attention").length;
   const inTasks = route.page === "tasks" || route.page === "task";
+  const libraryCount = (inventory?.claudeDir.agents ?? 0) + (inventory?.claudeDir.commands ?? 0) + (inventory?.claudeDir.skills ?? 0);
   const rail = mode === "rail";
   const repoName = repo?.path?.split(/[\\/]/).filter(Boolean).pop() ?? t("common:noRepo");
 
@@ -123,9 +126,14 @@ export function Sidebar({
         { label: t("nav.memory"), icon: BookOpenText, route: { page: "config", section: "memory" }, dirty: dirty("memory:") },
         { label: t("nav.settings"), icon: Gear, route: { page: "config", section: "settings" }, dirty: dirty("settings:") },
         { label: t("nav.hooks"), icon: Lightning, route: { page: "config", section: "hooks" }, badge: inventory?.claudeDir.hooks || undefined, dirty: dirty("hooks") },
-        { label: t("nav.agents"), icon: Robot, route: { page: "config", section: "agents" }, badge: inventory?.claudeDir.agents || undefined, dirty: dirty("library:agents") },
-        { label: t("nav.commands"), icon: Command, route: { page: "config", section: "commands" }, badge: inventory?.claudeDir.commands || undefined, dirty: dirty("library:commands") },
-        { label: t("nav.skills"), icon: Sparkle, route: { page: "config", section: "skills" }, badge: inventory?.claudeDir.skills || undefined, dirty: dirty("library:skills") },
+        {
+          label: t("nav.library"),
+          icon: Robot,
+          route: { page: "config", section: "agents" },
+          sections: ["agents", "commands", "skills"],
+          badge: libraryCount || undefined,
+          dirty: dirty("library:"),
+        },
         { label: t("nav.workflow"), icon: FlowArrow, route: { page: "config", section: "workflow" }, dirty: dirty("workflow:") },
         { label: t("nav.formats"), icon: FileText, route: { page: "config", section: "formats" } },
         { label: t("nav.backups"), icon: ClockCounterClockwise, route: { page: "backups" } },
@@ -148,14 +156,14 @@ export function Sidebar({
     },
   ];
 
-  const isActive = (r: Route) => {
-    if (r.page === "config") return route.page === "config" && route.section === r.section;
+  const isActive = (r: Route, sections?: string[]) => {
+    if (r.page === "config") return route.page === "config" && (sections ?? [r.section]).includes(route.section);
     if (r.page === "tasks") return inTasks;
     return r.page === route.page;
   };
 
   // Opening a page inside a folded group unfolds it, so the current page is always in view.
-  const activeGroup = groups.find((g) => g.items.some((it) => isActive(it.route)))?.id;
+  const activeGroup = groups.find((g) => g.items.some((it) => isActive(it.route, it.sections)))?.id;
   useEffect(() => {
     if (!activeGroup) return;
     setCollapsed((ids) => {
@@ -237,7 +245,7 @@ export function Sidebar({
               )}
               <ul id={listId} hidden={!open}>
                 {g.items.map((it) => {
-                  const active = isActive(it.route);
+                  const active = isActive(it.route, it.sections);
                   const tip = it.badge !== undefined ? `${it.label} (${it.badge})` : it.label;
                   return (
                     <li key={it.label}>

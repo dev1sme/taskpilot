@@ -165,3 +165,30 @@
   padding-top: 12px;
   border-top: 1px solid var(--line);
 }
+
+/* ------------------------------------------------------------------ library tabs */
+
+.library-tabs {
+  width: max-content;
+  margin-bottom: 16px;
+}
+
+.library-tabs a {
+  flex: none;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  border-radius: 6px;
+  transition: background-color var(--fast) var(--ease-out), color var(--fast) var(--ease-out);
+}
+
+.library-tabs a:hover {
+  color: var(--ink);
+}
+
+.library-tabs a[aria-current="page"] {
+  color: var(--ink);
+  background: var(--hover);
+}

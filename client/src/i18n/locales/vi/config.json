@@ -287,7 +287,8 @@
       "default": "default · hỏi trước mỗi thao tác cần quyền",
       "acceptEdits": "acceptEdits · tự sửa file, hỏi trước lệnh shell",
       "plan": "plan · chỉ lập kế hoạch",
-      "auto": "auto · tự quyết theo mức rủi ro"
+      "auto": "auto · tự quyết theo mức rủi ro",
+      "keep": "{{mode}} (giữ như trong file)"
     },
     "removeRule": "Bỏ luật {{rule}}",
     "addRule": "Thêm luật {{column}}",

@@ -13,6 +13,8 @@ export interface PermissionsDraft {
   permissions: Permissions;
   baseHash: string;
   path: string;
+  /** defaultMode the file has when the draft was opened; the server accepts a mode that is not offered only if it equals this. */
+  fileMode: string | null;
 }
 
 export const permissionsKey = (scope: Scope) => `settings:${scope}`;
@@ -57,6 +59,7 @@ export function PermissionsEditor({ scope, draft }: { scope: Scope; draft: Permi
               {t(`permissions.mode.${value || "unset"}`)}
             </option>
           ))}
+          {draft.fileMode && !(MODES as readonly string[]).includes(draft.fileMode) && <option value={draft.fileMode}>{t("permissions.mode.keep", { mode: draft.fileMode })}</option>}
         </select>
       </div>
 

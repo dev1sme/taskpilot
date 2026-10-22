@@ -37,6 +37,7 @@ export function SettingsPage() {
         permissions: { allow: p.allow, ask: p.ask, deny: p.deny, defaultMode: p.defaultMode },
         baseHash: p.hash,
         path: p.path,
+        fileMode: p.defaultMode,
       } satisfies PermissionsDraft);
     } catch (e) {
       toast((e as Error).message, { error: true });

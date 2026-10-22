@@ -21,7 +21,7 @@ export function registerSettingsRoutes(app: FastifyInstance, opts: ConfigRouteOp
   app.post<{ Params: { scope: string } }>("/api/config/settings/:scope/permissions/preview", async (req) => {
     const target = settingsTarget(requireRepo(), scopeOf(req.params.scope));
     const current = await readCurrent(target.abs);
-    const next = applyPermissions(current, validatePermissions(req.body));
+    const next = applyPermissions(current, validatePermissions(req.body, readPermissions(current).defaultMode));
     const normalized = current === null ? null : applyPermissions(current, readPermissions(current));
     return {
       diff: diffText(target.display, maskSettingsText(normalized), maskSettingsText(next)),
@@ -37,7 +37,7 @@ export function registerSettingsRoutes(app: FastifyInstance, opts: ConfigRouteOp
     return writeWithBackup({
       repo,
       target,
-      next: applyPermissions(current, validatePermissions(req.body)),
+      next: applyPermissions(current, validatePermissions(req.body, readPermissions(current).defaultMode)),
       baseHash: stringField(req.body, "baseHash"),
       reason: t("backup.permissions"),
       backups,

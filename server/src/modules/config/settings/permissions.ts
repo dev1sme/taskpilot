@@ -12,7 +12,11 @@ export interface PermissionsInput {
 /** bypassPermissions is not offered: it turns off every check, and TaskPilot drives sessions unattended. */
 export const EDITABLE_MODES = ["default", "acceptEdits", "plan", "auto"];
 
-export function validatePermissions(body: unknown): PermissionsInput {
+/**
+ * `currentMode` is the defaultMode the file has now. A mode that is not offered is accepted only when it equals
+ * that one, so saving other rules never drops it, while a new bypassPermissions is still refused.
+ */
+export function validatePermissions(body: unknown, currentMode: string | null = null): PermissionsInput {
   if (!isObject(body)) throw new HttpError(400, t("errors.bodyObject"));
   const list = (key: "allow" | "ask" | "deny") => {
     const v = body[key];
@@ -27,7 +31,7 @@ export function validatePermissions(body: unknown): PermissionsInput {
     return rules;
   };
   const mode = body.defaultMode;
-  if (mode !== null && mode !== undefined && (typeof mode !== "string" || !EDITABLE_MODES.includes(mode))) {
+  if (mode !== null && mode !== undefined && (typeof mode !== "string" || !(EDITABLE_MODES.includes(mode) || mode === currentMode))) {
     throw new HttpError(400, t("permissions.mode", { modes: EDITABLE_MODES.join(", ") }));
   }
   return { allow: list("allow"), ask: list("ask"), deny: list("deny"), defaultMode: (mode as string | null | undefined) ?? null };

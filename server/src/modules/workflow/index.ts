@@ -29,5 +29,6 @@ export { stageOf, type Stage } from "./stage.js";
 export { MAX_PARALLEL, overlaps, parseAssignments } from "./assignments.js";
 export { type Assignment, type DispatchDef, type OutputDef, type RunState, type StepDef, type SubtaskRun, type WorkflowDef } from "./types.js";
 export { PROMPT_TEXT } from "./prompt-text.js";
+export { CLAUDE_MODEL_ALIASES, isClaudeModel } from "./models.js";
 export { parseQuestions, type Question } from "./questions.js";
 export { promptVars, render, renderPrompt, templateVars } from "./vars.js";

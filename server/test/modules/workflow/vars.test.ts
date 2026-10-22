@@ -189,6 +189,14 @@ describe("prompt variables", () => {
       );
     });
 
+    it("leaves the history-file rule out of a subtask's prompt but keeps the other rules", () => {
+      const vars = promptVars(dispatchDef(1), 1, task, { subtask: subs[0], subtasks: subs });
+      expect(vars.rules).toBe("- No push");
+      expect(vars.rules).not.toContain("log.md");
+      // Regular steps keep every rule.
+      expect(promptVars(dispatchDef(1), 0, task).rules).toBe("- Only append to .claude/tasks/A-1/log.md\n- No push");
+    });
+
     it("lists every subtask for the review step, and nothing outside a run", () => {
       expect(promptVars(dispatchDef(1), 2, task, { subtasks: subs }).subtasks).toBe(
         "- Việc 1 · Claude · Parser → `.claude/tasks/A-1/03-viec-1.md`\n- Việc 2 · Copilot · UI → `.claude/tasks/A-1/03-viec-2.md`",

@@ -139,7 +139,7 @@ export function promptVars(
     ...base,
     historyEntry: render(def.history.entry, base),
     historyFormat: fence(render(def.history.formatText ?? def.history.entry, base).trim()),
-    rules: def.rules.map((r) => `- ${render(r, base)}`).join("\n"),
+    rules: rulesFor(def.rules, base, !!opts.subtask),
     outputs: documents(step?.outputs ?? []),
     inputs: list(def.steps.slice(0, Math.max(stepIndex, 0)).flatMap((s) => s.outputs)),
     previousRun: previousRun(def, opts.previous, taskDir, historyFile),
@@ -147,6 +147,17 @@ export function promptVars(
     subagents: subagentList(opts.subagents ?? []),
     ...subtaskVars,
   };
+}
+
+/**
+ * The workflow rules as a list. A subtask's prompt drops the rules that mention {{historyFile}}
+ * (e.g. "append to the log"): TaskPilot writes the subtask's history entry itself, and a member that
+ * obeys such a rule writes a second one. Only rules written with the variable are caught; a path
+ * typed out in a user's override stays.
+ */
+function rulesFor(rules: string[], vars: Record<string, string>, forSubtask: boolean): string {
+  const kept = forSubtask ? rules.filter((r) => !r.includes("{{historyFile}}")) : rules;
+  return kept.map((r) => `- ${render(r, vars)}`).join("\n");
 }
 
 /** The description of one subtask: what to do, where, and which earlier reports to read. */

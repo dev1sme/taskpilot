@@ -335,7 +335,9 @@ The embedded terminal is shell-equivalent access to the machine.
 - **TPL-018** UI improvements — done: completion state in `task.yml` with a PUT endpoint, Task list
   filter (Đang làm / Hoàn thành / Tất cả) and per-row buttons; sidebar without the nested task list,
   foldable to a 64px rail (remembered in `localStorage`) and a drawer at ≤ 860px; Agents / Commands /
-  Skills merged into one *Thư viện* item with tabs (routes unchanged).
+  Skills merged into one *Thư viện* item with tabs and *Định dạng tài liệu* into a Workflow tab
+  (routes unchanged); visible group headings; *Lịch sử thay đổi* pinned at the bottom and linked
+  from save toasts; "Chờ xác nhận" for tasks with every document but no done mark.
 - **Docs split** — done: README trimmed to the pitch, requirements and install/run; everything else
   moved into `docs/GUIDE.md` (daily use), `docs/CONFIGURATION.md` (Claude config, custom workflow),
   `docs/DEPLOY.md` (service, reverse proxy, security) and `docs/DEVELOP.md` (dev commands, layout,

@@ -117,7 +117,7 @@ prompt a step sends (for a sample task, `TASK-1`, optionally as after *Chạy l�
 sample feedback). **Xoá override** goes back to the built-in workflow (every file is backed up
 first). TaskPilot only ever writes inside `.taskpilot/`, never `workflows/`. The old
 `.claude/workflow.yml` is no longer read. The page opens with a short guide (*Override hoạt động
-thế nào*). The Formats page shows each document's skeleton from the workflow as it runs, and
+thế nào*). The *Định dạng tài liệu* tab of the Workflow page shows each document's skeleton from the workflow as it runs, and
 offers *Sửa* only for skeletons the override holds.
 
 **Complete (legacy) overrides.** An override without `extends` (a full copy) still works, as the

@@ -77,10 +77,13 @@ Sessions survive page reloads; after a TaskPilot restart they show as stopped an
 
 ## Sidebar
 
-The sidebar lists Tổng quan, Task, the Claude config pages and integrations. **Agents, Commands and
-Skills** are one item, **Thư viện** (badge = their total); tabs at the top of the page switch
-between them, and `#/agents`, `#/commands`, `#/skills` still work. The Task item has no nested task
-list; its badge counts tasks waiting for you.
+The sidebar has three groups, each with a visible heading: **Workspace** (Tổng quan, Task),
+**Cấu hình Claude** and **Tích hợp**; the last two fold. **Agents, Commands and Skills** are one
+item, **Thư viện** (badge = their total); tabs under the page title switch between them, and
+`#/agents`, `#/commands`, `#/skills` still work. **Workflow** has two tabs, *Các bước* and *Định
+dạng tài liệu* (`#/formats` still works). **Lịch sử thay đổi** sits at the bottom, under every
+group; a toast after saving or deleting a config file links to it (*Xem bản cũ*). The Task item has
+no nested task list; its badge counts tasks waiting for you.
 
 - **Rail**: the button next to the logo (or the palette command *Thu gọn sidebar* / *Mở rộng sidebar*)
   folds the sidebar to a 64px icon rail. Each item keeps its tooltip, accessible name and badge. The

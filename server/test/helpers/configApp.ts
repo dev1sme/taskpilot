@@ -12,7 +12,8 @@ const saved = { ...process.env };
 
 /**
  * Stands in for `claude mcp add-json|remove|get`, editing the fake ~/.claude.json. Like the real
- * `mcp get`, it prints environment values in clear, which TaskPilot must not pass on.
+ * `mcp get`, it prints environment values in clear, which TaskPilot must not pass on. An
+ * `add-json` whose JSON contains `fail.invalid` exits 1 and changes nothing.
  */
 const FAKE_CLAUDE = `#!/usr/bin/env node
 const fs = require("fs");
@@ -30,7 +31,7 @@ const holder = () => {
   d.projects[process.cwd()] ??= {};
   return (d.projects[process.cwd()].mcpServers ??= {});
 };
-if (sub === "add-json") { holder()[args[0]] = JSON.parse(args[1]); fs.writeFileSync(file, JSON.stringify(d)); console.log("Added"); }
+if (sub === "add-json") { if (args[1].includes("fail.invalid")) { console.error("invalid server config"); process.exit(1); } holder()[args[0]] = JSON.parse(args[1]); fs.writeFileSync(file, JSON.stringify(d)); console.log("Added"); }
 else if (sub === "remove") { delete holder()[args[0]]; fs.writeFileSync(file, JSON.stringify(d)); console.log("Removed"); }
 else if (sub === "get") {
   const s = (d.mcpServers ?? {})[args[0]] ?? (d.projects?.[process.cwd()]?.mcpServers ?? {})[args[0]];

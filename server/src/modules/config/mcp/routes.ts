@@ -135,8 +135,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
     }
 
     const backup = await backupEntry(repo, scope, original, before.entry, t("backup.mcpEdit", { name: input.name }));
-    if (before.entry) await runClaude(["mcp", "remove", "--scope", scope, original], { cwd: repo });
-    await runClaude(["mcp", "add-json", "--scope", scope, input.name, JSON.stringify(entry)], { cwd: repo });
+    await replaceEntry(repo, scope, original, before.entry, input.name, JSON.stringify(entry));
     return { hash: hashOf(JSON.stringify(entry)), backup };
   });
 
@@ -179,6 +178,27 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
   }
 }
 
+/**
+ * Replaces entry `from` (null = none) by `content` named `to`. `claude mcp` has no edit, so the
+ * old entry is removed first; when `add-json` fails the old entry is added back and the original
+ * error is thrown, so a rejected edit never loses the server.
+ */
+async function replaceEntry(repo: string, scope: "local" | "user", from: string, old: Record<string, unknown> | null, to: string, content: string): Promise<void> {
+  if (old) await runClaude(["mcp", "remove", "--scope", scope, from], { cwd: repo });
+  try {
+    await runClaude(["mcp", "add-json", "--scope", scope, to, content], { cwd: repo });
+  } catch (e) {
+    if (old) {
+      try {
+        await runClaude(["mcp", "add-json", "--scope", scope, from, JSON.stringify(old)], { cwd: repo });
+      } catch {
+        // The saved backup still holds the old entry; the original error is the one to report.
+      }
+    }
+    throw e;
+  }
+}
+
 /** Restores an MCP entry backup through `claude mcp` (called from the backups route). */
 export async function restoreMcpEntry(backup: { mcp: { scope: "local" | "user"; name: string; repo: string } }, content: string | null, backups: BackupStore): Promise<void> {
   const { scope, name, repo } = backup.mcp;
@@ -189,8 +209,11 @@ export async function restoreMcpEntry(backup: { mcp: { scope: "local" | "user"; 
     t("backup.beforeRestore"),
     backup.mcp,
   );
-  if (now) await runClaude(["mcp", "remove", "--scope", scope, name], { cwd: repo });
-  if (content !== null) await runClaude(["mcp", "add-json", "--scope", scope, name, content], { cwd: repo });
+  if (content === null) {
+    if (now) await runClaude(["mcp", "remove", "--scope", scope, name], { cwd: repo });
+    return;
+  }
+  await replaceEntry(repo, scope, name, now, name, content);
 }
 
 function parseMcpFile(text: string | null): Record<string, unknown> {

@@ -80,10 +80,7 @@ describe("MCP servers, project scope", () => {
 
   it("keeps an existing ${VAR} reference when the value is left unchanged", async () => {
     const { hash } = await get("/api/config/mcp/project");
-    await writeFile(
-      path.join(repo, ".mcp.json"),
-      JSON.stringify({ mcpServers: { old: { type: "stdio", command: "x", env: { API_TOKEN: "${API_TOKEN}" } } } }),
-    );
+    await writeFile(path.join(repo, ".mcp.json"), JSON.stringify({ mcpServers: { old: { type: "stdio", command: "x", env: { API_TOKEN: "${API_TOKEN}" } } } }));
     const form = await get("/api/config/mcp/project/old");
     expect(form.hash).not.toBe(hash);
     const res = await add({
@@ -161,6 +158,33 @@ describe("MCP servers, user scope via claude mcp", () => {
     expect((await get(`/api/backups/${deletedBackup.id}/diff`)).diff).not.toContain("s3cret");
     expect((await send("POST", `/api/backups/${deletedBackup.id}/restore`)).statusCode).toBe(200);
     expect(await stored()).toEqual({ type: "http", url: "https://gh/v2", headers: { Authorization: "Bearer s3cret" } });
+  });
+
+  it.each(["user", "local"] as const)("keeps the old %s entry when claude rejects the new one", async (scope) => {
+    const url = `/api/config/mcp/${scope}`;
+    const body = { name: "gh", type: "http", url: "https://gh/mcp", args: [], headers: [], baseHash: "absent" };
+    expect((await send("PUT", url, body)).statusCode).toBe(200);
+    const before = await get(`${url}/gh`);
+
+    const res = await send("PUT", url, { ...body, originalName: "gh", url: "https://fail.invalid/mcp", baseHash: before.hash });
+    expect(res.statusCode).toBeGreaterThanOrEqual(400);
+    const after = await get(`${url}/gh`);
+    expect(after).toMatchObject({ name: "gh", url: "https://gh/mcp" });
+    expect(after.hash).toBe(before.hash);
+  });
+
+  it("keeps the current entry when a restore fails", async () => {
+    const claudeJson = path.join(home, "claude.json");
+    await writeFile(claudeJson, JSON.stringify({ mcpServers: { gh: { type: "http", url: "https://fail.invalid/mcp" } } }));
+    const { hash } = await get("/api/config/mcp/user/gh");
+    expect((await send("DELETE", `/api/config/mcp/user/gh?baseHash=${hash}`)).statusCode).toBe(200);
+    const [deletedBackup] = await get("/api/backups");
+    const body = { name: "gh", type: "http", url: "https://gh/mcp", args: [], headers: [], baseHash: "absent" };
+    expect((await send("PUT", "/api/config/mcp/user", body)).statusCode).toBe(200);
+
+    const res = await send("POST", `/api/backups/${deletedBackup.id}/restore`);
+    expect(res.statusCode).toBeGreaterThanOrEqual(400);
+    expect(JSON.parse(await readFile(claudeJson, "utf8")).mcpServers.gh).toEqual({ type: "http", url: "https://gh/mcp" });
   });
 
   it("passes the env store to claude for the connection check", async () => {

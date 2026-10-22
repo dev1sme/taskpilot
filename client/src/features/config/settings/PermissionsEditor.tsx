@@ -1,9 +1,8 @@
 import { Plus, X } from "@phosphor-icons/react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "../../../shared/ui/Toast";
 import { clearDraft, setDraft } from "../shared/drafts";
-import { RuleChip } from "../shared/parts";
+import { backupToast, RuleChip } from "../shared/parts";
 import { useSaveFlow } from "../shared/useSaveFlow";
 import { settingsApi } from "./api";
 import type { Permissions } from "./types";
@@ -35,7 +34,7 @@ export function usePermissionsSave(scope: Scope, draft: PermissionsDraft | undef
     preview: () => settingsApi.permissionsPreview(scope, draft!.permissions, draft!.baseHash),
     save: () => settingsApi.permissionsSave(scope, draft!.permissions, draft!.baseHash),
     onSaved: () => {
-      toast(t("permissions.saved", { path: draft?.path }));
+      backupToast(t("permissions.saved", { path: draft?.path }));
       clearDraft(permissionsKey(scope));
       onSaved();
     },

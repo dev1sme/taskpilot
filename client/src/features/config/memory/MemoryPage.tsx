@@ -6,7 +6,7 @@ import { DiffDialog } from "../../../shared/ui/DiffDialog";
 import { clockTime } from "../../../shared/ui/Elapsed";
 import { toast } from "../../../shared/ui/Toast";
 import { clearDraft, getDraft, isDirty, setDraft, useDrafts } from "../shared/drafts";
-import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs } from "../shared/parts";
+import { backupToast, ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs } from "../shared/parts";
 import { useConfig } from "../shared/useConfig";
 import { useSaveFlow } from "../shared/useSaveFlow";
 import { memoryApi } from "./api";
@@ -56,7 +56,7 @@ export function MemoryPage() {
     preview: () => memoryApi.memoryPreview(scope, draft!.content, draft!.baseHash),
     save: () => memoryApi.memorySave(scope, draft!.content, draft!.baseHash),
     onSaved: () => {
-      toast(t("memory.saved", { path: draft?.path }));
+      backupToast(t("memory.saved", { path: draft?.path }));
       clearDraft(draftKey(scope));
       void reload();
     },

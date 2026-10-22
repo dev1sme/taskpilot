@@ -7,7 +7,7 @@ import { Button } from "../../../shared/ui/Button";
 import { DiffDialog } from "../../../shared/ui/DiffDialog";
 import { toast } from "../../../shared/ui/Toast";
 import { clearDraft, getDraft, isDirty, setDraft, useDrafts } from "../shared/drafts";
-import { ConfigHeader, ConfigToolbar, DraftControls, LoadError } from "../shared/parts";
+import { backupToast, ConfigHeader, ConfigToolbar, DraftControls, LoadError, WorkflowTabs } from "../shared/parts";
 import { useConfig } from "../shared/useConfig";
 import { useSaveFlow } from "../shared/useSaveFlow";
 import { workflowConfigApi } from "./api";
@@ -93,7 +93,7 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
     run(async () => {
       await workflowConfigApi.reset(Object.fromEntries((data?.files ?? []).map((f) => [f.name, f.hash])));
       for (const f of data?.files ?? []) clearDraft(draftKey(f.name));
-      toast(t("workflow.resetDone"));
+      backupToast(t("workflow.resetDone"));
       setPicked(WORKFLOW_FILE);
       await refresh();
     });
@@ -101,7 +101,7 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
   const removeFile = () =>
     run(async () => {
       await workflowConfigApi.remove(picked, file!.hash);
-      toast(t("deletedRestorable", { name: file!.path }));
+      backupToast(t("deletedRestorable", { name: file!.path }));
       setPicked(WORKFLOW_FILE);
       await refresh();
     });
@@ -125,7 +125,8 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
     preview: () => workflowConfigApi.preview(draft!.name, draft!.content, draft!.baseHash),
     save: () => workflowConfigApi.save(draft!.name, draft!.content, draft!.baseHash),
     onSaved: () => {
-      toast(t(draft!.isNew ? "library.created" : "library.saved", { path: draft!.path }));
+      if (draft!.isNew) toast(t("library.created", { path: draft!.path }));
+      else backupToast(t("library.saved", { path: draft!.path }));
       clearDraft(draftKey(draft!.name));
       void refresh();
     },
@@ -181,6 +182,7 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
   return (
     <div className="page">
       <ConfigHeader title={t("workflow.title")} subtitle={t("workflow.subtitle")} />
+      <WorkflowTabs current="workflow" />
       <ConfigToolbar
         start={data && <OriginBadge config={data} />}
         readOnly={!!data && !isOverride}

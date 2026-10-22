@@ -1,7 +1,7 @@
 import { Plus, Trash } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import { Button } from "../../../shared/ui/Button";
-import { toast } from "../../../shared/ui/Toast";
+import { backupToast } from "../shared/parts";
 import { clearDraft, setDraft } from "../shared/drafts";
 import { useSaveFlow } from "../shared/useSaveFlow";
 import { hooksApi } from "./api";
@@ -70,7 +70,7 @@ export function useHooksSave(draft: HooksDraft | undefined, onSaved: () => void)
     preview: () => hooksApi.hooksPreview(draft!.scope, draft!.hooks, draft!.baseHash),
     save: () => hooksApi.hooksSave(draft!.scope, draft!.hooks, draft!.baseHash),
     onSaved: () => {
-      toast(t("hooks.saved", { path: draft?.path }));
+      backupToast(t("hooks.saved", { path: draft?.path }));
       clearDraft(hooksKey(draft!.scope));
       onSaved();
     },

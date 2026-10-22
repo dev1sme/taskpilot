@@ -5,7 +5,6 @@ import {
   CaretUpDown,
   ChartLineUp,
   Command,
-  FileText,
   FlowArrow,
   Gear,
   Lightning,
@@ -107,7 +106,7 @@ export function Sidebar({
   const rail = mode === "rail";
   const repoName = repo?.path?.split(/[\\/]/).filter(Boolean).pop() ?? t("common:noRepo");
 
-  // The workspace pages lead without a label; the config groups below can fold.
+  // Every group has a visible heading; the config groups below the workspace can fold.
   const groups: Array<{ id: GroupId; label: string; foldable: boolean; items: NavItem[] }> = [
     {
       id: "workspace",
@@ -134,9 +133,7 @@ export function Sidebar({
           badge: libraryCount || undefined,
           dirty: dirty("library:"),
         },
-        { label: t("nav.workflow"), icon: FlowArrow, route: { page: "config", section: "workflow" }, dirty: dirty("workflow:") },
-        { label: t("nav.formats"), icon: FileText, route: { page: "config", section: "formats" } },
-        { label: t("nav.backups"), icon: ClockCounterClockwise, route: { page: "backups" } },
+        { label: t("nav.workflow"), icon: FlowArrow, route: { page: "config", section: "workflow" }, sections: ["workflow", "formats"], dirty: dirty("workflow:") },
       ],
     },
     {
@@ -155,6 +152,9 @@ export function Sidebar({
       ],
     },
   ];
+
+  // A utility page, not Claude configuration: pinned at the bottom of the nav, under every group.
+  const backups: NavItem = { label: t("nav.backups"), icon: ClockCounterClockwise, route: { page: "backups" } };
 
   const isActive = (r: Route, sections?: string[]) => {
     if (r.page === "config") return route.page === "config" && (sections ?? [r.section]).includes(route.section);
@@ -186,6 +186,22 @@ export function Sidebar({
   const copilot = info?.versions?.copilot ? t("account.copilotVersion", { version: info.versions.copilot }) : null;
   const versions = [claude, copilot].filter(Boolean).join("\n");
   const toggleLabel = mode === "drawer" ? t("sidebar.close") : rail ? t("sidebar.expand") : t("sidebar.collapse");
+
+  const renderItem = (it: NavItem) => {
+    const active = isActive(it.route, it.sections);
+    const tip = it.badge !== undefined ? `${it.label} (${it.badge})` : it.label;
+    return (
+      <li key={it.label}>
+        <a className="nav-item" href={href(it.route)} aria-current={active ? "page" : undefined} title={rail ? tip : undefined} onClick={onNavigate}>
+          {active && <motion.span className="nav-active" layoutId="nav-active" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
+          <it.icon className="nav-icon" weight={active ? "fill" : "regular"} aria-hidden="true" />
+          <span className="nav-text">{it.label}</span>
+          {it.dirty && <span className="nav-dirty" title={t("common:unsavedTitle")} aria-label={t("common:unsaved")} />}
+          {it.badge !== undefined && <span className={`nav-badge${it.warn ? " is-warn" : ""}`}>{it.badge}</span>}
+        </a>
+      </li>
+    );
+  };
 
   return (
     <nav id="sidebar" className={`sidebar is-${mode}`} aria-label={t("nav.label")}>
@@ -241,28 +257,15 @@ export function Sidebar({
                   <CaretDown className="nav-toggle-caret" aria-hidden="true" />
                 </button>
               ) : (
-                <div className="sr-only">{g.label}</div>
+                <div className="nav-label">{g.label}</div>
               )}
               <ul id={listId} hidden={!open}>
-                {g.items.map((it) => {
-                  const active = isActive(it.route, it.sections);
-                  const tip = it.badge !== undefined ? `${it.label} (${it.badge})` : it.label;
-                  return (
-                    <li key={it.label}>
-                      <a className="nav-item" href={href(it.route)} aria-current={active ? "page" : undefined} title={rail ? tip : undefined} onClick={onNavigate}>
-                        {active && <motion.span className="nav-active" layoutId="nav-active" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
-                        <it.icon className="nav-icon" weight={active ? "fill" : "regular"} aria-hidden="true" />
-                        <span className="nav-text">{it.label}</span>
-                        {it.dirty && <span className="nav-dirty" title={t("common:unsavedTitle")} aria-label={t("common:unsaved")} />}
-                        {it.badge !== undefined && <span className={`nav-badge${it.warn ? " is-warn" : ""}`}>{it.badge}</span>}
-                      </a>
-                    </li>
-                  );
-                })}
+                {g.items.map(renderItem)}
               </ul>
             </div>
           );
         })}
+        <ul className="nav-utility">{renderItem(backups)}</ul>
       </div>
 
       <div className="sidebar-account">

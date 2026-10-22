@@ -1,0 +1,43 @@
+/* ------------------------------------------------------------------ page tabs */
+
+/* Tabs between sibling pages, under the header; underlined so they read above the segmented scope tabs. */
+.page-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 28px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+}
+
+.page-tabs a {
+  flex: none;
+  margin-bottom: -1px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  transition: color var(--fast) var(--ease-out), border-color var(--fast) var(--ease-out);
+}
+
+.page-tabs a:hover {
+  color: var(--ink);
+}
+
+.page-tabs a[aria-current="page"] {
+  color: var(--ink);
+  border-bottom-color: var(--signal);
+}
+
+@media (max-width: 860px) {
+  .page-tabs {
+    padding: 0 16px;
+  }
+
+  .page-tabs a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}

@@ -113,6 +113,7 @@
     "pill": "Bị {{scope}} che"
   },
   "deletedRestorable": "Đã xoá {{name}}. Có thể khôi phục trong Lịch sử thay đổi.",
+  "backupsLink": "Xem bản cũ",
   "mcp": {
     "title": "MCP servers",
     "subtitle": "Server Claude dùng để gọi công cụ bên ngoài",
@@ -307,6 +308,8 @@
   },
   "workflow": {
     "title": "Workflow",
+    "tabsLabel": "Phần của workflow",
+    "tabSteps": "Các bước",
     "subtitle": "Các bước TaskPilot chạy cho mỗi task: agent chạy bước, tài liệu phải viết và prompt gửi vào",
     "originDefault": "{{name}} · có sẵn của TaskPilot",
     "originRepo": "{{name}} · override {{dir}}/",

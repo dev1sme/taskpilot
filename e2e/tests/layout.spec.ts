@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 import { openFixtureRepo } from "../fixtures/repo";
 
 test.beforeEach(async ({ page }) => {
@@ -121,6 +121,38 @@ test.describe("sidebar", () => {
     expect(scroll).toBeLessThanOrEqual(client);
   });
 
+  test("every group has a visible heading, as large as its items", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/#/");
+    const sidebar = page.locator("nav.sidebar");
+    const workspace = sidebar.locator(".nav-label").filter({ hasText: "Workspace" });
+    await expect(workspace).toBeVisible();
+    const size = (el: Locator) => el.evaluate((x) => parseFloat(getComputedStyle(x).fontSize));
+    const item = sidebar.getByRole("link", { name: "Tổng quan" });
+    for (const heading of [workspace, sidebar.getByRole("button", { name: "Cấu hình Claude" })]) {
+      expect(await size(heading)).toBeGreaterThanOrEqual(await size(item));
+    }
+  });
+
+  test("Workflow and its document formats share one item; Lịch sử thay đổi sits under every group", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/#/formats");
+    const sidebar = page.locator("nav.sidebar");
+    await expect(sidebar.getByRole("link", { name: "Định dạng tài liệu" })).toHaveCount(0);
+    const workflow = sidebar.getByRole("link", { name: "Workflow" });
+    await expect(workflow).toHaveAttribute("aria-current", "page");
+    const tabs = page.locator(".page-tabs");
+    await expect(tabs.getByRole("link", { name: "Định dạng tài liệu" })).toHaveAttribute("aria-current", "page");
+    await tabs.getByRole("link", { name: "Các bước" }).click();
+    await expect(page).toHaveURL(/#\/workflow$/);
+    await expect(workflow).toHaveAttribute("aria-current", "page");
+
+    const backups = sidebar.locator(".nav-utility").getByRole("link", { name: "Lịch sử thay đổi" });
+    await expect(backups).toBeVisible();
+    const codegraph = await sidebar.getByRole("link", { name: "Codegraph" }).boundingBox();
+    expect((await backups.boundingBox())!.y).toBeGreaterThan(codegraph!.y);
+  });
+
   test("a task page keeps the Task item active", async ({ page }) => {
     await page.goto("/#/tasks/SIDE-15");
     await expect(page.locator('nav.sidebar a.nav-item[href="#/tasks"]')).toHaveAttribute("aria-current", "page");
@@ -141,7 +173,7 @@ test.describe("sidebar", () => {
     await page.goto("/#/skills");
     await expect(item).toHaveAttribute("aria-current", "page");
     await expect(item.locator(".nav-badge")).toBeVisible();
-    const tabs = page.locator(".library-tabs");
+    const tabs = page.locator(".page-tabs");
     await expect(tabs.getByRole("link", { name: /Skills/ })).toHaveAttribute("aria-current", "page");
     // The tabs sit under the page title, not above it.
     const header = await page.locator("main .page-header").boundingBox();

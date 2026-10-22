@@ -1,14 +1,17 @@
 import { ArrowClockwise, LockSimple, X } from "@phosphor-icons/react";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { href, type Route } from "../../../shared/router";
 import { Button } from "../../../shared/ui/Button";
 import i18n from "../../../i18n";
 import { PageHeader } from "../../../shared/ui/PageHeader";
+import { toast } from "../../../shared/ui/Toast";
 import { Toolbar } from "../../../shared/ui/Toolbar";
 import { clearDraft, isDirty } from "./drafts";
 import "./controls.css";
 import "./forms.css";
 import "./cards.css";
+import "./page-tabs.css";
 import type { Scope } from "./types";
 
 export const scopeLabel = (scope: Scope) => i18n.t(`scope.label.${scope}`, { ns: "config" });
@@ -22,9 +25,41 @@ export function ScopeTag({ scope }: { scope: Scope }) {
   );
 }
 
+/** Confirms a change that left a backup, with a link to Lịch sử thay đổi where it can be restored. */
+export function backupToast(text: string): void {
+  toast(text, { action: { label: i18n.t("backupsLink", { ns: "config" }), href: href({ page: "backups" }) } });
+}
+
 /** Header shared by the config pages: title and subtitle only; file actions go in `ConfigToolbar`. */
 export function ConfigHeader(props: { title: ReactNode; subtitle?: ReactNode }) {
   return <PageHeader title={props.title} subtitle={props.subtitle} />;
+}
+
+/** Tabs under the header between sibling pages that share one sidebar item; each tab is its page's own route. */
+export function PageTabs(props: { label: string; tabs: Array<{ route: Route; label: string; current: boolean }> }) {
+  return (
+    <nav className="page-tabs" aria-label={props.label}>
+      {props.tabs.map((tab) => (
+        <a key={href(tab.route)} href={href(tab.route)} aria-current={tab.current ? "page" : undefined}>
+          {tab.label}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
+/** Workflow and its document formats: two pages, one sidebar item. */
+export function WorkflowTabs({ current }: { current: "workflow" | "formats" }) {
+  const { t } = useTranslation("config");
+  return (
+    <PageTabs
+      label={t("workflow.tabsLabel")}
+      tabs={[
+        { route: { page: "config", section: "workflow" }, label: t("workflow.tabSteps"), current: current === "workflow" },
+        { route: { page: "config", section: "formats" }, label: t("formats.title"), current: current === "formats" },
+      ]}
+    />
+  );
 }
 
 /**

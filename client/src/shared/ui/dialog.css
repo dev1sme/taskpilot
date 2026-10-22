@@ -146,3 +146,10 @@
 .toast.is-error svg {
   color: var(--danger);
 }
+
+.toast-action {
+  flex: none;
+  font-weight: 600;
+  color: var(--signal-text);
+  white-space: nowrap;
+}

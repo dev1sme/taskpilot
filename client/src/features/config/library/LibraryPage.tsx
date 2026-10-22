@@ -2,7 +2,6 @@ import { Eye, MagnifyingGlass, PencilSimple, Plus, Trash, X } from "@phosphor-ic
 import { AnimatePresence, motion } from "motion/react";
 import { lazy, Suspense, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { href } from "../../../shared/router";
 import { useWorkspace } from "../../workspace";
 import { Button } from "../../../shared/ui/Button";
 import { DiffDialog } from "../../../shared/ui/DiffDialog";
@@ -10,7 +9,7 @@ import i18n from "../../../i18n";
 import { Markdown } from "../../../shared/ui/Markdown";
 import { toast } from "../../../shared/ui/Toast";
 import { clearDraft, getDraft, setDraft, useDrafts } from "../shared/drafts";
-import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs, ScopeTag } from "../shared/parts";
+import { backupToast, ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, PageTabs, ScopeTabs, ScopeTag } from "../shared/parts";
 import { shadowedBy } from "../shared/precedence";
 import { useConfig } from "../shared/useConfig";
 import { useSaveFlow } from "../shared/useSaveFlow";
@@ -75,15 +74,8 @@ const KINDS: readonly LibraryKind[] = ["agents", "commands", "skills"];
 /** Switches between the three library sections; each tab is the section's own route. */
 function KindTabs({ kind }: { kind: LibraryKind }) {
   const { t } = useTranslation("config");
-  return (
-    <nav className="library-tabs" aria-label={t("library.tabsLabel")}>
-      {KINDS.map((k) => (
-        <a key={k} href={href({ page: "config", section: k })} aria-current={k === kind ? "page" : undefined}>
-          {t(`library.kind.${k}.title`)}
-        </a>
-      ))}
-    </nav>
-  );
+  const tabs = KINDS.map((k) => ({ route: { page: "config", section: k } as const, label: t(`library.kind.${k}.title`), current: k === kind }));
+  return <PageTabs label={t("library.tabsLabel")} tabs={tabs} />;
 }
 
 /** Agents, commands or skills: list + detail, with create, edit (diff review) and delete (backed up). */
@@ -118,7 +110,8 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
     preview: () => libraryApi.libraryPreview(kind, draft!.scope, draft!.rel, draft!.content, draft!.baseHash),
     save: () => libraryApi.librarySave(kind, draft!.scope, draft!.rel, draft!.content, draft!.baseHash),
     onSaved: () => {
-      toast(t(draft!.isNew ? "library.created" : "library.saved", { path: draft!.path }));
+      if (draft!.isNew) toast(t("library.created", { path: draft!.path }));
+      else backupToast(t("library.saved", { path: draft!.path }));
       clearDraft(draftKey(kind));
       setScope(draft!.scope);
       setPicked(`${draft!.scope}:${draft!.rel}`);
@@ -265,7 +258,7 @@ function LibraryDetail({ item, prefix, onEdit, onDeleted }: { item: LibraryItem;
     try {
       const raw = await libraryApi.libraryRaw(item.kind, item.scope, item.rel);
       await libraryApi.libraryDelete(item.kind, item.scope, item.rel, raw.hash);
-      toast(t("deletedRestorable", { name: item.path }));
+      backupToast(t("deletedRestorable", { name: item.path }));
       onDeleted();
     } catch (e) {
       toast((e as Error).message, { error: true });

@@ -5,7 +5,7 @@ import { useWorkspace } from "../../workspace";
 import { Button } from "../../../shared/ui/Button";
 import { toast } from "../../../shared/ui/Toast";
 import { McpForm } from "./McpForm";
-import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError, ScopeTabs, ScopeTag } from "../shared/parts";
+import { backupToast, ConfigHeader, ConfigToolbar, EmptyCard, LoadError, ScopeTabs, ScopeTag } from "../shared/parts";
 import { shadowedBy } from "../shared/precedence";
 import { useConfig } from "../shared/useConfig";
 import { mcpApi } from "./api";
@@ -190,7 +190,7 @@ function McpDetail({ server, source, onEdit, onChanged }: { server: McpServer; s
     try {
       const { hash } = await mcpApi.mcpEntry(server.scope, server.name);
       await mcpApi.mcpDelete(server.scope, server.name, hash);
-      toast(t("deletedRestorable", { name: server.name }));
+      backupToast(t("deletedRestorable", { name: server.name }));
       onChanged();
     } catch (e) {
       toast((e as Error).message, { error: true });

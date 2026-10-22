@@ -4,6 +4,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { href } from "../../shared/router";
 import { useWorkspace, type TaskSummary } from "../workspace";
 import { Elapsed } from "../../shared/ui/Elapsed";
+import { useNow } from "../../shared/useNow";
 import { CategoryIcon, useActivity, type ActivityItem } from "../activity";
 import { PageHeader } from "../../shared/ui/PageHeader";
 import { isAttention, sortTasks, statusOf } from "../tasks";
@@ -257,12 +258,13 @@ function Live({ task, others }: { task: TaskSummary; others: number }) {
 /** Tool calls per 30 s over the last 12 minutes. */
 function Pulse({ items }: { items: ActivityItem[] }) {
   const { t } = useTranslation("overview");
-  const now = Date.now();
+  const now = useNow(1000);
   const buckets = new Array<number>(24).fill(0);
   for (const i of items) {
     if (i.kind !== "tool") continue;
-    const b = 23 - Math.floor((now - i.at) / 30_000);
-    if (b >= 0 && b < 24) buckets[b]++;
+    // An item newer than the last tick belongs in the last column.
+    const b = Math.min(23, 23 - Math.floor((now - i.at) / 30_000));
+    if (b >= 0) buckets[b]++;
   }
   const max = Math.max(1, ...buckets);
   return (

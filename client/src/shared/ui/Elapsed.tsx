@@ -1,13 +1,9 @@
-import { useEffect, useState } from "react";
 import { locale } from "../../i18n";
+import { useNow } from "../useNow";
 
 /** Live "4m 12s" since `since`; re-renders once a second while mounted. */
 export function Elapsed({ since }: { since: number }) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
+  const now = useNow(1000);
   return <time dateTime={new Date(since).toISOString()}>{formatDuration(now - since)}</time>;
 }
 

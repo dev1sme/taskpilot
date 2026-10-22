@@ -59,6 +59,17 @@ describe("hooks editing", () => {
     });
   });
 
+  it("keeps hooks it cannot read on save (no type, or no command)", async () => {
+    const untouched = [{ prompt: "no type field" }, { type: "command" }];
+    await writeFile(settings(), JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: "command", command: "old" }, ...untouched] }] } }));
+    const before = await get("/api/config/settings/project/hooks");
+    expect(before.hooks).toEqual([{ event: "Stop", matcher: "", command: "old" }]);
+
+    expect((await send("PUT", "/api/config/settings/project/hooks", { hooks: [], baseHash: before.hash })).statusCode).toBe(200);
+    const written = JSON.parse(await readFile(settings(), "utf8"));
+    expect(written.hooks).toEqual({ Stop: [{ hooks: untouched }] });
+  });
+
   it.each([[{ event: "not an event", matcher: "", command: "x" }], [{ event: "Stop", matcher: "", command: "a\nb" }], [{ event: "Stop", matcher: "", command: "x", timeout: 0 }]])(
     "rejects invalid hook %#",
     async (hook) => {

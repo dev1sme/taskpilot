@@ -56,7 +56,12 @@ const EVENT_NAME = /^[A-Z][A-Za-z]{1,63}$/;
 const EDITED_FIELDS = new Set(["type", "command", "timeout"]);
 const MAX_EXTRA_BYTES = 16 * 1024;
 
-/** Command hooks of a settings file, in file order. Non-command hooks are left alone on save. */
+/** A hook readHookInputs reads: a command hook, with or without `type`. Anything else is kept as is on save. */
+function isCommandHook(h: unknown): h is Record<string, unknown> & { command: string } {
+  return isObject(h) && (h.type === undefined || h.type === "command") && typeof h.command === "string";
+}
+
+/** Command hooks of a settings file, in file order. Hooks that are not command hooks are left alone on save. */
 export function readHookInputs(text: string | null): HookInput[] {
   const data = parse(text);
   const out: HookInput[] = [];
@@ -66,7 +71,7 @@ export function readHookInputs(text: string | null): HookInput[] {
     for (const m of matchers) {
       if (!isObject(m) || !Array.isArray(m.hooks)) continue;
       for (const h of m.hooks) {
-        if (!isObject(h) || (h.type !== undefined && h.type !== "command") || typeof h.command !== "string") continue;
+        if (!isCommandHook(h)) continue;
         const extra = Object.fromEntries(Object.entries(h).filter(([k]) => !EDITED_FIELDS.has(k)));
         out.push({
           event,
@@ -117,7 +122,7 @@ export function validateHooks(body: unknown): HookInput[] {
 
 /**
  * Settings text with its command hooks replaced by `hooks`, grouped event → matcher in input
- * order. Hooks of other types (prompt…) and every other key are kept.
+ * order. Every hook that readHookInputs does not read (prompt…, or no command) and every other key are kept.
  */
 export function applyHooks(text: string | null, hooks: HookInput[]): string {
   const data = parse(text);
@@ -127,7 +132,7 @@ export function applyHooks(text: string | null, hooks: HookInput[]): string {
       if (!Array.isArray(matchers)) continue;
       for (const m of matchers) {
         if (!isObject(m) || !Array.isArray(m.hooks)) continue;
-        const others = m.hooks.filter((h) => isObject(h) && h.type !== undefined && h.type !== "command");
+        const others = m.hooks.filter((h) => !isCommandHook(h));
         if (others.length) (kept[event] ??= []).push({ ...m, hooks: others });
       }
     }

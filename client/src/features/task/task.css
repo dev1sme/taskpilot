@@ -94,3 +94,29 @@
 .workflow-outdated {
   color: var(--attention);
 }
+
+.subagent-notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--attention-soft);
+  border: 1px solid var(--attention-line);
+  border-radius: var(--r-md);
+}
+
+.subagent-notice svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  color: var(--attention);
+}
+
+.subagent-notice a {
+  font-weight: 600;
+  color: inherit;
+}

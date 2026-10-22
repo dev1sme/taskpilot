@@ -115,3 +115,13 @@
   font-weight: 500;
   color: var(--attention);
 }
+
+.subtask-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}

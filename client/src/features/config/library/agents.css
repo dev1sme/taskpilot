@@ -1,0 +1,124 @@
+/* ------------------------------------------------------------------ agents: templates and checks */
+
+.agents-banner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  background: var(--signal-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.agents-banner > svg {
+  width: 28px;
+  height: 28px;
+  color: var(--signal);
+}
+
+.agents-banner h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.agents-banner p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .agents-banner {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.check-pill {
+  flex: none;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border-radius: 999px;
+  color: var(--done);
+  background: var(--done-soft);
+}
+
+.check-pill.is-warn {
+  color: var(--attention);
+  background: var(--attention-soft);
+}
+
+.check-pill.is-error {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.agent-check {
+  display: grid;
+  gap: 6px;
+}
+
+.agent-check p {
+  margin: 0;
+}
+
+.agent-check-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-check-problems {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+}
+
+.template-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.template-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+
+.template-row input {
+  margin-top: 3px;
+}
+
+.template-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.template-desc,
+.template-state {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.template-state.is-warn {
+  color: var(--attention);
+}
+
+.lib-pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}

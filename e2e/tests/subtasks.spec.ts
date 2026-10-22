@@ -111,3 +111,51 @@ test("a Copilot subtask that sends no hook is flagged and marked done by hand af
   await row.getByRole("button", { name: "Xác nhận: xong" }).click();
   await expect.poll(() => sent).toEqual([{ url: "/api/tasks/PROJ-1/run/subtasks/2/complete", body: null }]);
 });
+
+test("the plan gate shows the subagent and model the table gives", async ({ page }) => {
+  const items = [{ ...ITEMS[0], subagent: "taskpilot-implementer", model: "haiku" }, ITEMS[1]];
+  await fakeRun(page, { stepIndex: 0, phase: "gate", assignments: { items, errors: [] } });
+  await page.goto("/#/tasks/PROJ-1");
+  const rows = page.getByRole("region", { name: "Các việc con của kế hoạch" }).locator(".subtask-row");
+  await expect(rows.nth(0)).toContainText("subagent taskpilot-implementer");
+  await expect(rows.nth(0)).toContainText("model haiku");
+  await expect(rows.nth(1).locator(".subtask-as")).toHaveCount(0);
+});
+
+test("each subtask shows its model, time and cost; a missing part is said", async ({ page }) => {
+  await fakeRun(page, {
+    stepIndex: 1,
+    phase: "running",
+    subtasks: [
+      sub(1, "done", { subagent: "taskpilot-implementer", model: "haiku", metrics: { model: "claude-haiku-4-5", costUsd: 0.4213, durationMs: 725_000 } }),
+      sub(2, "done", { model: "gpt-5", metrics: { model: "gpt-5", durationMs: 40_000 } }),
+    ],
+  });
+  await page.goto("/#/tasks/PROJ-1");
+  const rows = page.locator(".now-card .subtask-row");
+  const first = rows.nth(0).getByLabel("Số liệu: model, thời gian, chi phí");
+  await expect(first).toContainText("claude-haiku-4-5");
+  await expect(first).toContainText("12m 5s");
+  await expect(first).toContainText("$0.42");
+  await expect(rows.nth(0)).toContainText("subagent taskpilot-implementer");
+  await expect(rows.nth(1).getByLabel("Số liệu: model, thời gian, chi phí")).toContainText("chi phí không có");
+});
+
+test("a workflow that gives subtasks out says when no subagent can run one", async ({ page }) => {
+  await page.route("**/api/config/agents", (route) =>
+    route.fulfill({ json: [{ kind: "agents", scope: "project", name: "explorer", check: { status: "ok", roles: ["leader"], problems: [] } }] }),
+  );
+  await fakeRun(page, { stepIndex: 0, phase: "running" });
+  await page.goto("/#/tasks/PROJ-1");
+  const notice = page.getByRole("status").filter({ hasText: "Repo chưa có subagent nào làm được việc con" });
+  await expect(notice).toBeVisible();
+  await expect(notice.getByRole("link", { name: "Thêm subagent" })).toHaveAttribute("href", "#/agents");
+});
+
+test("no notice when an agent can run a subtask", async ({ page }) => {
+  // The fixture's reviewer declares no tools, so it has them all and can be a member.
+  await fakeRun(page, { stepIndex: 0, phase: "running" });
+  await page.goto("/#/tasks/PROJ-1");
+  await expect(page.locator(".now-card")).toBeVisible();
+  await expect(page.getByText("Repo chưa có subagent nào làm được việc con")).toHaveCount(0);
+});

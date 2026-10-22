@@ -87,6 +87,48 @@
     "skillDeleteHint": "Chỉ xóa SKILL.md; {{count}} file khác trong thư mục giữ nguyên.",
     "files": "File đi kèm",
     "body": "Nội dung",
+    "templates": {
+      "bannerTitle": "Repo chưa có subagent",
+      "bannerBody": "Leader của TaskPilot giao việc con cho subagent trong .claude/agents. Ghi bộ subagent mẫu của TaskPilot vào repo để bắt đầu, rồi sửa theo repo.",
+      "install": "Ghi subagent mẫu của TaskPilot",
+      "button": "Subagent mẫu",
+      "buttonTitle": "Ghi subagent mẫu của TaskPilot vào .claude/agents",
+      "title": "Subagent mẫu của TaskPilot",
+      "subtitle": "Ghi vào .claude/agents của repo này. Xem diff trước khi ghi; bản cũ luôn nằm trong Lịch sử thay đổi.",
+      "loading": "Đang đọc bản mẫu…",
+      "new": "Chưa có, sẽ tạo {{path}}",
+      "same": "Repo đã có, giống bản mẫu",
+      "modified": "Repo đã có {{path}}, khác bản mẫu. Chọn để ghi đè.",
+      "review_one": "Xem diff ({{count}} file)",
+      "review_other": "Xem diff ({{count}} file)",
+      "diffTitle": "Ghi subagent mẫu vào .claude/agents",
+      "write_one": "Ghi {{count}} file",
+      "write_other": "Ghi {{count}} file",
+      "installed_one": "Đã ghi {{count}} subagent mẫu vào .claude/agents.",
+      "installed_other": "Đã ghi {{count}} subagent mẫu vào .claude/agents."
+    },
+    "check": {
+      "title": "Kiểm tra cho TaskPilot",
+      "error": "lỗi",
+      "unusable": "không dùng được",
+      "member": "leader · member",
+      "leaderOnly": "chỉ leader",
+      "status": {
+        "ok": "Dùng được trong quy trình của TaskPilot.",
+        "warn": "Dùng được nhưng có điều cần xem.",
+        "error": "Claude Code hoặc TaskPilot không dùng được agent này."
+      },
+      "roles": "Vai trò: {{roles}}.",
+      "noRoles": "Không giao được cho leader hay việc con.",
+      "role": {
+        "leader": "leader (leader gọi qua Task tool)",
+        "member": "member (chạy cả một việc con)"
+      },
+      "template": {
+        "same": "Giống bản mẫu của TaskPilot.",
+        "modified": "Đã sửa so với bản mẫu của TaskPilot."
+      }
+    },
     "new": {
       "title": "Tạo {{one}}",
       "name": "Tên",

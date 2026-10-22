@@ -10,6 +10,7 @@ import { PageHeader } from "../../shared/ui/PageHeader";
 import { Toolbar } from "../../shared/ui/Toolbar";
 import { GateCard, ModePicker, NowCard, Stepper, ACTIVE_PHASES, useRun, workflowApi } from "../workflow";
 import { useTaskDone } from "../tasks";
+import { SubagentNotice } from "./SubagentNotice";
 import "./task.css";
 import type { RunPhase, TaskSummary } from "../workspace";
 
@@ -82,6 +83,8 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
   const PillIcon = pill?.icon;
   const working = run?.phase === "running" || run?.phase === "starting";
   // Interrupted, finished and cancelled runs offer the restart in the card already.
+  // Subagents only matter to a workflow that gives subtasks out, until the run is over.
+  const dispatches = steps.some((s) => s.dispatch) && (run === null || active);
   const toolbarRestart = run !== null && !["interrupted", "done", "cancelled"].includes(run.phase);
 
   return (
@@ -187,6 +190,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
 
         {view && (
           <div className="task-content">
+            {dispatches && <SubagentNotice />}
             <Stepper steps={steps} run={run} />
             <div className="task-body">
               <div className="task-main">

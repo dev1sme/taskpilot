@@ -1,4 +1,4 @@
-import { Eye, MagnifyingGlass, PencilSimple, Plus, Trash, X } from "@phosphor-icons/react";
+import { Eye, MagnifyingGlass, PencilSimple, Plus, Robot, Trash, X } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { lazy, Suspense, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,6 +14,7 @@ import { shadowedBy } from "../shared/precedence";
 import { useConfig } from "../shared/useConfig";
 import { useSaveFlow } from "../shared/useSaveFlow";
 import "../../../shared/ui/dialog.css";
+import { CheckPill, CheckSection, NoAgentsBanner, TemplatesDialog } from "./AgentTemplates";
 import { libraryApi } from "./api";
 import type { LibraryItem, LibraryKind } from "./types";
 import "../shared/library-view.css";
@@ -47,7 +48,7 @@ function template(kind: LibraryKind, name: string): string {
   const base = name.split("/").pop() ?? name;
   const t = i18n.getFixedT(null, "config", "library.template");
   if (kind === "agents") {
-    return `---\nname: ${base}\ndescription: ${t("agentDescription")}\ntools: Read, Grep, Glob\n---\n\n${t("agentBody", { name: base })}\n`;
+    return `---\nname: ${base}\ndescription: ${t("agentDescription")}\ntools: Read, Grep, Glob\nmodel: sonnet\n---\n\n${t("agentBody", { name: base })}\n`;
   }
   if (kind === "commands") return `---\ndescription: ${t("commandDescription")}\nargument-hint: ${t("commandArgumentHint")}\n---\n\n${t("commandBody")}\n`;
   return `---\nname: ${base}\ndescription: ${t("skillDescription")}\n---\n\n# ${base}\n\n${t("skillBody")}\n`;
@@ -87,6 +88,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [installing, setInstalling] = useState(false);
   useDrafts();
   const draft = getDraft<LibraryDraft>(draftKey(kind));
   const copy = useCopy(kind);
@@ -96,6 +98,9 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
     const q = query.trim().toLowerCase();
     return inScope.filter((i) => !q || `${i.name} ${i.description}`.toLowerCase().includes(q));
   }, [inScope, query]);
+
+  // "The repo has no subagent" is about .claude/agents only; user agents are the user's own.
+  const noRepoAgents = kind === "agents" && data !== null && !data.some((i) => i.scope === "project");
 
   const keyOf = (i: LibraryItem) => `${i.scope}:${i.rel}`;
   const current = items.find((i) => keyOf(i) === picked) ?? items[0];
@@ -156,14 +161,22 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
               </Button>
             </>
           ) : (
-            <Button icon={Plus} variant="primary" title={t("library.addTitle", { one: copy.one, dir: scopeDir(kind, scope) })} onClick={() => setCreating(true)}>
-              {t("action.add")}
-            </Button>
+            <>
+              {kind === "agents" && (
+                <Button icon={Robot} variant="quiet" title={t("library.templates.buttonTitle")} onClick={() => setInstalling(true)}>
+                  {t("library.templates.button")}
+                </Button>
+              )}
+              <Button icon={Plus} variant="primary" title={t("library.addTitle", { one: copy.one, dir: scopeDir(kind, scope) })} onClick={() => setCreating(true)}>
+                {t("action.add")}
+              </Button>
+            </>
           )
         }
       />
       <LoadError error={error} />
       <div className="page-body">
+        {!draft && noRepoAgents && <NoAgentsBanner onInstall={() => setInstalling(true)} />}
         {draft ? (
           <LibraryEditor draft={draft} />
         ) : data && inScope.length === 0 ? (
@@ -191,9 +204,14 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
                           {copy.prefix}
                           {i.name}
                         </span>
-                        {hidden && (
-                          <span className="shadow-pill" title={t("shadow.title", { scope: hidden })}>
-                            {t("shadow.pill", { scope: hidden })}
+                        {(hidden || i.check) && (
+                          <span className="lib-pills">
+                            {hidden && (
+                              <span className="shadow-pill" title={t("shadow.title", { scope: hidden })}>
+                                {t("shadow.pill", { scope: hidden })}
+                              </span>
+                            )}
+                            {i.check && <CheckPill check={i.check} />}
                           </span>
                         )}
                         {i.description && <span className="lib-desc">{i.description}</span>}
@@ -216,6 +234,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
         )}
       </div>
       {draft && <DiffDialog {...flow.dialog} confirmLabel={draft.isNew ? t("library.createFile") : t("library.saveFile")} />}
+      {kind === "agents" && <TemplatesDialog open={installing} onClose={() => setInstalling(false)} onInstalled={refresh} />}
       <NewItemDialog
         open={creating}
         kind={kind}
@@ -301,6 +320,7 @@ function LibraryDetail({ item, prefix, onEdit, onDeleted }: { item: LibraryItem;
         </p>
       )}
       {item.description && <p className="lib-description">{item.description}</p>}
+      {item.check && <CheckSection check={item.check} />}
       {item.fields.length > 0 && (
         <dl className="fields">
           {item.fields.map((f) => (

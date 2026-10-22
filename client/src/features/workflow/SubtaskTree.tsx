@@ -4,13 +4,45 @@ import { useTranslation } from "react-i18next";
 import { AGENT_LABELS } from "../../shared/agents";
 import { AgentBadge } from "../../shared/ui/AgentBadge";
 import { Button } from "../../shared/ui/Button";
+import { formatDuration } from "../../shared/ui/Elapsed";
 import { workflowApi } from "./api";
 import { MarkDoneButton } from "./MarkDoneButton";
 import { ReplyForm } from "./ReplyForm";
-import type { Assignment, ParsedAssignments, Question, SubtaskRun } from "./types";
+import type { Assignment, ParsedAssignments, Question, SubtaskMetrics, SubtaskRun } from "./types";
 import "./subtask-tree.css";
 
 const AFTER = (deps: number[]) => deps.join(", ");
+
+/** The subagent and model the plan's table gives the subtask; nothing when it uses the defaults. */
+function RunAs({ item }: { item: Assignment }) {
+  const { t } = useTranslation("workflow");
+  return (
+    <>
+      {item.subagent && (
+        <span className="subtask-as">
+          {t("subtasks.subagent")} <code>{item.subagent}</code>
+        </span>
+      )}
+      {item.model && (
+        <span className="subtask-as">
+          {t("subtasks.model")} <code>{item.model}</code>
+        </span>
+      )}
+    </>
+  );
+}
+
+/** Model, time and cost of the subtask's session, as the run recorded them; a missing part is said, not guessed. */
+function Metrics({ metrics }: { metrics: SubtaskMetrics }) {
+  const { t } = useTranslation("workflow");
+  return (
+    <p className="subtask-metrics" aria-label={t("subtasks.metricsLabel")}>
+      <span>{metrics.model ? <code>{metrics.model}</code> : t("subtasks.noModel")}</span>
+      {metrics.durationMs !== undefined && <span>{formatDuration(metrics.durationMs)}</span>}
+      <span>{metrics.costUsd !== undefined ? `$${metrics.costUsd.toFixed(2)}` : t("subtasks.noCost")}</span>
+    </p>
+  );
+}
 
 /** The subtasks the plan's table gives, shown at the gate so the reviewer sees what approving starts. */
 export function AssignmentPreview(props: { assignments: ParsedAssignments; parallel: number }) {
@@ -51,6 +83,7 @@ function PreviewRow({ item }: { item: Assignment }) {
           {item.title} <AgentBadge agent={item.agent} />
         </p>
         <p className="subtask-meta">
+          <RunAs item={item} />
           {item.files.length > 0 && <code>{item.files.join(", ")}</code>}
           {item.deps.length > 0 && <span>{t("subtasks.after", { list: AFTER(item.deps) })}</span>}
         </p>
@@ -121,9 +154,11 @@ function SubtaskRow(props: TreeProps & { sub: SubtaskRun }) {
           <span className={`subtask-phase phase-${sub.phase}`}>{permission ? t("subtasks.permission") : t(`subtasks.phase.${sub.phase}`)}</span>
         </p>
         <p className="subtask-meta">
+          <RunAs item={sub} />
           {sub.files.length > 0 && <code>{sub.files.join(", ")}</code>}
           {sub.deps.length > 0 && <span>{t("subtasks.after", { list: AFTER(sub.deps) })}</span>}
         </p>
+        {sub.metrics && <Metrics metrics={sub.metrics} />}
         {sub.phase === "waiting" && (
           <ReplyForm
             send={(text) => workflowApi.replySubtask(props.taskKey, sub.n, text)}

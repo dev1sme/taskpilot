@@ -26,14 +26,30 @@ export interface Assignment {
   n: number;
   title: string;
   agent: Agent;
+  /** Subagent the whole session runs as (--agent); absent = the agent itself. */
+  subagent?: string;
+  /** Model as written in the table; absent = the subagent's or the user's default. */
+  model?: string;
   files: string[];
   output: string;
   deps: number[];
 }
 
+/** What a finished subtask's session reported; Copilot gives no cost. */
+export interface SubtaskMetrics {
+  /** Model id the session ran (Claude's status line), else the model passed with --model. */
+  model?: string;
+  costUsd?: number;
+  durationMs?: number;
+}
+
 export interface SubtaskRun extends Assignment {
   phase: SubtaskPhase;
   sessionId?: string;
+  /** When the subtask's first prompt was sent. */
+  startedAt?: number;
+  finishedAt?: number;
+  metrics?: SubtaskMetrics;
   lastMessage?: string;
   /** The agent sent no hook for a while after the prompt. */
   noHook?: boolean;

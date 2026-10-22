@@ -26,5 +26,7 @@
   "terminalEmpty": "Chưa có session. Bắt đầu quy trình hoặc bấm + để mở một session Claude hoặc Copilot.",
   "sentPrompt": "Prompt đã gửi",
   "sentPromptTitle": "Prompt TaskPilot đã gửi vào session gần nhất, đúng như agent nhận được",
-  "sentPromptHead": "Prompt đã gửi · {{step}} · {{time}}"
+  "sentPromptHead": "Prompt đã gửi · {{step}} · {{time}}",
+  "noSubagents": "Repo chưa có subagent nào làm được việc con (cần tools Write hoặc Edit). Leader sẽ giao việc cho agent mặc định.",
+  "noSubagentsLink": "Thêm subagent"
 }

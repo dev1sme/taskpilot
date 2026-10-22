@@ -29,12 +29,23 @@
     "indexed": "Đã index",
     "notIndexed": "Chưa index",
     "noIndex": "Chưa có .codegraph cho repo này.",
+    "upToDate": "Mới nhất",
+    "stale": "Cần index lại",
+    "details": "Xem chi tiết",
+    "stat": {
+      "files": "Files",
+      "nodes": "Nodes",
+      "edges": "Edges",
+      "dbSize": "Dung lượng DB",
+      "state": "Trạng thái"
+    },
     "reindex": "Re-index",
     "indexNow": "Index ngay",
     "mcpTitle": "Dùng trong Claude",
     "mcpHint": "Thêm server MCP \"codegraph\" vào .mcp.json để Claude tự gọi công cụ codegraph trong repo này.",
     "mcpAddTitle": "Thêm MCP server \"codegraph\" vào .mcp.json",
-    "mcpAdd": "Thêm"
+    "mcpAdd": "Thêm",
+    "mcpPresent": "Đã có server MCP \"codegraph\" trong .mcp.json."
   },
   "library": {
     "tabsLabel": "Loại mục trong thư viện",

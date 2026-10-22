@@ -1,0 +1,65 @@
+/* ------------------------------------------------------------------ codegraph */
+
+.cg-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.cg-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  margin-bottom: 10px;
+}
+
+.cg-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--signal-text);
+}
+
+.cg-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.cg-stat {
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.cg-stat dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.cg-stat dd {
+  margin: 2px 0 0;
+  font-size: 18px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.cg-raw {
+  margin: 0 0 12px;
+}
+
+.cg-raw summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.cg-raw pre {
+  margin: 8px 0 0;
+  overflow-x: auto;
+  font-size: 12.5px;
+  white-space: pre;
+}

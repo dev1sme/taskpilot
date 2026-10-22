@@ -10,7 +10,7 @@ import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "../shared/par
 import { useConfig } from "../shared/useConfig";
 import { codegraphApi } from "./api";
 import { mcpApi } from "../mcp/api";
-import "../hooks/hooks.css";
+import "./codegraph.css";
 
 type Adding = { baseHash: string } | null;
 
@@ -18,7 +18,7 @@ type Adding = { baseHash: string } | null;
 export function CodegraphPage() {
   const { t } = useTranslation("config");
   const { data: status, error, loading, reload } = useConfig(["codegraph"], codegraphApi.codegraph);
-  const { repo, reloadInventory } = useWorkspace();
+  const { repo, inventory, reloadInventory } = useWorkspace();
   const [busy, setBusy] = useState(false);
   const [indexError, setIndexError] = useState<string | null>(null);
   const [adding, setAdding] = useState<Adding>(null);
@@ -35,6 +35,8 @@ export function CodegraphPage() {
       await reload();
     }
   };
+
+  const hasMcp = inventory?.mcp.servers.some((s) => s.name === "codegraph") ?? false;
 
   const startAddMcp = async () => {
     try {
@@ -55,9 +57,9 @@ export function CodegraphPage() {
           <EmptyCard title={t("codegraph.outsideTitle")}>{t("codegraph.outsideBody")}</EmptyCard>
         )}
         {status && status.supported && (
-          <>
-            <section className="card hook-group">
-              <header className="hook-head">
+          <div className="cg-stack">
+            <section className="card">
+              <header className="cg-head">
                 <TreeStructure weight="fill" aria-hidden="true" />
                 <h2>{status.indexed ? t("codegraph.indexed") : t("codegraph.notIndexed")}</h2>
               </header>
@@ -66,7 +68,33 @@ export function CodegraphPage() {
                   {status.error}
                 </p>
               )}
-              {status.detail && <pre className="mono hook-command">{status.detail}</pre>}
+              {status.summary && (
+                <dl className="cg-stats">
+                  {(
+                    [
+                      ["files", status.summary.files.toLocaleString()],
+                      ["nodes", status.summary.nodes.toLocaleString()],
+                      ["edges", status.summary.edges.toLocaleString()],
+                      ["dbSize", status.summary.dbSize],
+                    ] as const
+                  ).map(([key, value]) => (
+                    <div className="cg-stat" key={key}>
+                      <dt>{t(`codegraph.stat.${key}`)}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ))}
+                  <div className="cg-stat">
+                    <dt>{t("codegraph.stat.state")}</dt>
+                    <dd>{status.summary.upToDate ? t("codegraph.upToDate") : t("codegraph.stale")}</dd>
+                  </div>
+                </dl>
+              )}
+              {status.detail && (
+                <details className="cg-raw">
+                  <summary>{t("codegraph.details")}</summary>
+                  <pre className="mono">{status.detail}</pre>
+                </details>
+              )}
               {!status.indexed && !status.error && <p className="hint">{t("codegraph.noIndex")}</p>}
               {indexError && (
                 <p className="error" role="alert">
@@ -97,18 +125,24 @@ export function CodegraphPage() {
                 }}
               />
             ) : (
-              <section className="card hook-group">
-                <header className="hook-head">
+              <section className="card">
+                <header className="cg-head">
                   <Plugs weight="fill" aria-hidden="true" />
                   <h2>{t("codegraph.mcpTitle")}</h2>
                 </header>
-                <p className="hint">{t("codegraph.mcpHint")}</p>
-                <Button icon={Plugs} title={t("codegraph.mcpAddTitle")} onClick={() => void startAddMcp()}>
-                  {t("codegraph.mcpAdd")}
-                </Button>
+                {hasMcp ? (
+                  <p className="hint">{t("codegraph.mcpPresent")}</p>
+                ) : (
+                  <>
+                    <p className="hint">{t("codegraph.mcpHint")}</p>
+                    <Button icon={Plugs} title={t("codegraph.mcpAddTitle")} onClick={() => void startAddMcp()}>
+                      {t("codegraph.mcpAdd")}
+                    </Button>
+                  </>
+                )}
               </section>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>

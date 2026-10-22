@@ -96,6 +96,6 @@ export async function claudeJsonEntry(scope: "local" | "user", repo: string, nam
     holder = projects[repo];
   }
   const servers = isObject(holder) && isObject(holder.mcpServers) ? holder.mcpServers : {};
-  const entry = servers[name];
+  const entry = Object.hasOwn(servers, name) ? servers[name] : null;
   return isObject(entry) ? entry : null;
 }

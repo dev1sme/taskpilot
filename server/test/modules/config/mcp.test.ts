@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { EnvStore } from "../../../src/modules/env/store.js";
-import { get, home, repo, send, state, useConfigApp } from "../../helpers/configApp.js";
+import { app, get, home, ok, repo, send, state, useConfigApp } from "../../helpers/configApp.js";
 
 useConfigApp();
 
@@ -73,6 +73,25 @@ describe("MCP servers, project scope", () => {
     const del = await send("DELETE", `/api/config/mcp/project/api?baseHash=${h2}`);
     expect(del.statusCode).toBe(200);
     expect(JSON.parse(await readFile(path.join(repo, ".mcp.json"), "utf8")).mcpServers).toEqual({});
+  });
+});
+
+describe("MCP server names that are Object.prototype keys", () => {
+  it("rejects __proto__ on GET and DELETE without writing or backing up", async () => {
+    const { hash } = await get("/api/config/mcp/project");
+    const http = { name: "api", type: "http", url: "https://x/mcp", args: [], headers: [], baseHash: hash };
+    expect((await send("PUT", "/api/config/mcp/project", http)).statusCode).toBe(200);
+    const file = path.join(repo, ".mcp.json");
+    const text = await readFile(file, "utf8");
+    const backups = (await get("/api/backups")).length;
+    const { hash: h2 } = await get("/api/config/mcp/project");
+
+    for (const scope of ["project", "local", "user"]) {
+      expect((await app.inject({ url: `/api/config/mcp/${scope}/__proto__`, headers: ok })).statusCode).toBe(400);
+      expect((await send("DELETE", `/api/config/mcp/${scope}/__proto__?baseHash=${h2}`)).statusCode).toBe(400);
+    }
+    expect(await readFile(file, "utf8")).toBe(text);
+    expect((await get("/api/backups")).length).toBe(backups);
   });
 });
 

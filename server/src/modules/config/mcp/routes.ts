@@ -6,7 +6,7 @@ import type { BackupStore } from "../backups/store.js";
 import { checkMcp, runClaude } from "../../../core/claude/cli.js";
 import { claudeJson, displayPath, isObject, maskValue } from "../shared/fs.js";
 import { claudeJsonEntry, readMcp } from "./read.js";
-import { buildEntry, maskEntry, validateEntry } from "./edit.js";
+import { buildEntry, maskEntry, NAME, validateEntry } from "./edit.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
 import { t } from "../../../core/i18n.js";
 
@@ -38,7 +38,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
       const text = await readCurrent(projectFile(repo));
       const doc = parseMcpFile(text);
       const servers = isObject(doc.mcpServers) ? doc.mcpServers : {};
-      return { entry: isObject(servers[name]) ? servers[name] : null, hash: hashOf(text), text, doc };
+      return { entry: Object.hasOwn(servers, name) && isObject(servers[name]) ? servers[name] : null, hash: hashOf(text), text, doc };
     }
     const entry = await claudeJsonEntry(scope, repo, name);
     return { entry, hash: hashOf(entry ? JSON.stringify(entry) : null), text: null, doc: null };
@@ -53,6 +53,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
   app.get<{ Params: { scope: string; name: string } }>("/api/config/mcp/:scope/:name", async (req) => {
     const repo = requireRepo();
     const scope = scopeOf(req.params.scope);
+    if (!NAME.test(req.params.name)) throw new HttpError(400, t("mcp.invalidServerName"));
     const { entry, hash } = await current(repo, scope, req.params.name);
     if (!entry) throw new HttpError(404, t("mcp.notFound", { name: req.params.name }));
     const masked = maskEntry(entry)!;
@@ -143,6 +144,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
     const repo = requireRepo();
     const scope = scopeOf(req.params.scope);
     const name = req.params.name;
+    if (!NAME.test(name)) throw new HttpError(400, t("mcp.invalidServerName"));
     const before = await current(repo, scope, name);
     if (!before.entry) throw new HttpError(404, t("mcp.notFound", { name }));
     if (before.hash !== req.query.baseHash) throw new HttpError(409, t("mcp.changedOutside"));
@@ -164,7 +166,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
   /** Connection status as Claude reports it (`claude mcp get`); only the status is returned. */
   app.post<{ Params: { name: string } }>("/api/config/mcp/check/:name", async (req) => {
     const repo = requireRepo();
-    if (!/^[A-Za-z0-9][\w.-]{0,63}$/.test(req.params.name)) throw new HttpError(400, t("mcp.invalidServerName"));
+    if (!NAME.test(req.params.name)) throw new HttpError(400, t("mcp.invalidServerName"));
     return checkMcp(req.params.name, { cwd: repo, env: await envStore.forRepo(repo) });
   });
 

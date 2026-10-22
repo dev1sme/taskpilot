@@ -33,7 +33,8 @@ const EDITED = ["type", "command", "args", "env", "url", "headers"];
 const STDIO_ONLY = ["cwd"];
 const REMOTE_ONLY = ["headersHelper", "oauth"];
 
-const NAME = /^[A-Za-z0-9][\w.-]{0,63}$/;
+/** Server names: also checked by the routes, so `__proto__` and the like never reach a lookup. */
+export const NAME = /^[A-Za-z0-9][\w.-]{0,63}$/;
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const HEADER = /^[A-Za-z0-9-]{1,100}$/;
 

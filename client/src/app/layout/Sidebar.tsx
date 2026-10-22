@@ -162,22 +162,15 @@ export function Sidebar({
 
   // Opening a page inside a folded group unfolds it, so the current page is always in view.
   const activeGroup = groups.find((g) => g.items.some((it) => isActive(it.route, it.sections)))?.id;
-  useEffect(() => {
-    if (!activeGroup) return;
-    setCollapsed((ids) => {
-      if (!ids.includes(activeGroup)) return ids;
-      const next = ids.filter((id) => id !== activeGroup);
-      writeCollapsed(next);
-      return next;
-    });
-  }, [activeGroup]);
+  const [seenGroup, setSeenGroup] = useState<GroupId>();
+  if (seenGroup !== activeGroup) {
+    setSeenGroup(activeGroup);
+    if (activeGroup && collapsed.includes(activeGroup)) setCollapsed(collapsed.filter((id) => id !== activeGroup));
+  }
 
-  const toggle = (id: GroupId) =>
-    setCollapsed((ids) => {
-      const next = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
-      writeCollapsed(next);
-      return next;
-    });
+  useEffect(() => writeCollapsed(collapsed), [collapsed]);
+
+  const toggle = (id: GroupId) => setCollapsed((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
 
   const claude = info?.claudeVersion ? t("account.claudeVersion", { version: info.claudeVersion }) : t("account.claudeMissing");
   // Copilot is optional: shown only when installed.

@@ -111,7 +111,11 @@ function Shell() {
   useEffect(() => writeRail(rail), [rail]);
 
   // A new page, or a screen grown past the breakpoint, closes the drawer.
-  useEffect(() => setDrawer(false), [route, narrow]);
+  const [seenView, setSeenView] = useState({ route, narrow });
+  if (seenView.route !== route || seenView.narrow !== narrow) {
+    setSeenView({ route, narrow });
+    setDrawer(false);
+  }
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -128,9 +132,11 @@ function Shell() {
   }, [drawerOpen]);
 
   // No repo yet: ask for one right away.
-  useEffect(() => {
+  const [seenRepo, setSeenRepo] = useState<typeof repo>();
+  if (seenRepo !== repo) {
+    setSeenRepo(repo);
     if (repo && !repo.path) setRepoDialog(true);
-  }, [repo]);
+  }
 
   const task = route.page === "task" ? tasks.find((x) => x.key === route.key) : undefined;
   const repoName = repo?.path?.split(/[\\/]/).filter(Boolean).pop() ?? t("common:noRepo");

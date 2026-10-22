@@ -1,5 +1,5 @@
 import { FolderOpen } from "@phosphor-icons/react";
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "../../shared/ui/Button";
 import "./repo.css";
@@ -7,12 +7,16 @@ import type { RepoInfo } from "../workspace";
 
 export function RepoPicker({ repo, onChange, autoFocus = false }: { repo: RepoInfo | null; onChange: (path: string) => Promise<void>; autoFocus?: boolean }) {
   const { t } = useTranslation("repo");
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(repo?.path ?? "");
+  const [seenPath, setSeenPath] = useState(repo?.path);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputId = useId();
 
-  useEffect(() => setValue(repo?.path ?? ""), [repo?.path]);
+  if (seenPath !== repo?.path) {
+    setSeenPath(repo?.path);
+    setValue(repo?.path ?? "");
+  }
 
   return (
     <form

@@ -65,16 +65,22 @@ export function CommandPalette({ open, onClose, sidebar }: { open: boolean; onCl
     return [...taskEntries, ...pageEntries, ...commandEntries].filter((e) => !q || fold(`${e.label} ${e.hint}`).includes(q)).slice(0, 12);
   }, [tasks, query, sidebar, t]);
 
+  // Each opening starts clean: empty search, first entry selected.
+  const [seenOpen, setSeenOpen] = useState(open);
+  if (seenOpen !== open) {
+    setSeenOpen(open);
+    if (open) {
+      setQuery("");
+      setIndex(0);
+    }
+  }
+
   useEffect(() => {
     if (!open) return;
-    setQuery("");
-    setIndex(0);
     const previous = document.activeElement as HTMLElement | null;
     requestAnimationFrame(() => inputRef.current?.focus());
     return () => previous?.focus();
   }, [open]);
-
-  useEffect(() => setIndex(0), [query]);
 
   const go = (e: Entry | undefined) => {
     if (!e) return;
@@ -119,7 +125,10 @@ export function CommandPalette({ open, onClose, sidebar }: { open: boolean; onCl
               <input
                 ref={inputRef}
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setIndex(0);
+                }}
                 placeholder={t("palette.placeholder")}
                 aria-label={t("palette.placeholder")}
                 role="combobox"

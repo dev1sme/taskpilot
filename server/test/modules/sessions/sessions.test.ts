@@ -129,6 +129,40 @@ describe("sessions", () => {
     term.ws.close();
   });
 
+  it("keeps the model and subagent of a session for its resume", async () => {
+    const state = new StateStore(await tempDir("taskpilot-state-"));
+    const calls: Array<{ resume: boolean; model?: string; subagent?: string }> = [];
+    const recording: Launcher = (id, { resume, model, subagent }) => {
+      calls.push({ resume, model, subagent });
+      return { file: "/bin/sh", args: ["-c", "exit 0", "sh", id] };
+    };
+    const manager = new SessionManager(state, { launcher: recording });
+    managers.push(manager);
+    const s = await manager.create(await makeRepo(), "DEMO-1", { model: "haiku", subagent: "taskpilot-implementer" });
+    expect(s).toMatchObject({ model: "haiku", subagent: "taskpilot-implementer" });
+    for (let i = 0; i < 100 && (await manager.get(s.id)).status === "running"; i++) await new Promise((r) => setTimeout(r, 20));
+    // A fresh store reads state.json again, as after a server restart.
+    const reloaded = new SessionManager(new StateStore(state.dir), { launcher: recording });
+    managers.push(reloaded);
+    await reloaded.resume(s.id);
+    expect(calls).toEqual([
+      { resume: false, model: "haiku", subagent: "taskpilot-implementer" },
+      { resume: true, model: "haiku", subagent: "taskpilot-implementer" },
+    ]);
+  });
+
+  it("takes an optional model for a new session and refuses one that looks like a flag", async () => {
+    const { app } = await start();
+    const s = (await app.inject({ method: "POST", url: "/api/tasks/DEMO-1/sessions", headers: ok, payload: { model: " sonnet " } })).json();
+    expect(s.model).toBe("sonnet");
+    const plain = (await app.inject({ method: "POST", url: "/api/repo/sessions", headers: ok, payload: { model: "" } })).json();
+    expect(plain.model).toBeUndefined();
+    for (const model of ["--dangerously-skip-permissions", "a b", 42]) {
+      const res = await app.inject({ method: "POST", url: "/api/tasks/DEMO-1/sessions", headers: ok, payload: { model } });
+      expect(res.statusCode).toBe(400);
+    }
+  });
+
   it("numbers sessions per task and persists them", async () => {
     const { app, state } = await start();
     await app.inject({ method: "POST", url: "/api/tasks/DEMO-1/sessions", headers: ok });

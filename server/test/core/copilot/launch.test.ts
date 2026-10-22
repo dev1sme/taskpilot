@@ -21,6 +21,12 @@ describe("copilotLauncher", () => {
     for (const mode of ["default", "acceptEdits", "plan", undefined]) expect(env(mode)).toEqual({ TASKPILOT_HOOK_AGENT: "copilot" });
   });
 
+  it("passes --agent and --model after the permission flags", () => {
+    expect(copilotLauncher("s1", { resume: true, permissionMode: "plan", subagent: "reviewer", model: "gpt-5.4" }).args).toEqual([
+      "--session-id", "s1", "--mode", "plan", "--agent", "reviewer", "--model", "gpt-5.4",
+    ]);
+  });
+
   it("ignores --settings, which copilot does not have", () => {
     expect(copilotLauncher("s1", { resume: false, settings: "{}" }).args).not.toContain("--settings");
   });

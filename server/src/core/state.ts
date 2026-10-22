@@ -16,6 +16,10 @@ export interface SessionMeta {
   createdAt: number;
   /** Passed as --permission-mode on spawn and resume; absent = the user's own default. */
   permissionMode?: string;
+  /** Passed as --model on spawn and resume; absent = the subagent's or the user's default. */
+  model?: string;
+  /** Passed as --agent on spawn and resume; absent = the agent's own main session. */
+  subagent?: string;
 }
 
 export interface AppState {

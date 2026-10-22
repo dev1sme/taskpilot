@@ -113,7 +113,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     return this.view(await this.find(id));
   }
 
-  async create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent; title?: string } = {}): Promise<SessionView> {
+  async create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent; title?: string; model?: string; subagent?: string } = {}): Promise<SessionView> {
     const count = (await this.list(repo, taskKey)).length;
     const meta: SessionMeta = {
       id: randomUUID(),
@@ -123,6 +123,8 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       createdAt: Date.now(),
       ...(opts.permissionMode ? { permissionMode: opts.permissionMode } : {}),
       ...(opts.agent && opts.agent !== DEFAULT_AGENT ? { agent: opts.agent } : {}),
+      ...(opts.model ? { model: opts.model } : {}),
+      ...(opts.subagent ? { subagent: opts.subagent } : {}),
     };
     await this.state.update((s) => void s.sessions.push(meta));
     await this.spawn(meta, false);
@@ -339,6 +341,8 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       resume,
       settings: backend.launchSettings?.(),
       permissionMode: meta.permissionMode,
+      model: meta.model,
+      subagent: meta.subagent,
     });
     const proc = pty.spawn(file, args, {
       name: "xterm-256color",

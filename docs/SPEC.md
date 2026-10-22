@@ -248,6 +248,20 @@ The embedded terminal is shell-equivalent access to the machine.
 | Hooks need a trusted folder (TPL-014, copilot 1.0.101) | Every hook run writes `hook.start`/`hook.end` to the session's `events.jsonl`; sessions in this repo had 0 (hooks never ran: no footer, run stuck after the step), `/tmp` spikes 12–34. `-p` without `--trust-folder`: 0 hooks; with it, all six. `~/.copilot/config.json` `trustedFolders` is where "remember" is stored. Env **`COPILOT_ALLOW_ALL=true`**: all tools allowed, folder trusted, hooks load, `ls /tmp` not asked; **`=1`: 0 hooks**. `permission-mode: auto` sets it (`core/copilot/launch.ts`). **TPL-017**: the cause is that Copilot drops *repo* hooks when it reloads plugins in an untrusted folder (log: `Reloaded hooks after plugin change`); `trustedFolders` does not help, hooks in `~/.copilot/hooks/*.json` survive, so TaskPilot installs there and no longer needs `auto` for hooks. A run warns when no hook arrives within 60 s of the prompt. |
 | Settings files | JSONC (comments). Precedence: user < `.github/copilot/settings.json` < `settings.local.json` < env < flags. Copilot also runs hooks from `.claude/settings.json` and `.claude/settings.local.json`. |
 
+### Subagent and model spike (TPL-019, 2026-10-22, claude 2.1.307, copilot 1.0.102)
+
+Run with `claude -p` in a scratch repo (CLAUDE.md with a secret word, `.claude/agents/spike-writer.md` with `model: sonnet` and a prompt that prefixes every answer with a token), then interactively via node-pty in a trusted repo (agent given inline with `--agents`).
+
+| Question | Result |
+|---|---|
+| `--agent <name>` keeps the repo's CLAUDE.md? | **Yes.** The answer had both the agent's token and the CLAUDE.md secret word; `~/.claude/CLAUDE.md` is loaded too. Memory files still load next to the agent's prompt. |
+| `--agent` keeps `--settings` hooks? | **Yes**, in `-p` and interactive: `SessionStart`, `UserPromptSubmit`, `Stop` all reached the injected hook commands. |
+| `--model` with `--agent` | `--model` **overrides** the agent's `model:` (`--model haiku` → `claude-haiku-5-5`; without it → the agent's `sonnet`). |
+| `--resume <id>` without the flags | Keeps the **agent** (the transcript stores `agentSetting`) but **not `--model`**: the turn ran on the agent's model. TaskPilot passes `--agent` and `--model` again on every resume (`SessionMeta.model`/`subagent`). |
+| Unknown agent / model | `--agent x`: exit 1, `--agent 'x' not found. Available agents: …`. `--model x`: exit 1, `[claude-code:unrecognized_model]`. Both fail at start, so check names before a run starts. |
+| Status line input with `--agent`/`--model` | `model.id`, `model.display_name`, `cost.total_cost_usd`, `cost.total_duration_ms`, `cost.total_api_duration_ms`, `cost.total_lines_added/removed`, `agent.name`. |
+| `copilot --agent` / `--model` | Unknown model: exit 1, `Model "x" from --model flag is not available.` Unknown agent: exit 1, `No such agent: x, available: …`. **Copilot also lists the agents in `.claude/agents/`** (`spike-writer` was offered). A real run with a valid model/agent was not tried (premium requests). |
+
 ## 8. Open items
 
 - Trust dialog vs. `SessionStart` order is inferred, not verified: in a never-trusted folder the first

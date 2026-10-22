@@ -3,6 +3,10 @@ export interface LaunchOptions {
   /** JSON for --settings (hooks); agents without such a flag get their hooks from a file instead. */
   settings?: string;
   permissionMode?: string;
+  /** --model; absent = the subagent's model, else the user's default. */
+  model?: string;
+  /** --agent: the whole session runs as this subagent (its prompt, tools and model). */
+  subagent?: string;
 }
 
 export interface LaunchSpec {
@@ -22,8 +26,15 @@ export const claudeLauncher: Launcher = (sessionId, opts) => ({
     ...(opts.resume ? ["--resume", sessionId] : ["--session-id", sessionId]),
     ...(opts.settings ? ["--settings", opts.settings] : []),
     ...(opts.permissionMode ? ["--permission-mode", opts.permissionMode] : []),
+    // Both again on resume: claude keeps the agent of a resumed session but not its --model (SPEC §7).
+    ...agentArgs(opts),
   ],
 });
+
+/** --agent / --model, which claude and copilot spell the same way. */
+export function agentArgs(opts: Pick<LaunchOptions, "model" | "subagent">): string[] {
+  return [...(opts.subagent ? ["--agent", opts.subagent] : []), ...(opts.model ? ["--model", opts.model] : [])];
+}
 
 /**
  * Environment for the child. Inherited CLAUDE* variables (set when TaskPilot itself is started

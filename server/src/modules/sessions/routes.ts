@@ -20,6 +20,17 @@ function agentOf(body: unknown): Agent | undefined {
   return agent;
 }
 
+/** A model name or id; never starts with "-", so it cannot be read as another flag. */
+const MODEL = /^[A-Za-z0-9][\w.:/[\]-]{0,99}$/;
+
+/** Optional `{ model }` body of a new session; the user's default when absent. */
+function modelOf(body: unknown): string | undefined {
+  const model = typeof body === "object" && body !== null ? (body as { model?: unknown }).model : undefined;
+  if (model === undefined || model === null || model === "") return undefined;
+  if (typeof model !== "string" || !MODEL.test(model.trim())) throw new HttpError(400, `Invalid model: ${String(model)}`);
+  return model.trim();
+}
+
 /** Agent sessions of a task or of the repo, and the PTY socket of each. */
 export function registerSessionsRoutes(
   app: FastifyInstance,
@@ -35,13 +46,13 @@ export function registerSessionsRoutes(
 
   app.post<{ Params: { key: string } }>("/api/tasks/:key/sessions", async (req) => {
     const task = await getTask(requireRepo(), req.params.key);
-    return sessions.create(requireRepo(), task.key, { agent: agentOf(req.body) });
+    return sessions.create(requireRepo(), task.key, { agent: agentOf(req.body), model: modelOf(req.body) });
   });
 
   // Repo sessions: an agent in the repo without a task (the footer terminal). Not part of any workflow run.
   app.get("/api/repo/sessions", async () => sessions.list(requireRepo(), REPO_SESSION_KEY));
 
-  app.post("/api/repo/sessions", async (req) => sessions.create(requireRepo(), REPO_SESSION_KEY, { agent: agentOf(req.body) }));
+  app.post("/api/repo/sessions", async (req) => sessions.create(requireRepo(), REPO_SESSION_KEY, { agent: agentOf(req.body), model: modelOf(req.body) }));
 
   app.post<{ Params: { id: string } }>("/api/sessions/:id/resume", async (req) =>
     sessions.resume(sessionId(req.params.id)),

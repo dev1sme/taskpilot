@@ -1,240 +1,154 @@
-# Configuring Claude, Copilot and the workflow
+# Cấu hình TaskPilot
 
-## Claude configuration
+## Biến môi trường
 
-The sidebar's *Cấu hình Claude* and *Tích hợp* sections show the repo's CLAUDE.md files, settings
-and permissions, hooks, agents, commands, skills and MCP servers, merged across project, local and
-user scopes. Everything can be edited: CLAUDE.md files, permission rules, hooks, agents, commands, skills and MCP
-servers. Every save shows a diff first, refuses to overwrite a file that changed since you opened
-it, and keeps a backup of the old version in `~/.taskpilot/backups/` (restore it from
-*Lịch sử thay đổi*).
+TaskPilot đọc `.env` cạnh `package.json` của chính ứng dụng, kể cả khi khởi chạy từ repo khác. Thứ tự ưu tiên: tùy chọn CLI → môi trường tiến trình → `.env` → mặc định. Xem mẫu tại [`.env.example`](../.env.example).
 
-Agents, commands and skills get one tab per folder (`.claude/<kind>` project scope,
-`~/.claude/<kind>` user scope); MCP servers get one tab per scope (`.mcp.json`, `~/.claude.json` for
-this repo, `~/.claude.json`), the same way the CLAUDE.md page splits by scope. Adding a new one goes
-into the open tab. An item shadowed by the same name in a higher-precedence scope is flagged —
-Claude Code's own precedence: MCP local > project > user; agents project > user; skills and
-commands user > project.
+| Biến | Mặc định / ý nghĩa |
+|---|---|
+| `TASKPILOT_HOST` / `TASKPILOT_PORT` | `127.0.0.1` / `8790`; có thể ghi đè bằng `--host` / `--port` |
+| `TASKPILOT_HOME` | `~/.taskpilot`; nơi lưu trạng thái, bản sao lưu và dữ liệu xác thực |
+| `TASKPILOT_AUTH_USER` / `TASKPILOT_AUTH_PASSWORD` | Tài khoản đăng nhập; đặt cả hai hoặc để trống cả hai |
+| `TASKPILOT_TOKEN` | Token cố định thay cho token ngẫu nhiên; khi dùng tài khoản, đây là token API tùy chọn cho header `x-taskpilot-token` |
+| `TASKPILOT_ALLOWED_HOSTS` | Danh sách hostname bổ sung được chấp nhận, phân cách bằng dấu phẩy |
+| `TASKPILOT_CLAUDE` / `TASKPILOT_COPILOT` | Lệnh CLI; mặc định `claude` / `copilot` |
+| `TASKPILOT_CLAUDE_HOME` / `TASKPILOT_CLAUDE_JSON` | Nơi TaskPilot đọc cấu hình Claude; mặc định `~/.claude` / `~/.claude.json` |
+| `COPILOT_HOME` | Thư mục cấu hình Copilot, gồm hooks; mặc định `~/.copilot` |
 
-MCP secrets: for servers in the shared `.mcp.json`, mark a value as secret and TaskPilot writes
-`${VAR}` in the file and keeps the value in its own env store (`~/.taskpilot/env.json`), passed to
-the claude sessions it starts. Claude Code reads `${VAR}` from its process environment only, so
-sessions you start yourself need the variable in your shell. Local and user servers are changed
-through `claude mcp`; "Kiểm tra kết nối" asks `claude mcp get` and shows only the status. Secret values (env, headers, credentials in URLs)
-are masked on the server and never sent to the browser; `${VAR}` references are shown, and MCP
-servers whose variables are not set are flagged.
+Đăng nhập, reverse proxy và giới hạn truy cập được mô tả tại [Triển khai](DEPLOY.md).
 
-## Agents: Claude and Copilot
+## Cấu hình Claude và MCP
 
-A session runs one coding agent: Claude Code (`claude`, the default) or GitHub Copilot CLI
-(`copilot`). The **+** of a terminal asks which one. In a workflow, `agent` at the top sets the
-agent of every step and a step's own `agent` overrides it, so one task can have Claude investigate
-and plan, then Copilot implement the approved plan (Claude as leader, Copilot as member):
+Các trang cấu hình cho phép chỉnh `CLAUDE.md`, settings, quyền, hooks, agents, commands, skills và MCP theo phạm vi project, local hoặc user. Mỗi lần lưu đều có bản so sánh trước khi ghi, kiểm tra xung đột và sao lưu để khôi phục từ **Lịch sử thay đổi**. Nếu file đã đổi bên ngoài, tải lại trước khi sửa tiếp.
+
+**Thư viện** chia agents, commands và skills theo thư mục. Các mục trùng tên bị che bởi phạm vi ưu tiên cao hơn sẽ được đánh dấu:
+
+| Loại | Thứ tự ưu tiên từ cao xuống thấp |
+|---|---|
+| MCP | Local → project → user |
+| Agents | Project → user |
+| Skills, commands | User → project |
+
+MCP project nằm trong `.mcp.json`; local và user nằm trong `~/.claude.json` và được sửa thông qua `claude mcp`. Với MCP dùng chung, đánh dấu giá trị là bí mật để lưu `${VAR}` trong file, còn giá trị thật nằm trong kho môi trường của TaskPilot. Các phiên do TaskPilot mở nhận biến này; phiên CLI tự mở cần biến tương ứng trong shell. Giá trị bí mật được che trước khi trả về trình duyệt.
+
+TaskPilot cung cấp các mẫu subagent tại [`subagents/claude/`](../subagents/claude). Chép mẫu cần dùng vào `.claude/agents/` của repo để CLI nhận diện. Subagent làm việc con cần quyền ghi báo cáo.
+
+## Agent và model
+
+`agent` chọn CLI: `claude` hoặc `copilot`. `model` chọn model của phiên; giá trị ở từng bước ghi đè giá trị chung. Khi bước sau đổi agent hoặc model, TaskPilot tạo phiên mới và chuyển bối cảnh qua tài liệu cùng nhật ký.
+
+Workflow `default` dùng Claude điều tra và Copilot triển khai. Để chỉ dùng Claude, tạo `.taskpilot/workflow.yml` trong repo cần xử lý:
 
 ```yaml
-version: 2
-agent: claude                 # default of every step; claude when absent
+extends: default
 steps:
-  - id: investigate
-    # …runs with claude
   - id: implement
-    agent: copilot            # this step runs with Copilot
-    # …
+    agent: claude
 ```
 
-When a step's agent differs from the previous step's, the run stops the previous session (it stays
-listed), starts a new session of the step's agent and logs the switch in the decision log. The new
-agent knows the task from its documents and the decision log, which every built-in prompt has it
-read first; `{{agent}}` names the step's agent (the built-in history heading uses it). Restarting
-starts over with the first step's agent. The built-in workflow investigates and plans with Claude and implements with Copilot (which needs
-`permission-mode: auto`, see below; the built-in has none).
+Thêm `model: sonnet` vào một bước để chọn model Claude cho bước đó. Bỏ `model`, hoặc dùng `default` / `inherit`, để CLI dùng model mặc định. Model Copilot phụ thuộc tài khoản; không mặc định coi alias của Claude là model Copilot hợp lệ. Nếu đặt model chung rồi đổi CLI ở một bước, nên đặt model riêng cho bước ấy.
 
-`permission-mode` maps to Copilot flags:
+`permission-mode` áp dụng cho các phiên workflow:
 
-| `permission-mode` | Copilot |
-|---|---|
-| `default` / absent | no flag: Copilot asks before writes and commands |
-| `acceptEdits` | `--allow-tool=write` |
-| `plan` | `--mode plan` |
-| `auto` | env `COPILOT_ALLOW_ALL=true`: allows every tool and trusts the folder without asking. Not `--yolo`/`--allow-all-paths`/`--allow-all-urls`. |
+| Giá trị | Claude | Copilot |
+|---|---|---|
+| `default` hoặc bỏ trống | Theo mặc định CLI | Hỏi quyền trước thao tác cần duyệt |
+| `acceptEdits` | `--permission-mode acceptEdits` | `--allow-tool=write` |
+| `plan` | `--permission-mode plan` | `--mode plan` |
+| `auto` | `--permission-mode auto` | `COPILOT_ALLOW_ALL=true`, cho phép mọi tool và tin cậy thư mục |
 
-`auto` is for unattended Copilot steps: set it in the repo's override (`.taskpilot/`), since the
-built-in workflow has none. It also becomes Claude's `--permission-mode auto`. Hooks do **not**
-depend on it or on the folder's trust: they are installed at user level (below). If a Copilot step
-still gets no hook for a minute, the run says so; TaskPilot then takes the end of the turn from
-Copilot's transcript (`events.jsonl`) once it has been quiet for 15 s, and the "Đánh dấu xong"
-button on the step (or subtask) ends it by hand once its file is written.
+`auto` dành cho trường hợp muốn CLI tự xử lý quyền; workflow tích hợp không bật sẵn. Copilot vẫn chạy được với chế độ hỏi quyền và hooks không yêu cầu `auto`. TaskPilot cài hooks ở `~/.copilot/hooks/taskpilot.json`; chúng chỉ xử lý các phiên do TaskPilot khởi tạo.
 
-How TaskPilot drives Copilot (copilot 1.0.100, see
-[hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference) and
-[config directory reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference)):
+## Chọn và tùy chỉnh workflow
 
-- Copilot has no `--settings` flag, so TaskPilot writes its seven hooks into
-  `~/.copilot/hooks/taskpilot.json` (or `$COPILOT_HOME/hooks/`) before every Copilot session, under
-  Claude's event names (`SessionStart`, `Stop`…): with those names Copilot sends Claude-style
-  payloads. Why not the repo: in a folder Copilot does not trust it drops repo hooks when it
-  reloads plugins at start (TPL-017), user-level hooks survive. Each command exits at once unless
-  `TASKPILOT_HOOK_AGENT=copilot` and the token are set, so a `copilot` you start yourself is not
-  affected. TaskPilot also removes its own entries from an older repo
-  `.github/copilot/settings.local.json` (and the file, if nothing else is left in it); your own keys
-  stay.
-- Without `permission-mode: auto`, Copilot asks whether you trust the folder on its first start in a
-  repo. Answer in the terminal; the step's prompt is sent once Copilot's input box is ready, never
-  into that question.
-- Copilot also runs the hooks in the repo's `.claude/settings.json` and `.claude/settings.local.json`.
-- The footer's plan usage is Claude's only: Copilot's status line input has no account quota.
+Mỗi chế độ có một thư mục [`workflows/<id>/`](../workflows) chứa `workflow.yml`, prompt và mẫu tài liệu:
 
-## Custom workflow
+- `default`: điều tra, lập kế hoạch, triển khai; có hai lần duyệt.
+- `leader`: lập kế hoạch, giao việc con, rà soát; duyệt kế hoạch và tổng kết.
 
-### Modes (how a task runs)
+Chọn trên từng task bằng **Cách chạy**, hoặc dùng **Dùng làm mặc định của repo** trên trang **Workflow**. Lựa chọn của repo được lưu trong `.taskpilot/settings.yml` với `mode: <id>`.
 
-TaskPilot ships its workflows as **modes**: one directory `workflows/<id>/workflow.yml` each
-(`default`: static steps; `leader`: Claude leads, members do the plan's rows). No override is
-needed to pick one:
-
-- the *Workflow* page has a tab per mode and **Dùng làm mặc định của repo**; the choice is written to
-  `.taskpilot/settings.yml` in the repo (`mode: <id>`; backed up first, kept by *Xoá override*);
-- the task screen has a **Cách chạy** select next to *Bắt đầu* / *Chạy lại từ đầu* (hidden while
-  only one mode is available) to run one task differently;
-- a run keeps the mode it started with (snapshot, `workflow.mode`) and the history entry names it.
-
-Adding a mode = adding a `workflows/<id>/workflow.yml` (with a `name` and `description`).
-
-### Override
-
-A repo's override in `.taskpilot/` is `workflow.yml` with `extends: <mode>` and only what
-differs from that mode: top-level keys (`agent`, `permission-mode`, `language`, `rules`, `history`,
-`restart`) replace the mode's; a step with an id of the mode patches that step (only the keys
-written: `title`, `dispatch.prompt|format|parallel`); a new step is added with exactly one of
-`before` / `after`; a prompt or format file of the directory replaces the mode's file of the same
-name. Everything not written follows the mode, so it gets TaskPilot's updates. An override applies
-only to the mode it extends; for other modes the page says *không áp dụng* and shows the built-in.
-
-The *Workflow* page shows the mode in use, read only. **Tạo override dựa trên <mode>** writes just
-`workflow.yml` (refused with 409 if files already in `.taskpilot/` clash with the mode's file
-names). Files can then be edited, checked, compared with the built-in file and previewed as the
-prompt a step sends (for a sample task, `TASK-1`, optionally as after *Chạy lại từ đầu* or with a
-sample feedback). **Xoá override** goes back to the built-in workflow (every file is backed up
-first). TaskPilot only ever writes inside `.taskpilot/`, never `workflows/`. The old
-`.claude/workflow.yml` is no longer read. The page opens with a short guide (*Override hoạt động
-thế nào*). The *Định dạng tài liệu* tab of the Workflow page shows each document's skeleton from the workflow as it runs, and
-offers *Sửa* only for skeletons the override holds.
-
-**Complete (legacy) overrides.** An override without `extends` (a full copy) still works, as the
-special mode `custom`, the repo's default while it exists; a new one cannot be created. A banner
-offers **Chuyển sang dạng extends**: a diff of the new `workflow.yml` is reviewed first, files equal
-to the base mode's are dropped, and everything is backed up. The regenerated `workflow.yml` does not keep the
-original comments (the backup does). `POST /api/config/workflow/override/migrate`.
-
-What an override changes, and when:
-
-| File | Changing it changes |
-|---|---|
-| `workflow.yml` | the steps, the documents each step writes, the done-when file, gates, shared rules, the language sentence, the session's permission mode, the agent of each step |
-| step prompts (`investigate.md`, `implement.md`…) | the prompt pasted into Claude at the start of each step |
-| on-reject prompts (`revise-*.md`) | the prompt sent with the reviewer's feedback (without one, the feedback is sent as it is) |
-| skeletons (`format-*.md`) | the headings each document must keep; shown on the *Định dạng tài liệu* page (`#/formats`) |
-
-- A run keeps the workflow it started with: edits apply to new runs and to *Chạy lại từ đầu*.
-- The task list reads how far a task got from the declared document file names: renaming an
-  output's `file`, or adding and removing steps, can make finished tasks look unfinished.
-- An `extends` override follows later changes to the mode for everything it does not write. Files
-  it holds are tagged *thay file có sẵn* / *file thêm*; **So với mặc định** shows the diff and
-  **Lấy lại bản mặc định** opens a draft with the built-in text, reviewed and saved like any edit.
-- Commit `.taskpilot/` to share the workflow with everyone who opens the repo.
+Để thay đổi, dùng **Tạo override dựa trên <mode>**. TaskPilot chỉ ghi vào `.taskpilot/` của repo, không sửa thư mục workflow tích hợp. Override dùng `extends` và chỉ ghi phần khác biệt:
 
 ```yaml
-version: 2
-agent: claude                       # optional: claude | copilot; a step's `agent` overrides it
-permission-mode: acceptEdits        # optional: default | acceptEdits | plan | auto
-history:
-  file: 00-history.md               # the task's decision log
-  entry: "## <YYYY-MM-DD HH:MM> · {{step}} · {{agent}}"
-  format: format-history.md         # skeleton of a whole entry ({{historyFormat}})
-language: Viết tài liệu bằng cùng ngôn ngữ với spec.
-rules:                              # shared by every prompt through {{rules}}
-  - "Chỉ thêm entry mới vào cuối {{historyFile}} bằng Edit; không viết lại hay xoá entry cũ."
-  - Không push, không merge.
-restart:
-  read: [plan, summary, progress]   # output ids a restarted run must read from the archive first
+extends: default
+permission-mode: acceptEdits
 steps:
   - id: investigate
-    title: Điều tra & lên kế hoạch
-    prompt: investigate.md          # a file next to workflow.yml
-    on-reject: revise-plan.md       # optional; without it the feedback is sent as it is
-    outputs:                        # the documents this step writes in the task directory
-      - id: investigation
-        file: 01-investigation.md
-        content: phạm vi, file liên quan (kèm đường dẫn), hiện trạng phần đó, rủi ro
-      - id: plan
-        file: 02-plan.md
-        content: mục tiêu, thay đổi theo file, các bước theo thứ tự, rủi ro, cách verify, câu hỏi mở
-        format: format-plan.md      # skeleton the document must follow (shown in {{outputs}})
-    done-when: plan                 # an output id of this step
-    gate: approve                   # or none: continue without stopping
+    model: sonnet
+  - id: implement
+    agent: claude
+    model: sonnet
 ```
 
-Skeleton (`format`) files sit next to the prompts: the headings Claude must keep, in order, with a
-`<!-- hint -->` per section; they may use the same variables (e.g. `# {{key}} — Kế hoạch`). The
-built-in workflow ships one per document (`format-investigation.md`, `format-plan.md`,
-`format-progress.md`, `format-summary.md`) and one for history entries (`format-history.md`), and
-its prompts are written in Vietnamese and share one layout: *Bối cảnh*, *Việc cần làm*, *Tài liệu
-cần viết*, *Quy tắc*, *Khi xong* (on-reject prompts start with *Góp ý* and only name the documents
-to update: they already have their headings). A shared rule asks Claude to number its questions
-for the reviewer, one per line with its proposal (`1. <câu hỏi> — Đề xuất: <…>`), and not to use
-the `AskUserQuestion` tool: the task screen turns such lines into one answer field per question.
+Quy tắc ghép:
 
-Prompt files are templates. Variables:
+- Các khóa chung `agent`, `model`, `permission-mode`, `language`, `rules`, `history`, `restart` thay thế giá trị gốc khi được khai báo.
+- Bước có `id` đã tồn tại chỉ thay các trường được ghi; `outputs` ghép theo `id` đầu ra. Bước mới phải có đúng một trong `before` / `after` để xác định vị trí.
+- File prompt hoặc mẫu tài liệu cùng tên thay toàn bộ file gốc. Phần không ghi đè tiếp tục nhận cập nhật từ workflow tích hợp.
+- Bước `dispatch` chỉ cho sửa `title` và `dispatch.prompt`, `dispatch.format`, `dispatch.parallel`; không thêm bước ngay sát nó.
 
-| Variable | Value |
+Override chỉ áp dụng cho chế độ mà nó `extends`. Commit `.taskpilot/` để chia sẻ cấu hình. Lần chạy giữ nguyên bản chụp workflow lúc bắt đầu; thay đổi chỉ áp dụng cho lần chạy mới hoặc **Chạy lại từ đầu**.
+
+Trang **Workflow** hỗ trợ kiểm tra, xem trước prompt, so sánh với mặc định và khôi phục từng file. **Xoá override** sao lưu trước khi xóa và giữ lựa chọn chế độ trong `settings.yml`. Override cũ không có `extends` vẫn chạy dưới chế độ `custom`; có thể chuyển đổi qua giao diện, nhưng chú thích YAML chỉ được giữ trong bản sao lưu. `.claude/workflow.yml` không còn được đọc.
+
+## Khai báo bước và prompt
+
+Định dạng workflow đầy đủ dùng `version: 2`; tham khảo [workflow mặc định](../workflows/default/workflow.yml) và [workflow leader](../workflows/leader/workflow.yml).
+
+| Trường của bước thường | Ý nghĩa |
 |---|---|
-| `{{key}}`, `{{title}}`, `{{step}}`, `{{stepNumber}}`, `{{stepCount}}` | the task and the step |
-| `{{agent}}` | the agent that runs the step: `Claude` or `Copilot` |
-| `{{taskDir}}`, `{{specDir}}` | `.claude/tasks/<KEY>` and its `spec/` |
-| `{{historyFile}}`, `{{historyEntry}}`, `{{historyFormat}}` | the decision log, the heading Claude uses in it, and the skeleton of a whole entry |
-| `{{outputs}}` | this step's documents with what each must contain and, when it has a `format`, its skeleton in a code block (with one line on how to follow skeletons) |
-| `{{inputs}}` | the documents of earlier steps |
-| `{{out.<id>}}` | the path of one document, e.g. `{{out.plan}}` |
-| `{{rules}}`, `{{language}}` | `rules` and `language` from `workflow.yml` |
-| `{{previousRun}}`, `{{archiveDir}}` | after *Chạy lại từ đầu*: which archived documents to read first; empty otherwise |
-| `{{feedback}}` | the reviewer's feedback, in `on-reject` prompts only |
-| `{{subtask}}`, `{{subtaskReport}}` | in a dispatch step's prompt: the subtask (row of the plan's table, its dependencies and parallel peers) and the path of its report; `{{agent}}` is the subtask's agent |
-| `{{subtasks}}` | in the steps after a dispatch: the subtasks with their agents and report paths |
+| `id`, `title` | Mã và tên bước |
+| `agent`, `model` | Ghi đè CLI và model chung |
+| `prompt` | File prompt nằm cạnh `workflow.yml` |
+| `on-reject` | Prompt khi nhận góp ý; bỏ trống thì gửi nguyên góp ý |
+| `outputs` | Danh sách tài liệu với `id`, `file`, `content` và `format` tùy chọn |
+| `done-when` | `id` đầu ra cần được ghi trong bước hiện tại |
+| `gate` | `approve` để chờ duyệt, hoặc `none` để đi tiếp |
 
-A save is refused when it makes the workflow invalid (a `done-when` naming no output of its step,
-a prompt file that does not exist, `{{out.x}}` for an unknown output, `{{feedback}}` outside an
-`on-reject` prompt…). Unknown variables, unused prompt files and a first prompt without
-`{{previousRun}}` are only warnings. A step counts as done only when its `done-when` file was
-written after the step's prompt was sent; the task list reads how far a task got from the
-declared outputs. A run keeps the workflow it started with: edits apply to new runs and to
-*Chạy lại từ đầu*.
+`format` trỏ đến file mẫu có các heading cần giữ. Đổi tên file đầu ra có thể thay cách danh sách task nhận diện tiến độ của tài liệu cũ.
 
-## Leader / member workflow
+Biến dùng trong prompt và mẫu tài liệu:
 
-`workflows/leader/` is a mode: Claude (the leader) investigates and writes a plan ending
-with a `## 7. Phân công` table, the reviewer approves, then every row runs in its own session of the
-agent it names (`claude` or `copilot`), and the leader's session reviews the reports. Pick it
-without an override: **Cách chạy** on the task screen, or **Dùng làm mặc định của repo** on the
-*Workflow* page. An override can still `extends: leader`.
+| Biến | Nội dung |
+|---|---|
+| `{{key}}`, `{{title}}` | Mã và tiêu đề task |
+| `{{step}}`, `{{stepNumber}}`, `{{stepCount}}`, `{{agent}}` | Bước hiện tại và agent thực hiện |
+| `{{taskDir}}`, `{{specDir}}` | Thư mục task và yêu cầu |
+| `{{historyFile}}`, `{{historyEntry}}`, `{{historyFormat}}` | Nhật ký, heading và mẫu entry |
+| `{{outputs}}`, `{{inputs}}`, `{{out.<id>}}` | Đầu ra hiện tại, đầu ra các bước trước và đường dẫn một đầu ra |
+| `{{rules}}`, `{{language}}` | Quy tắc chung và ngôn ngữ tài liệu |
+| `{{previousRun}}`, `{{archiveDir}}` | Bối cảnh và thư mục lần chạy trước; rỗng nếu không chạy lại |
+| `{{feedback}}` | Góp ý, chỉ dùng trong prompt `on-reject` |
+| `{{subagents}}` | Danh sách subagent có thể dùng để leader lập bảng phân công |
+| `{{subtask}}`, `{{subtaskReport}}` | Nội dung việc con và đường dẫn báo cáo trong prompt giao việc |
+| `{{subtasks}}` | Danh sách việc con, báo cáo và số liệu phiên nếu có cho bước sau giao việc |
+
+TaskPilot chặn lưu khi workflow sai: thiếu file prompt, `done-when` không hợp lệ, tham chiếu đầu ra không tồn tại hoặc dùng `feedback` sai chỗ. Biến chưa biết, prompt không dùng và prompt đầu thiếu `previousRun` là cảnh báo. `bypassPermissions` không được chấp nhận trong workflow.
+
+## Leader và việc con
+
+Kế hoạch cần mục **Phân công** chứa bảng, ví dụ:
+
+| # | Việc | Agent | Subagent | Model | File | Đầu ra | Phụ thuộc |
+|---|---|---|---|---|---|---|---|
+| 1 | Sửa trạng thái rỗng | claude | - | sonnet | client/src/features/tasks/ | Giao diện và kiểm tra | - |
+| 2 | Cập nhật hướng dẫn | claude | - | sonnet | docs/GUIDE.md | Hướng dẫn mới | 1 |
+
+`Subagent` và `Model` là tùy chọn; `-` nghĩa là dùng mặc định. `Subagent` chọn cấu hình agent cho cả phiên bằng `--agent`, khác với cột `Agent` chọn CLI. Model khai báo trực tiếp ưu tiên hơn model của subagent. Subagent phải tồn tại và có quyền ghi báo cáo.
+
+`File` liệt kê file/thư mục được sửa, phân cách bằng dấu phẩy; `Phụ thuộc` liệt kê số việc cần hoàn tất trước. Bảng sai agent, số việc, phụ thuộc hoặc có vòng lặp sẽ chặn duyệt.
+
+Mỗi việc ghi báo cáo `03-viec-<n>.md`. Để chạy tối đa hai việc cùng lúc:
 
 ```yaml
+extends: leader
 steps:
-  - id: investigate            # ... outputs, done-when: plan, gate: approve  (required before dispatch)
   - id: dispatch
-    title: Giao việc
     dispatch:
-      from: plan               # output id of an earlier step holding the table
-      prompt: subtask.md       # sent to each subtask's session ({{subtask}}, {{subtaskReport}})
-      report: 03-viec-{{n}}.md # report each subtask writes; {{n}} = its number
-      format: format-subtask.md  # optional skeleton of the report
-      parallel: 1              # 1-4 subtasks at once
-  - id: review
-    prompt: review.md          # reads {{subtasks}}
+      parallel: 2
 ```
 
-The table columns are `# | Việc | Agent | File | Đầu ra | Phụ thuộc`. `File` lists the files or
-directories a subtask edits (comma separated); `Phụ thuộc` lists the numbers that must finish first
-(`-` for none). With `parallel` above 1, subtasks start together only when their dependencies are done
-and their `File` cells do not overlap. A save is refused when the step before a `dispatch` is not
-`gate: approve`, when `from` names no output, when there is a second `dispatch` step or no step after it, when `report` lacks `{{n}}` or collides with an output file, or when `parallel` is outside 1–4. A `dispatch` step has
-no `prompt`, `outputs`, `done-when` or `gate` of its own.
+`parallel` nhận từ 1 đến 4. Khi chạy song song, mỗi việc phải khai báo `File`; chỉ các việc đã đủ phụ thuộc và không trùng phạm vi file với việc đang chạy mới được khởi động. Đây là điều phối theo đường dẫn khai báo, không phải cơ chế cô lập filesystem.
+
+Workflow đầy đủ chỉ cho phép một `dispatch`, ngay sau bước `gate: approve` và có bước tiếp theo. `dispatch.from` trỏ tới đầu ra kế hoạch; `report` phải chứa `{{n}}`. Bước này không khai báo `prompt`, `outputs`, `done-when` hoặc `gate` ở cấp bước.

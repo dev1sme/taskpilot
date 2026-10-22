@@ -28,11 +28,33 @@ describe("agents, commands and skills", () => {
 
   it.each([
     ["agents", "../evil.md"],
-    ["agents", "a/b/c/d.md"],
+    ["agents", "a//b.md"],
+    ["agents", "./x.md"],
+    ["agents", "a/../x.md"],
+    ["agents", "/abs.md"],
+    ["agents", "a\\b.md"],
+    ["agents", ".md/x"],
     ["skills", "deploy/run.sh"],
-    ["commands", "a/b/c/d.md"],
+    ["commands", "a/../x.md"],
+    ["commands", "a//b.md"],
   ])("rejects %s path %s", async (kind, rel) => {
     expect((await send("PUT", `/api/config/library/${kind}/project`, { rel, content: "x", baseHash: "absent" })).statusCode).toBe(400);
+  });
+
+  it.each([
+    ["agents", "code.reviewer.md"],
+    ["agents", "Agent Name.md"],
+    ["agents", "a/b/c/d.md"],
+    ["commands", "a/b/c/d.md"],
+    ["commands", "git/v1.2/pr.md"],
+  ])("accepts, edits and deletes %s path %s", async (kind, rel) => {
+    const put = (content: string, baseHash: string) => send("PUT", `/api/config/library/${kind}/project`, { rel, content, baseHash });
+    expect((await put("one\n", "absent")).statusCode).toBe(200);
+    const raw = await get(`/api/config/library/${kind}/project/raw?rel=${encodeURIComponent(rel)}`);
+    expect((await put("two\n", raw.hash)).statusCode).toBe(200);
+    const raw2 = await get(`/api/config/library/${kind}/project/raw?rel=${encodeURIComponent(rel)}`);
+    const del = await send("DELETE", `/api/config/library/${kind}/project?rel=${encodeURIComponent(rel)}&baseHash=${raw2.hash}`);
+    expect(del.statusCode).toBe(200);
   });
 });
 

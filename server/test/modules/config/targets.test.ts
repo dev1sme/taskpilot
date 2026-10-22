@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { isAllowedPath } from "../../../src/modules/config/shared/targets.js";
+import { isAllowedPath, libraryTarget } from "../../../src/modules/config/shared/targets.js";
 import { DEFAULT_WORKFLOW_DIR } from "../../../src/modules/workflow/definition.js";
 import { home, repo, useConfigApp } from "../../helpers/configApp.js";
 
@@ -32,5 +32,21 @@ describe("isAllowedPath", () => {
     // Even with TaskPilot itself open as the repo.
     const taskpilot = path.resolve(DEFAULT_WORKFLOW_DIR, "../..");
     expect(isAllowedPath(path.join(DEFAULT_WORKFLOW_DIR, "investigate.md"), taskpilot)).toBe(false);
+  });
+});
+
+describe("libraryTarget", () => {
+  it("accepts multi-level and dotted agent and command names inside the allowed folder", () => {
+    for (const rel of ["a/b/c/d.md", "code.reviewer.md", "Agent Name.md", "git/v1.2/pr.md"]) {
+      for (const kind of ["agents", "commands"] as const) {
+        expect(isAllowedPath(libraryTarget(repo, kind, "project", rel).abs, repo)).toBe(true);
+      }
+    }
+  });
+
+  it("rejects empty, dot and parent segments, backslashes and control characters", () => {
+    for (const rel of ["", "..", "../x.md", "a/../x.md", "a//b.md", "./x.md", "a/./b.md", "/abs.md", "a\\b.md", "a/b", "x\0.md", "a\n.md", ".md", "a/.md"]) {
+      expect(() => libraryTarget(repo, "agents", "project", rel), rel).toThrow();
+    }
   });
 });

@@ -45,15 +45,25 @@ export function settingsTarget(repo: string, scope: SettingsScope): FileTarget {
   return { abs, display: displayPath(abs, repo) };
 }
 
-const LIBRARY_REL: Record<LibraryKind, RegExp> = {
-  agents: /^(?:[A-Za-z0-9][\w-]*\/){0,2}[A-Za-z0-9][\w-]*\.md$/,
-  commands: /^(?:[A-Za-z0-9][\w-]*\/){0,2}[A-Za-z0-9][\w-]*\.md$/,
-  skills: /^[A-Za-z0-9][\w-]*\/SKILL\.md$/,
+const SKILL_REL = /^[A-Za-z0-9][\w-]*\/SKILL\.md$/;
+
+/** Agents and commands: any depth, any characters in a segment except the ones that escape the folder. */
+function isMarkdownRel(rel: string): boolean {
+  const segments = rel.split("/");
+  const ok = segments.every((s) => s !== "" && s !== "." && s !== ".." && !/[\\\u0000-\u001f\u007f]/.test(s));
+  const last = segments[segments.length - 1];
+  return ok && last.endsWith(".md") && last.length > ".md".length;
+}
+
+const LIBRARY_REL: Record<LibraryKind, (rel: string) => boolean> = {
+  agents: isMarkdownRel,
+  commands: isMarkdownRel,
+  skills: (rel) => SKILL_REL.test(rel),
 };
 
 /** An agent, command or skill file; `rel` must match the kind's naming (no "..", no other files). */
 export function libraryTarget(repo: string, kind: LibraryKind, scope: LibraryScope, rel: string): FileTarget {
-  if (!LIBRARY_REL[kind].test(rel)) throw new HttpError(400, t("errors.invalidName", { name: rel }));
+  if (!LIBRARY_REL[kind](rel)) throw new HttpError(400, t("errors.invalidName", { name: rel }));
   const root = scope === "project" ? path.join(repo, ".claude", kind) : path.join(claudeHome(), kind);
   const abs = path.join(root, ...rel.split("/"));
   return { abs, display: displayPath(abs, repo) };

@@ -1,4 +1,6 @@
+import { Fragment } from "react";
 import type { ConfigSection } from "../../shared/router";
+import { useWorkspace } from "../workspace";
 import { CodegraphPage } from "./codegraph/CodegraphPage";
 import { FormatsPage } from "./formats/FormatsPage";
 import { HooksPage } from "./hooks/HooksPage";
@@ -12,6 +14,19 @@ import "./shared/responsive.css";
 
 /** Claude configuration pages (read-only in phase B). */
 export function ConfigPage({ section, file }: { section: ConfigSection; file?: string }) {
+  const { repo } = useWorkspace();
+  // Keyed by repo: switching repo mounts the page afresh, so nothing picked or half-filled for the old
+  // repo (an open form, a selected item) carries over. Drafts are kept per repo in `drafts.ts`.
+  // Nothing is shown before the repo is known, or its arrival would mount the page a second time.
+  if (!repo) return null;
+  return (
+    <Fragment key={repo.path ?? ""}>
+      <Section section={section} file={file} />
+    </Fragment>
+  );
+}
+
+function Section({ section, file }: { section: ConfigSection; file?: string }) {
   switch (section) {
     case "memory":
       return <MemoryPage />;

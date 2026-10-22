@@ -76,7 +76,7 @@ const KINDS: readonly LibraryKind[] = ["agents", "commands", "skills"];
 function KindTabs({ kind }: { kind: LibraryKind }) {
   const { t } = useTranslation("config");
   return (
-    <nav className="segmented library-tabs" aria-label={t("library.tabsLabel")}>
+    <nav className="library-tabs" aria-label={t("library.tabsLabel")}>
       {KINDS.map((k) => (
         <a key={k} href={href({ page: "config", section: k })} aria-current={k === kind ? "page" : undefined}>
           {t(`library.kind.${k}.title`)}
@@ -137,8 +137,8 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
 
   return (
     <div className="page">
-      <KindTabs kind={kind} />
       <ConfigHeader title={copy.title} subtitle={copy.subtitle} />
+      <KindTabs kind={kind} />
       <ConfigToolbar
         start={
           !draft && (

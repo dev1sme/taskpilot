@@ -168,20 +168,25 @@
 
 /* ------------------------------------------------------------------ library tabs */
 
+/* Page-level tabs under the header, underlined so they read above the segmented scope tabs. */
 .library-tabs {
-  width: max-content;
-  margin-bottom: 16px;
+  display: flex;
+  gap: 4px;
+  padding: 0 28px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
 }
 
 .library-tabs a {
   flex: none;
-  padding: 6px 14px;
-  font-size: 13px;
+  margin-bottom: -1px;
+  padding: 10px 12px;
+  font-size: 13.5px;
   font-weight: 500;
   color: var(--muted);
   text-decoration: none;
-  border-radius: 6px;
-  transition: background-color var(--fast) var(--ease-out), color var(--fast) var(--ease-out);
+  border-bottom: 2px solid transparent;
+  transition: color var(--fast) var(--ease-out), border-color var(--fast) var(--ease-out);
 }
 
 .library-tabs a:hover {
@@ -190,5 +195,17 @@
 
 .library-tabs a[aria-current="page"] {
   color: var(--ink);
-  background: var(--hover);
+  border-bottom-color: var(--signal);
+}
+
+@media (max-width: 860px) {
+  .library-tabs {
+    padding: 0 16px;
+  }
+
+  .library-tabs a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
 }

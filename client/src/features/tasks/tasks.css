@@ -107,8 +107,18 @@
   cursor: not-allowed;
 }
 
+/* A long status or title must never widen the page: the table scrolls inside its own box instead. */
+.task-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 /* Phones: the action keeps its icon and aria-label, the text goes; the time goes too (docs already did). */
 @media (max-width: 700px) {
+  .status-chip {
+    white-space: normal;
+  }
+
   .task-action .btn > span {
     display: none;
   }

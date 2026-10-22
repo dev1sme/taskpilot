@@ -89,3 +89,17 @@ test("the button is disabled while the task has an active run", async ({ page })
   await button.click({ force: true }).catch(() => undefined);
   expect(puts).toHaveLength(0);
 });
+
+test("long statuses and titles fit a 390px screen", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  // "Đủ tài liệu, chưa xác nhận xong" is the longest status label; a real repo has many of them.
+  const complete = (key: string) => ({ ...task(key), title: `Việc ${key} có tiêu đề khá dài để thử cắt chữ trên điện thoại`, stage: { done: 3, total: 3, step: "Rà soát" } });
+  await page.route("**/api/tasks", (route) => route.fulfill({ json: [complete("LONG-1"), complete("LONG-2"), complete("LONG-3")] }));
+  await page.goto("/#/tasks");
+  await expect(page.locator("main tbody tr")).toHaveCount(3);
+  const [docScroll, docClient] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+  expect(docScroll).toBeLessThanOrEqual(docClient);
+  const [tableScroll, tableClient] = await page.locator(".task-table-wrap").evaluate((el) => [el.scrollWidth, el.clientWidth]);
+  expect(tableScroll).toBeLessThanOrEqual(tableClient);
+  await expect(page.getByRole("button", { name: "Đánh dấu LONG-1 hoàn thành" })).toBeInViewport({ ratio: 1 });
+});

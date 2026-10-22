@@ -57,6 +57,8 @@ test("overview has no task list button", async ({ page }) => {
 
 test("link styled as a button is not underlined", async ({ page }) => {
   await page.goto("/#/");
+  // The shell renders after the auth check: wait for main before adding to it.
+  await expect(page.locator("main")).toBeVisible();
   // The fixture has no task waiting (the only .btn link on a page), so check the stylesheet on a stand-in.
   await page.evaluate(() => {
     const a = document.createElement("a");
@@ -141,6 +143,10 @@ test.describe("sidebar", () => {
     await expect(item.locator(".nav-badge")).toBeVisible();
     const tabs = page.locator(".library-tabs");
     await expect(tabs.getByRole("link", { name: /Skills/ })).toHaveAttribute("aria-current", "page");
+    // The tabs sit under the page title, not above it.
+    const header = await page.locator("main .page-header").boundingBox();
+    const tabsBox = await tabs.boundingBox();
+    expect(tabsBox!.y).toBeGreaterThanOrEqual(header!.y + header!.height - 1);
     await tabs.getByRole("link", { name: /Agents/ }).click();
     await expect(page).toHaveURL(/#\/agents$/);
     await expect(item).toHaveAttribute("aria-current", "page");

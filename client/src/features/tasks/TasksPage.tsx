@@ -78,47 +78,49 @@ export function TasksPage() {
             <p>{t(`page.filterEmpty.${filter}.body`)}</p>
           </div>
         ) : (
-          <table className="task-table">
-            <thead>
-              <tr>
-                <th scope="col">{t("page.col.status")}</th>
-                <th scope="col">{t("page.col.task")}</th>
-                <th scope="col">{t("page.col.docs")}</th>
-                <th scope="col">{t("page.col.updated")}</th>
-                <th scope="col">
-                  <span className="sr-only">{t("page.col.actions")}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((task) => {
-                const s = statusOf(task);
-                return (
-                  <tr key={task.key} className={`tone-${s.tone}`}>
-                    <td>
-                      <span className="status-chip">
-                        <span aria-hidden="true">{s.glyph}</span>
-                        {s.label}
-                      </span>
-                    </td>
-                    <td>
-                      <a href={href({ page: "task", key: task.key })} className="task-link">
-                        <span className="mono">{task.key}</span>
-                        {task.title !== task.key && <span className="task-link-title">{task.title}</span>}
-                      </a>
-                    </td>
-                    <td className="muted">
-                      {t("page.docs", { spec: task.specFiles.length, written: task.outputFiles.filter((f) => f.path !== task.historyFile).length })}
-                    </td>
-                    <td className="muted mono">{clockTime(task.updatedAt)}</td>
-                    <td className="task-action" title={runActive(task) ? t("page.action.blocked") : undefined}>
-                      <DoneButton task={task} done={s.kind === "done"} busy={busyKey === task.key} onSet={(done) => void setDone(task.key, done)} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="task-table-wrap">
+            <table className="task-table">
+              <thead>
+                <tr>
+                  <th scope="col">{t("page.col.status")}</th>
+                  <th scope="col">{t("page.col.task")}</th>
+                  <th scope="col">{t("page.col.docs")}</th>
+                  <th scope="col">{t("page.col.updated")}</th>
+                  <th scope="col">
+                    <span className="sr-only">{t("page.col.actions")}</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((task) => {
+                  const s = statusOf(task);
+                  return (
+                    <tr key={task.key} className={`tone-${s.tone}`}>
+                      <td>
+                        <span className="status-chip">
+                          <span aria-hidden="true">{s.glyph}</span>
+                          {s.label}
+                        </span>
+                      </td>
+                      <td>
+                        <a href={href({ page: "task", key: task.key })} className="task-link">
+                          <span className="mono">{task.key}</span>
+                          {task.title !== task.key && <span className="task-link-title">{task.title}</span>}
+                        </a>
+                      </td>
+                      <td className="muted">
+                        {t("page.docs", { spec: task.specFiles.length, written: task.outputFiles.filter((f) => f.path !== task.historyFile).length })}
+                      </td>
+                      <td className="muted mono">{clockTime(task.updatedAt)}</td>
+                      <td className="task-action" title={runActive(task) ? t("page.action.blocked") : undefined}>
+                        <DoneButton task={task} done={s.kind === "done"} busy={busyKey === task.key} onSet={(done) => void setDone(task.key, done)} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

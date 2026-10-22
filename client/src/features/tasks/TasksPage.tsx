@@ -97,7 +97,7 @@ export function TasksPage() {
                   return (
                     <tr key={task.key} className={`tone-${s.tone}`}>
                       <td>
-                        <span className="status-chip">
+                        <span className="status-chip" title={s.title}>
                           <span aria-hidden="true">{s.glyph}</span>
                           {s.label}
                         </span>

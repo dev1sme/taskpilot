@@ -8,7 +8,8 @@
     "done": "Hoàn thành",
     "new": "Chưa chạy",
     "progress": "Xong {{step}} ({{done}}/{{total}})",
-    "complete": "Đủ tài liệu, chưa xác nhận xong"
+    "complete": "Chờ xác nhận",
+    "completeTitle": "Đủ tài liệu cả {{total}} bước, chưa đánh dấu hoàn thành"
   },
   "page": {
     "subtitle": "{{count}} task trong .claude/tasks",

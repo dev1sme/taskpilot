@@ -92,7 +92,7 @@ test("the button is disabled while the task has an active run", async ({ page })
 
 test("long statuses and titles fit a 390px screen", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  // "Đủ tài liệu, chưa xác nhận xong" is the longest status label; a real repo has many of them.
+  // Long titles and many "Chờ xác nhận" rows, as in a real repo, must not widen the page.
   const complete = (key: string) => ({ ...task(key), title: `Việc ${key} có tiêu đề khá dài để thử cắt chữ trên điện thoại`, stage: { done: 3, total: 3, step: "Rà soát" } });
   await page.route("**/api/tasks", (route) => route.fulfill({ json: [complete("LONG-1"), complete("LONG-2"), complete("LONG-3")] }));
   await page.goto("/#/tasks");

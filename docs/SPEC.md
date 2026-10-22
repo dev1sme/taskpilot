@@ -41,7 +41,7 @@ legacy fallback: a run with `phase: "done"` counts as done (`at: null`). The fil
 `PUT /api/tasks/:key/done` with `{ done: boolean }` sets it by hand (409 while a run is active) and
 appends to `00-history.md`. The file is `.yml`, so it is not listed as a Claude-written document
 and is not archived on restart. On the client, status order is permission → active run →
-`task.done` → stage; a task with all documents but no mark shows "Đủ tài liệu, chưa xác nhận xong"
+`task.done` → stage; a task with all documents but no mark shows "Chờ xác nhận" (the tooltip says every step's documents are there but the task is not marked done)
 (tone `idle`).
 
 ## 3. Run flow

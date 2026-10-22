@@ -63,7 +63,7 @@ restarting a run writes `open`. By hand, use **Đánh dấu hoàn thành** / **M
 toolbar, or **Đánh dấu xong** / **Mở lại** on a row of the Task list (409 and a disabled button while
 a run is active — cancel it or approve the last step first). The Task list filters **Đang làm**
 (default) / **Hoàn thành** / **Tất cả**; the choice is remembered in the browser. A task with every
-document written but not confirmed shows "Đủ tài liệu, chưa xác nhận xong".
+document written but not confirmed shows **Chờ xác nhận**; its tooltip says what is missing.
 
 **Prompt đã gửi** in the task toolbar shows the latest prompt TaskPilot pasted into the run's
 session, exactly as Claude got it.

@@ -26,7 +26,7 @@ const GLYPH: Record<Exclude<StatusKind, StageKind>, string> = {
 };
 
 /** Status of a task: what needs the user first, then the run, then whether it was marked done, then the files. */
-export function statusOf(task: TaskSummary): { kind: StatusKind; tone: Tone; label: string; glyph: string } {
+export function statusOf(task: TaskSummary): { kind: StatusKind; tone: Tone; label: string; glyph: string; title?: string } {
   const label = (kind: StatusKind) => i18n.t(`status.${kind}`, { ns: "tasks", ...task.stage });
   const run = (kind: Exclude<StatusKind, StageKind>, tone: Tone) => ({ kind, tone, label: label(kind), glyph: GLYPH[kind] });
   if (task.waitingPermission) return run("permission", "attention");
@@ -46,7 +46,9 @@ export function statusOf(task: TaskSummary): { kind: StatusKind; tone: Tone; lab
   // Every document is there, but nobody confirmed the task is done: not the done tone.
   const { done, total } = task.stage;
   const kind = total > 0 && done >= total ? "complete" : done > 0 ? "progress" : "new";
-  return { kind, tone: "idle", label: label(kind), glyph: "○" };
+  // The short label fits a chip; the title says what is still missing.
+  const title = kind === "complete" ? i18n.t("status.completeTitle", { ns: "tasks", total }) : undefined;
+  return { kind, tone: "idle", label: label(kind), glyph: "○", title };
 }
 
 /** A run between start and its end: the task can be neither marked done nor reopened. */

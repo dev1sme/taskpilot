@@ -77,7 +77,13 @@ const drawer = (page: Page) => page.locator("section.drawer");
 
 test("a task session that asks for permission opens the terminal and is selected", async ({ page }) => {
   // The asking session is not the last one, so selecting it is not the drawer's default.
-  await fakeTask(page, { phase: "running", sessionId: SESSION_C, sessions: [session(SESSION_A, { activity: "permission" }), session(SESSION_B), session(SESSION_C)] });
+  const state = await fakeTask(page, { phase: "running", sessionId: SESSION_C, sessions: [session(SESSION_A, { activity: "permission" }), session(SESSION_B), session(SESSION_C)] });
+  // The run's session is selected when the run arrives, so the prompt must arrive after it to win.
+  await page.route("**/api/tasks/PROJ-1/sessions", async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    await expect(page.locator(".toolbar").getByRole("button", { name: "Huỷ", exact: true })).toBeVisible();
+    return route.fulfill({ json: state.sessions });
+  });
   await page.goto("/#/tasks/PROJ-1");
 
   await expect(drawer(page).getByRole("button", { name: /^Terminal/ })).toHaveAttribute("aria-expanded", "true");

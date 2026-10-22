@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { EnvStore } from "../../../src/modules/env/store.js";
@@ -23,7 +23,7 @@ describe("MCP servers, project scope", () => {
       baseHash: hash,
     };
     const preview = (await send("POST", "/api/config/mcp/project/preview", body)).json();
-    expect(preview.secrets).toEqual(["SENTRY_TOKEN"]);
+    expect(preview.secrets).toEqual(["SENTRY_SENTRY_TOKEN"]);
     expect(preview.diff).not.toMatch(/tok-123|hunter2/);
 
     expect((await add(body)).statusCode).toBe(200);
@@ -32,12 +32,12 @@ describe("MCP servers, project scope", () => {
       type: "stdio",
       command: "npx",
       args: ["-y", "@sentry/mcp", "postgresql://app:hunter2@db/x"],
-      env: { SENTRY_TOKEN: "${SENTRY_TOKEN}", ORG: "acme" },
+      env: { SENTRY_TOKEN: "${SENTRY_SENTRY_TOKEN}", ORG: "acme" },
     });
-    expect(await new EnvStore(state.dir).forRepo(repo)).toEqual({ SENTRY_TOKEN: "tok-123" });
+    expect(await new EnvStore(state.dir).forRepo(repo)).toEqual({ SENTRY_SENTRY_TOKEN: "tok-123" });
 
     const view = await get("/api/config/mcp");
-    expect(view.servers[0]).toMatchObject({ name: "sentry", missingEnv: [], fromTaskPilot: ["SENTRY_TOKEN"] });
+    expect(view.servers[0]).toMatchObject({ name: "sentry", missingEnv: [], fromTaskPilot: ["SENTRY_SENTRY_TOKEN"] });
     expect(JSON.stringify(await get("/api/env"))).not.toContain("tok-123");
 
     // Edit form: secrets and URL credentials are masked; sending them back unchanged keeps them.
@@ -58,6 +58,47 @@ describe("MCP servers, project scope", () => {
     expect(edited.statusCode).toBe(200);
     const again = JSON.parse(await readFile(path.join(repo, ".mcp.json"), "utf8"));
     expect(again.mcpServers.sentry).toEqual(file.mcpServers.sentry);
+  });
+
+  it("prefixes env secret variables with the server name so two servers do not collide", async () => {
+    const stdio = (name: string, value: string | null, baseHash: string, extra: object = {}) => ({
+      name,
+      type: "stdio",
+      command: "x",
+      args: [],
+      env: [{ key: "API_TOKEN", value, secret: true }],
+      baseHash,
+      ...extra,
+    });
+    expect((await add(stdio("alpha", "aaa", (await get("/api/config/mcp/project")).hash))).statusCode).toBe(200);
+    expect((await add(stdio("beta", "bbb", (await get("/api/config/mcp/project")).hash))).statusCode).toBe(200);
+    const file = JSON.parse(await readFile(path.join(repo, ".mcp.json"), "utf8"));
+    expect(file.mcpServers.alpha.env).toEqual({ API_TOKEN: "${ALPHA_API_TOKEN}" });
+    expect(file.mcpServers.beta.env).toEqual({ API_TOKEN: "${BETA_API_TOKEN}" });
+    expect(await new EnvStore(state.dir).forRepo(repo)).toEqual({ ALPHA_API_TOKEN: "aaa", BETA_API_TOKEN: "bbb" });
+  });
+
+  it("keeps an existing ${VAR} reference when the value is left unchanged", async () => {
+    const { hash } = await get("/api/config/mcp/project");
+    await writeFile(
+      path.join(repo, ".mcp.json"),
+      JSON.stringify({ mcpServers: { old: { type: "stdio", command: "x", env: { API_TOKEN: "${API_TOKEN}" } } } }),
+    );
+    const form = await get("/api/config/mcp/project/old");
+    expect(form.hash).not.toBe(hash);
+    const res = await add({
+      name: "old",
+      originalName: "old",
+      type: "stdio",
+      command: "x",
+      args: [],
+      env: [{ key: "API_TOKEN", value: null, secret: true }],
+      baseHash: form.hash,
+    });
+    expect(res.statusCode).toBe(200);
+    const file = JSON.parse(await readFile(path.join(repo, ".mcp.json"), "utf8"));
+    expect(file.mcpServers.old.env).toEqual({ API_TOKEN: "${API_TOKEN}" });
+    expect(await new EnvStore(state.dir).forRepo(repo)).toEqual({});
   });
 
   it("refuses duplicates, invalid input and stale edits; deletes with a backup", async () => {

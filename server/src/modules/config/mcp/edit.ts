@@ -128,7 +128,7 @@ export function buildEntry(
   if (input.type === "stdio") {
     entry.command = input.command;
     if (input.args.length) entry.args = input.args.map((a) => restore(a, oldArgs));
-    const env = resolve(input.env, existing?.env, (key) => key);
+    const env = resolve(input.env, existing?.env, (key) => `${prefix}_${key}`);
     if (Object.keys(env).length) entry.env = env;
   } else {
     entry.url = restore(input.url!, typeof existing?.url === "string" ? [existing.url] : []);

@@ -34,6 +34,12 @@ export const PROMPT_TEXT = {
   },
   /** One line of {{subtasks}}, the list the leader reviews; `worker` is the agent with its subagent and model. */
   subtaskLine: (n: number, worker: string, title: string, report: string) => `- Việc ${n} · ${worker} · ${title} → \`${report}\``,
+  /** {{subagents}}: the Claude subagents the leader may name in the table's `Subagent` column. */
+  subagents: {
+    none: "Chưa có subagent nào dùng được (`.claude/agents/`, `~/.claude/agents/`): ghi `-` ở cột Subagent.",
+    line: (name: string, scope: "project" | "user", description: string, model: string | undefined, tools: string | undefined, roles: ReadonlyArray<"leader" | "member">) =>
+      `- \`${name}\` (${scope === "project" ? "repo" : "user"}) — ${description} · model: ${model ?? "kế thừa session"} · tools: ${tools ?? "mọi tool"} · vai trò: ${roles.join(", ")}`,
+  },
   sampleSubtask: { n: 1, title: "Tên việc mẫu", agent: "claude", files: ["đường/dẫn/file.ts"], output: "kết quả mẫu", deps: [] as number[] },
   restartLog: (historyFile: string) => `- ${historyFile} (entry "${HISTORY_TEXT.restart}" mới nhất và góp ý ngay trước nó)`,
 } as const;

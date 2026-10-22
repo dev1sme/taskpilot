@@ -28,7 +28,28 @@ export const templateVars = [
   "subtask",
   "subtaskReport",
   "subtasks",
+  "subagents",
 ] as const;
+
+/**
+ * A Claude subagent of the repo or the user, as the config module reads it (`subagentsOf`). The
+ * workflow module only gets it handed in (see WorkflowEngine), so it never imports config.
+ */
+export interface SubagentInfo {
+  name: string;
+  scope: "project" | "user";
+  description: string;
+  /** Frontmatter fields worth showing; `model` and `tools` are the ones read here. */
+  fields: Array<{ key: string; value: string }>;
+  /** What TaskPilot can use it as; no roles: not usable (broken, or hidden by a project agent). */
+  check?: { status: "ok" | "warn" | "error"; roles: Array<"leader" | "member">; problems: string[] };
+}
+
+/** The agent Claude Code runs for `name`: the project's when both scopes have one. */
+export function subagentNamed(list: SubagentInfo[], name: string): SubagentInfo | undefined {
+  const same = list.filter((a) => a.name === name);
+  return same.find((a) => a.scope === "project") ?? same[0];
+}
 
 /** Replaces {{name}} and {{out.id}}; unknown names are left as they are so mistakes stay visible. */
 export function render(template: string, vars: Record<string, string>): string {
@@ -57,6 +78,8 @@ export function promptVars(
     subtask?: Assignment & { report?: string };
     /** Every subtask of the run, for the step that reviews them. */
     subtasks?: Array<Assignment & { report?: string }>;
+    /** The subagents a leader may assign, for {{subagents}}. */
+    subagents?: SubagentInfo[];
   } = {},
 ): Record<string, string> {
   const taskDir = taskDirOf(task.key);
@@ -118,6 +141,7 @@ export function promptVars(
     inputs: list(def.steps.slice(0, Math.max(stepIndex, 0)).flatMap((s) => s.outputs)),
     previousRun: previousRun(def, opts.previous, taskDir, historyFile),
     subtasks: listed.join("\n"),
+    subagents: subagentList(opts.subagents ?? []),
     ...subtaskVars,
   };
 }
@@ -138,6 +162,23 @@ function subtaskBlock(
   if (deps.length) lines.push("", T.dependsOn, ...deps.map((d) => T.dependency(reportOf(d), d.n, d.title)));
   if (parallel > 1) lines.push("", T.noCommit);
   return lines.join("\n");
+}
+
+/** The usable subagents, one line each; a project agent hides the user's agent of the same name. */
+function subagentList(list: SubagentInfo[]): string {
+  const T = PROMPT_TEXT.subagents;
+  const usable = list.filter((a) => a.check?.roles.length && subagentNamed(list, a.name) === a);
+  if (usable.length === 0) return T.none;
+  const field = (a: SubagentInfo, key: string) => a.fields.find((f) => f.key === key)?.value;
+  return usable
+    .map((a) => T.line(a.name, a.scope, oneLine(a.description), field(a, "model"), field(a, "tools"), a.check!.roles))
+    .join("\n");
+}
+
+/** A description on one line and short enough for a list; agent descriptions often carry examples. */
+function oneLine(text: string, max = 300): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat;
 }
 
 /** A markdown code block; the fence grows past any backticks inside. */

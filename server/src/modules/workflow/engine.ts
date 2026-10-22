@@ -14,11 +14,14 @@ import { archiveOutputs } from "./archive.js";
 import { appendHistory, HISTORY_TEXT } from "./history.js";
 import { parseQuestions, type Question } from "./questions.js";
 import type { Assignment, RunPhase, RunState, StepDef, SubtaskPhase, SubtaskRun, WorkflowDef } from "./types.js";
-import { promptVars, renderPrompt } from "./vars.js";
+import { promptVars, renderPrompt, subagentNamed, type SubagentInfo } from "./vars.js";
 import { t } from "../../core/i18n.js";
 
 /** Loads the workflow for a new run: `mode` when given, else the repo's own choice. */
 export type LoadDef = (repo: string, mode?: string) => Promise<WorkflowDef>;
+
+/** The repo's and the user's Claude subagents with their checks; handed in so workflow does not import config. */
+export type SubagentsOf = (repo: string) => Promise<SubagentInfo[]>;
 
 /** The parts of SessionManager the engine uses. */
 export interface SessionPort {
@@ -91,6 +94,8 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     private readonly state: StateStore,
     private readonly sessions: SessionPort,
     private readonly loadDef: LoadDef = (repo, mode) => loadWorkflow(repo, mode),
+    /** Without it the table's subagents are not checked and {{subagents}} lists none. */
+    private readonly subagents?: SubagentsOf,
     private readonly noHookWarnMs: number = NO_HOOK_WARN_MS,
   ) {
     super();
@@ -597,7 +602,9 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
 
   private async prompt(run: RunState, template: string, extra: { feedback?: string } = {}): Promise<string> {
     const task = await getTask(run.repo, run.taskKey);
-    return renderPrompt(template, promptVars(await this.defOf(run), run.stepIndex, task, { previous: run.previous, subtasks: run.subtasks, ...extra }));
+    // Read only for a prompt that lists them: the agent folders are read on every call.
+    const subagents = template.includes("{{subagents}}") && this.subagents ? await this.subagents(run.repo) : undefined;
+    return renderPrompt(template, promptVars(await this.defOf(run), run.stepIndex, task, { previous: run.previous, subtasks: run.subtasks, subagents, ...extra }));
   }
 
   private async subtaskPrompt(run: RunState, sub: SubtaskRun): Promise<string> {
@@ -612,8 +619,30 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     const file = def.steps.flatMap((s) => s.outputs).find((o) => o.id === dispatch.from)?.file ?? "";
     const doc = await readFile(path.join(taskDirOf(run), file), "utf8").catch(() => "");
     const parsed = parseAssignments(doc);
-    const errors = parsed.errors.length ? parsed.errors : checkForParallel(parsed.items, dispatch.parallel);
+    const errors = [...(parsed.errors.length ? parsed.errors : checkForParallel(parsed.items, dispatch.parallel)), ...(await this.subagentProblems(run.repo, parsed.items))];
     return { items: errors.length ? [] : parsed.items, errors };
+  }
+
+  /**
+   * Why a Claude row's subagent cannot run its subtask: it must exist and be able to write, since a
+   * member writes its report. Copilot's custom agents are not checked (TPL-019, question 2).
+   */
+  private async subagentProblems(repo: string, items: Assignment[]): Promise<string[]> {
+    const named = items.filter((a) => a.agent === "claude" && a.subagent);
+    if (!this.subagents || named.length === 0) return [];
+    let list: SubagentInfo[];
+    try {
+      list = await this.subagents(repo);
+    } catch (e) {
+      return [`cannot read the subagents: ${(e as Error).message}`];
+    }
+    return named.flatMap((a) => {
+      const agent = subagentNamed(list, a.subagent!);
+      if (!agent) return [`subtask ${a.n}: subagent "${a.subagent}" not found in .claude/agents/ or ~/.claude/agents/`];
+      if (!agent.check || agent.check.roles.includes("member")) return [];
+      const why = agent.check.problems.length ? `: ${agent.check.problems.join("; ")}` : "";
+      return [`subtask ${a.n}: subagent "${a.subagent}" cannot run a subtask${why}`];
+    });
   }
 
   /** The run-level reply and retry talk to the leader's session, which has nothing to answer while subtasks work. */

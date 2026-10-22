@@ -12,7 +12,7 @@ import { EventHub } from "./core/events.js";
 import type { StateStore } from "./core/state.js";
 import { registerActivityRoutes, ActivityStore } from "./modules/activity/index.js";
 import { registerAuthRoutes, registerSecurity, AuthSessions, type Credentials } from "./modules/auth/index.js";
-import { BackupStore, registerConfigRoutes, statusLineCommand } from "./modules/config/index.js";
+import { BackupStore, registerConfigRoutes, statusLineCommand, subagentsOf } from "./modules/config/index.js";
 import { registerEnvRoutes, EnvStore } from "./modules/env/index.js";
 import { registerEventsRoutes } from "./modules/events/index.js";
 import { registerHooksRoutes } from "./modules/hooks/index.js";
@@ -89,7 +89,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   const loadDef: LoadDef =
     opts.loadWorkflow ??
     (async (r, mode) => loadWorkflow(r, mode, (await readRepoSettings(r)).mode));
-  const engine = new WorkflowEngine(opts.state, sessions, loadDef);
+  // The engine checks the plan's subagents and lists them to the leader; config reads them.
+  const engine = new WorkflowEngine(opts.state, sessions, loadDef, subagentsOf);
   const logError = (e: unknown) => app.log.error(e);
   sessions.on("change", (meta) => hub.publish("sessions", { taskKey: meta.taskKey }));
   const activity = new ActivityStore(path.join(opts.state.dir, "activity"));

@@ -7,6 +7,7 @@ import { StateStore } from "../../../src/core/state.js";
 import type { Agent } from "../../../src/core/agents.js";
 import { loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
 import { WorkflowEngine, type SessionPort } from "../../../src/modules/workflow/engine.js";
+import type { SubagentInfo } from "../../../src/modules/workflow/vars.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 import { modeDir } from "../../../src/modules/workflow/modes.js";
 import { readTaskStatus } from "../../../src/modules/tasks/status.js";
@@ -244,6 +245,7 @@ describe("workflow engine", () => {
           def.steps.forEach((s, i) => (s.agent = agentOf(i)));
           return def;
         },
+        undefined,
         WARN_MS,
       );
       const run = await engine.start(repo, "DEMO-1");
@@ -685,6 +687,60 @@ describe("workflow engine: dispatch", () => {
     expect((await engine.view(repo, "DEMO-1")).assignments!.items.map((a) => a.n)).toEqual([1, 2]);
   });
 
+  it("refuses a Claude row whose subagent is missing or cannot write, and lists the usable ones to the leader", async () => {
+    const check = (roles: Array<"leader" | "member">, problems: string[] = []) => ({ status: "ok" as const, roles, problems });
+    const agents: SubagentInfo[] = [
+      { name: "taskpilot-implementer", scope: "project", description: "Does one\nsubtask.", fields: [{ key: "model", value: "sonnet" }], check: check(["leader", "member"]) },
+      { name: "taskpilot-explorer", scope: "project", description: "Finds code.", fields: [{ key: "tools", value: "Read, Grep" }], check: check(["leader"], ["read-only"]) },
+      // Hidden by the project's own agent of that name: Claude Code runs the project one.
+      { name: "taskpilot-explorer", scope: "user", description: "Writes.", fields: [], check: { status: "warn", roles: [], problems: ["shadowed"] } },
+    ];
+    const asked: string[] = [];
+    const def = await leaderDef();
+    engine = new WorkflowEngine(state, fake, async () => def, async (r) => (asked.push(r), agents));
+    const leader = (await engine.start(repo, "DEMO-1")).sessionId;
+    await hookOn(leader, "SessionStart");
+    const prompt = fake.pastedBy.get(leader)![0];
+    expect(prompt).toContain("- `taskpilot-implementer` (repo) — Does one subtask. · model: sonnet · tools: mọi tool · vai trò: leader, member");
+    expect(prompt).toContain("- `taskpilot-explorer` (repo) — Finds code. · model: kế thừa session · tools: Read, Grep · vai trò: leader");
+    expect(prompt).not.toContain("Writes.");
+    expect(asked).toEqual([repo]);
+
+    const rows = (explorer: string) => [
+      "## 7. Phân công",
+      "",
+      "| # | Việc | Agent | Subagent | Model | File | Đầu ra | Phụ thuộc |",
+      "|---|---|---|---|---|---|---|---|",
+      "| 1 | A | claude | taskpilot-implementer | - | a/ | a | - |",
+      `| 2 | B | claude | ${explorer} | - | b/ | b | - |`,
+      "| 3 | C | claude | nope | - | c/ | c | - |",
+      // Copilot's custom agents are not checked.
+      "| 4 | D | copilot | nope | - | d/ | d | - |",
+    ].join("\n");
+    await write("02-plan.md", `# Plan\n\n${rows("taskpilot-explorer")}\n`);
+    await hookOn(leader, "Stop");
+    expect((await engine.view(repo, "DEMO-1")).assignments).toEqual({
+      items: [],
+      errors: [
+        'subtask 2: subagent "taskpilot-explorer" cannot run a subtask: read-only',
+        'subtask 3: subagent "nope" not found in .claude/agents/ or ~/.claude/agents/',
+      ],
+    });
+    await expect(engine.approve(repo, "DEMO-1")).rejects.toMatchObject({ status: 400, message: expect.stringContaining("nope") });
+
+    agents.push({ name: "nope", scope: "user", description: "x", fields: [], check: check(["leader", "member"]) });
+    await write("02-plan.md", `# Plan\n\n${rows("-")}\n`);
+    expect((await engine.view(repo, "DEMO-1")).assignments!.items.map((a) => a.n)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("tells the leader when no subagent is usable", async () => {
+    const def = await leaderDef();
+    engine = new WorkflowEngine(state, fake, async () => def, async () => []);
+    const leader = (await engine.start(repo, "DEMO-1")).sessionId;
+    await hookOn(leader, "SessionStart");
+    expect(fake.pastedBy.get(leader)![0]).toContain("Chưa có subagent nào dùng được");
+  });
+
   it("starts subtasks at once only when their files do not overlap; the rest queue", async () => {
     await setup(2);
     const rows = [
@@ -763,7 +819,7 @@ describe("workflow engine: dispatch", () => {
     async function twoRunning() {
       await setup(2);
       const def = await leaderDef(2);
-      engine = new WorkflowEngine(state, fake, async () => def, WARN_MS);
+      engine = new WorkflowEngine(state, fake, async () => def, undefined, WARN_MS);
       const leader = await dispatch(table("| 1 | A | claude | a/ | a | - |", "| 2 | B | copilot | b/ | b | - |"));
       const [one, two] = (await run()).subtasks!.map((s) => s.sessionId!);
       await hookOn(one, "SessionStart");

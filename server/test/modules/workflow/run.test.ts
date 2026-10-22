@@ -1,4 +1,4 @@
-import { rm } from "node:fs/promises";
+import { cp, rm } from "node:fs/promises";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
@@ -8,6 +8,7 @@ import { StateStore } from "../../../src/core/state.js";
 import { loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 import { modeDir } from "../../../src/modules/workflow/modes.js";
+import { SUBAGENTS_DIR } from "../../../src/modules/config/library/templates.js";
 
 const LEADER_WORKFLOW_DIR = modeDir("leader");
 
@@ -90,6 +91,8 @@ async function start(opts: { implementWith?: "copilot"; leader?: boolean } = {})
   const repo = await makeRepo();
   // The fixture's plan would count as written before the leader has planned.
   if (opts.leader) await rm(path.join(repo, ".claude", "tasks", "DEMO-1", "02-plan.md"));
+  // The leader's plan runs subtask 1 with this subagent; the engine checks the repo has it.
+  if (opts.leader) await cp(path.join(SUBAGENTS_DIR, "taskpilot-implementer.md"), path.join(repo, ".claude", "agents", "taskpilot-implementer.md"));
   app = await buildApp({ token: TOKEN, state, repo, launcher: opts.leader ? leaderClaude : hookedClaude, launchers: { copilot: opts.leader ? memberCopilot : hookedCopilot }, loadWorkflow: loadDef, copilotQuota: async () => ({ ok: false, reason: "missing" }) });
   // Hooks need a real port to call back to.
   await app.listen({ host: "127.0.0.1", port: 0 });

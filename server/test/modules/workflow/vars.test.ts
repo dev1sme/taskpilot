@@ -258,12 +258,14 @@ describe("leader template prompts", () => {
     const reviseReview = render(2, leader.steps[2].onReject!, { subtasks: subs, feedback: "x" });
     for (const text of [plan, subtask, review, reviseReview]) expect(text).not.toMatch(/\{\{/);
     expect(plan).toContain("## 7. Phân công");
-    expect(plan).toContain("| # | Việc | Agent | File | Đầu ra | Phụ thuộc |");
+    expect(plan).toContain("| # | Việc | Agent | Subagent | Model | File | Đầu ra | Phụ thuộc |");
+    expect(plan).toContain("Chưa có subagent nào dùng được");
     expect(subtask).toContain("Việc 2: UI");
     expect(subtask).toContain("- `.claude/tasks/TPL-011/03-viec-1.md` (việc 1: Parser)");
     expect(subtask).toContain("# TPL-011 — Báo cáo việc");
     expect(review).toContain("- Việc 2 · Copilot · UI → `.claude/tasks/TPL-011/03-viec-2.md`");
-    expect(plan.length).toBeLessThanOrEqual(3800);
+    // Without subagents; each one the repo has adds a line of {{subagents}}.
+    expect(plan.length).toBeLessThanOrEqual(4600);
     expect(subtask.length).toBeLessThanOrEqual(2000);
     expect(review.length).toBeLessThanOrEqual(2800);
     expect(reviseReview.length).toBeLessThanOrEqual(1500);

@@ -24,8 +24,8 @@ async function fakeRun(page: Page, phase: "gate" | "waiting") {
     updatedAt: now,
   };
   const steps = [
-    { id: "investigate", title: "Điều tra & lên kế hoạch", gate: "approve", doneFile: "02-plan.md", outputs: [{ id: "plan", file: "02-plan.md" }] },
-    { id: "implement", title: "Triển khai", gate: "approve", doneFile: "04-summary.md", outputs: [{ id: "summary", file: "04-summary.md" }] },
+    { id: "investigate", title: "Điều tra & lên kế hoạch", agent: "claude", gate: "approve", doneFile: "02-plan.md", outputs: [{ id: "plan", file: "02-plan.md" }] },
+    { id: "implement", title: "Triển khai", agent: "claude", gate: "approve", doneFile: "04-summary.md", outputs: [{ id: "summary", file: "04-summary.md" }] },
   ];
   const sent: Array<{ url: string; body: unknown }> = [];
   await page.route("**/api/tasks/PROJ-1/run", (route) =>

@@ -16,7 +16,9 @@ test("the footer opens a repo terminal that stays open across pages", async ({ p
   await toggle.click();
   const drawer = page.getByRole("region", { name: "Terminal repo" });
   await expect(drawer).toBeVisible();
+  // "Session mới" asks which agent to open; the fake claude stands in for Claude.
   await drawer.getByRole("button", { name: "Session mới" }).click();
+  await drawer.getByRole("button", { name: "Session Claude" }).click();
   const session = drawer.locator(".drawer-session.is-active");
   await expect(session).toContainText("Session");
   const title = (await session.textContent())!.replace(/,.*$/, "").trim();

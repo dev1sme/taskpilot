@@ -1,7 +1,7 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as XTerm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import i18n from "../../i18n";
 import { sessionsApi } from "./api";
 
@@ -13,8 +13,7 @@ type ServerFrame = { t: "o"; d: string } | { t: "x"; code: number | null };
  */
 export function Terminal({ sessionId, onExit }: { sessionId: string; onExit: (code: number | null) => void }) {
   const ref = useRef<HTMLDivElement>(null);
-  const onExitRef = useRef(onExit);
-  onExitRef.current = onExit;
+  const exit = useEffectEvent(onExit);
 
   useEffect(() => {
     const el = ref.current!;
@@ -49,7 +48,7 @@ export function Terminal({ sessionId, onExit }: { sessionId: string; onExit: (co
       }
       // No scrollback: the session ran under an earlier server process.
       if (!sawOutput) term.write(`\x1b[2m${i18n.t("notRunning", { ns: "sessions" })}\x1b[0m\r\n`);
-      onExitRef.current(frame.code);
+      exit(frame.code);
     };
     ws.onclose = (e) => {
       if (e.code !== 1000) term.write(`\r\n\x1b[2m${i18n.t("disconnected", { ns: "sessions", code: e.code })}\x1b[0m\r\n`);

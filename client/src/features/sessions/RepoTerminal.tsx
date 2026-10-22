@@ -16,10 +16,15 @@ export function RepoTerminal({ open, onToggle }: { open: boolean; onToggle: (ope
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const asking = sessions.find((s) => s.activity === "permission")?.id;
+  // `undefined` so a session already asking at mount is followed too.
+  const [seenAsking, setSeenAsking] = useState<string | null | undefined>(undefined);
+  if (seenAsking !== asking) {
+    setSeenAsking(asking);
+    if (asking) setActiveId(asking);
+  }
+  // Opening is the parent's state, so it stays out of render.
   useEffect(() => {
-    if (!asking) return;
-    setActiveId(asking);
-    onToggle(true);
+    if (asking) onToggle(true);
   }, [asking, onToggle]);
 
   if (!open || !repo?.path) return null;

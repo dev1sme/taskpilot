@@ -46,6 +46,25 @@ task's documents like the others, but it doesn't count in the task list's "N Cla
    waiting has its own reply box, an interrupted one a **Gửi lại việc** button; their sessions are tabs in
    the terminal. When all are done, the leader reviews the reports.
 
+### Marking a task done
+
+A task is "done" only when TaskPilot says so, not just because every document exists. The state
+lives in `.claude/tasks/<key>/task.yml`, written by TaskPilot (not by Claude):
+
+```yaml
+# Written by TaskPilot: status is open or done.
+status: done
+doneAt: 2026-10-22T08:30:00.000Z
+```
+
+Precedence: `status: done` in the file → done; `status: open` → not done; no file → a legacy run
+that ended in `done` still counts as done. Approving the last step writes `done`; starting or
+restarting a run writes `open`. By hand, use **Đánh dấu hoàn thành** / **Mở lại** in the task
+toolbar, or **Đánh dấu xong** / **Mở lại** on a row of the Task list (409 and a disabled button while
+a run is active — cancel it or approve the last step first). The Task list filters **Đang làm**
+(default) / **Hoàn thành** / **Tất cả**; the choice is remembered in the browser. A task with every
+document written but not confirmed shows "Đủ tài liệu, chưa xác nhận xong".
+
 **Prompt đã gửi** in the task toolbar shows the latest prompt TaskPilot pasted into the run's
 session, exactly as Claude got it.
 
@@ -55,6 +74,19 @@ clear why a plan or implementation changed.
 
 A task can have several sessions (tabs). **+ Session mới** opens a free session outside the workflow.
 Sessions survive page reloads; after a TaskPilot restart they show as stopped and can be resumed.
+
+## Sidebar
+
+The sidebar lists Tổng quan, Task, the Claude config pages and integrations. **Agents, Commands and
+Skills** are one item, **Thư viện** (badge = their total); tabs at the top of the page switch
+between them, and `#/agents`, `#/commands`, `#/skills` still work. The Task item has no nested task
+list; its badge counts tasks waiting for you.
+
+- **Rail**: the button next to the logo (or the palette command *Thu gọn sidebar* / *Mở rộng sidebar*)
+  folds the sidebar to a 64px icon rail. Each item keeps its tooltip, accessible name and badge. The
+  choice is remembered in the browser.
+- **Drawer**: at 860px or narrower the sidebar is hidden behind the menu button in the top bar. It
+  closes on choosing a page, Esc or a click on the backdrop.
 
 ## Repo terminal and Claude usage
 

@@ -106,39 +106,48 @@ test.describe("sidebar", () => {
     await page.route("**/api/tasks", (route) => route.fulfill({ json: manyTasks(18) }));
   });
 
-  test("caps the task list and keeps every nav group on a 1440×900 screen", async ({ page }) => {
+  test("has no nested task list and keeps every nav group on a 1440×900 screen", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/#/tasks");
     const sidebar = page.locator("nav.sidebar");
-    const rows = sidebar.locator(".nav-tasks .nav-task:not(.nav-task-all)");
-    await expect(rows).toHaveCount(6);
-    // Needs-you first, then running.
-    await expect(rows.nth(0)).toContainText("SIDE-1");
-    await expect(rows.nth(1)).toContainText("SIDE-2");
-    const all = sidebar.getByRole("link", { name: "Xem tất cả (18)" });
-    await expect(all).toHaveAttribute("href", "#/tasks");
+    await expect(sidebar.locator(".nav-tasks")).toHaveCount(0);
+    await expect(sidebar.getByRole("link", { name: "Xem tất cả (18)" })).toHaveCount(0);
+    await expect(sidebar.locator('a.nav-item[href="#/tasks"]')).toHaveAttribute("aria-current", "page");
     await expect(sidebar.getByRole("link", { name: "Codegraph" })).toBeInViewport({ ratio: 1 });
     const nav = sidebar.locator(".sidebar-nav");
     const [scroll, client] = await nav.evaluate((el) => [el.scrollHeight, el.clientHeight]);
     expect(scroll).toBeLessThanOrEqual(client);
   });
 
-  test("keeps the open task in the list when it is outside the cap", async ({ page }) => {
+  test("a task page keeps the Task item active", async ({ page }) => {
     await page.goto("/#/tasks/SIDE-15");
-    const rows = page.locator("nav.sidebar .nav-tasks .nav-task:not(.nav-task-all)");
-    await expect(rows).toHaveCount(7);
-    await expect(rows.last()).toContainText("SIDE-15");
-    await expect(rows.last()).toHaveAttribute("aria-current", "page");
+    await expect(page.locator('nav.sidebar a.nav-item[href="#/tasks"]')).toHaveAttribute("aria-current", "page");
   });
 
-  test("shows the task list only on the Task pages, the waiting badge everywhere", async ({ page }) => {
+  test("shows the waiting badge on every page", async ({ page }) => {
     await page.goto("/#/memory");
+    await expect(page.locator('nav.sidebar a.nav-item[href="#/tasks"] .nav-badge')).toHaveText("1");
+  });
+
+  test("agents, commands and skills share one Thư viện item with tabs", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
     const sidebar = page.locator("nav.sidebar");
-    await expect(sidebar.locator('a.nav-item[href="#/tasks"] .nav-badge')).toHaveText("1");
-    await expect(sidebar.locator(".nav-tasks")).toHaveCount(0);
+    await page.goto("/#/commands");
+    const item = sidebar.getByRole("link", { name: "Thư viện" });
+    await expect(item).toHaveAttribute("aria-current", "page");
+    await expect(sidebar.getByRole("link", { name: /^(Agents|Commands|Skills)\b/ })).toHaveCount(0);
+    await page.goto("/#/skills");
+    await expect(item).toHaveAttribute("aria-current", "page");
+    await expect(item.locator(".nav-badge")).toBeVisible();
+    const tabs = page.locator(".library-tabs");
+    await expect(tabs.getByRole("link", { name: /Skills/ })).toHaveAttribute("aria-current", "page");
+    await tabs.getByRole("link", { name: /Agents/ }).click();
+    await expect(page).toHaveURL(/#\/agents$/);
+    await expect(item).toHaveAttribute("aria-current", "page");
   });
 
   test("folds a group, remembers it, and unfolds it for the page being opened", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/#/");
     const sidebar = page.locator("nav.sidebar");
     const toggle = sidebar.getByRole("button", { name: "Cấu hình Claude" });
@@ -154,6 +163,7 @@ test.describe("sidebar", () => {
   });
 
   test("log out and agent versions sit in the sidebar, not the footer", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/#/");
     const account = page.locator("nav.sidebar .sidebar-account");
     await expect(account.getByRole("button", { name: "Đăng xuất" })).toBeVisible();
@@ -164,17 +174,66 @@ test.describe("sidebar", () => {
     await expect(footer).not.toContainText(/claude \S|không tìm thấy claude|copilot \d/);
   });
 
-  test("fits a 390px screen without horizontal overflow", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/#/tasks");
+  test("collapses to a 64px rail, keeps badge and tooltips, and remembers it after reload", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/#/");
     const sidebar = page.locator("nav.sidebar");
-    await expect(sidebar.locator(".nav-tasks .nav-task:not(.nav-task-all)")).toHaveCount(6);
-    for (const el of [sidebar, sidebar.locator(".sidebar-nav")]) {
-      const [scroll, client] = await el.evaluate((x) => [x.scrollWidth, x.clientWidth]);
-      expect(scroll).toBeLessThanOrEqual(client);
-    }
-    await expect(sidebar.getByRole("button", { name: "Đăng xuất" })).toBeInViewport();
-    const [docScroll, docClient] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
-    expect(docScroll).toBeLessThanOrEqual(docClient);
+    await expect.poll(async () => (await sidebar.boundingBox())!.width).toBeGreaterThan(200);
+    await sidebar.getByRole("button", { name: "Thu gọn sidebar" }).click();
+    await expect.poll(async () => (await sidebar.boundingBox())!.width).toBeLessThanOrEqual(72);
+    await expect(sidebar.getByRole("button", { name: "Mở rộng sidebar" })).toHaveAttribute("aria-expanded", "false");
+    const task = sidebar.locator('a.nav-item[href="#/tasks"]');
+    await expect(task.locator(".nav-badge")).toHaveText("1");
+    await expect(task).toHaveAttribute("title", /Task/);
+    await expect(sidebar.getByRole("link", { name: "Hooks" })).toHaveAttribute("title", /Hooks/);
+    const nav = sidebar.locator(".sidebar-nav");
+    const [scroll, client] = await nav.evaluate((el) => [el.scrollWidth, el.clientWidth]);
+    expect(scroll).toBeLessThanOrEqual(client);
+
+    await page.reload();
+    await expect.poll(async () => (await page.locator("nav.sidebar").boundingBox())!.width).toBeLessThanOrEqual(72);
+    expect(await page.evaluate(() => localStorage.getItem("taskpilot.sidebar.rail"))).toBe("1");
+
+    // The palette command flips it back.
+    await page.locator(".search-trigger").first().click();
+    await page.getByRole("combobox").fill("sidebar");
+    await page.getByRole("option", { name: /Mở rộng sidebar/ }).click();
+    await expect.poll(async () => (await page.locator("nav.sidebar").boundingBox())!.width).toBeGreaterThan(200);
+  });
+
+  test.describe("phone width", () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    test("is a drawer: closed by default, closes on Esc, backdrop and page choice, no overflow", async ({ page }) => {
+      await page.goto("/#/tasks");
+      const sidebar = page.locator("nav.sidebar");
+      const menu = page.getByRole("button", { name: "Mở menu điều hướng" });
+      await expect(sidebar).toBeHidden();
+      await expect(menu).toBeVisible();
+
+      await menu.click();
+      await expect(sidebar).toBeVisible();
+      await expect(sidebar.getByRole("button", { name: "Đăng xuất" })).toBeInViewport();
+      for (const el of [sidebar, sidebar.locator(".sidebar-nav")]) {
+        const [scroll, client] = await el.evaluate((x) => [x.scrollWidth, x.clientWidth]);
+        expect(scroll).toBeLessThanOrEqual(client);
+      }
+      await page.keyboard.press("Escape");
+      await expect(sidebar).toBeHidden();
+      await expect(menu).toBeFocused();
+
+      await menu.click();
+      await expect(sidebar).toBeVisible();
+      await page.mouse.click(385, 400);
+      await expect(sidebar).toBeHidden();
+
+      await menu.click();
+      await sidebar.getByRole("link", { name: "Hooks" }).click();
+      await expect(page).toHaveURL(/#\/hooks$/);
+      await expect(sidebar).toBeHidden();
+
+      const [docScroll, docClient] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+      expect(docScroll).toBeLessThanOrEqual(docClient);
+    });
   });
 });

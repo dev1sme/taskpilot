@@ -20,10 +20,29 @@ in a normal terminal session. The user can type into the terminal at any time.
   02-plan.md
   03-progress.md
   04-summary.md
+  task.yml               # written by TaskPilot: completion state (see below), not a document
   archive/<stamp>/       # 01-04 from before a restart; Claude rewrites them at the top level
 ```
 
 A directory is a task when `<key>/spec/` contains at least one `.md` file.
+
+### Completion state (`task.yml`, TPL-018)
+
+```yaml
+# Written by TaskPilot: status is open or done.
+status: done          # open | done
+doneAt: 2026-10-22T08:30:00.000Z
+```
+
+`GET /api/tasks` returns `done: { at: number | null } | null`, computed by the server:
+1. `task.yml` with `status: done` → done; 2. `status: open` → not done; 3. no (or unreadable) file →
+legacy fallback: a run with `phase: "done"` counts as done (`at: null`). The file wins over
+`state.json`. Approving the last step writes `done`; starting or restarting a run writes `open`;
+`PUT /api/tasks/:key/done` with `{ done: boolean }` sets it by hand (409 while a run is active) and
+appends to `00-history.md`. The file is `.yml`, so it is not listed as a Claude-written document
+and is not archived on restart. On the client, status order is permission → active run →
+`task.done` → stage; a task with all documents but no mark shows "Đủ tài liệu, chưa xác nhận xong"
+(tone `idle`).
 
 ## 3. Run flow
 
@@ -254,7 +273,7 @@ The embedded terminal is shell-equivalent access to the machine.
 - **M2** session manager: multiple tabs per task, resume, scrollback across page reloads — done.
 - **M3** workflow engine, approve/feedback gates, hook badges — done.
 - **Phase A** app shell — done: "Instrument panel" design (canvas mockups), sidebar with Workspace /
-  Claude config / Integrations groups and nested task list, ⌘K palette, status bar, repo overview
+  Claude config / Integrations groups and nested task list (removed in TPL-018), ⌘K palette, status bar, repo overview
   (needs-you hero, running task pulse, task counts, CLAUDE.md, MCP and .claude inventory via
   `/api/inventory`), task table, config pages as placeholders.
 - **Phase B** read-only config pages — done: `/api/config/{memory,settings,hooks,agents,commands,skills,mcp}`
@@ -313,6 +332,10 @@ The embedded terminal is shell-equivalent access to the machine.
 - **TPL-010** Copilot quota in the footer — done: read from the Copilot runtime's
   `account.getQuota` when a Copilot session ends a turn (§5, §7), shown as its own item
   (`Copilot 42%`, `Copilot ∞` when unlimited) next to Claude's usage.
+- **TPL-018** UI improvements — done: completion state in `task.yml` with a PUT endpoint, Task list
+  filter (Đang làm / Hoàn thành / Tất cả) and per-row buttons; sidebar without the nested task list,
+  foldable to a 64px rail (remembered in `localStorage`) and a drawer at ≤ 860px; Agents / Commands /
+  Skills merged into one *Thư viện* item with tabs (routes unchanged).
 - **Docs split** — done: README trimmed to the pitch, requirements and install/run; everything else
   moved into `docs/GUIDE.md` (daily use), `docs/CONFIGURATION.md` (Claude config, custom workflow),
   `docs/DEPLOY.md` (service, reverse proxy, security) and `docs/DEVELOP.md` (dev commands, layout,

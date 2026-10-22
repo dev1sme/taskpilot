@@ -91,7 +91,7 @@ export function McpForm(props: {
     save: () => mcpApi.mcpSave(scope, build(), props.baseHash),
     onSaved: () => {
       toast(secrets.length ? t("mcpForm.savedWithSecrets", { name, secrets: secrets.join(", ") }) : t("mcpForm.saved", { name }));
-      props.onDone(name);
+      props.onDone(name.trim());
     },
   });
 

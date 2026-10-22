@@ -119,6 +119,8 @@
 .lib-pills {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  align-self: start;
   justify-content: flex-end;
   gap: 4px;
 }

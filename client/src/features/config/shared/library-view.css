@@ -50,6 +50,7 @@
 .mcp-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 4px 10px;
   width: 100%;
   padding: 12px 14px;
@@ -76,6 +77,7 @@
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lib-desc {

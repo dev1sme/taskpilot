@@ -200,7 +200,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
                         aria-current={current && keyOf(current) === keyOf(i) ? "true" : undefined}
                         onClick={() => setPicked(keyOf(i))}
                       >
-                        <span className="lib-name mono">
+                        <span className="lib-name mono" title={`${copy.prefix}${i.name}`}>
                           {copy.prefix}
                           {i.name}
                         </span>

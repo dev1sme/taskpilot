@@ -11,7 +11,7 @@
   grid-template-columns: auto 1fr;
   align-items: center;
   gap: 2px 8px;
-  padding: 12px;
+  padding: 12px 10px;
   color: var(--ink);
   text-decoration: none;
   background: var(--raised);
@@ -40,6 +40,15 @@
 
 .inv-label {
   grid-column: 1 / -1;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 13px;
   color: var(--muted);
+}
+
+/* Narrow cards (phones, two-column overview) read better as 2x2 than four cramped cells. */
+@media (max-width: 560px) {
+  .inventory {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

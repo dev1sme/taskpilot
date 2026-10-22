@@ -6,19 +6,19 @@
   gap: 4px;
   padding: 0 28px;
   overflow-x: auto;
-  border-bottom: 1px solid var(--line);
+  overflow-y: hidden;
+  scrollbar-width: none;
+  box-shadow: inset 0 -1px 0 var(--line);
 }
 
 .page-tabs a {
   flex: none;
-  margin-bottom: -1px;
-  padding: 10px 12px;
+  padding: 10px 12px 12px;
   font-size: 13.5px;
   font-weight: 500;
   color: var(--muted);
   text-decoration: none;
-  border-bottom: 2px solid transparent;
-  transition: color var(--fast) var(--ease-out), border-color var(--fast) var(--ease-out);
+  transition: color var(--fast) var(--ease-out), box-shadow var(--fast) var(--ease-out);
 }
 
 .page-tabs a:hover {
@@ -27,7 +27,7 @@
 
 .page-tabs a[aria-current="page"] {
   color: var(--ink);
-  border-bottom-color: var(--signal);
+  box-shadow: inset 0 -2px 0 var(--signal);
 }
 
 @media (max-width: 860px) {

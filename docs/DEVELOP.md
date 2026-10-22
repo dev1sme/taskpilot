@@ -19,8 +19,12 @@ Chạy các kiểm tra phù hợp trước khi gửi thay đổi:
 npm test                 # Unit test, quy tắc kiến trúc và chuỗi giao diện
 npm run typecheck        # TypeScript server và client
 npm run i18n:lint        # Chuỗi JSX cần đưa vào tài nguyên dịch
+npm run lint             # Quy tắc React hooks (ESLint)
+npm run format:check     # Định dạng Prettier
 npm run build            # Build giao diện và server
 ```
+
+Chạy `npm run format` để sửa định dạng.
 
 E2E dùng Playwright, cần cài bộ phụ thuộc riêng và Chromium. Chạy từ gốc repo:
 

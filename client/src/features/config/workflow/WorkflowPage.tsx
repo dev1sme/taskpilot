@@ -92,7 +92,8 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
   const reset = () =>
     run(async () => {
       await workflowConfigApi.reset(Object.fromEntries((data?.files ?? []).map((f) => [f.name, f.hash])));
-      for (const f of data?.files ?? []) clearDraft(draftKey(f.name));
+      // Also the drafts of new prompts: they are not in data.files.
+      for (const name of new Set([...(data?.files ?? []).map((f) => f.name), ...openDraftNames(dirty, "")])) clearDraft(draftKey(name));
       backupToast(t("workflow.resetDone"));
       setPicked(WORKFLOW_FILE);
       await refresh();

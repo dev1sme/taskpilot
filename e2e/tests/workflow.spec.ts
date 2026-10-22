@@ -181,3 +181,22 @@ test("a slow validation of older text does not replace the result of the newer t
   await expect(page.locator(".check-error")).toHaveCount(0);
   await expect(page.locator(".wf-ok")).toBeVisible();
 });
+
+test("removing the override also drops the draft of a new prompt", async ({ page }) => {
+  await withOverride(page);
+  const nav = page.getByRole("navigation", { name: "File của workflow" });
+  await toolbar(page).getByRole("button", { name: "Thêm file prompt" }).click();
+  await nav.getByRole("textbox").fill("review.md");
+  await nav.getByRole("button", { name: "Thêm", exact: true }).click();
+  await expect(nav.getByRole("button", { name: /review\.md/ })).toBeVisible();
+  // The remove button shows only for a file with no draft: go back to workflow.yml. No goto/reload: the drafts live in the page.
+  await nav.getByRole("button", { name: /workflow\.yml/ }).click();
+  await toolbar(page).getByRole("button", { name: "Xoá override" }).click();
+  await toolbar(page).getByRole("button", { name: "Xác nhận xoá override" }).click();
+  await expect(page.getByText("Mặc định · có sẵn của TaskPilot", { exact: true })).toBeVisible();
+
+  await toolbar(page).getByRole("button", { name: "Tạo override dựa trên Mặc định" }).click();
+  await expect(page.getByText("Mặc định · override .taskpilot/")).toBeVisible();
+  await expect(nav.getByRole("button", { name: /review\.md/ })).toHaveCount(0);
+  await expect(page.locator(".unsaved-pill")).toHaveCount(0);
+});

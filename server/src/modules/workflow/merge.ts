@@ -19,8 +19,8 @@ export interface MergeResult {
   provenance: Provenance;
 }
 
-const TOP_KEYS = ["agent", "permission-mode", "language", "rules", "history", "restart"];
-const STEP_KEYS = ["title", "agent", "prompt", "on-reject", "gate", "done-when"];
+const TOP_KEYS = ["agent", "model", "permission-mode", "language", "rules", "history", "restart"];
+const STEP_KEYS = ["title", "agent", "model", "prompt", "on-reject", "gate", "done-when"];
 /** What an override may change of the dispatch step; the rest (`from`, `report`) is the engine's. */
 const DISPATCH_KEYS = ["prompt", "format", "parallel"];
 

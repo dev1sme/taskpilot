@@ -28,7 +28,7 @@ class FakeSessions implements SessionPort {
   resumed: string[] = [];
   constructor(private readonly state: StateStore) {}
 
-  async create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent; title?: string }): Promise<SessionView> {
+  async create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent; title?: string; model?: string }): Promise<SessionView> {
     const id = `00000000-0000-4000-8000-${String(this.sessions.size).padStart(12, "0")}`;
     const meta: SessionMeta = { id, repo, taskKey, title: "Session", createdAt: Date.now(), ...opts };
     await this.state.update((s) => void s.sessions.push(meta));
@@ -274,7 +274,27 @@ describe("workflow engine", () => {
     });
   });
 
-  it("runs a step for another agent in a new session and logs the switch", async () => {
+  it("opens each step's session with its model and switches session when the model changes", async () => {
+    engine = new WorkflowEngine(state, fake, async (r) => {
+      const def = await loadWorkflow(r);
+      def.steps[0].model = "opus";
+      def.steps[1] = { ...def.steps[1], agent: "claude", model: "haiku" };
+      return def;
+    });
+    const first = (await engine.start(repo, "DEMO-1")).sessionId;
+    expect(fake.sessions.get(first)).toMatchObject({ agent: "claude", model: "opus" });
+    await hook("SessionStart");
+    await write("02-plan.md");
+    await hook("Stop");
+
+    const next = await engine.approve(repo, "DEMO-1");
+    expect(fake.stopped).toEqual([first]);
+    expect(fake.sessions.get(next.sessionId)).toMatchObject({ agent: "claude", model: "haiku" });
+    const log = await readFile(path.join(taskDir(), HISTORY_FILE), "utf8");
+    expect(log).toContain("Bước này chạy bằng Claude (haiku) trong session mới; session Claude (opus) của bước trước đã dừng.");
+  });
+
+    it("runs a step for another agent in a new session and logs the switch", async () => {
     engine = new WorkflowEngine(state, fake, async (r) => {
       const def = await loadWorkflow(r);
       def.steps[1].agent = "copilot";

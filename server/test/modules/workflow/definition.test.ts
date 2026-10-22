@@ -171,6 +171,46 @@ describe("workflow definition", () => {
     expect(errors).toEqual(["agent must be one of claude, copilot", "steps[0].agent must be one of claude, copilot"]);
   });
 
+  describe("model", () => {
+    const two = (top: string, a = "", b = "") =>
+      `version: 2\n${top}steps:\n  - id: a\n    prompt: p.md\n${a}  - id: b\n    prompt: p.md\n${b}`;
+
+    it("gives each step its own model, else the workflow's; default and inherit pass none", () => {
+      const { def, errors } = parse(two("model: opus\n", "    model: claude-haiku-5-5\n", ""));
+      expect(errors).toEqual([]);
+      expect(def!.model).toBe("opus");
+      expect(def!.steps.map((s) => s.model)).toEqual(["claude-haiku-5-5", "opus"]);
+
+      const off = parse(two("model: sonnet[1m]\n", "    model: default\n", "    model: inherit\n")).def!;
+      expect(off.steps.map((s) => s.model)).toEqual([undefined, undefined]);
+
+      const none = parse(two("")).def!;
+      expect(none.model).toBeUndefined();
+      expect(none.steps.map((s) => s.model)).toEqual([undefined, undefined]);
+    });
+
+    it("checks a Claude step's model and takes any one-word model for Copilot", () => {
+      const bad = parse(two("model: gpt-5\n", "    model: -p\n", "    model: [opus]\n"));
+      expect(bad.def).toBeNull();
+      expect(bad.errors).toEqual([
+        "model gpt-5 is not a Claude model; use one of default, inherit, haiku, sonnet, opus, fable, opusplan or an id like claude-sonnet-5-5",
+        "steps[0].model -p must be a model name (one word, not starting with -)",
+        "steps[1].model must be a model name (one word, not starting with -)",
+      ]);
+
+      const copilot = parse(two("agent: copilot\nmodel: gpt-5.1-codex\n", "", "    agent: claude\n    model: sonnet\n"));
+      expect(copilot.errors).toEqual([]);
+      expect(copilot.def!.steps.map((s) => [s.agent, s.model])).toEqual([["copilot", "gpt-5.1-codex"], ["claude", "sonnet"]]);
+    });
+
+    it("checks the workflow's model against a step that runs another agent", () => {
+      const { errors } = parse(two("agent: copilot\nmodel: gpt-5\n", "    agent: claude\n"));
+      expect(errors).toEqual([
+        "steps[0]: the workflow's model gpt-5 is not a Claude model; use one of default, inherit, haiku, sonnet, opus, fable, opusplan or an id like claude-sonnet-5-5; give this step a model of its own",
+      ]);
+    });
+  });
+
   describe("dispatch step", () => {
     const head = "version: 2\nsteps:\n  - id: plan\n    agent: copilot\n    prompt: p.md\n    outputs: [{id: plan, file: plan.md}]\n    done-when: plan\n    gate: approve\n";
     const review = "  - id: review\n    prompt: p.md\n    outputs: [{id: rev, file: rev.md}]\n    done-when: rev\n";
@@ -209,6 +249,7 @@ describe("workflow definition", () => {
     it.each([
       ["a prompt of its own", `${dispatch(ok)}    prompt: p.md\n`, "steps[1]: a dispatch step has no `prompt`"],
       ["a gate", `${dispatch(ok)}    gate: approve\n`, "steps[1]: a dispatch step has no `gate`"],
+      ["a model", `${dispatch(ok)}    model: opus\n`, "steps[1]: a dispatch step has no `model`"],
       ["a `from` that is not an earlier output", dispatch(ok.replace("from: plan", "from: rev")), "steps[1].dispatch.from must be the id of an output of an earlier step"],
       ["a report without {{n}}", dispatch(ok.replace("{{n}}", "x")), "steps[1].dispatch.report must contain {{n}}, e.g. 03-viec-{{n}}.md"],
       ["a report outside the task directory", dispatch(ok.replace("03-viec-{{n}}.md", "a/{{n}}.md")), "steps[1].dispatch.report must be a .md file name at the top of the task directory"],

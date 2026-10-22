@@ -21,7 +21,7 @@ export type LoadDef = (repo: string, mode?: string) => Promise<WorkflowDef>;
 
 /** The parts of SessionManager the engine uses. */
 export interface SessionPort {
-  create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent; title?: string }): Promise<SessionView>;
+  create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent; title?: string; model?: string }): Promise<SessionView>;
   resume(id: string): Promise<SessionView>;
   stop(id: string): Promise<void>;
   get(id: string): Promise<SessionView>;
@@ -182,7 +182,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
    * queue. `previous` is what a restart archived, for {{previousRun}}.
    */
   private async begin(repo: string, taskKey: string, def: WorkflowDef, previous?: RunState["previous"]): Promise<RunState> {
-    const session = await this.sessions.create(repo, taskKey, { permissionMode: def.permissionMode, agent: def.steps[0].agent ?? DEFAULT_AGENT });
+    const session = await this.sessions.create(repo, taskKey, { permissionMode: def.permissionMode, agent: def.steps[0].agent ?? DEFAULT_AGENT, model: def.steps[0].model });
     const now = Date.now();
     const run: RunState = {
       repo,
@@ -451,8 +451,8 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   }
 
   /**
-   * Moves the run to step `index` and sends its prompt. A step for another agent gets a new session
-   * of that agent: the previous one is stopped (it stays listed) and the switch goes into the decision
+   * Moves the run to step `index` and sends its prompt. A step for another agent or model gets a new
+   * session of that agent: the previous one is stopped (it stays listed) and the switch goes into the decision
    * log, which the step's prompt has the agent read with the task's documents. A dispatch step opens
    * one session per subtask instead and leaves the leader's session as it is.
    */
@@ -462,10 +462,10 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     if (step.dispatch) return this.startDispatch(run, def, step.dispatch.report, items ?? []);
     const agent = step.agent ?? DEFAULT_AGENT;
     const current = await this.sessions.get(run.sessionId).catch(() => null);
-    if (current && current.agent !== agent) {
+    if (current && (current.agent !== agent || current.model !== step.model)) {
       if (current.status === "running") await this.sessions.stop(run.sessionId);
-      const session = await this.sessions.create(run.repo, run.taskKey, { permissionMode: def.permissionMode, agent });
-      await this.log(run, HISTORY_TEXT.switchAgent, { body: HISTORY_TEXT.switchAgentBody(AGENT_LABELS[current.agent], AGENT_LABELS[agent]) });
+      const session = await this.sessions.create(run.repo, run.taskKey, { permissionMode: def.permissionMode, agent, model: step.model });
+      await this.log(run, HISTORY_TEXT.switchAgent, { body: HISTORY_TEXT.switchAgentBody(sessionLabel(current.agent, current.model), sessionLabel(agent, step.model)) });
       await this.save(run, { sessionId: session.id });
     }
     await this.deliver(run, await this.prompt(run, step.prompt));
@@ -724,4 +724,9 @@ function agentLabel(run: RunState): string {
 
 function taskDirOf(run: RunState): string {
   return path.join(run.repo, TASKS_DIR, run.taskKey);
+}
+
+/** An agent with the model its session runs, for the decision log: "Claude (opus)", or "Claude" for its default. */
+function sessionLabel(agent: Agent, model?: string): string {
+  return model ? `${AGENT_LABELS[agent]} (${model})` : AGENT_LABELS[agent];
 }

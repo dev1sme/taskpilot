@@ -8,6 +8,7 @@ import { t } from "../../core/i18n.js";
 import { MAX_PARALLEL } from "./assignments.js";
 import { mergeOverride, type Provenance } from "./merge.js";
 import { CUSTOM_MODE, DEFAULT_MODE, WORKFLOW_FILE, isMode, listModes, modeDir } from "./modes.js";
+import { launchModel, modelProblem } from "./models.js";
 import type { DispatchDef, OutputDef, StepDef, WorkflowDef } from "./types.js";
 import { templateVars } from "./vars.js";
 
@@ -193,6 +194,14 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
     return undefined;
   };
   const agent = readAgent("agent", doc.agent) ?? DEFAULT_AGENT;
+  /** `model` of the workflow or of a step, checked against the agent that runs it; undefined when absent or invalid. */
+  const readModel = (where: string, value: unknown, of: Agent): string | undefined => {
+    if (value === undefined) return undefined;
+    const problem = modelProblem(of, value);
+    if (problem) return void errors.push(`${where}${typeof value === "string" ? ` ${value}` : ""} ${problem}`);
+    return value as string;
+  };
+  const model = readModel("model", doc.model, agent);
 
   const used = new Set<string>();
   /** A prompt or format file next to workflow.yml; it then counts as used. */
@@ -240,7 +249,7 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
   /** A dispatch step: its table comes from an earlier output, its prompt is for each subtask. */
   const readDispatch = (at: string, raw: Record<string, unknown>, index: number): StepDef | null => {
     const id = typeof raw.id === "string" ? raw.id : "";
-    for (const key of ["prompt", "outputs", "done-when", "gate", "agent", "on-reject"]) {
+    for (const key of ["prompt", "outputs", "done-when", "gate", "agent", "model", "on-reject"]) {
       if (raw[key] !== undefined) errors.push(`${at}: a dispatch step has no \`${key}\`; its settings go under \`dispatch\``);
     }
     if (steps.some((s) => s.dispatch)) {
@@ -340,10 +349,20 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
 
     const prompt = loadPrompt(`${at}.prompt`, raw.prompt);
     const onReject = raw["on-reject"] === undefined ? null : loadPrompt(`${at}.on-reject`, raw["on-reject"]);
+    const stepAgent = readAgent(`${at}.agent`, raw.agent) ?? agent;
+    let stepModel: string | undefined;
+    if (raw.model !== undefined) stepModel = readModel(`${at}.model`, raw.model, stepAgent);
+    else if (model !== undefined) {
+      // The workflow's model was checked against the workflow's agent, not necessarily this step's.
+      const problem = stepAgent === agent ? null : modelProblem(stepAgent, model);
+      if (problem) errors.push(`${at}: the workflow's model ${model} ${problem}; give this step a model of its own`);
+      else stepModel = model;
+    }
     steps.push({
       id: String(id),
       title: typeof raw.title === "string" ? raw.title : String(id),
-      agent: readAgent(`${at}.agent`, raw.agent) ?? agent,
+      agent: stepAgent,
+      model: launchModel(stepModel),
       prompt: prompt?.text ?? "",
       promptFile: prompt?.file ?? "",
       outputs,
@@ -373,6 +392,7 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
     origin: where.origin,
     dir: where.dir,
     agent,
+    ...(model !== undefined ? { model } : {}),
     permissionMode: permissionMode as string | undefined,
     history,
     language,

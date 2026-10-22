@@ -48,7 +48,23 @@ describe("mergeOverride", () => {
     expect(ok.parsed!.def!.steps.find((s) => s.dispatch)?.dispatch?.parallel).toBe(1);
   });
 
-  it("replaces a base file of the same name", async () => {
+  it("sets the workflow's model and patches a step's", async () => {
+    const { m, parsed } = await merged("default", "extends: default\nmodel: opus\nsteps:\n  - id: investigate\n    model: haiku\n");
+    expect(m.errors).toEqual([]);
+    expect(parsed!.errors).toEqual([]);
+    expect(m.provenance.keys).toEqual(["model"]);
+    expect(m.provenance.steps[0]).toMatchObject({ id: "investigate", status: "patched", keys: ["model"] });
+    expect(parsed!.def!.model).toBe("opus");
+    // implement runs Copilot, which takes the workflow's model as it is.
+    expect(parsed!.def!.steps.map((s) => [s.id, s.model])).toEqual([["investigate", "haiku"], ["implement", "opus"]]);
+
+    const bad = await merged("default", "extends: default\nsteps:\n  - id: investigate\n    model: gpt-5\n");
+    expect(bad.parsed!.errors).toEqual([expect.stringContaining("steps[0].model gpt-5 is not a Claude model")]);
+    const dispatch = await merged("leader", "extends: leader\nsteps:\n  - id: dispatch\n    model: opus\n");
+    expect(dispatch.m.errors).not.toEqual([]);
+  });
+
+    it("replaces a base file of the same name", async () => {
     const { m } = await merged("default", "extends: default\n", { "investigate.md": "Mine {{key}}" });
     expect(m.files.get("investigate.md")).toBe("Mine {{key}}");
     expect(m.provenance.files["investigate.md"]).toBe("replaced");

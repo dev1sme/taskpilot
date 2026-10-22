@@ -61,6 +61,8 @@ export interface StepDef {
   title: string;
   /** The agent that runs this step: the step's own `agent`, else the workflow's. */
   agent: Agent;
+  /** Passed as --model to the step's session: the step's own `model`, else the workflow's; absent for the agent's default. */
+  model?: string;
   /** Prompt template text, already loaded. */
   prompt: string;
   /** Prompt file name, inside the workflow directory. */
@@ -87,6 +89,8 @@ export interface WorkflowDef {
   mode?: { id: string; name: string; override: boolean };
   /** Default agent of the steps (`agent` at the top of workflow.yml); claude when absent. */
   agent: Agent;
+  /** Default model of the steps (`model` at the top of workflow.yml), as written; absent = the agent's default. */
+  model?: string;
   permissionMode?: string;
   /**
    * The task's decision log: file name in the task dir, the heading Claude uses for its entries, and

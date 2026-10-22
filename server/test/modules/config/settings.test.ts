@@ -30,6 +30,14 @@ describe("permission editing", () => {
     });
   });
 
+  it("previews no change when the file only differs in formatting", async () => {
+    await writeFile(settingsFile(), JSON.stringify({ permissions: { allow: ["Read"] }, hooks: { Stop: [] } }, null, 4));
+    const before = await get("/api/config/settings/project/permissions");
+    const body = { allow: ["Read"], ask: [], deny: [], defaultMode: null, baseHash: before.hash };
+    const preview = (await send("POST", "/api/config/settings/project/permissions/preview", body)).json();
+    expect(preview.changed).toBe(false);
+  });
+
   it.each([
     [{ allow: ["rm -rf /"], ask: [], deny: [], defaultMode: null }, 400],
     [{ allow: [], ask: [], deny: [], defaultMode: "bypassPermissions" }, 400],

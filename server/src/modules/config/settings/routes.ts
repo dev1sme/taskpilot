@@ -22,9 +22,10 @@ export function registerSettingsRoutes(app: FastifyInstance, opts: ConfigRouteOp
     const target = settingsTarget(requireRepo(), scopeOf(req.params.scope));
     const current = await readCurrent(target.abs);
     const next = applyPermissions(current, validatePermissions(req.body));
+    const normalized = current === null ? null : applyPermissions(current, readPermissions(current));
     return {
-      diff: diffText(target.display, maskSettingsText(current === null ? null : applyPermissions(current, readPermissions(current))), maskSettingsText(next)),
-      changed: next !== current,
+      diff: diffText(target.display, maskSettingsText(normalized), maskSettingsText(next)),
+      changed: next !== normalized,
       stale: hashOf(current) !== stringField(req.body, "baseHash"),
     };
   });

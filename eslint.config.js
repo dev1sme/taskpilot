@@ -15,6 +15,6 @@ export default [
   {
     files: ["client/src/**/*.{ts,tsx}"],
     plugins: { "react-hooks": reactHooks },
-    rules: { "react-hooks/rules-of-hooks": "error", "react-hooks/exhaustive-deps": "error" },
+    rules: { ...reactHooks.configs.flat.recommended.rules, "react-hooks/exhaustive-deps": "error" },
   },
 ];

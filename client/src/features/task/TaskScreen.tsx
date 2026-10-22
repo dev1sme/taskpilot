@@ -1,5 +1,5 @@
 import { ArrowCounterClockwise, ArrowUUpLeft, CheckCircle, ChatCircleDots, CircleNotch, Diamond, PlugsConnected, Scroll, X } from "@phosphor-icons/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { href } from "../../shared/router";
 import { Button } from "../../shared/ui/Button";
@@ -52,19 +52,32 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
   }, [reload, reloadSessions]);
 
   // Claude can only be answered in the terminal: open it on a permission prompt.
+  // The "seen" states start undefined so the first render counts as a change, like a mount effect.
   const asking = sessions.find((s) => s.activity === "permission")?.id;
-  useEffect(() => {
-    if (!asking) return;
-    setActiveSession(asking);
-    setDrawerOpen(true);
-  }, [asking]);
+  const [seenAsking, setSeenAsking] = useState<string | undefined | null>(null);
+  if (seenAsking !== asking) {
+    setSeenAsking(asking);
+    if (asking) {
+      setActiveSession(asking);
+      setDrawerOpen(true);
+    }
+  }
 
-  useEffect(() => {
-    if (run?.sessionId) setActiveSession(run.sessionId);
-  }, [run?.sessionId]);
+  // After the prompt above, so the run's session wins when both change together.
+  const runSessionId = run?.sessionId;
+  const [seenRunSession, setSeenRunSession] = useState<string | undefined | null>(null);
+  if (seenRunSession !== runSessionId) {
+    setSeenRunSession(runSessionId);
+    if (runSessionId) setActiveSession(runSessionId);
+  }
 
   // A confirmation asked in one phase does not carry over to the next.
-  useEffect(() => setRestart("idle"), [run?.phase, run?.stepIndex]);
+  const phaseStep = `${run?.phase}:${run?.stepIndex}`;
+  const [seenPhaseStep, setSeenPhaseStep] = useState(phaseStep);
+  if (seenPhaseStep !== phaseStep) {
+    setSeenPhaseStep(phaseStep);
+    setRestart("idle");
+  }
 
   const openTerminal = (sessionId?: string) => {
     const id = sessionId ?? run?.sessionId;

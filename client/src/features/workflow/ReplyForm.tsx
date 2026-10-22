@@ -1,5 +1,5 @@
 import { ChatText } from "@phosphor-icons/react";
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "../../shared/ui/Button";
 import { composeAnswers, initialAnswers, QuestionForm } from "./QuestionForm";
@@ -15,7 +15,11 @@ export function ReplyForm(props: { send: (text: string) => Promise<unknown>; que
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const asked = JSON.stringify(props.questions);
-  useEffect(() => setAnswers(initialAnswers(JSON.parse(asked) as Question[])), [asked]);
+  const [seenAsked, setSeenAsked] = useState(asked);
+  if (seenAsked !== asked) {
+    setSeenAsked(asked);
+    setAnswers(initialAnswers(props.questions));
+  }
   const reply = [composeAnswers(props.questions, answers, t("questions.agree")), text.trim()].filter(Boolean).join("\n\n");
 
   return (

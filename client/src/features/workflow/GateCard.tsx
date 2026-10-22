@@ -1,7 +1,7 @@
 import { ArrowsOut, ChatText, Check, Diamond } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { AGENT_LABELS } from "../../shared/agents";
 import { AgentBadge } from "../../shared/ui/AgentBadge";
@@ -48,7 +48,11 @@ export function GateCard(props: {
   const [answers, setAnswers] = useState(() => initialAnswers(props.questions));
   const asked = JSON.stringify(props.questions);
   // New questions (Claude revised the document) start from their own proposals.
-  useEffect(() => setAnswers(initialAnswers(JSON.parse(asked) as Question[])), [asked]);
+  const [seenAsked, setSeenAsked] = useState(asked);
+  if (seenAsked !== asked) {
+    setSeenAsked(asked);
+    setAnswers(initialAnswers(props.questions));
+  }
   const answered = composeAnswers(props.questions, answers, t("questions.agree"));
   const feedbackText = [answered, feedback.trim()].filter(Boolean).join("\n\n");
 

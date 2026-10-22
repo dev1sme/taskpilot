@@ -4,7 +4,7 @@ import type { RepoContext } from "../repo/index.js";
 import { getTask } from "../tasks/index.js";
 import type { WorkflowEngine } from "./engine.js";
 
-/** Workflow run of a task: view, start, cancel, approve a gate, send feedback, answer Claude, restart, retry, mark a step done; reply to, retry or mark done one subtask. */
+/** Workflow run of a task: view, start, cancel, approve a gate, send feedback, answer Claude, restart, retry, mark a step done; reply to, retry or mark done one subtask; mark the task done or open. */
 /** The optional `{mode}` of a run request: a workflows/ directory or "custom"; the engine rejects an unknown one. */
 function modeOf(body: unknown): string | undefined {
   const mode = (body as { mode?: unknown } | null)?.mode;
@@ -69,4 +69,10 @@ export function registerWorkflowRoutes(app: FastifyInstance, opts: { repo: RepoC
   app.post<{ Params: { key: string } }>("/api/tasks/:key/run/retry", async (req) =>
     engine.retry(requireRepo(), req.params.key),
   );
+
+  // Not under run/: `run/complete` already marks one step done; this marks the whole task.
+  app.put<{ Params: { key: string }; Body: { done?: unknown } | null }>("/api/tasks/:key/done", async (req) => {
+    if (typeof req.body?.done !== "boolean") throw new HttpError(400, "Body must be {\"done\": boolean}");
+    return engine.setDone(requireRepo(), (await getTask(requireRepo(), req.params.key)).key, req.body.done);
+  });
 }

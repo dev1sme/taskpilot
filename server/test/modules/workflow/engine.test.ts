@@ -9,6 +9,7 @@ import { loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/
 import { WorkflowEngine, type SessionPort } from "../../../src/modules/workflow/engine.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 import { modeDir } from "../../../src/modules/workflow/modes.js";
+import { readTaskStatus } from "../../../src/modules/tasks/status.js";
 
 const LEADER_WORKFLOW_DIR = modeDir("leader");
 
@@ -131,6 +132,52 @@ describe("workflow engine", () => {
     await write("04-summary.md");
     expect(await hook("Stop")).toMatchObject({ phase: "gate", stepIndex: 1 });
     expect(await engine.approve(repo, "DEMO-1")).toMatchObject({ phase: "done" });
+  });
+
+  it("marks the task open when a run starts or restarts and done when the last gate is approved", async () => {
+    const status = () => readTaskStatus(taskDir());
+    await engine.setDone(repo, "DEMO-1", true);
+    await engine.start(repo, "DEMO-1");
+    expect(await status()).toEqual({ status: "open", doneAt: null });
+    await hook("SessionStart");
+    await write("02-plan.md");
+    await hook("Stop");
+    await engine.approve(repo, "DEMO-1");
+    // Approving a gate that is not the last one leaves the task open.
+    expect(await status()).toMatchObject({ status: "open" });
+    await write("04-summary.md");
+    await hook("Stop");
+    const before = Date.now();
+    await engine.approve(repo, "DEMO-1");
+    expect((await status())?.status).toBe("done");
+    expect((await status())!.doneAt).toBeGreaterThanOrEqual(before - 1000);
+
+    await engine.restart(repo, "DEMO-1");
+    expect(await status()).toEqual({ status: "open", doneAt: null });
+  });
+
+  it("marks a task done or open by hand, logged when it has a run, never while a run is active", async () => {
+    // A task without a run: only the file changes.
+    expect(await engine.setDone(repo, "DEMO-1", true)).toMatchObject({ done: { at: expect.any(Number) } });
+    expect((await readTaskStatus(taskDir()))?.status).toBe("done");
+    await expect(readFile(path.join(taskDir(), HISTORY_FILE), "utf8")).rejects.toThrow();
+
+    await engine.start(repo, "DEMO-1");
+    await expect(engine.setDone(repo, "DEMO-1", true)).rejects.toMatchObject({ status: 409 });
+    await hook("SessionStart");
+    await write("02-plan.md");
+    await hook("Stop");
+    // Waiting at a gate is active too.
+    await expect(engine.setDone(repo, "DEMO-1", false)).rejects.toMatchObject({ status: 409 });
+    expect((await readTaskStatus(taskDir()))?.status).toBe("open");
+
+    await engine.cancel(repo, "DEMO-1");
+    expect(await engine.setDone(repo, "DEMO-1", true)).toMatchObject({ done: { at: expect.any(Number) } });
+    expect(await engine.setDone(repo, "DEMO-1", false)).toEqual({ done: null });
+    expect(await readTaskStatus(taskDir())).toEqual({ status: "open", doneAt: null });
+    const log = await readFile(path.join(taskDir(), HISTORY_FILE), "utf8");
+    expect(log).toContain("· Ba đánh dấu task hoàn thành");
+    expect(log.indexOf("Ba mở lại task")).toBeGreaterThan(log.indexOf("Ba đánh dấu task hoàn thành"));
   });
 
   it("shows Claude's questions: from its last message while it waits, from the plan at the gate", async () => {
@@ -361,7 +408,7 @@ describe("workflow engine", () => {
     expect(stamp).toMatch(/^\d{8}-\d{6}$/);
     expect((await readdir(path.join(archive, stamp))).sort()).toEqual(["02-plan.md", "03-progress.md"]);
     // Documents stay in place for Claude to read and rewrite.
-    expect((await readdir(taskDir())).sort()).toEqual([HISTORY_FILE, "02-plan.md", "03-progress.md", "archive", "notes.txt", "spec"].sort());
+    expect((await readdir(taskDir())).sort()).toEqual([HISTORY_FILE, "02-plan.md", "03-progress.md", "archive", "notes.txt", "spec", "task.yml"].sort());
 
     const log = await readFile(path.join(taskDir(), HISTORY_FILE), "utf8");
     expect(log).toContain(`· Triển khai · Chạy lại từ đầu\n\nBản cũ: archive/${stamp}/ (02-plan.md, 03-progress.md)`);

@@ -50,6 +50,8 @@ export const HISTORY_TEXT = {
   markedDone: "Ba đánh dấu xong",
   markedDoneBody: (file: string) => `${file} đã ghi từ lúc gửi yêu cầu; TaskPilot không nhận được hook Stop của agent.`,
   subtaskMarkedDone: (n: number) => `Ba đánh dấu xong việc ${n}`,
+  taskDone: "Ba đánh dấu task hoàn thành",
+  taskReopened: "Ba mở lại task",
   transcriptStop: "Agent xong lượt (từ transcript)",
   transcriptStopBody: "Agent không gửi hook Stop; TaskPilot thấy lượt đã kết thúc trong transcript của session.",
   backToLeader: "Về leader rà soát",

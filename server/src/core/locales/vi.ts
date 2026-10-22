@@ -22,6 +22,7 @@ export default {
     subtaskInterrupted: "Việc {{n}} dừng giữa chừng. Bấm \"Gửi lại\" ở việc đó để resume session và chạy tiếp.",
     subtaskTitle: "Việc {{n}}",
     assignmentsInvalid: "Bảng phân công chưa dùng được: {{errors}}",
+    activeForDone: "Huỷ quy trình trước khi đánh dấu xong hoặc mở lại task.",
   },
   workflow: {
     defaultMode: "Mặc định",

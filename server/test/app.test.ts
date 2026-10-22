@@ -58,6 +58,37 @@ describe("api", () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it("reports whether each task is done and marks it done or open, not while its run is active", async () => {
+    const repo = await makeRepo();
+    const { app, state } = await start();
+    const current = (await app.inject({ method: "PUT", url: "/api/repo", headers: ok, payload: { path: repo } })).json().path;
+    const doneOf = async (key: string) =>
+      (await app.inject({ url: "/api/tasks", headers: ok })).json().find((t: { key: string }) => t.key === key).done;
+
+    expect(await doneOf("DEMO-1")).toBeNull();
+    // An older run that reached its end counts while the task has no task.yml.
+    await state.update((s) => void s.runs.push({ repo: current, taskKey: "DEMO-2", phase: "done" } as never));
+    expect(await doneOf("DEMO-2")).toEqual({ at: null });
+
+    const put = await app.inject({ method: "PUT", url: "/api/tasks/DEMO-1/done", headers: ok, payload: { done: true } });
+    expect(put.statusCode).toBe(200);
+    expect(put.json()).toEqual({ done: { at: expect.any(Number) } });
+    expect(await doneOf("DEMO-1")).toEqual(put.json().done);
+    expect((await app.inject({ url: "/api/tasks/DEMO-1", headers: ok })).json().done).toEqual(put.json().done);
+
+    // The file wins over the run.
+    await app.inject({ method: "PUT", url: "/api/tasks/DEMO-2/done", headers: ok, payload: { done: false } });
+    expect(await doneOf("DEMO-2")).toBeNull();
+
+    expect((await app.inject({ method: "PUT", url: "/api/tasks/DEMO-1/done", headers: ok, payload: { done: "yes" } })).statusCode).toBe(400);
+    expect((await app.inject({ method: "PUT", url: "/api/tasks/NOPE/done", headers: ok, payload: { done: true } })).statusCode).toBe(404);
+
+    await state.update((s) => void s.runs.push({ repo: current, taskKey: "DEMO-1", phase: "gate", stepIndex: 0 } as never));
+    const busy = await app.inject({ method: "PUT", url: "/api/tasks/DEMO-1/done", headers: ok, payload: { done: false } });
+    expect(busy.statusCode).toBe(409);
+    expect(busy.json().error).toContain("Huỷ quy trình trước");
+  });
+
   it("uses the repo passed at startup", async () => {
     const repo = await makeRepo();
     const { app } = await start(repo);

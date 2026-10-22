@@ -3,7 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { AGENT_LABELS, DEFAULT_AGENT, type Agent } from "../../core/agents.js";
 import { HttpError } from "../../core/errors.js";
-import { getTask, TASKS_DIR } from "../tasks/index.js";
+import { getTask, TASKS_DIR, writeTaskStatus, type TaskStatus } from "../tasks/index.js";
 import type { HookEvent, SessionView } from "../sessions/index.js";
 import type { SessionMeta, StateStore } from "../../core/state.js";
 import { checkForParallel, overlaps, parseAssignments, type ParsedAssignments } from "./assignments.js";
@@ -201,6 +201,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     // A "custom" workflow is the override itself; for the others the override is added to the built-in one.
     const override = mode.override && mode.id !== CUSTOM_MODE ? `${OVERRIDE_DIR.split(path.sep).join("/")}/` : null;
     const name = mode.id === CUSTOM_MODE ? `${OVERRIDE_DIR.split(path.sep).join("/")}/` : mode.name;
+    await this.markTask(run, "open");
     await this.log(run, HISTORY_TEXT.start, { body: HISTORY_TEXT.startBody(name, override, def.steps.length) });
     await this.deliver(run, await this.prompt(run, def.steps[0].prompt));
     return run;
@@ -219,6 +220,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       if (table && table.errors.length > 0) throw new HttpError(400, t("run.assignmentsInvalid", { errors: table.errors.join("; ") }));
       await this.log(run, HISTORY_TEXT.approve, { ...(note.trim() ? { quote: note.trim() } : {}), ...(last ? { body: HISTORY_TEXT.done } : {}) });
       if (last) {
+        await this.markTask(run, "done");
         return this.save(run, { phase: "done", message: t("run.done") });
       }
       await this.enterStep(run, def, run.stepIndex + 1, table?.items);
@@ -266,6 +268,20 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       const step = (await this.defOf(run)).steps[run.stepIndex];
       await this.deliver(run, run.pendingPrompt ?? (await this.prompt(run, step.prompt)), { force: true });
       return run;
+    });
+  }
+
+  /**
+   * Marks the task done or open again in its `task.yml`, logged when the task has a run. Not while a
+   * run is active: cancel it first, or approve the last gate, which marks the task done itself.
+   */
+  setDone(repo: string, taskKey: string, done: boolean): Promise<{ done: { at: number | null } | null }> {
+    return this.serial(async () => {
+      const run = await this.find(repo, taskKey);
+      if (run && ACTIVE.includes(run.phase)) throw new HttpError(409, t("run.activeForDone"));
+      const status = await writeTaskStatus(path.join(repo, TASKS_DIR, taskKey), done ? "done" : "open");
+      if (run) await this.log(run, done ? HISTORY_TEXT.taskDone : HISTORY_TEXT.taskReopened);
+      return { done: status.status === "done" ? { at: status.doneAt } : null };
     });
   }
 
@@ -411,6 +427,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       const message = step.doneWhen ? t("run.gateFile", { step: step.title, file: step.doneWhen.file }) : t("run.gate", { step: step.title });
       await this.save(run, { phase: "gate", message });
     } else if (run.stepIndex + 1 >= def.steps.length) {
+      await this.markTask(run, "done");
       await this.save(run, { phase: "done", message: t("run.done") });
     } else {
       await this.enterStep(run, def, run.stepIndex + 1);
@@ -638,6 +655,15 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       const def = await this.defOf(run);
       const step = def.steps[run.stepIndex];
       await appendHistory(taskDirOf(run), def.history.file, run.taskKey, { at: Date.now(), step: step?.title ?? "", source, ...extra });
+    } catch (e) {
+      this.emit("warning", e);
+    }
+  }
+
+  /** Records in `task.yml` that the run finished or started; a failed write is reported but never blocks the run. */
+  private async markTask(run: RunState, status: TaskStatus["status"]): Promise<void> {
+    try {
+      await writeTaskStatus(taskDirOf(run), status);
     } catch (e) {
       this.emit("warning", e);
     }

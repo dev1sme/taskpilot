@@ -3,6 +3,7 @@ import type { StateStore } from "../../core/state.js";
 import type { RepoContext } from "../repo/index.js";
 import type { SessionManager } from "../sessions/index.js";
 import { getTask, listTasks, readTaskFile, type TaskSummary } from "./scan.js";
+import { doneOf } from "./status.js";
 
 /** How far a task got, as the repo's workflow reads its documents. */
 export interface TaskStage {
@@ -41,6 +42,7 @@ export function registerTasksRoutes(
         const list = await sessions.list(current, task.key);
         return {
           ...withStage(task, d),
+          done: doneOf(task.status, run?.phase),
           run: run ? { phase: run.phase, stepIndex: run.stepIndex, stepStartedAt: run.stepStartedAt } : null,
           waitingPermission: list.some((s) => s.activity === "permission"),
           sessionsRunning: list.filter((s) => s.status === "running").length,
@@ -51,7 +53,9 @@ export function registerTasksRoutes(
 
   app.get<{ Params: { key: string } }>("/api/tasks/:key", async (req) => {
     const repo = requireRepo();
-    return withStage(await getTask(repo, req.params.key), await describe(repo));
+    const task = await getTask(repo, req.params.key);
+    const run = (await opts.state.load()).runs.find((r) => r.repo === repo && r.taskKey === task.key);
+    return { ...withStage(task, await describe(repo)), done: doneOf(task.status, run?.phase) };
   });
 
   app.get<{ Params: { key: string }; Querystring: { path?: string } }>("/api/tasks/:key/file", async (req) => {

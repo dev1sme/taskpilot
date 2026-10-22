@@ -1,6 +1,7 @@
 import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { HttpError } from "../../core/errors.js";
+import { readTaskStatus, type TaskStatus } from "./status.js";
 
 export const TASKS_DIR = path.join(".claude", "tasks");
 export const SPEC_DIR = "spec";
@@ -23,6 +24,8 @@ export interface TaskSummary {
   specFiles: TaskFile[];
   outputFiles: TaskFile[];
   updatedAt: number;
+  /** The task's `task.yml`, when it has a valid one. */
+  status: TaskStatus | null;
 }
 
 export async function resolveRepo(input: string): Promise<string> {
@@ -94,6 +97,7 @@ async function loadTask(repo: string, key: string): Promise<TaskSummary | null> 
     specFiles,
     outputFiles,
     updatedAt: Math.max(...all.map((f) => f.mtime)),
+    status: await readTaskStatus(dir),
   };
 }
 

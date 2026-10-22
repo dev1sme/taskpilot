@@ -21,7 +21,7 @@
     }
   },
   "tasks": {
-    "counts": "{{done}} xong · {{active}} đang chạy · {{attention}} chờ ba · {{idle}} chưa chạy"
+    "counts": "{{done}} hoàn thành · {{active}} đang chạy · {{attention}} chờ ba · {{idle}} không chạy"
   },
   "memory": {
     "size": "{{lines}} dòng · ~{{tokens}} token",

@@ -28,6 +28,8 @@ export interface TaskSummary {
   run: { phase: RunPhase; stepIndex: number; stepStartedAt: number } | null;
   waitingPermission: boolean;
   sessionsRunning: number;
+  /** Marked done: task.yml says so, or (without the file) the run finished; `at` is unknown in that case. */
+  done: { at: number | null } | null;
 }
 
 export interface Info {

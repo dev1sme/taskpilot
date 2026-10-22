@@ -1,5 +1,6 @@
 import i18n from "../../i18n";
 import type { TaskSummary } from "../workspace";
+import { ACTIVE_PHASES } from "../workflow";
 
 export type Tone = "attention" | "active" | "done" | "idle";
 
@@ -24,7 +25,7 @@ const GLYPH: Record<Exclude<StatusKind, StageKind>, string> = {
   done: "✓",
 };
 
-/** Status of a task: what needs the user first, then the run, then what the files say. */
+/** Status of a task: what needs the user first, then the run, then whether it was marked done, then the files. */
 export function statusOf(task: TaskSummary): { kind: StatusKind; tone: Tone; label: string; glyph: string } {
   const label = (kind: StatusKind) => i18n.t(`status.${kind}`, { ns: "tasks", ...task.stage });
   const run = (kind: Exclude<StatusKind, StageKind>, tone: Tone) => ({ kind, tone, label: label(kind), glyph: GLYPH[kind] });
@@ -39,20 +40,32 @@ export function statusOf(task: TaskSummary): { kind: StatusKind; tone: Tone; lab
     case "starting":
     case "running":
       return run("running", "active");
-    case "done":
-      return run("done", "done");
   }
+  // The server already falls back to a finished run when task.yml is missing.
+  if (task.done) return run("done", "done");
+  // Every document is there, but nobody confirmed the task is done: not the done tone.
   const { done, total } = task.stage;
-  if (total > 0 && done >= total) return { kind: "complete", tone: "done", label: label("complete"), glyph: "✓" };
-  const kind = done > 0 ? "progress" : "new";
+  const kind = total > 0 && done >= total ? "complete" : done > 0 ? "progress" : "new";
   return { kind, tone: "idle", label: label(kind), glyph: "○" };
 }
 
-export function urgency(task: TaskSummary): number {
-  return { attention: 2, active: 1, done: 0, idle: 0 }[statusOf(task).tone];
+/** A run between start and its end: the task can be neither marked done nor reopened. */
+export function runActive(task: TaskSummary): boolean {
+  return task.run !== null && ACTIVE_PHASES.includes(task.run.phase);
 }
 
-/** Needs-you first, then running, then most recently touched. */
+export function urgency(task: TaskSummary): number {
+  return { attention: 2, active: 1, idle: 0, done: -1 }[statusOf(task).tone];
+}
+
+/** Needs-you first, then running, then most recently touched; done tasks last. */
 export function sortTasks(tasks: TaskSummary[]): TaskSummary[] {
   return [...tasks].sort((a, b) => urgency(b) - urgency(a) || b.updatedAt - a.updatedAt);
+}
+
+export type TaskFilter = "open" | "done" | "all";
+
+export function matchesFilter(task: TaskSummary, filter: TaskFilter): boolean {
+  if (filter === "all") return true;
+  return (statusOf(task).kind === "done") === (filter === "done");
 }

@@ -36,6 +36,7 @@
 
 .task-link .mono {
   font-weight: 500;
+  white-space: nowrap;
   color: var(--signal-text);
 }
 
@@ -45,4 +46,84 @@
 
 .task-link-title {
   font-size: 14px;
+}
+
+/* Done tasks step back: the list is about what is still open. */
+.tone-done .task-link-title {
+  color: var(--muted);
+}
+
+.task-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+.task-filter button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  transition: background-color var(--fast) var(--ease-out), color var(--fast) var(--ease-out);
+}
+
+.task-filter button:hover {
+  color: var(--ink);
+}
+
+.task-filter button[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.task-filter-count {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--faint);
+}
+
+.task-filter button[aria-pressed="true"] .task-filter-count {
+  color: var(--muted);
+}
+
+.task-action {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.task-action .btn:disabled {
+  cursor: not-allowed;
+}
+
+/* Phones: the action keeps its icon and aria-label, the text goes; the time goes too (docs already did). */
+@media (max-width: 700px) {
+  .task-action .btn > span {
+    display: none;
+  }
+
+  .task-action .btn {
+    padding: 6px 10px;
+  }
+
+  .task-table th:nth-child(4),
+  .task-table td:nth-child(4) {
+    display: none;
+  }
+
+  .task-table th,
+  .task-table td {
+    padding-inline: 10px;
+  }
 }

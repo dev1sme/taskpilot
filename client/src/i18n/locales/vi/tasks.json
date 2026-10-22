@@ -5,10 +5,10 @@
     "waiting": "Chờ trả lời",
     "interrupted": "Gián đoạn",
     "running": "Đang chạy",
-    "done": "Hoàn tất",
+    "done": "Hoàn thành",
     "new": "Chưa chạy",
     "progress": "Xong {{step}} ({{done}}/{{total}})",
-    "complete": "Xong cả {{total}} bước"
+    "complete": "Đủ tài liệu, chưa xác nhận xong"
   },
   "page": {
     "subtitle": "{{count}} task trong .claude/tasks",
@@ -19,8 +19,36 @@
       "status": "Trạng thái",
       "task": "Task",
       "docs": "Tài liệu",
-      "updated": "Cập nhật"
+      "updated": "Cập nhật",
+      "actions": "Thao tác"
     },
-    "docs": "{{spec}} spec · {{written}} Claude viết"
+    "docs": "{{spec}} spec · {{written}} Claude viết",
+    "filter": {
+      "label": "Lọc task",
+      "open": "Đang làm",
+      "done": "Hoàn thành",
+      "all": "Tất cả"
+    },
+    "filterEmpty": {
+      "open": {
+        "title": "Không còn task đang làm",
+        "body": "Mọi task đã hoàn thành. Chọn bộ lọc Hoàn thành hoặc Tất cả để xem lại."
+      },
+      "done": {
+        "title": "Chưa có task nào hoàn thành",
+        "body": "Bấm \"Đánh dấu xong\" ở một dòng, hoặc duyệt bước cuối của quy trình."
+      },
+      "all": {
+        "title": "Repo chưa có task",
+        "body": "Tạo thư mục spec/ trong .claude/tasks/<mã task>/ để bắt đầu."
+      }
+    },
+    "action": {
+      "markDone": "Đánh dấu xong",
+      "markDoneLabel": "Đánh dấu {{key}} hoàn thành",
+      "reopen": "Mở lại",
+      "reopenLabel": "Mở lại {{key}}",
+      "blocked": "Quy trình đang chạy. Huỷ quy trình trước, hoặc duyệt ở bước cuối."
+    }
   }
 }

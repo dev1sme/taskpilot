@@ -1,4 +1,4 @@
-import { ArrowCounterClockwise, CheckCircle, ChatCircleDots, CircleNotch, Diamond, PlugsConnected, Scroll, X } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, ArrowUUpLeft, CheckCircle, ChatCircleDots, CircleNotch, Diamond, PlugsConnected, Scroll, X } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { href } from "../../shared/router";
@@ -9,6 +9,7 @@ import { TerminalDrawer, useSessions, sessionsApi } from "../sessions";
 import { PageHeader } from "../../shared/ui/PageHeader";
 import { Toolbar } from "../../shared/ui/Toolbar";
 import { GateCard, ModePicker, NowCard, Stepper, ACTIVE_PHASES, useRun, workflowApi } from "../workflow";
+import { useTaskDone } from "../tasks";
 import "./task.css";
 import type { RunPhase, TaskSummary } from "../workspace";
 
@@ -37,6 +38,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
   const [restart, setRestart] = useState<"idle" | "confirm" | "busy">("idle");
   const [restartMode, setRestartMode] = useState<string | undefined>();
   const [showPrompt, setShowPrompt] = useState(false);
+  const { busyKey, error: doneError, setDone } = useTaskDone();
 
   const run = view?.run ?? null;
   const steps = view?.workflow.steps ?? [];
@@ -74,7 +76,8 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
   const closePrompt = useCallback(() => setShowPrompt(false), []);
   const sent = run?.sentPrompt;
 
-  const pillPhase = run && run.phase !== "cancelled" ? run.phase : undefined;
+  // An active run speaks for itself; otherwise the pill says whether the task was marked done.
+  const pillPhase: PillPhase | undefined = run && active ? (run.phase as PillPhase) : task.done ? "done" : undefined;
   const pill = pillPhase && PHASE_PILL[pillPhase];
   const PillIcon = pill?.icon;
   const working = run?.phase === "running" || run?.phase === "starting";
@@ -103,7 +106,10 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
             pillPhase &&
             pill &&
             PillIcon && (
-              <span className={`pill ${pill.tone}`}>
+              <span
+                className={`pill ${pill.tone}`}
+                title={pillPhase === "done" && task.done?.at ? t("doneAt", { time: new Date(task.done.at).toLocaleString("vi-VN") }) : undefined}
+              >
                 <PillIcon weight="bold" className={working ? "spin" : undefined} aria-hidden="true" />
                 {t(`phase.${pillPhase}`)}
               </span>
@@ -141,6 +147,17 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                     </Button>
                   </>
                 ))}
+              {view &&
+                !active &&
+                (task.done ? (
+                  <Button icon={ArrowUUpLeft} variant="quiet" busy={busyKey === task.key} title={t("reopenTitle")} onClick={() => void setDone(task.key, false)}>
+                    {t("reopen")}
+                  </Button>
+                ) : (
+                  <Button icon={CheckCircle} busy={busyKey === task.key} title={t("markDoneTitle")} onClick={() => void setDone(task.key, true)}>
+                    {t("markDone")}
+                  </Button>
+                ))}
               {active && (
                 <Button
                   icon={X}
@@ -162,9 +179,9 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
           }
         />
 
-        {error && (
+        {(error || doneError) && (
           <p className="error task-error" role="alert">
-            {error}
+            {error ?? doneError}
           </p>
         )}
 

@@ -1,2 +1,3 @@
 export { TasksPage } from "./TasksPage";
-export { isAttention, sortTasks, statusOf } from "./taskStatus";
+export { isAttention, runActive, sortTasks, statusOf } from "./taskStatus";
+export { useTaskDone } from "./useTaskDone";

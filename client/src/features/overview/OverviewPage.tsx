@@ -171,7 +171,7 @@ export function OverviewPage() {
         </section>
 
         {/* .claude */}
-        <section className="tile tile-wide" aria-labelledby="dir-title">
+        <section className="tile tile-wide tile-dir" aria-labelledby="dir-title">
           <h2 id="dir-title" className="tile-title">
             {t("dir.title")}
           </h2>

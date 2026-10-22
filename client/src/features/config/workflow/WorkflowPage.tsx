@@ -453,7 +453,7 @@ function FileNav(props: {
       return (
         <li key={`${label ?? ""}${name}`}>
           <span className="lib-item wf-item">
-            <span className="lib-name mono">{name}</span>
+            <span className="lib-name mono" title={name}>{name}</span>
             <span className="wf-tag">{t("workflow.tag.builtin")}</span>
             {label && <span className="lib-desc">{label}</span>}
           </span>
@@ -463,7 +463,7 @@ function FileNav(props: {
     return (
       <li key={`${label ?? ""}${name}`}>
         <button type="button" className="lib-item wf-item" aria-current={props.picked === name} onClick={() => props.onPick(name)}>
-          <span className="lib-name mono">{name}</span>
+          <span className="lib-name mono" title={name}>{name}</span>
           {isDirty(draftKey(name)) ? (
             <span className="unsaved-pill">{t("draft.unsaved")}</span>
           ) : file?.provenance ? (

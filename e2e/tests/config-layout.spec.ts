@@ -67,6 +67,13 @@ for (const width of WIDTHS) {
           return r.getBoundingClientRect().right;
         });
         expect(textRight, `label ${i} text`).toBeLessThanOrEqual(c.x + c.width);
+        // One line: a word broken in the middle ("Comman" / "ds") also stays inside the cell.
+        const lines = await label.evaluate((el) => {
+          const r = document.createRange();
+          r.selectNodeContents(el);
+          return r.getClientRects().length;
+        });
+        expect(lines, `label ${i} lines`).toBe(1);
       }
     });
 

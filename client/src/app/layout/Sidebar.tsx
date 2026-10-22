@@ -12,20 +12,21 @@ import {
   ListChecks,
   Plugs,
   Robot,
+  SidebarSimple,
   SignOut,
   Sparkle,
   TreeStructure,
+  X,
   type Icon,
 } from "@phosphor-icons/react";
 import { motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { href, type Route } from "../../shared/router";
 import { useWorkspace } from "../../features/workspace";
 import { useDrafts } from "../../features/config";
-import { sortTasks, statusOf } from "../../features/tasks";
+import { statusOf } from "../../features/tasks";
 import { logout, useAuthMode } from "../../features/auth";
-import type { TaskSummary } from "../../features/workspace";
 import "../../shared/ui/brand-mark.css";
 import "./sidebar.css";
 
@@ -39,11 +40,18 @@ interface NavItem {
   dirty?: boolean;
 }
 
-/** Rows of the task list in the sidebar; the rest are one click away on the Task page. */
-const TASK_LIMIT = 6;
 const COLLAPSED_KEY = "taskpilot.sidebar.collapsed";
 
 type GroupId = "workspace" | "claude" | "integrations";
+
+/**
+ * How the sidebar shows: the full 248px column, the 64px icon rail (desktop, folded by the user), or
+ * a drawer over the page on a narrow screen.
+ */
+export type SidebarMode = "full" | "rail" | "drawer";
+
+/** Window event that folds or unfolds the sidebar (from the command palette, handled in App). */
+export const TOGGLE_SIDEBAR = "taskpilot:sidebar";
 
 /** Groups the user folded, remembered in this browser only. */
 function readCollapsed(): GroupId[] {
@@ -64,18 +72,36 @@ function writeCollapsed(ids: GroupId[]): void {
 }
 
 /**
- * App navigation in three zones: brand and repo on top, the scrolling nav (task list nested under
- * "Task", foldable groups) in the middle, and the account (log out, agent versions) at the bottom.
+ * App navigation in three zones: brand and repo on top, the scrolling nav (foldable groups) in the
+ * middle, and the account (log out, agent versions) at the bottom. In the rail only icons show: each
+ * item keeps its label for screen readers and as a tooltip, and badges sit on the icon.
  */
-export function Sidebar({ route, onSwitchRepo }: { route: Route; onSwitchRepo: () => void }) {
+export function Sidebar({
+  route,
+  mode,
+  onToggle,
+  onNavigate,
+  onSwitchRepo,
+  toggleRef,
+}: {
+  route: Route;
+  mode: SidebarMode;
+  /** Folds/unfolds the rail, or closes the drawer. */
+  onToggle: () => void;
+  /** A link was followed: the drawer closes even when the page stays the same. */
+  onNavigate: () => void;
+  onSwitchRepo: () => void;
+  toggleRef?: Ref<HTMLButtonElement>;
+}) {
   const { t } = useTranslation(["shell", "common"]);
   const { repo, tasks, inventory, info } = useWorkspace();
   const drafts = useDrafts();
-  const mode = useAuthMode();
+  const authMode = useAuthMode();
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const dirty = (prefix: string) => drafts.some((k) => k.startsWith(prefix));
   const waiting = tasks.filter((x) => statusOf(x).tone === "attention").length;
   const inTasks = route.page === "tasks" || route.page === "task";
+  const rail = mode === "rail";
   const repoName = repo?.path?.split(/[\\/]/).filter(Boolean).pop() ?? t("common:noRepo");
 
   // The workspace pages lead without a label; the config groups below can fold.
@@ -147,25 +173,38 @@ export function Sidebar({ route, onSwitchRepo }: { route: Route; onSwitchRepo: (
       return next;
     });
 
-  const currentKey = route.page === "task" ? route.key : null;
   const claude = info?.claudeVersion ? t("account.claudeVersion", { version: info.claudeVersion }) : t("account.claudeMissing");
   // Copilot is optional: shown only when installed.
   const copilot = info?.versions?.copilot ? t("account.copilotVersion", { version: info.versions.copilot }) : null;
   const versions = [claude, copilot].filter(Boolean).join("\n");
+  const toggleLabel = mode === "drawer" ? t("sidebar.close") : rail ? t("sidebar.expand") : t("sidebar.collapse");
 
   return (
-    <nav className="sidebar" aria-label={t("nav.label")}>
+    <nav id="sidebar" className={`sidebar is-${mode}`} aria-label={t("nav.label")}>
       <div className="sidebar-head">
-        <a className="brand" href={href({ page: "overview" })}>
-          <span className="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round">
-              <path d="M3 12l18-8-8 18-2-8-8-2z" />
-            </svg>
-          </span>
-          {t("common:appName")}
-        </a>
+        <div className="brand-row">
+          <a className="brand" href={href({ page: "overview" })} onClick={onNavigate} title={rail ? t("common:appName") : undefined}>
+            <span className="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round">
+                <path d="M3 12l18-8-8 18-2-8-8-2z" />
+              </svg>
+            </span>
+            <span className="brand-name">{t("common:appName")}</span>
+          </a>
+          <button
+            ref={toggleRef}
+            type="button"
+            className="sidebar-toggle"
+            onClick={onToggle}
+            aria-label={toggleLabel}
+            title={toggleLabel}
+            aria-expanded={mode === "drawer" ? undefined : !rail}
+          >
+            {mode === "drawer" ? <X aria-hidden="true" /> : <SidebarSimple aria-hidden="true" />}
+          </button>
+        </div>
 
-        <button type="button" className="repo-switch" onClick={onSwitchRepo}>
+        <button type="button" className="repo-switch" onClick={onSwitchRepo} title={rail ? (repo?.path ?? t("repoSwitch")) : undefined}>
           <span className="repo-avatar" aria-hidden="true">
             {repoName.slice(0, 2).toLowerCase()}
           </span>
@@ -179,11 +218,16 @@ export function Sidebar({ route, onSwitchRepo }: { route: Route; onSwitchRepo: (
 
       <div className="sidebar-nav">
         {groups.map((g) => {
-          const open = !g.foldable || !collapsed.includes(g.id);
+          // The rail has no room for group labels: every item shows, groups split by a line.
+          const open = rail || !g.foldable || !collapsed.includes(g.id);
           const listId = `nav-group-${g.id}`;
           return (
             <div className="nav-group" key={g.id}>
-              {g.foldable ? (
+              {rail ? (
+                <div className="nav-divider" role="presentation">
+                  <span className="sr-only">{g.label}</span>
+                </div>
+              ) : g.foldable ? (
                 <button type="button" className="nav-label nav-toggle" aria-expanded={open} aria-controls={listId} onClick={() => toggle(g.id)}>
                   <span>{g.label}</span>
                   <CaretDown className="nav-toggle-caret" aria-hidden="true" />
@@ -194,16 +238,16 @@ export function Sidebar({ route, onSwitchRepo }: { route: Route; onSwitchRepo: (
               <ul id={listId} hidden={!open}>
                 {g.items.map((it) => {
                   const active = isActive(it.route);
+                  const tip = it.badge !== undefined ? `${it.label} (${it.badge})` : it.label;
                   return (
                     <li key={it.label}>
-                      <a className="nav-item" href={href(it.route)} aria-current={active ? "page" : undefined}>
+                      <a className="nav-item" href={href(it.route)} aria-current={active ? "page" : undefined} title={rail ? tip : undefined} onClick={onNavigate}>
                         {active && <motion.span className="nav-active" layoutId="nav-active" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
                         <it.icon className="nav-icon" weight={active ? "fill" : "regular"} aria-hidden="true" />
                         <span className="nav-text">{it.label}</span>
                         {it.dirty && <span className="nav-dirty" title={t("common:unsavedTitle")} aria-label={t("common:unsaved")} />}
                         {it.badge !== undefined && <span className={`nav-badge${it.warn ? " is-warn" : ""}`}>{it.badge}</span>}
                       </a>
-                      {it.route.page === "tasks" && inTasks && tasks.length > 0 && <TaskList tasks={tasks} currentKey={currentKey} />}
                     </li>
                   );
                 })}
@@ -218,59 +262,13 @@ export function Sidebar({ route, onSwitchRepo }: { route: Route; onSwitchRepo: (
           <span>{claude}</span>
           {copilot && <span>{copilot}</span>}
         </div>
-        {mode === "password" && (
-          <button type="button" className="account-logout" onClick={() => void logout()}>
+        {authMode === "password" && (
+          <button type="button" className="account-logout" onClick={() => void logout()} title={rail ? t("account.logout") : undefined}>
             <SignOut aria-hidden="true" />
-            {t("account.logout")}
+            <span className="account-logout-text">{t("account.logout")}</span>
           </button>
         )}
       </div>
     </nav>
-  );
-}
-
-/**
- * The most urgent tasks (needs-you first, then running, then recent), capped at TASK_LIMIT; the open
- * task is kept even when it falls outside the cap.
- */
-function TaskList({ tasks, currentKey }: { tasks: TaskSummary[]; currentKey: string | null }) {
-  const { t } = useTranslation("shell");
-  const sorted = sortTasks(tasks);
-  const shown = sorted.slice(0, TASK_LIMIT);
-  const current = currentKey ? sorted.find((x) => x.key === currentKey) : undefined;
-  if (current && !shown.includes(current)) shown.push(current);
-
-  return (
-    <ul className="nav-tasks" aria-label={t("nav.tasks")}>
-      {shown.map((task) => {
-        const s = statusOf(task);
-        return (
-          <li key={task.key}>
-            <a
-              className={`nav-task tone-${s.tone}`}
-              href={href({ page: "task", key: task.key })}
-              aria-current={task.key === currentKey ? "page" : undefined}
-              title={`${task.key} · ${task.title} · ${s.label}`}
-            >
-              <span className="nav-task-glyph" aria-hidden="true">
-                {s.glyph}
-              </span>
-              <span className="nav-task-text">
-                <span className="nav-task-key">{task.key}</span>
-                {task.title !== task.key && <span className="nav-task-title">{task.title}</span>}
-              </span>
-              <span className="sr-only">: {s.label}</span>
-            </a>
-          </li>
-        );
-      })}
-      {tasks.length > shown.length && (
-        <li>
-          <a className="nav-task nav-task-all" href={href({ page: "tasks" })}>
-            {t("nav.allTasks", { count: tasks.length })}
-          </a>
-        </li>
-      )}
-    </ul>
   );
 }

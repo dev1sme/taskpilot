@@ -81,8 +81,16 @@
   height: 15px;
 }
 
+.brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
 .brand {
   display: inline-flex;
+  min-width: 0;
   align-items: center;
   gap: 10px;
   padding: 4px 8px;
@@ -91,6 +99,35 @@
   letter-spacing: -0.01em;
   color: var(--ink);
   text-decoration: none;
+}
+
+.brand-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-toggle {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  color: var(--faint);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  transition: color var(--fast) var(--ease-out), background-color var(--fast) var(--ease-out);
+}
+
+.sidebar-toggle:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.sidebar-toggle svg {
+  width: 18px;
+  height: 18px;
 }
 
 .repo-switch {
@@ -251,6 +288,10 @@
 
 .nav-text {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nav-badge {
@@ -269,99 +310,175 @@
   background: var(--attention);
 }
 
-.nav-tasks {
-  margin: 2px 0 4px 18px !important;
-  padding-left: 8px !important;
-  border-left: 1px solid var(--line);
-}
-
-.nav-task {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 26px;
-  padding: 3px 8px;
-  line-height: 18px;
-  color: var(--ink);
-  text-decoration: none;
-  border-radius: var(--r-sm);
-  transition: background-color var(--fast) var(--ease-out);
-}
-
-.nav-task:hover,
-.nav-task[aria-current="page"] {
-  background: var(--hover);
-}
-
-.nav-task-glyph {
-  flex: none;
-  width: 18px;
-  text-align: center;
-  color: var(--faint);
-}
-
-.nav-task.tone-attention .nav-task-glyph {
-  color: var(--attention);
-}
-
-.nav-task.tone-active .nav-task-glyph {
-  color: var(--signal);
-  animation: blink 1.6s ease-in-out infinite;
-}
-
-.nav-task.tone-done .nav-task-glyph {
-  color: var(--done);
-}
-
-@keyframes blink {
-  50% {
-    opacity: 0.35;
-  }
-}
-
-/* One line per task: the key stays whole, the title gives way. */
-.nav-task-text {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
-}
-
-.nav-task-key {
-  flex: none;
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.nav-task-title {
-  overflow: hidden;
-  font-size: 12px;
-  color: var(--muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.nav-task-all {
-  padding-left: 34px;
-  font-size: 12px;
-  color: var(--signal-text);
-}
-
-.nav-task-all:hover {
-  color: var(--ink);
-}
-
 /* Dense rows suit a pointer; on a touch-sized screen the rows grow back to finger size. */
 @media (max-width: 860px) {
   .nav-item,
-  .nav-task,
   .account-logout {
     min-height: 40px;
   }
 
   .nav-toggle {
     min-height: 36px;
+  }
+}
+
+/* ------------------------------------------------------------------ rail */
+
+/* 64px of icons. Labels stay in the DOM, clipped like .sr-only, so links keep their names. */
+.sidebar.is-rail .brand-name,
+.sidebar.is-rail .repo-text,
+.sidebar.is-rail .nav-text,
+.sidebar.is-rail .account-logout-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.sidebar.is-rail .sidebar-head {
+  align-items: center;
+  padding: 12px 8px 10px;
+}
+
+.sidebar.is-rail .brand-row {
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebar.is-rail .brand {
+  padding: 4px;
+}
+
+.sidebar.is-rail .repo-switch {
+  justify-content: center;
+  padding: 5px;
+}
+
+.sidebar.is-rail .repo-switch > svg {
+  display: none;
+}
+
+.sidebar.is-rail .sidebar-nav {
+  padding: 0 8px 8px;
+  overflow-x: hidden;
+}
+
+.sidebar.is-rail .nav-group ul {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.nav-divider {
+  height: 1px;
+  margin: 6px 10px;
+  background: var(--line);
+}
+
+/* The first group needs no line above it. */
+.sidebar-nav > .nav-group:first-child > .nav-divider {
+  height: 0;
+  margin: 0;
+}
+
+.sidebar.is-rail .nav-item {
+  justify-content: center;
+  width: 44px;
+  height: 40px;
+  padding: 0;
+}
+
+.sidebar.is-rail .nav-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* Badge and unsaved dot sit on the icon's corners, cut out of the rail by a ring. */
+.sidebar.is-rail .nav-badge {
+  position: absolute;
+  top: 2px;
+  right: 1px;
+  min-width: 18px;
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 14px;
+  border: 2px solid var(--sidebar);
+}
+
+.sidebar.is-rail .nav-dirty {
+  position: absolute;
+  bottom: 7px;
+  right: 7px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--sidebar);
+}
+
+.sidebar.is-rail .sidebar-account {
+  justify-content: center;
+  padding: 6px 8px;
+}
+
+.sidebar.is-rail .account-versions {
+  display: none;
+}
+
+.sidebar.is-rail .account-logout {
+  justify-content: center;
+  width: 44px;
+  padding: 4px;
+}
+
+/* ------------------------------------------------------------------ drawer */
+
+/* Narrow screens: the full sidebar slides in over the page and hides (unfocusable) when closed. */
+.sidebar.is-drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 56;
+  width: min(300px, 86vw);
+  transform: translateX(-100%);
+  visibility: hidden;
+  transition: transform 200ms var(--ease-out), visibility 0s linear 200ms;
+}
+
+.shell.drawer-open > .sidebar.is-drawer {
+  transform: none;
+  visibility: visible;
+  box-shadow: 0 0 48px rgba(0, 0, 0, 0.45);
+  transition: transform 240ms var(--ease-out);
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(0, 0, 0, 0.5);
+  animation: backdrop-in 200ms var(--ease-out);
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar.is-drawer,
+  .shell.drawer-open > .sidebar.is-drawer {
+    transition: none;
+  }
+
+  .sidebar-backdrop {
+    animation: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .sidebar-toggle {
+    width: 44px;
+    height: 44px;
   }
 }

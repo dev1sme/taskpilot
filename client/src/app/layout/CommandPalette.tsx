@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { navigate, type Route } from "../../shared/router";
 import { useWorkspace } from "../../features/workspace";
 import { sortTasks, statusOf } from "../../features/tasks";
+import { TOGGLE_SIDEBAR, type SidebarMode } from "./Sidebar";
 import "../../shared/ui/overlay.css";
 import "./palette.css";
 
@@ -12,8 +13,13 @@ interface Entry {
   id: string;
   label: string;
   hint: string;
-  route: Route;
+  /** A page to open, or a command to run. */
+  route?: Route;
+  run?: () => void;
 }
+
+/** The sidebar command's label key for each sidebar mode. */
+const SIDEBAR_COMMAND = { full: "collapse", rail: "expand", drawer: "open" } as const satisfies Record<SidebarMode, string>;
 
 /** Pages by their `shell:nav.*` and `shell:palette.hint.*` keys; translated when the palette renders. */
 const PAGES = [
@@ -31,8 +37,8 @@ const PAGES = [
   { nav: "backups", hint: "backup", route: { page: "backups" } },
 ] as const satisfies ReadonlyArray<{ nav: string; hint: string; route: Route }>;
 
-/** ⌘K / Ctrl+K: jump to any task or page by typing. */
-export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** ⌘K / Ctrl+K: jump to any task or page by typing, or run a shell command (fold the sidebar). */
+export function CommandPalette({ open, onClose, sidebar }: { open: boolean; onClose: () => void; sidebar: SidebarMode }) {
   const { t } = useTranslation("shell");
   const { tasks } = useWorkspace();
   const [query, setQuery] = useState("");
@@ -47,9 +53,17 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       route: { page: "task", key: task.key },
     }));
     const pageEntries: Entry[] = PAGES.map((p) => ({ id: `p-${p.nav}`, label: t(`nav.${p.nav}`), hint: t(`palette.hint.${p.hint}`), route: p.route }));
+    const commandEntries: Entry[] = [
+      {
+        id: "c-sidebar",
+        label: t(`sidebar.${SIDEBAR_COMMAND[sidebar]}`),
+        hint: t("palette.hint.command"),
+        run: () => window.dispatchEvent(new Event(TOGGLE_SIDEBAR)),
+      },
+    ];
     const q = fold(query.trim());
-    return [...taskEntries, ...pageEntries].filter((e) => !q || fold(`${e.label} ${e.hint}`).includes(q)).slice(0, 12);
-  }, [tasks, query, t]);
+    return [...taskEntries, ...pageEntries, ...commandEntries].filter((e) => !q || fold(`${e.label} ${e.hint}`).includes(q)).slice(0, 12);
+  }, [tasks, query, sidebar, t]);
 
   useEffect(() => {
     if (!open) return;
@@ -64,8 +78,9 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   const go = (e: Entry | undefined) => {
     if (!e) return;
-    navigate(e.route);
     onClose();
+    if (e.route) navigate(e.route);
+    e.run?.();
   };
 
   return (

@@ -18,8 +18,13 @@
     "formats": "Định dạng tài liệu",
     "backups": "Lịch sử thay đổi",
     "mcp": "MCP servers",
-    "codegraph": "Codegraph",
-    "allTasks": "Xem tất cả ({{count}})"
+    "codegraph": "Codegraph"
+  },
+  "sidebar": {
+    "collapse": "Thu gọn sidebar",
+    "expand": "Mở rộng sidebar",
+    "open": "Mở menu điều hướng",
+    "close": "Đóng menu điều hướng"
   },
   "navGroup": {
     "workspace": "Workspace",
@@ -45,7 +50,8 @@
       "page": "Trang",
       "config": "Cấu hình",
       "integrations": "Tích hợp",
-      "backup": "Backup"
+      "backup": "Backup",
+      "command": "Lệnh"
     },
     "escape": "Esc"
   },

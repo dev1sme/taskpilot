@@ -188,6 +188,7 @@
     "configError": "lỗi cấu hình",
     "missing": " · thiếu {{vars}}",
     "check": "Kiểm tra kết nối",
+    "checkShadowed": "Claude dùng bản ở {{scope}}; kiểm tra ở tab đó.",
     "checking": "Đang hỏi claude…",
     "checkHint": {
       "pending": "Server trong .mcp.json cần được duyệt: mở claude trong repo này và đồng ý dùng server.",

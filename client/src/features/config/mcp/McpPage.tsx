@@ -138,6 +138,7 @@ export function McpPage() {
               <McpDetail
                 key={keyOf(current)}
                 server={current}
+                hiddenBy={shadowedBy("mcp", current, all)}
                 source={data?.sources.find((x) => x.scope === current.scope)?.path ?? ""}
                 onEdit={() => void startEdit(current)}
                 onChanged={refresh}
@@ -162,7 +163,7 @@ const CHECK_ICON: Record<McpCheck["status"], typeof CheckCircle> = {
 const HINTED = ["pending", "auth", "failed"] as const;
 const hinted = (s: McpCheck["status"]): s is (typeof HINTED)[number] => (HINTED as readonly string[]).includes(s);
 
-function McpDetail({ server, source, onEdit, onChanged }: { server: McpServer; source: string; onEdit: () => void; onChanged: () => void }) {
+function McpDetail({ server, hiddenBy, source, onEdit, onChanged }: { server: McpServer; hiddenBy: string | null; source: string; onEdit: () => void; onChanged: () => void }) {
   const { t } = useTranslation("config");
   const [check, setCheck] = useState<McpCheck | null>(null);
   const [checking, setChecking] = useState(false);
@@ -206,9 +207,11 @@ function McpDetail({ server, source, onEdit, onChanged }: { server: McpServer; s
         <ScopeTag scope={server.scope} />
         <span className="pill">{server.type}</span>
         <div className="lib-actions">
-          <Button icon={Plugs} busy={checking} onClick={() => void runCheck()}>
-            {t("mcp.check")}
-          </Button>
+          {!hiddenBy && (
+            <Button icon={Plugs} busy={checking} onClick={() => void runCheck()}>
+              {t("mcp.check")}
+            </Button>
+          )}
           <Button icon={PencilSimple} onClick={onEdit}>
             {t("action.edit")}
           </Button>
@@ -224,6 +227,9 @@ function McpDetail({ server, source, onEdit, onChanged }: { server: McpServer; s
         </div>
       </header>
       <p className="mono lib-path">{source}</p>
+
+      {/* `claude mcp get` tests the winning copy, so a result here would describe another scope's server. */}
+      {hiddenBy && <p className="hint">{t("mcp.checkShadowed", { scope: hiddenBy })}</p>}
 
       {checking && (
         <p className="check-result" role="status">

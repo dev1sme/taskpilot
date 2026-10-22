@@ -151,3 +151,33 @@ test("the documents page shows each step's documents with their skeletons and li
   await expect(page).toHaveURL(/#\/workflow\/format-plan\.md$/);
   await expect(page.locator(".wf-file .code-head")).toContainText(".taskpilot/format-plan.md");
 });
+
+test("a slow validation of older text does not replace the result of the newer text", async ({ page }) => {
+  await withOverride(page);
+  // The first answer (for the broken text) comes late; the second (for the valid text) comes at once.
+  let calls = 0;
+  let lateAnswered = false;
+  await page.route("**/api/config/workflow/validate", async (route) => {
+    if (++calls === 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.fulfill({ json: { errors: ["stale validation error"], warnings: [] } });
+      lateAnswered = true;
+    } else {
+      await route.fulfill({ json: { errors: [], warnings: [] } });
+    }
+  });
+  await toolbar(page).getByRole("button", { name: "Sửa", exact: true }).click();
+  await page.locator(".cm-content").click();
+  await page.keyboard.press("Control+a");
+  const firstRequest = page.waitForRequest("**/api/config/workflow/validate");
+  await page.keyboard.type("steps: [");
+  await firstRequest;
+  await page.keyboard.press("Control+a");
+  await page.keyboard.type("extends: default\n");
+  await expect(page.locator(".wf-ok")).toBeVisible();
+  await expect.poll(() => lateAnswered).toBe(true);
+  // Let the late answer reach the page before looking.
+  await page.waitForTimeout(500);
+  await expect(page.locator(".check-error")).toHaveCount(0);
+  await expect(page.locator(".wf-ok")).toBeVisible();
+});

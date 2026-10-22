@@ -390,10 +390,18 @@ function Checks({ config, draft }: { config: WorkflowConfig; draft: WorkflowDraf
 
   useEffect(() => {
     if (name === undefined || content === undefined) return setLive(null);
+    // A slower answer for older text must not replace the newer one.
+    let cancelled = false;
     const timer = setTimeout(() => {
-      workflowConfigApi.validate(name, content).then(setLive, (e: Error) => setLive({ errors: [e.message], warnings: [] }));
+      workflowConfigApi.validate(name, content).then(
+        (r) => !cancelled && setLive(r),
+        (e: Error) => !cancelled && setLive({ errors: [e.message], warnings: [] }),
+      );
     }, 400);
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [name, content]);
 
   const { errors, warnings } = live ?? config;

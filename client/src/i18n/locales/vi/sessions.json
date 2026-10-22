@@ -1,7 +1,7 @@
 {
   "terminal": "Terminal",
   "repoTerminal": "Terminal repo",
-  "repoEmpty": "Chưa có session. Bấm + để mở Claude hoặc Copilot trong repo, không cần task.",
+  "repoEmpty": "Chưa có session. Bấm + để mở Claude, Copilot hoặc Codex trong repo, không cần task.",
   "group": "Session",
   "running": ", đang chạy",
   "stopped": ", đã dừng",
@@ -16,5 +16,33 @@
   "remove": "Xóa",
   "opening": "Đang mở terminal…",
   "notRunning": "[Session không chạy. Bấm Resume để tiếp tục hội thoại này.]",
-  "disconnected": "[mất kết nối tới server: {{code}}]"
+  "disconnected": "[mất kết nối tới server: {{code}}]",
+  "conversation": {
+    "title": "Hội thoại Codex",
+    "messages": "Tin nhắn",
+    "empty": "Gửi yêu cầu để bắt đầu. Hội thoại trước khi TaskPilot khởi động lại nằm trong lịch sử hoạt động.",
+    "prompt": "Yêu cầu cho Codex",
+    "send": "Gửi (Ctrl/⌘+Enter)",
+    "interrupt": "Ngắt lượt",
+    "approval": "Codex xin quyền",
+    "accept": "Chấp nhận",
+    "decline": "Từ chối",
+    "details": "Chi tiết",
+    "disconnected": "Mất kết nối. Đang kết nối lại…",
+    "kind": {
+      "user": "Bạn",
+      "agent": "Codex",
+      "tool": "Công cụ",
+      "error": "Lỗi"
+    },
+    "status": {
+      "running": "Đang chạy",
+      "done": "Xong",
+      "failed": "Lỗi",
+      "pending": "Chờ duyệt",
+      "accepted": "Đã chấp nhận",
+      "declined": "Đã từ chối",
+      "cancelled": "Đã hủy"
+    }
+  }
 }

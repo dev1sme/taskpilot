@@ -98,6 +98,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     void engine.onHook(meta, event, payload).catch(logError);
   });
   sessions.on("exit", (meta) => void engine.onExit(meta).catch(logError));
+  sessions.on("metrics", (meta, data) => void engine.onMetrics(meta, data).catch(logError));
   sessions.on("warning", logError);
   const usage = new UsageStore(opts.state);
   // Claude's plan usage comes from its status line; copilot's status line input has no account

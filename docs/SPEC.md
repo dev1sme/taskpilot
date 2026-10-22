@@ -101,3 +101,15 @@ Các kết quả đã quan sát trên Claude Code `2.1.303–2.1.307` và Copilo
 - Copilot 1.0.102 nhận `--agent`/`--model` và liệt kê agent cả trong `.claude/agents/`. Chưa chạy với model/agent hợp lệ (tốn premium request), nên cấu hình thực tế còn phụ thuộc bản CLI và tài khoản.
 
 Leader với CLI thật và khả năng khôi phục dispatch sau khởi động lại cần được kiểm tra khi thay đổi engine; xem các bài E2E [`subtasks.spec.ts`](../e2e/tests/subtasks.spec.ts) và [`run-restart.spec.ts`](../e2e/tests/run-restart.spec.ts) để biết phạm vi kiểm tra tự động.
+
+### Codex App Server
+
+Tích hợp theo [tài liệu App Server chính thức](https://learn.chatgpt.com/docs/app-server), fixture JSONL thu từ `codex-cli 0.163.0` ngày 22/10/2026 tại `server/test/fixtures/codex/`. Mỗi phiên dùng một tiến trình stdio riêng, độc lập với daemon. `SessionMeta.id` là id TaskPilot; `nativeId` là thread id Codex. Thiếu native id thì từ chối resume, không tự tạo thread khác.
+
+`RpcTransport` chuyển thread/turn/item thành hợp đồng hook chung để engine và activity xử lý; `turn/completed` kết thúc lượt, lỗi `willRetry` không kết thúc sớm. Ngắt hoặc lỗi sẽ đóng tool chưa có `item/completed`. Gửi thêm input khi đang chạy là steering, không tạo `UserPromptSubmit` thứ hai. Token từ `thread/tokenUsage/updated.total` là số tích lũy của thread; không suy ra chi phí USD.
+
+Conversation dùng WebSocket `/api/sessions/:id/conversation` với replay/upsert theo item id và bộ đệm tối đa 2 triệu ký tự, 1.000 item. REST `/input`, `/interrupt`, `/approvals/:requestId` dùng cùng xác thực HTTP. Approval chỉ nhận `accept` hoặc `decline`, giữ đúng id gốc kể cả số `0`; dừng phiên hủy request chưa trả lời. Request tương tác khác (user-input, elicitation, quyền mở rộng) bị từ chối bằng lỗi RPC có thông báo; bản đầu chưa có biểu mẫu cho chúng.
+
+Các giới hạn đã quan sát ở spike: thread tạo qua App Server vẫn xuất hiện trong `codex resume` theo repo; `model/list` vẫn trả danh sách khi chưa đăng nhập nên kiểm thêm `account/read`; `default` phụ thuộc trust của repo. `acceptEdits` và `auto` theo [bảng quyền](CONFIGURATION.md#quyền-và-cấu-hình-codex). Protocol có thể thay đổi khi nâng CLI; cần chạy lại probe và nghiệm thu tích hợp.
+
+Nghiệm thu tích hợp ngày 22/10/2026: Codex 0.163.0 qua UI Chromium đạt prompt nhiều dòng, Stop, accept tạo file/decline không tạo file, ngắt và resume giữ model/thread cùng mã nhớ; workflow Codex thật hoàn tất plan/feedback/gate/dispatch/review/done, có token thật. Đổi sang Claude Code 2.1.308 đã mở đúng PTY/id và gửi prompt đọc báo cáo, nhưng tài khoản Claude hết hạn mức tuần trước khi trả lời; chưa nghiệm thu được phần sinh tổng kết Claude thật trong lần này. Test tự động dùng CLI giả kiểm luồng đổi agent và hồi quy Claude/Copilot.

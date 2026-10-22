@@ -17,6 +17,8 @@ export interface TransportLaunch {
 
 /** How a transport reports back to the SessionManager while its process runs. */
 export interface TransportEvents {
+  nativeId?(id: string, model?: string): Promise<void>;
+  metrics?(data: SessionMetrics): void;
   /** An event the transport saw itself, in Claude Code's hook names and payload fields. */
   hook(event: HookEvent, payload: Record<string, unknown>): void;
   /** The process ended; the transport no longer runs. */
@@ -30,12 +32,28 @@ export interface TransportEvents {
 export interface SessionTransport {
   /** Whether a process is running. */
   readonly running: boolean;
-  /** Starts a process. Throws when it cannot be started; nothing is changed then. */
-  start(launch: TransportLaunch, events: TransportEvents): void;
+  /** Starts a process; RPC startup can also reject while checking the account or opening a thread. */
+  start(launch: TransportLaunch, events: TransportEvents): void | Promise<void>;
   /** Sends a prompt and submits it. */
   paste(text: string): void;
   /** Ends the process; the end is reported through `events.exit`. */
   stop(): void;
   /** Closes every client attached to the session. */
   closeClients(code: number, reason: string): void;
+}
+
+export interface SessionMetrics {
+  model?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+}
+
+export interface ConversationItem {
+  id: string;
+  kind: "user" | "agent" | "tool" | "approval" | "error";
+  text: string;
+  detail?: string;
+  status?: "running" | "done" | "failed" | "pending" | "accepted" | "declined" | "cancelled";
+  requestId?: string;
+  at: number;
 }

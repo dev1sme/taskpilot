@@ -5,7 +5,7 @@ name: Mặc định
 description: Điều tra & lên kế hoạch, rồi triển khai trong một session.
 version: 2
 # permission-mode: acceptEdits        # default | acceptEdits | plan | auto
-# Agent of every step: claude | copilot. A step's own `agent` overrides it, e.g. Claude
+# Agent of every step: claude | copilot | codex. A step's own `agent` overrides it, e.g. Claude
 # investigates and Copilot implements: `agent: copilot` on the implement step.
 # agent: claude
 

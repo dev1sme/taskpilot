@@ -3,7 +3,20 @@
  * CLAUDE.md checks and backup reasons. A second language is a sibling module with the same keys.
  */
 export default {
+  codex: {
+    missing: "Không tìm thấy Codex CLI. Cài Codex hoặc kiểm tra TASKPILOT_CODEX.",
+    notLoggedIn: "Codex chưa đăng nhập. Chạy codex login rồi thử lại.",
+    modelUnknown: "Model Codex không khả dụng cho tài khoản: {{detail}}",
+    protocol: "Giao thức Codex không tương thích: {{detail}}",
+    modeUnsupported: "Codex chỉ hỗ trợ default, acceptEdits và auto. Plan mode chưa được hỗ trợ trong TaskPilot.",
+    subagentUnsupported: "TaskPilot chưa hỗ trợ subagent cho Codex.",
+    noThread: "Session thiếu native thread id của Codex nên không thể resume.",
+    failed: "Codex gặp lỗi: {{detail}}",
+    unsupportedRequest: "Codex yêu cầu tương tác chưa được hỗ trợ: {{method}}. Đã từ chối yêu cầu.",
+  },
   run: {
+    turnInterrupted: "Lượt chạy đã bị ngắt. Gửi trả lời hoặc gửi lại bước để tiếp tục.",
+    turnFailed: "Lượt chạy gặp lỗi. Kiểm tra hội thoại rồi gửi lại bước để tiếp tục.",
     done: "Quy trình hoàn tất.",
     cancelled: "Đã huỷ quy trình. Session vẫn giữ nguyên.",
     restarted: 'TaskPilot đã khởi động lại. Bấm "Gửi lại bước" để resume session và chạy tiếp, hoặc "Chạy lại từ đầu".',

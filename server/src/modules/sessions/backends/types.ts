@@ -19,6 +19,7 @@ export interface HookState {
  */
 export interface AgentBackend {
   id: Agent;
+  transport?: "pty" | "rpc";
   launcher: Launcher;
   /** JSON for the agent's --settings flag, when it takes its hooks on the command line. */
   launchSettings?(): string;

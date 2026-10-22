@@ -11,7 +11,7 @@ TaskPilot đọc `.env` cạnh `package.json` của chính ứng dụng, kể c�
 | `TASKPILOT_AUTH_USER` / `TASKPILOT_AUTH_PASSWORD` | Tài khoản đăng nhập; đặt cả hai hoặc để trống cả hai |
 | `TASKPILOT_TOKEN` | Token cố định thay cho token ngẫu nhiên; khi dùng tài khoản, đây là token API tùy chọn cho header `x-taskpilot-token` |
 | `TASKPILOT_ALLOWED_HOSTS` | Danh sách hostname bổ sung được chấp nhận, phân cách bằng dấu phẩy |
-| `TASKPILOT_CLAUDE` / `TASKPILOT_COPILOT` | Lệnh CLI; mặc định `claude` / `copilot` |
+| `TASKPILOT_CLAUDE` / `TASKPILOT_COPILOT` / `TASKPILOT_CODEX` | Lệnh CLI; mặc định `claude` / `copilot` / `codex` |
 | `TASKPILOT_CLAUDE_HOME` / `TASKPILOT_CLAUDE_JSON` | Nơi TaskPilot đọc cấu hình Claude; mặc định `~/.claude` / `~/.claude.json` |
 | `COPILOT_HOME` | Thư mục cấu hình Copilot, gồm hooks; mặc định `~/.copilot` |
 
@@ -35,7 +35,7 @@ TaskPilot cung cấp các mẫu subagent tại [`subagents/claude/`](../subagent
 
 ## Agent và model
 
-`agent` chọn CLI: `claude` hoặc `copilot`. `model` chọn model của phiên; giá trị ở từng bước ghi đè giá trị chung. Khi bước sau đổi agent hoặc model, TaskPilot tạo phiên mới và chuyển bối cảnh qua tài liệu cùng nhật ký.
+`agent` chọn CLI: `claude`, `copilot` hoặc `codex`. `model` chọn model của phiên; giá trị ở từng bước ghi đè giá trị chung. Khi bước sau đổi agent hoặc model, TaskPilot tạo phiên mới và chuyển bối cảnh qua tài liệu cùng nhật ký.
 
 Workflow `default` dùng Claude điều tra và Copilot triển khai. Để chỉ dùng Claude, tạo `.taskpilot/workflow.yml` trong repo cần xử lý:
 
@@ -47,6 +47,19 @@ steps:
 ```
 
 Thêm `model: sonnet` vào một bước để chọn model Claude cho bước đó. Bỏ `model`, hoặc dùng `default` / `inherit`, để CLI dùng model mặc định. Model Copilot phụ thuộc tài khoản; không mặc định coi alias của Claude là model Copilot hợp lệ. Nếu đặt model chung rồi đổi CLI ở một bước, nên đặt model riêng cho bước ấy.
+
+### Quyền và cấu hình Codex
+
+Codex dùng App Server qua stdio, cấu hình và đăng nhập Codex hiện có. TaskPilot không ghi `~/.codex/config.toml` hay chuyển hooks, MCP, settings hoặc subagent Claude sang Codex. Cột `Subagent` của dòng Codex phải để `-`. Menu **+** dùng model mặc định; workflow và bảng phân công có thể đặt model. Model thực tế của phiên được lưu cùng native thread id để tiếp tục đúng model.
+
+| `permission-mode` | Sandbox Codex | Approval policy |
+|---|---|---|
+| Bỏ trống / `default` | Theo cấu hình Codex | Theo cấu hình Codex |
+| `acceptEdits` | `workspace-write` | `on-request` |
+| `auto` | `workspace-write` | `never` |
+| `plan` | Bị từ chối trong TaskPilot | — |
+
+`acceptEdits` của Codex cho phép lệnh trong sandbox chạy mà không hỏi, chỉ xin quyền vượt sandbox; khác với quyền cùng tên của Claude. `auto` vẫn chịu sandbox và không tự mở quyền bên ngoài. Plan mode của Codex là API thử nghiệm và không viết được tài liệu đầu ra, nên chưa hỗ trợ. Chế độ mặc định giữ quyền của cấu hình người dùng. TaskPilot không đặt `danger-full-access` hoặc cờ `--dangerously-*`.
 
 ## Subagent và model
 
@@ -61,6 +74,7 @@ Cột `Model` ghi đè `model:` của subagent bằng `--model`. `default` hoặ
 |---|---|
 | `claude` | `default`, `inherit`, `haiku`, `sonnet`, `opus`, `fable`, `opusplan`, hoặc id `claude-…`; `haiku`/`sonnet`/`opus`/`fable` và id nhận thêm hậu tố `[1m]` |
 | `copilot` | Một từ bất kỳ, không bắt đầu bằng `-`; TaskPilot không kiểm tên model |
+| `codex` | Model từ `model/list` của tài khoản; kiểm trước khi mở phiên và khi duyệt bảng phân công |
 
 Cùng quy tắc áp dụng cho `model` trong `workflow.yml` ở cấp chung và cấp bước (không áp dụng cho bước `dispatch`; model của việc con lấy từ bảng). Bước chạy `agent` khác agent chung mà thừa hưởng model chung không hợp lệ cho agent của bước sẽ bị chặn; hãy đặt model riêng cho bước đó. Override `extends` vá được `model` của workflow và của từng bước.
 
@@ -92,7 +106,7 @@ Cảnh báo khác: subagent khai `AskUserQuestion` (việc con không nên hỏi
 
 ### Số liệu từng việc
 
-Với việc con chạy Claude, TaskPilot ghi model thật (từ status line), thời gian và chi phí. Số liệu hiện ở cây việc con, nhật ký và biến `{{subtasks}}`; chạy Copilot không có chi phí, thiếu số liệu ghi `model không rõ` / `chi phí không có`, không ước đoán. Bước rà soát của leader dùng chúng để đánh giá từng subagent/model trong mục **Đánh giá subagent / model** của tổng kết.
+Với việc con Codex, TaskPilot ghi model thực tế và tổng token vào/ra do App Server báo; chi phí và quota tài khoản chưa có. Với việc con chạy Claude, TaskPilot ghi model thật (từ status line), thời gian và chi phí. Số liệu hiện ở cây việc con, nhật ký và biến `{{subtasks}}`; chạy Copilot không có chi phí, thiếu số liệu ghi `model không rõ` / `chi phí không có`, không ước đoán. Bước rà soát của leader dùng chúng để đánh giá từng subagent/model trong mục **Đánh giá subagent / model** của tổng kết.
 
 `permission-mode` áp dụng cho các phiên workflow:
 

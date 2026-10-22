@@ -7,8 +7,16 @@
     "gate": "Ba duyệt",
     "dispatchCount": "{{label}} ({{done}}/{{total}})",
     "state": {
-      "step": { "done": "đã xong", "current": "đang làm", "pending": "chưa tới" },
-      "gate": { "done": "đã duyệt", "current": "đang chờ ba duyệt", "pending": "chưa tới" }
+      "step": {
+        "done": "đã xong",
+        "current": "đang làm",
+        "pending": "chưa tới"
+      },
+      "gate": {
+        "done": "đã duyệt",
+        "current": "đang chờ ba duyệt",
+        "pending": "chưa tới"
+      }
     }
   },
   "now": {
@@ -79,7 +87,16 @@
     "metricsLabel": "Số liệu: model, thời gian, chi phí",
     "noModel": "model không rõ",
     "noCost": "chi phí không có",
-    "phase": { "pending": "chờ tới lượt", "starting": "đang khởi động", "running": "đang làm", "waiting": "đang chờ ba", "done": "xong", "interrupted": "bị gián đoạn" }
+    "phase": {
+      "pending": "chờ tới lượt",
+      "starting": "đang khởi động",
+      "running": "đang làm",
+      "waiting": "đang chờ ba",
+      "done": "xong",
+      "interrupted": "bị gián đoạn"
+    },
+    "inputTokens": "{{count}} token vào",
+    "outputTokens": "{{count}} token ra"
   },
   "markDone": {
     "button": "Đánh dấu xong",

@@ -7,6 +7,7 @@ import { AgentBadge } from "../../shared/ui/AgentBadge";
 import { Button, SrOnly } from "../../shared/ui/Button";
 import "./sessions.css";
 import { sessionsApi } from "./api";
+import { Conversation } from "./Conversation";
 import type { SessionView } from "./types";
 
 // xterm.js is loaded when the drawer first opens.
@@ -193,7 +194,11 @@ export function TerminalDrawer(props: Props) {
           >
             {active ? (
               <Suspense fallback={<p className="hint drawer-empty">{t("opening")}</p>}>
-                <Terminal key={`${active.id}-${generation}`} sessionId={active.id} onExit={props.onChanged} />
+                {active.transport === "rpc" ? (
+                  <Conversation key={`${active.id}-${generation}`} session={active} />
+                ) : (
+                  <Terminal key={`${active.id}-${generation}`} sessionId={active.id} onExit={props.onChanged} />
+                )}
               </Suspense>
             ) : (
               <p className="hint drawer-empty">{props.emptyHint}</p>

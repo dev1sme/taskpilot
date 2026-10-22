@@ -379,6 +379,7 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
     } else restart = { read: read as string[] };
   }
 
+  if (permissionMode === "plan" && steps.some((s) => s.agent === "codex")) errors.push(t("codex.modeUnsupported"));
   checkTemplates(steps, rules, history, outputIds, errors, warnings);
   for (const name of files.keys()) {
     if (name !== WORKFLOW_FILE && !used.has(name)) warnings.push(`${name} is not used by any step`);

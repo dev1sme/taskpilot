@@ -6,6 +6,7 @@ name: Leader
 description: Leader lập kế hoạch và giao việc; mỗi việc con chạy trong session riêng, rồi leader rà soát.
 version: 2
 # permission-mode: acceptEdits        # default | acceptEdits | plan | auto
+# Agents: claude | copilot | codex. Codex does not support subagents.
 agent: claude
 
 history:

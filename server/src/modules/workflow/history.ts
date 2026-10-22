@@ -34,6 +34,8 @@ function metrics(m: SubtaskMetrics): string {
     m.model ? `model \`${m.model}\`` : "model không rõ",
     ...(m.durationMs !== undefined ? [duration(m.durationMs)] : []),
     m.costUsd !== undefined ? `$${m.costUsd.toFixed(2)}` : "chi phí không có",
+    ...(m.inputTokens !== undefined ? [`${m.inputTokens} token vào`] : []),
+    ...(m.outputTokens !== undefined ? [`${m.outputTokens} token ra`] : []),
   ].join(" · ");
 }
 

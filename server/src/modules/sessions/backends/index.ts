@@ -1,6 +1,7 @@
 import { DEFAULT_AGENT, type Agent } from "../../../core/agents.js";
 import { claudeBackend } from "./claude.js";
 import { copilotBackend } from "./copilot.js";
+import { codexBackend } from "./codex.js";
 import type { AgentBackend } from "./types.js";
 
 export type { AgentBackend, HookState } from "./types.js";
@@ -9,6 +10,7 @@ export type { AgentBackend, HookState } from "./types.js";
 export const BACKENDS: Record<Agent, AgentBackend> = {
   claude: claudeBackend,
   copilot: copilotBackend,
+  codex: codexBackend,
 };
 
 export function backendOf(agent: Agent | undefined): AgentBackend {

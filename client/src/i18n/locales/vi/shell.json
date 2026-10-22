@@ -57,7 +57,7 @@
     "escape": "Esc"
   },
   "status": {
-    "terminalTitle": "Claude hoặc Copilot trong repo, không cần task",
+    "terminalTitle": "Claude, Copilot hoặc Codex trong repo, không cần task",
     "terminal": "Terminal",
     "waitingPermission": "chờ quyền",
     "sessionsRunning": "{{count}} session đang chạy",

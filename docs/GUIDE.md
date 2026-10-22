@@ -33,7 +33,7 @@ Mở repo đó trong TaskPilot. Task xuất hiện khi `spec/` có ít nhất m�
 ## Chạy và duyệt
 
 1. Mở task, chọn **Cách chạy** rồi **Bắt đầu quy trình**. Chế độ `default` dùng Claude lập kế hoạch và Copilot triển khai; [cấu hình chỉ dùng Claude](CONFIGURATION.md#agent-và-model) nếu cần.
-2. Theo dõi các bước, hoạt động và tài liệu. Nếu CLI hỏi quyền hoặc xác nhận tin cậy thư mục, trả lời trong terminal.
+2. Theo dõi các bước, hoạt động và tài liệu. Nếu CLI hỏi quyền hoặc xác nhận tin cậy thư mục, trả lời trong terminal; Codex có nút **Chấp nhận** / **Từ chối** trên thẻ và trong hội thoại.
 3. Khi chờ duyệt, đọc tài liệu rồi chọn **Duyệt** để tiếp tục hoặc **Gửi góp ý** để agent sửa. Câu hỏi có đánh số sẽ có ô trả lời riêng; **Duyệt kèm trả lời** lưu câu trả lời để bước tiếp theo đọc.
 4. Nếu agent dừng để hỏi mà chưa viết đủ tài liệu, trả lời trên thẻ hoặc trong terminal. **Prompt đã gửi** cho phép xem lại nội dung TaskPilot đã chuyển cho agent.
 5. Duyệt bước cuối để hoàn thành task. Bắt đầu, góp ý, trả lời, duyệt, hủy và chạy lại được ghi vào `00-history.md`.
@@ -73,6 +73,8 @@ Mỗi việc con hiển thị subagent, model, và khi xong có thêm model th�
 
 Một task có thể có nhiều tab phiên; **+ Session mới** mở phiên tự do ngoài workflow. Tải lại trang giữ các phiên; khởi động lại server sẽ dừng chúng và cho phép tiếp tục.
 
-**Terminal** ở thanh trạng thái mở phiên Claude chung cho repo, không thuộc task nào. Nút mức sử dụng hiển thị hạn mức tài khoản Claude/Copilot và thời điểm cập nhật; đây không phải mức sử dụng riêng của task. `Copilot ∞` nghĩa là tài khoản không có giới hạn riêng được báo về.
+**Terminal** ở thanh trạng thái mở phiên chung cho repo, không thuộc task nào. Menu **+** của task và repo cho chọn Claude, Copilot hoặc Codex.
+
+Phiên Codex hiển thị hội thoại thay vì terminal. Nhập nhiều dòng, bấm **Gửi** hoặc Ctrl/⌘+Enter; **Ngắt lượt** dừng lượt đang chạy, còn **Dừng** đóng tiến trình. **Tiếp tục** resume đúng thread và model đã lưu. Quyền phải được duyệt bằng **Chấp nhận** / **Từ chối**; yêu cầu hết hạn không thể trả lời lại. Đóng trang không tự duyệt quyền; dừng phiên sẽ hủy quyền còn chờ. Sau khi TaskPilot khởi động lại, bộ đệm hội thoại bắt đầu từ lượt mới; nội dung cũ còn trong lịch sử hoạt động. Nút mức sử dụng hiển thị hạn mức tài khoản Claude/Copilot và thời điểm cập nhật; đây không phải mức sử dụng riêng của task. `Copilot ∞` nghĩa là tài khoản không có giới hạn riêng được báo về.
 
 Các trang cấu hình, **Thư viện**, **Workflow** và **Lịch sử thay đổi** dùng để chỉnh và khôi phục cấu hình; xem [Cấu hình](CONFIGURATION.md).

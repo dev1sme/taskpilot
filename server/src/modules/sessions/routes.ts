@@ -4,6 +4,7 @@ import { HttpError } from "../../core/errors.js";
 import type { RepoContext } from "../repo/index.js";
 import { getTask, REPO_SESSION_KEY } from "../tasks/index.js";
 import type { SessionManager } from "./manager.js";
+import { t } from "../../core/i18n.js";
 
 const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -17,6 +18,7 @@ function agentOf(body: unknown): Agent | undefined {
   const agent = typeof body === "object" && body !== null ? (body as { agent?: unknown }).agent : undefined;
   if (agent === undefined || agent === null) return undefined;
   if (!isAgent(agent)) throw new HttpError(400, `Unknown agent: ${String(agent)}`);
+  if (agent === "codex" && (body as { subagent?: unknown }).subagent) throw new HttpError(400, t("codex.subagentUnsupported"));
   return agent;
 }
 
@@ -56,6 +58,33 @@ export function registerSessionsRoutes(app: FastifyInstance, opts: { repo: RepoC
   app.post<{ Params: { id: string } }>("/api/sessions/:id/stop", async (req) => {
     await sessions.stop(sessionId(req.params.id));
     return { ok: true };
+  });
+
+  app.post<{ Params: { id: string }; Body: { text?: unknown } }>("/api/sessions/:id/input", async (req) => {
+    const id = sessionId(req.params.id);
+    if (typeof req.body?.text !== "string" || !req.body.text.trim()) throw new HttpError(400, "Body must contain text");
+    if ((await sessions.get(id)).transport !== "rpc") throw new HttpError(409, "Session uses PTY");
+    sessions.paste(id, req.body.text);
+    return { ok: true };
+  });
+
+  app.post<{ Params: { id: string } }>("/api/sessions/:id/interrupt", async (req) => {
+    await sessions.interrupt(sessionId(req.params.id));
+    return { ok: true };
+  });
+
+  app.post<{ Params: { id: string; requestId: string }; Body: { decision?: unknown } }>("/api/sessions/:id/approvals/:requestId", async (req) => {
+    if (req.body?.decision !== "accept" && req.body?.decision !== "decline") throw new HttpError(400, "Decision must be accept or decline");
+    await sessions.answer(sessionId(req.params.id), req.params.requestId, req.body.decision);
+    return { ok: true };
+  });
+
+  app.get<{ Params: { id: string } }>("/api/sessions/:id/conversation", { websocket: true }, (socket, req) => {
+    if (!SESSION_ID.test(req.params.id)) {
+      socket.close(4400, "Invalid session id");
+      return;
+    }
+    void sessions.attachConversation(req.params.id, socket);
   });
 
   app.delete<{ Params: { id: string } }>("/api/sessions/:id", async (req) => {

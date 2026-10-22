@@ -18,8 +18,16 @@ export default defineConfig({
     { name: "setup", testMatch: /.*\.setup\.ts/ },
     {
       name: "chromium",
+      testIgnore: /codex\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], storageState: AUTH_FILE },
       dependencies: ["setup"],
+    },
+    {
+      name: "codex",
+      testMatch: /codex\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], storageState: AUTH_FILE },
+      // These tests select a repo with its own workflow; run after the shared fixture suite.
+      dependencies: ["chromium"],
     },
   ],
   webServer: [

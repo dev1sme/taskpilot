@@ -161,9 +161,9 @@ describe("workflow definition", () => {
   });
 
   it("rejects an unknown agent", () => {
-    const { def, errors } = parse("version: 2\nagent: codex\nsteps:\n  - id: a\n    prompt: p.md\n    agent: gpt\n");
+    const { def, errors } = parse("version: 2\nagent: unknown\nsteps:\n  - id: a\n    prompt: p.md\n    agent: gpt\n");
     expect(def).toBeNull();
-    expect(errors).toEqual(["agent must be one of claude, copilot", "steps[0].agent must be one of claude, copilot"]);
+    expect(errors).toEqual(["agent must be one of claude, copilot, codex", "steps[0].agent must be one of claude, copilot, codex"]);
   });
 
   describe("model", () => {

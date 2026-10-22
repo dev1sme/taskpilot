@@ -440,7 +440,7 @@ describe("copilot sessions", () => {
 
   it("rejects an unknown agent", async () => {
     const { app } = await startCopilot();
-    const res = await app.inject({ method: "POST", url: "/api/repo/sessions", headers: ok, payload: { agent: "codex" } });
+    const res = await app.inject({ method: "POST", url: "/api/repo/sessions", headers: ok, payload: { agent: "unknown" } });
     expect(res.statusCode).toBe(400);
   });
 

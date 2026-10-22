@@ -34,7 +34,9 @@ npm --prefix e2e ci
 npm run e2e
 ```
 
-Bộ E2E tự mở server và client trên cổng `8891` / `5273`, dùng dữ liệu tạm trong `e2e/.tmp/`. Claude được thay bằng script giả; bài kiểm thử không xác nhận khả năng tương thích với CLI thật. Sau khi chạy, xem báo cáo bằng `npm --prefix e2e run report`.
+Các test Codex dùng `e2e/fake-codex.mjs` (tái sử dụng fake trong `server/test/helpers/` với schema từ fixture 0.163.0); project `codex` chạy sau `chromium` vì dùng repo có workflow riêng. Chạy riêng sau khi có phiên đăng nhập E2E: `npm --prefix e2e test -- --project=codex --no-deps`.
+
+Bộ E2E tự mở server và client trên cổng `8891` / `5273`, dùng dữ liệu tạm trong `e2e/.tmp/`. Claude và Codex được thay bằng script giả; bài kiểm thử không xác nhận khả năng tương thích với CLI thật. Sau khi chạy, xem báo cáo bằng `npm --prefix e2e run report`.
 
 ## Bố cục mã nguồn
 

@@ -51,7 +51,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
     void reloadSessions();
   }, [reload, reloadSessions]);
 
-  // Claude can only be answered in the terminal: open it on a permission prompt.
+  // Reveal the session's terminal or conversation when it asks for permission.
   // The "seen" states start undefined so the first render counts as a change, like a mount effect.
   const asking = sessions.find((s) => s.activity === "permission")?.id;
   const [seenAsking, setSeenAsking] = useState<string | undefined | null>(null);
@@ -96,8 +96,8 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
   const PillIcon = pill?.icon;
   const working = run?.phase === "running" || run?.phase === "starting";
   // Interrupted, finished and cancelled runs offer the restart in the card already.
-  // Subagents only matter to a workflow that gives subtasks out, until the run is over.
-  const dispatches = steps.some((s) => s.dispatch) && (run === null || active);
+  // The subagent library describes Claude members; other leaders use their own configuration.
+  const dispatches = steps.some((s) => s.dispatch && (s.agent ?? "claude") === "claude") && (run === null || active);
   const toolbarRestart = run !== null && !["interrupted", "done", "cancelled"].includes(run.phase);
 
   return (

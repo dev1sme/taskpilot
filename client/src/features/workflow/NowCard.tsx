@@ -8,6 +8,7 @@ import { Elapsed, formatDuration } from "../../shared/ui/Elapsed";
 import { CategoryIcon, type ActivityItem } from "../activity";
 import { workflowApi } from "./api";
 import type { SessionView } from "../sessions";
+import { PendingApprovals } from "../sessions";
 import { MarkDoneButton } from "./MarkDoneButton";
 import { ReplyForm } from "./ReplyForm";
 import { ModePicker } from "./ModePicker";
@@ -125,6 +126,11 @@ export function NowCard(props: Props) {
           </span>
         </div>
         <p className="now-text">{run.message}</p>
+        {run.subtasks
+          .filter((s) => s.agent === "codex" && s.sessionId && props.asking.has(s.sessionId))
+          .map((s) => (
+            <PendingApprovals key={s.sessionId} sessionId={s.sessionId!} />
+          ))}
         <SubtaskTree
           taskKey={props.taskKey}
           subtasks={run.subtasks}
@@ -146,7 +152,7 @@ export function NowCard(props: Props) {
       <Card tone="attention" icon={<HandPalm weight="fill" />}>
         <h3>{t("now.permissionTitle", { agent })}</h3>
         <p className="now-text">{ask?.action ?? t("now.permissionFallback", { agent })}</p>
-        <p className="now-sub">{t("now.permissionHint")}</p>
+        {session.transport === "rpc" ? <PendingApprovals key={session.id} sessionId={session.id} /> : <p className="now-sub">{t("now.permissionHint")}</p>}
         <div className="now-actions">
           <Button icon={TerminalWindow} variant="attention" onClick={() => props.onOpenTerminal()}>
             {t("now.permissionAnswer")}

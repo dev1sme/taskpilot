@@ -14,7 +14,7 @@ Chỉ điều tra và lập kế hoạch. Không sửa source code.
 
 Điều tra codebase: file liên quan, luồng xử lý, convention, test đang có. Sau đó viết các tài liệu dưới đây.
 
-Kế hoạch phải có mục "7. Phân công": chia việc thành các việc con, mỗi việc giao cho một agent (claude hoặc copilot). Mỗi việc đủ nhỏ để một session làm xong, có file được sửa và việc phải xong trước. Reviewer duyệt xong, TaskPilot mở một session cho từng việc.
+Kế hoạch phải có mục "7. Phân công": chia việc thành các việc con, mỗi việc giao cho một agent (claude, copilot hoặc codex). Mỗi việc đủ nhỏ để một session làm xong, có file được sửa và việc phải xong trước. Reviewer duyệt xong, TaskPilot mở một session cho từng việc.
 
 ## Subagent và model
 
@@ -24,7 +24,7 @@ Subagent Claude dùng được:
 
 - Dò code: gọi subagent vai trò `leader` qua Task tool, ưu tiên model rẻ (vd `taskpilot-explorer`).
 - Cột `Subagent`: chỉ subagent vai trò `member` ở trên, chỉ cho việc của claude; session của việc chạy bằng nó. Subagent khác thì TaskPilot không cho duyệt.
-- Cột `Model` theo độ khó: việc máy móc `haiku`, logic nhiều file `sonnet`, cần cân nhắc thiết kế `opus`. Claude: alias hoặc id `claude-…`; copilot: tên model của copilot.
+- Cột `Model` theo độ khó: việc máy móc `haiku`, logic nhiều file `sonnet`, cần cân nhắc thiết kế `opus`. Claude: alias hoặc id `claude-…`; copilot: tên model của copilot; codex: model khả dụng từ tài khoản Codex, không dùng subagent.
 - `-`: không đặt (session thường, model của subagent hoặc mặc định).
 
 ## Tài liệu cần viết

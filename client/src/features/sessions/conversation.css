@@ -1,0 +1,71 @@
+.conversation {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-height: 65vh;
+  padding: 16px;
+  gap: 12px;
+}
+.conversation-items {
+  overflow: auto;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.conversation-item,
+.conversation-approval {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+.conversation-item p,
+.conversation-approval p {
+  white-space: pre-wrap;
+  margin: 8px 0;
+}
+.conversation-user {
+  background: var(--raised);
+}
+.conversation-status {
+  margin-inline-start: 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.conversation pre,
+.conversation-approvals pre {
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 240px;
+}
+.conversation-approval {
+  border-color: var(--attention);
+}
+.conversation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.conversation-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.conversation-compose textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 80px;
+  padding: 10px;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+}
+.conversation-approvals {
+  display: grid;
+  gap: 10px;
+}

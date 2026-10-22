@@ -175,7 +175,8 @@ export function Sidebar({
   const claude = info?.claudeVersion ? t("account.claudeVersion", { version: info.claudeVersion }) : t("account.claudeMissing");
   // Copilot is optional: shown only when installed.
   const copilot = info?.versions?.copilot ? t("account.copilotVersion", { version: info.versions.copilot }) : null;
-  const versions = [claude, copilot].filter(Boolean).join("\n");
+  const codex = info?.versions?.codex ? `Codex ${info.versions.codex}` : null;
+  const versions = [claude, copilot, codex].filter(Boolean).join("\n");
   const toggleLabel = mode === "drawer" ? t("sidebar.close") : rail ? t("sidebar.expand") : t("sidebar.collapse");
 
   const renderItem = (it: NavItem) => {
@@ -263,6 +264,7 @@ export function Sidebar({
         <div className="account-versions" title={versions}>
           <span>{claude}</span>
           {copilot && <span>{copilot}</span>}
+          {codex && <span>{codex}</span>}
         </div>
         {authMode === "password" && (
           <button type="button" className="account-logout" onClick={() => void logout()} title={rail ? t("account.logout") : undefined}>

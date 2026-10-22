@@ -224,3 +224,8 @@
   color: var(--muted);
   border-left: 3px solid var(--line-strong);
 }
+
+.agent-badge.agent-codex {
+  color: var(--done);
+  background: var(--done-soft);
+}

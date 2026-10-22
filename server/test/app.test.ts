@@ -52,7 +52,7 @@ describe("api", () => {
   it("reports the version of every agent's command, null when missing", async () => {
     const { app } = await start();
     const info = (await app.inject({ url: "/api/info", headers: ok })).json();
-    expect(Object.keys(info.versions).sort()).toEqual(["claude", "copilot"]);
+    expect(Object.keys(info.versions).sort()).toEqual(["claude", "codex", "copilot"]);
     expect(info.claudeVersion).toBe(info.versions.claude);
     for (const v of Object.values(info.versions)) expect(v === null || /^\d+\.\d+\.\d+/.test(v as string)).toBe(true);
   });

@@ -9,11 +9,14 @@ import { DEFAULT_AGENT, type Agent } from "../../core/agents.js";
 import { backendOf, type HookState } from "./backends/index.js";
 import type { AgentBackend } from "./backends/types.js";
 import { PtyTransport, attachPty } from "./transports/pty.js";
-import type { SessionTransport } from "./transports/types.js";
+import { RpcTransport } from "./transports/rpc.js";
+import { codexHttpError } from "./transports/codex-errors.js";
+import type { SessionMetrics, SessionTransport } from "./transports/types.js";
 
 export type SessionStatus = "running" | "exited";
 
 export interface SessionView extends SessionMeta {
+  transport: "pty" | "rpc";
   agent: Agent;
   status: SessionStatus;
   exitCode: number | null;
@@ -53,6 +56,7 @@ export interface SessionManagerOptions {
 }
 
 export interface SessionEvents {
+  metrics: [meta: SessionMeta, data: SessionMetrics];
   /** Status or activity changed; for UI refresh. */
   change: [meta: SessionMeta];
   hook: [meta: SessionMeta, event: HookEvent, payload: Record<string, unknown>];
@@ -140,7 +144,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     this.emit("change", meta);
   }
 
-  /** Types a prompt into the session as one bracketed paste, then submits it. */
+  /** Submits a prompt through the session's PTY or RPC transport. */
   paste(id: string, text: string): void {
     const transport = this.live.get(id)?.transport;
     if (!transport?.running) throw new HttpError(409, "Session is not running");
@@ -241,7 +245,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
   }
 
   private apply(meta: SessionMeta, live: Live, event: HookEvent, payload: Record<string, unknown>): void {
-    const activity = nextActivity(event);
+    const activity = live.transport instanceof RpcTransport && live.transport.awaitingApproval ? "permission" : nextActivity(event);
     if (activity !== live.activity) {
       live.activity = activity;
       this.emit("change", meta);
@@ -272,6 +276,48 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     attachPty(ws, (create) => this.terminal(id, create));
     const known = (await this.state.load()).sessions.some((s) => s.id === id);
     if (!known) ws.close(4404, "Unknown session");
+    else if ((await this.find(id)).agent === "codex") {
+      ws.close(4409, "Use the conversation socket");
+      const live = this.live.get(id);
+      if (live?.transport instanceof PtyTransport && !live.transport.running) this.live.delete(id);
+    }
+  }
+
+  async attachConversation(id: string, ws: WebSocket): Promise<void> {
+    try {
+      const meta = await this.find(id);
+      if (backendOf(meta.agent).transport !== "rpc") {
+        ws.close(4409, "Session uses PTY");
+        return;
+      }
+      let live = this.live.get(id);
+      if (!live) {
+        live = this.emptyLive(meta.agent);
+        this.live.set(id, live);
+      }
+      if (ws.readyState === 1) (live.transport as RpcTransport).attach(ws);
+    } catch {
+      ws.close(4404, "Unknown session");
+    }
+  }
+
+  async interrupt(id: string): Promise<void> {
+    await (await this.rpc(id)).interrupt();
+  }
+
+  async answer(id: string, requestId: string, decision: "accept" | "decline"): Promise<void> {
+    const transport = await this.rpc(id);
+    transport.answer(requestId, decision);
+    const live = this.live.get(id)!;
+    live.activity = transport.awaitingApproval ? "permission" : "busy";
+    this.emit("change", await this.find(id));
+  }
+
+  private async rpc(id: string): Promise<RpcTransport> {
+    await this.find(id);
+    const transport = this.live.get(id)?.transport;
+    if (!(transport instanceof RpcTransport) || !transport.running) throw new HttpError(409, "Session has no running RPC transport");
+    return transport;
   }
 
   closeAll(): void {
@@ -303,7 +349,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     const launcher = this.launchers[meta.agent ?? DEFAULT_AGENT] ?? backend.launcher;
     // On resume, keep the previous run's transport (scrollback, attached clients).
     const live: Live = {
-      ...(this.live.get(meta.id) ?? this.emptyLive()),
+      ...(this.live.get(meta.id) ?? this.emptyLive(meta.agent)),
       exitCode: null,
       activity: "starting",
       hookToken,
@@ -311,23 +357,45 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       hookState: emptyHookState(),
       transcriptTimer: null,
     };
-    live.transport.start(
-      { meta, resume, backend, launcher, extraEnv: extra, hookEnv: hookUrl ? { TASKPILOT_HOOK_URL: hookUrl, TASKPILOT_HOOK_TOKEN: hookToken } : {} },
-      {
-        hook: (event, payload) => this.apply(meta, live, event, payload),
-        exit: (exitCode) => {
-          this.stopWatching(live);
-          for (const timer of live.hookState.heldPermissions.values()) clearTimeout(timer);
-          live.exitCode = exitCode;
-          this.byHookToken.delete(hookToken);
-          live.hookToken = null;
-          this.emit("exit", meta);
-          this.emit("change", meta);
-        },
-      },
-    );
     this.live.set(meta.id, live);
     this.byHookToken.set(hookToken, meta.id);
+    try {
+      await live.transport.start(
+        { meta, resume, backend, launcher, extraEnv: extra, hookEnv: hookUrl ? { TASKPILOT_HOOK_URL: hookUrl, TASKPILOT_HOOK_TOKEN: hookToken } : {} },
+        {
+          hook: (event, payload) => {
+            if (backend.transport === "rpc") live.lastHookAt = Date.now();
+            this.apply(meta, live, event, payload);
+          },
+          nativeId: async (nativeId, model) => {
+            meta.nativeId = nativeId;
+            if (!meta.model && model) meta.model = model;
+            await this.state.update((s) => {
+              const saved = s.sessions.find((x) => x.id === meta.id);
+              if (saved) {
+                saved.nativeId = nativeId;
+                if (meta.model) saved.model = meta.model;
+              }
+            });
+          },
+          metrics: (data) => this.emit("metrics", meta, data),
+          exit: (exitCode) => {
+            this.stopWatching(live);
+            for (const timer of live.hookState.heldPermissions.values()) clearTimeout(timer);
+            live.exitCode = exitCode;
+            this.byHookToken.delete(hookToken);
+            live.hookToken = null;
+            this.emit("exit", meta);
+            this.emit("change", meta);
+          },
+        },
+      );
+    } catch (error) {
+      this.byHookToken.delete(hookToken);
+      live.hookToken = null;
+      this.emit("change", meta);
+      throw backend.transport === "rpc" && !(error instanceof HttpError) ? codexHttpError(error) : error;
+    }
     this.emit("change", meta);
   }
 
@@ -341,9 +409,9 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     return this.live.get(id)?.transport.running === true;
   }
 
-  private emptyLive(): Live {
+  private emptyLive(agent?: Agent): Live {
     return {
-      transport: new PtyTransport(this.scrollbackLimit),
+      transport: backendOf(agent).transport === "rpc" ? new RpcTransport(this.scrollbackLimit) : new PtyTransport(this.scrollbackLimit),
       exitCode: null,
       activity: "starting",
       hookToken: null,
@@ -358,6 +426,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     return {
       ...meta,
       agent: meta.agent ?? DEFAULT_AGENT,
+      transport: backendOf(meta.agent).transport ?? "pty",
       status: live?.transport.running ? "running" : "exited",
       exitCode: live?.exitCode ?? null,
       activity: live?.transport.running ? live.activity : null,

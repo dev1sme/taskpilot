@@ -40,6 +40,8 @@ function Metrics({ metrics }: { metrics: SubtaskMetrics }) {
       <span>{metrics.model ? <code>{metrics.model}</code> : t("subtasks.noModel")}</span>
       {metrics.durationMs !== undefined && <span>{formatDuration(metrics.durationMs)}</span>}
       <span>{metrics.costUsd !== undefined ? `$${metrics.costUsd.toFixed(2)}` : t("subtasks.noCost")}</span>
+      {metrics.inputTokens !== undefined && <span>{t("subtasks.inputTokens", { count: metrics.inputTokens })}</span>}
+      {metrics.outputTokens !== undefined && <span>{t("subtasks.outputTokens", { count: metrics.outputTokens })}</span>}
     </p>
   );
 }

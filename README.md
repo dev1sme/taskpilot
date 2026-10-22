@@ -1,6 +1,6 @@
 # TaskPilot
 
-Chạy quy trình lập kế hoạch và triển khai bằng Claude Code hoặc GitHub Copilot CLI ngay trong repo, với các bước chờ bạn duyệt.
+Chạy quy trình lập kế hoạch và triển khai bằng Claude Code, GitHub Copilot CLI hoặc Codex CLI ngay trong repo, với các bước chờ bạn duyệt.
 
 TaskPilot đọc yêu cầu từ `.claude/tasks/<key>/spec/`, gửi prompt vào phiên CLI tương tác và hiển thị tài liệu, tiến độ, terminal trong trình duyệt. Bạn có thể nhập trực tiếp vào terminal; cấu hình và quyền của CLI vẫn được áp dụng.
 
@@ -20,6 +20,7 @@ flowchart LR
 - Node.js 22+; đã thử trên Node.js 24.
 - Bộ công cụ biên dịch cho `node-pty`: `g++`, `make`, `python3`.
 - Claude Code (`claude`) và `curl` có trong `PATH`; Claude đã đăng nhập.
+- Codex CLI (`codex`) đã đăng nhập qua `codex login` nếu dùng agent **Codex**. Đã kiểm với `codex-cli 0.163.0`; phiên Codex dùng hội thoại và nút duyệt quyền trên web.
 - GitHub Copilot CLI (`copilot`) đã đăng nhập nếu dùng **workflow mặc định**, vì bước triển khai chạy bằng Copilot. Nếu chỉ dùng Claude, xem [cấu hình agent](docs/CONFIGURATION.md#agent-và-model).
 
 ## Cài và chạy

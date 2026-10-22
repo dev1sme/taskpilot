@@ -48,11 +48,13 @@ export interface Assignment {
 export type SubtaskPhase = "pending" | "starting" | "running" | "waiting" | "done" | "interrupted";
 
 /**
- * What a subtask's session reported, for the leader's review. Claude's status line gives the model and
- * the session's cost; Copilot's gives neither, so they stay absent.
+ * What a subtask's session reported, for the leader's review. Claude supplies model and cost;
+ * Codex supplies model and cumulative thread tokens. Missing measurements stay absent.
  */
 export interface SubtaskMetrics {
-  /** Model id the session ran, from Claude's status line; else the model passed with --model. */
+  inputTokens?: number;
+  outputTokens?: number;
+  /** Actual model from Claude's status line or Codex RPC; else the model passed at launch. */
   model?: string;
   /** Cost of the whole session in USD (Claude only). */
   costUsd?: number;

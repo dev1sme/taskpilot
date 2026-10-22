@@ -3,7 +3,7 @@ import path from "node:path";
 import { AGENT_LABELS, DEFAULT_AGENT } from "../../core/agents.js";
 import { HttpError } from "../../core/errors.js";
 import { getTask, TASKS_DIR, writeTaskStatus } from "../tasks/index.js";
-import type { HookEvent } from "../sessions/index.js";
+import type { HookEvent, SessionMetrics } from "../sessions/index.js";
 import type { SessionMeta, StateStore } from "../../core/state.js";
 import { overlaps } from "./assignments.js";
 import { loadWorkflow, modeOf, OVERRIDE_DIR, reportOf } from "./definition.js";
@@ -305,6 +305,10 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       } else if (event === "UserPromptSubmit" && lane.phase === "waiting") {
         await this.saveLane(run, lane, { phase: "running" }, t("run.working", { agent: agentLabel(run) }));
       } else if (event === "Stop" && (lane.phase === "running" || lane.phase === "waiting")) {
+        if (payload.failed === true || payload.interrupted === true) {
+          await this.saveLane(run, lane, { phase: "waiting", pendingPrompt: undefined }, lane.lastMessage || t(payload.interrupted === true ? "run.turnInterrupted" : "run.turnFailed"));
+          return;
+        }
         if (lane === run) await this.onStop(run);
         else await this.onSubtaskStop(run, lane as SubtaskRun);
       }
@@ -344,6 +348,16 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       const metrics = { ...(sub as SubtaskRun).metrics, ...read };
       if (JSON.stringify(metrics) === JSON.stringify((sub as SubtaskRun).metrics ?? {})) return;
       (sub as SubtaskRun).metrics = metrics;
+      await this.store.save(run, {});
+    });
+  }
+
+  onMetrics(meta: SessionMeta, data: SessionMetrics): Promise<void> {
+    return this.serial(async () => {
+      const run = await this.store.bySession(meta.id);
+      const sub = run?.subtasks?.find((s) => s.sessionId === meta.id);
+      if (!run || !sub || sub.phase === "done") return;
+      sub.metrics = { ...sub.metrics, ...data };
       await this.store.save(run, {});
     });
   }
@@ -478,7 +492,13 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
 
   private async send(run: RunState, text: string, lane: Lane = run): Promise<void> {
     const step = (await this.store.defOf(run)).steps[run.stepIndex];
-    this.sessions.paste(lane.sessionId!, text);
+    try {
+      this.sessions.paste(lane.sessionId!, text);
+    } catch (error) {
+      lane.lastMessage = (error as Error).message;
+      await this.saveLane(run, lane, { phase: "waiting", pendingPrompt: undefined }, (error as Error).message);
+      return;
+    }
     const now = Date.now();
     await this.saveLane(
       run,

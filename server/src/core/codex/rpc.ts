@@ -4,6 +4,7 @@ import type { Readable, Writable } from "node:stream";
 import { childEnv } from "../claude/launch.js";
 import { CodexError, RpcError } from "./errors.js";
 import { codexCommand } from "./launch.js";
+import type { LaunchSpec } from "../claude/launch.js";
 
 /** A request the app-server sends to us (an approval); answer it with respond() or fail(). */
 export interface ServerRequest {
@@ -164,10 +165,10 @@ export interface CodexProcess {
  * Starts `codex app-server --listen stdio://`. A missing binary rejects with CodexError "missing".
  * One process per call: stdio does not share state with the user's app-server daemon (fixtures README).
  */
-export function spawnCodex(env: Record<string, string> = {}, cwd?: string): Promise<CodexProcess> {
-  const { file, args } = codexCommand();
+export function spawnCodex(env: Record<string, string> = {}, cwd?: string, command: LaunchSpec = codexCommand()): Promise<CodexProcess> {
+  const { file, args } = command;
   return new Promise((resolve, reject) => {
-    const child = spawn(file, args, { env: childEnv(process.env, env), cwd, stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(file, args, { env: childEnv(process.env, { ...env, ...command.env }), cwd, stdio: ["pipe", "pipe", "pipe"] });
     let errText = "";
     child.stderr.setEncoding("utf8");
     child.stderr.on("data", (chunk: string) => (errText = (errText + chunk).slice(-4000)));

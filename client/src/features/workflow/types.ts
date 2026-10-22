@@ -37,6 +37,8 @@ export interface Assignment {
 
 /** What a finished subtask's session reported; Copilot gives no cost. */
 export interface SubtaskMetrics {
+  inputTokens?: number;
+  outputTokens?: number;
   /** Model id the session ran (Claude's status line), else the model passed with --model. */
   model?: string;
   costUsd?: number;

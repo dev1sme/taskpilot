@@ -91,5 +91,6 @@ export function displayPath(file: string, repo: string): string {
   const home = os.homedir();
   const rel = path.relative(repo, file);
   if (!rel.startsWith("..") && !path.isAbsolute(rel)) return rel;
-  return file.startsWith(home) ? `~${file.slice(home.length)}` : file;
+  if (file !== home && !file.startsWith(home + path.sep)) return file;
+  return `~${file.slice(home.length)}`;
 }

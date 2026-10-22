@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readLibrary } from "../../../src/modules/config/library/read.js";
 import { readMcp } from "../../../src/modules/config/mcp/read.js";
 import { readMemory } from "../../../src/modules/config/memory/read.js";
+import { displayPath } from "../../../src/modules/config/shared/fs.js";
 import { readHooks, readSettings } from "../../../src/modules/config/settings/read.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
@@ -175,5 +176,19 @@ describe("readMcp", () => {
       ],
     });
     expect(JSON.stringify(mcp)).not.toMatch(/Bearer abc|oauthAccount|hunter2/);
+  });
+});
+
+describe("displayPath", () => {
+  it("shortens only paths inside the home directory, not sibling folders that share its prefix", () => {
+    const savedHome = process.env.HOME;
+    process.env.HOME = "/home/u";
+    try {
+      expect(displayPath("/home/u/x/CLAUDE.md", "/srv/repo")).toBe("~/x/CLAUDE.md");
+      expect(displayPath("/home/u", "/srv/repo")).toBe("~");
+      expect(displayPath("/home/u2/x", "/srv/repo")).toBe("/home/u2/x");
+    } finally {
+      process.env.HOME = savedHome;
+    }
   });
 });

@@ -1,14 +1,15 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
-import * as pty from "node-pty";
 import type { WebSocket } from "ws";
 import { HttpError } from "../../core/errors.js";
 import type { SessionMeta, StateStore } from "../../core/state.js";
 import { nextActivity, type Activity, type HookEvent } from "./hooks.js";
-import { childEnv, type Launcher } from "../../core/claude/launch.js";
+import type { Launcher } from "../../core/claude/launch.js";
 import { DEFAULT_AGENT, type Agent } from "../../core/agents.js";
 import { backendOf, type HookState } from "./backends/index.js";
 import type { AgentBackend } from "./backends/types.js";
+import { PtyTransport, attachPty } from "./transports/pty.js";
+import type { SessionTransport } from "./transports/types.js";
 
 export type SessionStatus = "running" | "exited";
 
@@ -20,13 +21,9 @@ export interface SessionView extends SessionMeta {
   activity: Activity | null;
 }
 
-/** Client → server frames on the PTY WebSocket. */
-type ClientFrame = { t: "i"; d: string } | { t: "r"; cols: number; rows: number };
-/** Server → client frames: output, exit. */
-type ServerFrame = { t: "o"; d: string } | { t: "x"; code: number | null };
-
 interface Live {
-  proc: pty.IPty | null;
+  /** Runs the agent's process; kept across resumes with its scrollback and attached clients. */
+  transport: SessionTransport;
   exitCode: number | null;
   activity: Activity;
   /** Authenticates hook callbacks from this process; new for every spawn. */
@@ -37,12 +34,6 @@ interface Live {
   hookState: HookState;
   /** Polls the agent's transcript for the end of a turn while no hook has come (see watchTranscript). */
   transcriptTimer: NodeJS.Timeout | null;
-  /** Recent output as plain text, while waiting for the backend's ready marker. */
-  pendingOutput: string | null;
-  /** Raw PTY output replayed to clients that attach later (page reload, second tab). */
-  scrollback: string[];
-  scrollbackSize: number;
-  clients: Set<WebSocket>;
 }
 
 export interface SessionManagerOptions {
@@ -71,12 +62,6 @@ export interface SessionEvents {
   /** Something went wrong that does not stop the session, e.g. writing an agent's hook file. */
   warning: [error: unknown];
 }
-
-const DEFAULT_SIZE = { cols: 120, rows: 32 };
-/** Delay between a bracketed paste and the Enter that submits it (M0 spike used 200–300 ms). */
-const SUBMIT_DELAY_MS = 200;
-/** Plain-text output kept while looking for a ready marker; the marker is a short footer. */
-const PENDING_OUTPUT_CHARS = 8192;
 
 export class SessionManager extends EventEmitter<SessionEvents> {
   private readonly live = new Map<string, Live>();
@@ -140,14 +125,14 @@ export class SessionManager extends EventEmitter<SessionEvents> {
 
   async stop(id: string): Promise<void> {
     await this.find(id);
-    this.live.get(id)?.proc?.kill();
+    this.live.get(id)?.transport.stop();
   }
 
   /** Removes the session from the task. The agent's own transcript is left untouched. */
   async forget(id: string): Promise<void> {
     const meta = await this.find(id);
     if (this.isRunning(id)) throw new HttpError(409, "Stop the session first");
-    for (const ws of this.live.get(id)?.clients ?? []) ws.close(4410, "Session removed");
+    this.live.get(id)?.transport.closeClients(4410, "Session removed");
     this.live.delete(id);
     await this.state.update((s) => {
       s.sessions = s.sessions.filter((x) => x.id !== id);
@@ -157,10 +142,9 @@ export class SessionManager extends EventEmitter<SessionEvents> {
 
   /** Types a prompt into the session as one bracketed paste, then submits it. */
   paste(id: string, text: string): void {
-    const proc = this.live.get(id)?.proc;
-    if (!proc) throw new HttpError(409, "Session is not running");
-    proc.write(`\x1b[200~${text}\x1b[201~`);
-    setTimeout(() => this.live.get(id)?.proc?.write("\r"), SUBMIT_DELAY_MS);
+    const transport = this.live.get(id)?.transport;
+    if (!transport?.running) throw new HttpError(409, "Session is not running");
+    transport.paste(text);
     this.watchTranscript(id, Date.now());
   }
 
@@ -194,11 +178,11 @@ export class SessionManager extends EventEmitter<SessionEvents> {
   }
 
   private async pollTranscript(meta: SessionMeta, live: Live, finishedTurn: NonNullable<AgentBackend["finishedTurn"]>, since: number): Promise<void> {
-    if (!live.proc || live.lastHookAt !== null) return this.stopWatching(live);
+    if (!live.transport.running || live.lastHookAt !== null) return this.stopWatching(live);
     if (live.activity === "permission") return;
     const payload = await finishedTurn(meta.id, since, this.transcriptIdleMs);
     // A hook, an exit or a new prompt may have come while the file was read.
-    if (!payload || !live.proc || live.lastHookAt !== null || !live.transcriptTimer) return;
+    if (!payload || !live.transport.running || live.lastHookAt !== null || !live.transcriptTimer) return;
     this.stopWatching(live);
     this.apply(meta, live, "Stop", payload);
   }
@@ -240,7 +224,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
         tool,
         setTimeout(() => {
           held.delete(tool);
-          if (live.proc) this.apply(meta, live, event, payload);
+          if (live.transport.running) this.apply(meta, live, event, payload);
         }, graceMs),
       );
       return;
@@ -285,50 +269,28 @@ export class SessionManager extends EventEmitter<SessionEvents> {
    */
   async attach(id: string, ws: WebSocket): Promise<void> {
     // Listeners first: the client sends its resize frame right after the socket opens.
-    let attached = false;
-    ws.on("message", (raw) => {
-      let frame: ClientFrame;
-      try {
-        frame = JSON.parse(String(raw)) as ClientFrame;
-      } catch {
-        return;
-      }
-      const live = this.live.get(id);
-      if (ws.readyState !== ws.OPEN) return;
-      if (frame.t === "i" && typeof frame.d === "string") {
-        live?.proc?.write(frame.d);
-      } else if (frame.t === "r" && validSize(frame.cols, frame.rows)) {
-        live?.proc?.resize(frame.cols, frame.rows);
-        if (!attached) {
-          attached = true;
-          this.replay(id, ws);
-        }
-      }
-    });
-    ws.on("close", () => this.live.get(id)?.clients.delete(ws));
+    attachPty(ws, (create) => this.terminal(id, create));
     const known = (await this.state.load()).sessions.some((s) => s.id === id);
     if (!known) ws.close(4404, "Unknown session");
   }
 
   closeAll(): void {
     for (const live of this.live.values()) {
-      live.proc?.kill();
-      for (const ws of live.clients) ws.close(1001, "Server shutting down");
+      live.transport.stop();
+      live.transport.closeClients(1001, "Server shutting down");
     }
   }
 
-  private replay(id: string, ws: WebSocket): void {
-    if (ws.readyState !== ws.OPEN) return;
+  /** The session's PTY transport; `create` makes the live entry when missing. */
+  private terminal(id: string, create: boolean): PtyTransport | undefined {
     // A session from an earlier server run has no live entry; create one so this client
     // also receives the output of a later resume.
     let live = this.live.get(id);
-    if (!live) {
-      live = emptyLive();
+    if (!live && create) {
+      live = this.emptyLive();
       this.live.set(id, live);
     }
-    if (live.scrollback.length > 0) send(ws, { t: "o", d: live.scrollback.join("") });
-    if (!live.proc) send(ws, { t: "x", code: live.exitCode });
-    live.clients.add(ws);
+    return live?.transport instanceof PtyTransport ? live.transport : undefined;
   }
 
   private async spawn(meta: SessionMeta, resume: boolean): Promise<void> {
@@ -339,65 +301,33 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     // Without its hooks the session still runs; the run then waits and can be retried by hand.
     await backend.prepare?.(meta.repo).catch((e: unknown) => this.emit("warning", e));
     const launcher = this.launchers[meta.agent ?? DEFAULT_AGENT] ?? backend.launcher;
-    const {
-      file,
-      args,
-      env: launchEnv,
-    } = launcher(meta.id, {
-      resume,
-      settings: backend.launchSettings?.(),
-      permissionMode: meta.permissionMode,
-      model: meta.model,
-      subagent: meta.subagent,
-    });
-    const proc = pty.spawn(file, args, {
-      name: "xterm-256color",
-      cwd: meta.repo,
-      env: childEnv(process.env, { ...extra, ...launchEnv, ...(hookUrl ? { TASKPILOT_HOOK_URL: hookUrl, TASKPILOT_HOOK_TOKEN: hookToken } : {}) }),
-      ...DEFAULT_SIZE,
-    });
-    // On resume, keep the previous run's scrollback and attached clients.
+    // On resume, keep the previous run's transport (scrollback, attached clients).
     const live: Live = {
-      ...(this.live.get(meta.id) ?? emptyLive()),
-      proc,
+      ...(this.live.get(meta.id) ?? this.emptyLive()),
       exitCode: null,
       activity: "starting",
       hookToken,
       lastHookAt: null,
       hookState: emptyHookState(),
       transcriptTimer: null,
-      pendingOutput: backend.readyMarker ? "" : null,
     };
+    live.transport.start(
+      { meta, resume, backend, launcher, extraEnv: extra, hookEnv: hookUrl ? { TASKPILOT_HOOK_URL: hookUrl, TASKPILOT_HOOK_TOKEN: hookToken } : {} },
+      {
+        hook: (event, payload) => this.apply(meta, live, event, payload),
+        exit: (exitCode) => {
+          this.stopWatching(live);
+          for (const timer of live.hookState.heldPermissions.values()) clearTimeout(timer);
+          live.exitCode = exitCode;
+          this.byHookToken.delete(hookToken);
+          live.hookToken = null;
+          this.emit("exit", meta);
+          this.emit("change", meta);
+        },
+      },
+    );
     this.live.set(meta.id, live);
     this.byHookToken.set(hookToken, meta.id);
-
-    proc.onData((data) => {
-      live.scrollback.push(data);
-      live.scrollbackSize += data.length;
-      while (live.scrollbackSize > this.scrollbackLimit && live.scrollback.length > 1) {
-        live.scrollbackSize -= live.scrollback.shift()!.length;
-      }
-      for (const ws of live.clients) send(ws, { t: "o", d: data });
-      if (live.pendingOutput !== null && backend.readyMarker) {
-        live.pendingOutput = (live.pendingOutput + stripAnsi(data)).slice(-PENDING_OUTPUT_CHARS);
-        if (live.pendingOutput.includes(backend.readyMarker)) {
-          live.pendingOutput = null;
-          // Stands in for the SessionStart hook the agent sends only with its first prompt.
-          this.apply(meta, live, "SessionStart", { session_id: meta.id, source: resume ? "resume" : "startup" });
-        }
-      }
-    });
-    proc.onExit(({ exitCode }) => {
-      live.proc = null;
-      this.stopWatching(live);
-      for (const timer of live.hookState.heldPermissions.values()) clearTimeout(timer);
-      live.exitCode = exitCode;
-      this.byHookToken.delete(hookToken);
-      live.hookToken = null;
-      for (const ws of live.clients) send(ws, { t: "x", code: exitCode });
-      this.emit("exit", meta);
-      this.emit("change", meta);
-    });
     this.emit("change", meta);
   }
 
@@ -408,7 +338,19 @@ export class SessionManager extends EventEmitter<SessionEvents> {
   }
 
   private isRunning(id: string): boolean {
-    return this.live.get(id)?.proc != null;
+    return this.live.get(id)?.transport.running === true;
+  }
+
+  private emptyLive(): Live {
+    return {
+      transport: new PtyTransport(this.scrollbackLimit),
+      exitCode: null,
+      activity: "starting",
+      hookToken: null,
+      lastHookAt: null,
+      hookState: emptyHookState(),
+      transcriptTimer: null,
+    };
   }
 
   private view(meta: SessionMeta): SessionView {
@@ -416,27 +358,11 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     return {
       ...meta,
       agent: meta.agent ?? DEFAULT_AGENT,
-      status: live?.proc ? "running" : "exited",
+      status: live?.transport.running ? "running" : "exited",
       exitCode: live?.exitCode ?? null,
-      activity: live?.proc ? live.activity : null,
+      activity: live?.transport.running ? live.activity : null,
     };
   }
-}
-
-function emptyLive(): Live {
-  return {
-    proc: null,
-    exitCode: null,
-    activity: "starting",
-    hookToken: null,
-    lastHookAt: null,
-    hookState: emptyHookState(),
-    transcriptTimer: null,
-    pendingOutput: null,
-    scrollback: [],
-    scrollbackSize: 0,
-    clients: new Set(),
-  };
 }
 
 /** Tool name and what it acts on: tells two calls of the same tool apart (inputs differ in extras like `description`). */
@@ -448,21 +374,4 @@ function toolCallKey(payload: Record<string, unknown>): string {
 
 function emptyHookState(): HookState {
   return { openTools: new Map(), nextToolId: 1, finishedAt: new Map(), heldPermissions: new Map() };
-}
-
-/** Terminal output without escape sequences, enough to find a line of text in it. */
-function stripAnsi(s: string): string {
-  return s
-    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "")
-    .replace(/\x1b\[[0-9;?<>=]*[ -\/]*[@-~]/g, "")
-    .replace(/\x1b[()][A-Za-z0-9]/g, "");
-}
-
-function send(ws: WebSocket, frame: ServerFrame): void {
-  if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(frame));
-}
-
-function validSize(cols: number, rows: number): boolean {
-  const ok = (n: number) => Number.isInteger(n) && n > 0 && n <= 1000;
-  return ok(cols) && ok(rows);
 }

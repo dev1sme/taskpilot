@@ -6,8 +6,10 @@ import type { AgentQuota, ClaudeUsage } from "../modules/usage/index.js";
 import type { RunState } from "../modules/workflow/index.js";
 
 export interface SessionMeta {
-  /** Also the agent's own session id (`--session-id` / `--resume`). */
+  /** TaskPilot's own id; also the agent's session id (`--session-id` / `--resume`) when nativeId is absent. */
   id: string;
+  /** The agent's own id of the conversation when the agent picks it (Codex thread id); absent = id. */
+  nativeId?: string;
   /** The coding agent the session runs; absent = claude (sessions saved before agents existed). */
   agent?: Agent;
   repo: string;

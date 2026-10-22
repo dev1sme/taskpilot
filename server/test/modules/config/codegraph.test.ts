@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { parseCodegraphStatus, stripMakeNoise } from "../../../src/modules/config/codegraph/status.js";
+import { writeFile } from "node:fs/promises";
+import path from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { getCodegraphStatus, parseCodegraphStatus, stripMakeNoise } from "../../../src/modules/config/codegraph/status.js";
+import { cleanupTempDirs, tempDir } from "../../helpers/fixtures.js";
 
 const SAMPLE = `make: Entering directory '/home/thomson/dev/environments'
 
@@ -77,5 +80,35 @@ describe("stripMakeNoise", () => {
 
   it("returns an empty string for empty input", () => {
     expect(stripMakeNoise("")).toBe("");
+  });
+});
+
+describe("getCodegraphStatus reads PROJECTS_ROOT from environments/.env", () => {
+  const savedDir = process.env.TASKPILOT_ENVIRONMENTS_DIR;
+  let envDir: string;
+
+  beforeAll(async () => {
+    envDir = await tempDir("taskpilot-envs-");
+    await writeFile(path.join(envDir, "Makefile"), "all:\n");
+    process.env.TASKPILOT_ENVIRONMENTS_DIR = envDir;
+  });
+
+  afterAll(async () => {
+    if (savedDir === undefined) delete process.env.TASKPILOT_ENVIRONMENTS_DIR;
+    else process.env.TASKPILOT_ENVIRONMENTS_DIR = savedDir;
+    await cleanupTempDirs();
+  });
+
+  it.each([["PROJECTS_ROOT=/home/u/dev"], ['PROJECTS_ROOT="/home/u/dev"'], ["PROJECTS_ROOT='/home/u/dev'"], ["export PROJECTS_ROOT=/home/u/dev"], ["PROJECTS_ROOT=/home/u/dev # projects"]])(
+    "accepts %s",
+    async (line) => {
+      await writeFile(path.join(envDir, ".env"), `OTHER=1\n${line}\n`);
+      expect(await getCodegraphStatus("/home/u/dev/app")).toMatchObject({ supported: true, indexed: false });
+    },
+  );
+
+  it("answers 404 when PROJECTS_ROOT is empty", async () => {
+    await writeFile(path.join(envDir, ".env"), "PROJECTS_ROOT=\n");
+    await expect(getCodegraphStatus("/home/u/dev/app")).rejects.toMatchObject({ status: 404 });
   });
 });

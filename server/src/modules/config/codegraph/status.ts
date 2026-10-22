@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, relative, isAbsolute } from "node:path";
+import { parseEnv } from "node:util";
 import { HttpError } from "../../../core/errors.js";
 import { t } from "../../../core/i18n.js";
 
@@ -87,9 +88,9 @@ async function readProjectsRoot(envDir: string): Promise<string> {
   const text = await readFile(join(envDir, ".env"), "utf8").catch(() => {
     throw new HttpError(404, t("codegraph.noEnv", { dir: envDir }));
   });
-  const line = text.split("\n").find((l) => l.startsWith("PROJECTS_ROOT="));
-  if (!line) throw new HttpError(404, t("codegraph.noRoot", { dir: envDir }));
-  return line.slice("PROJECTS_ROOT=".length).trim();
+  const root = parseEnv(text).PROJECTS_ROOT?.trim();
+  if (!root) throw new HttpError(404, t("codegraph.noRoot", { dir: envDir }));
+  return root;
 }
 
 /** repo path relative to PROJECTS_ROOT, or null if the repo lives outside it (codegraph can't see it then). */

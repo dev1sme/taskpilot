@@ -1,5 +1,6 @@
 import { Lexer, type Token, type Tokens } from "marked";
 import { isAgent } from "../../core/agents.js";
+import { modelProblem } from "./models.js";
 import type { Assignment } from "./types.js";
 
 export interface ParsedAssignments {
@@ -13,12 +14,16 @@ export const MAX_PARALLEL = 4;
 
 const ABOUT_ASSIGNMENTS = /phân công|assignment/i;
 const NO_VALUE = /^[-—–]*$/;
+/** A subagent name as Claude Code files it (`.claude/agents/<name>.md`): one word that cannot be read as another flag. */
+const SUBAGENT_NAME = /^[A-Za-z0-9][\w.-]*$/;
 
-type Column = "n" | "title" | "agent" | "files" | "output" | "deps";
+type Column = "n" | "title" | "agent" | "subagent" | "model" | "files" | "output" | "deps";
 const COLUMN_NAMES: Record<Column, string[]> = {
   n: ["#", "n", "số", "stt", "no"],
   title: ["việc", "task", "title", "tên việc"],
   agent: ["agent"],
+  subagent: ["subagent", "sub-agent"],
+  model: ["model"],
   files: ["file", "files", "file được sửa"],
   output: ["đầu ra", "output", "kết quả"],
   deps: ["phụ thuộc", "deps", "depends", "depends on", "dependencies"],
@@ -28,10 +33,11 @@ const REQUIRED: Column[] = ["n", "title", "agent"];
 /**
  * The subtasks of the "Phân công" table of a plan: the first table under a heading about assignments.
  * Columns are found by their header names, in any order; every problem found is reported, not just the first.
+ * `Subagent` and `Model` are optional, so a table written before they existed still runs.
  */
 export function parseAssignments(markdown: string): ParsedAssignments {
   const table = findTable(markdown);
-  if (!table) return fail("no assignment table: add a section 'Phân công' with a table | # | Việc | Agent | File | Đầu ra | Phụ thuộc |");
+  if (!table) return fail("no assignment table: add a section 'Phân công' with a table | # | Việc | Agent | Subagent | Model | File | Đầu ra | Phụ thuộc |");
 
   const at = new Map<Column, number>();
   table.header.forEach((cell, i) => {
@@ -60,10 +66,19 @@ export function parseAssignments(markdown: string): ParsedAssignments {
     if (!title) errors.push(`subtask ${n}: the title is empty`);
     const agent = plain(cell(row, "agent")).toLowerCase();
     if (!isAgent(agent)) errors.push(`subtask ${n}: unknown agent "${plain(cell(row, "agent"))}"`);
+    const subagent = word(cell(row, "subagent"));
+    const hasSubagent = !NO_VALUE.test(subagent);
+    if (hasSubagent && !SUBAGENT_NAME.test(subagent)) errors.push(`subtask ${n}: subagent "${subagent}" must be a name (one word, not starting with -)`);
+    const model = word(cell(row, "model"));
+    const hasModel = !NO_VALUE.test(model);
+    const problem = hasModel && isAgent(agent) ? modelProblem(agent, model) : null;
+    if (problem) errors.push(`subtask ${n}: model "${model}" ${problem}`);
     const item: Assignment = {
       n,
       title,
       agent: isAgent(agent) ? agent : "claude",
+      ...(hasSubagent ? { subagent } : {}),
+      ...(hasModel ? { model } : {}),
       files: list(cell(row, "files")),
       output: cell(row, "output").replace(/\*\*/g, "").trim(),
       deps: [],
@@ -124,6 +139,11 @@ function findTable(markdown: string): { header: string[]; rows: string[][] } | n
 /** A cell without the markdown a model decorates it with: `agent`, **agent**. */
 function plain(text: string): string {
   return text.replace(/[`*_]/g, "").replace(/<br\s*\/?>/gi, " ").trim();
+}
+
+/** A name cell (subagent, model) without its decoration; unlike `plain`, keeps `_`, which names may contain. */
+function word(text: string): string {
+  return text.replace(/`|\*\*/g, "").replace(/<br\s*\/?>/gi, " ").trim();
 }
 
 function list(text: string): string[] {

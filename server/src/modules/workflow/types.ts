@@ -33,6 +33,10 @@ export interface Assignment {
   n: number;
   title: string;
   agent: Agent;
+  /** Subagent the whole session runs as (--agent); absent = the agent itself. */
+  subagent?: string;
+  /** Model as written in the table; `default`/`inherit` pass no --model. Absent = the subagent's or the user's default. */
+  model?: string;
   /** Files or directories the subtask may change; used to keep parallel subtasks apart. */
   files: string[];
   output: string;

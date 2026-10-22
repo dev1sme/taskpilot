@@ -56,6 +56,52 @@ describe("assignment table", () => {
     );
   });
 
+  it("reads the optional Subagent and Model columns; - leaves them unset", () => {
+    const { items, errors } = parseAssignments(
+      plan([
+        "| # | Việc | Agent | Subagent | Model | File | Đầu ra | Phụ thuộc |",
+        "|---|---|---|---|---|---|---|---|",
+        "| 1 | A | claude | `taskpilot-implementer` | **haiku** | a.ts | a | - |",
+        "| 2 | B | claude | my_agent | - | b.ts | b | - |",
+        "| 3 | C | copilot | — | gpt-5 | c.ts | c | - |",
+        "| 4 | D | claude |  | claude-sonnet-5-5[1m] | d.ts | d | - |",
+        "| 5 | E | claude | - | default | e.ts | e | - |",
+      ]),
+    );
+    expect(errors).toEqual([]);
+    expect(items.map((a) => [a.n, a.subagent, a.model])).toEqual([
+      [1, "taskpilot-implementer", "haiku"],
+      [2, "my_agent", undefined],
+      [3, undefined, "gpt-5"],
+      [4, undefined, "claude-sonnet-5-5[1m]"],
+      [5, undefined, "default"],
+    ]);
+    expect(items[1]).not.toHaveProperty("model");
+    expect(items[2]).not.toHaveProperty("subagent");
+    // Also under the other header spelling.
+    expect(parseAssignments(plan(["| # | Việc | Agent | Sub-agent |", "|---|---|---|---|", "| 1 | A | claude | x |"])).items[0].subagent).toBe("x");
+  });
+
+  it("rejects a model the row's agent cannot run and a subagent that is not a name", () => {
+    const { items, errors } = parseAssignments(
+      plan([
+        "| # | Việc | Agent | Subagent | Model |",
+        "|---|---|---|---|---|",
+        "| 1 | A | claude | - | gpt-5 |",
+        "| 2 | B | copilot | - | -p |",
+        "| 3 | C | claude | --dangerous | haiku |",
+        "| 4 | D | claude | two words | sonnet |",
+      ]),
+    );
+    expect(items).toEqual([]);
+    expect(errors).toEqual([
+      expect.stringMatching(/^subtask 1: model "gpt-5" is not a Claude model/),
+      'subtask 2: model "-p" must be a model name (one word, not starting with -)',
+      'subtask 3: subagent "--dangerous" must be a name (one word, not starting with -)',
+      'subtask 4: subagent "two words" must be a name (one word, not starting with -)',
+    ]);
+  });
+
   it("rejects a dependency loop", () => {
     const { errors } = parseAssignments(
       plan(["| # | Việc | Agent | Phụ thuộc |", "|---|---|---|---|", "| 1 | A | claude | 3 |", "| 2 | B | claude | 1 |", "| 3 | C | claude | 2 |"]),

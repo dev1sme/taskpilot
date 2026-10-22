@@ -13,6 +13,11 @@ export interface HistoryEntry {
   quote?: string;
 }
 
+/** Who works on a subtask: "Claude · taskpilot-implementer · haiku", or just the agent for its defaults. */
+function worker(agent: string, subagent?: string, model?: string): string {
+  return [agent, subagent, model].filter(Boolean).join(" · ");
+}
+
 /**
  * Wording of the entries TaskPilot writes. Not part of the UI resources: the log is a task document
  * that Claude reads back, so it stays in Vietnamese whatever the UI language.
@@ -33,16 +38,18 @@ export const HISTORY_TEXT = {
   serverRestarted: "TaskPilot khởi động lại giữa bước.",
   sessionStopped: "Session dừng giữa bước.",
   switchAgent: "Đổi agent",
+  switchModel: "Đổi model",
   switchAgentBody: (from: string, to: string) => `Bước này chạy bằng ${to} trong session mới; session ${from} của bước trước đã dừng.`,
   dispatch: "Giao việc",
-  dispatchBody: (items: Array<{ n: number; agent: string; title: string; deps: number[] }>, parallel: number) =>
+  worker,
+  dispatchBody: (items: Array<{ n: number; agent: string; subagent?: string; model?: string; title: string; deps: number[] }>, parallel: number) =>
     [
-      ...items.map((a) => `${a.n}. ${a.agent} — ${a.title}${a.deps.length ? ` (sau việc ${a.deps.join(", ")})` : ""}`),
+      ...items.map((a) => `${a.n}. ${worker(a.agent, a.subagent, a.model)} — ${a.title}${a.deps.length ? ` (sau việc ${a.deps.join(", ")})` : ""}`),
       parallel > 1 ? `\nChạy tối đa ${parallel} việc cùng lúc.` : "",
     ]
       .join("\n")
       .trim(),
-  subtaskDone: (n: number, agent: string) => `Việc ${n} xong · ${agent}`,
+  subtaskDone: (n: number, agent: string, subagent?: string, model?: string) => `Việc ${n} xong · ${worker(agent, subagent, model)}`,
   subtaskDoneBody: (report: string) => `Báo cáo: ${report}`,
   subtaskReply: (n: number) => `Ba trả lời việc ${n}`,
   subtaskInterrupted: (n: number) => `Việc ${n} gián đoạn`,

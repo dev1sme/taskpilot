@@ -1,6 +1,7 @@
 import path from "node:path";
 import { AGENT_LABELS, DEFAULT_AGENT } from "../../core/agents.js";
 import { SPEC_DIR, TASKS_DIR } from "../tasks/index.js";
+import { HISTORY_TEXT } from "./history.js";
 import { PROMPT_TEXT } from "./prompt-text.js";
 import type { Assignment, RunState, WorkflowDef } from "./types.js";
 
@@ -105,7 +106,7 @@ export function promptVars(
   const all = opts.subtasks ?? [];
   const lastDispatch = def.steps.find((s) => s.dispatch)?.dispatch;
   const listed = all.map((a) =>
-    PROMPT_TEXT.subtaskLine(a.n, AGENT_LABELS[a.agent], a.title, `${taskDir}/${a.report ?? lastDispatch?.report.replaceAll("{{n}}", String(a.n)) ?? ""}`),
+    PROMPT_TEXT.subtaskLine(a.n, HISTORY_TEXT.worker(AGENT_LABELS[a.agent], a.subagent, a.model), a.title, `${taskDir}/${a.report ?? lastDispatch?.report.replaceAll("{{n}}", String(a.n)) ?? ""}`),
   );
 
   return {
@@ -131,6 +132,7 @@ function subtaskBlock(
   const T = PROMPT_TEXT.subtask;
   const lines = [T.heading(sub.n, sub.title)];
   if (sub.output) lines.push(T.output(sub.output));
+  if (sub.subagent || sub.model) lines.push(T.runsAs(sub.subagent, sub.model));
   lines.push(sub.files.length ? T.files(sub.files) : T.noFiles);
   const deps = sub.deps.map((d) => all.find((a) => a.n === d)).filter((a): a is Assignment & { report?: string } => !!a);
   if (deps.length) lines.push("", T.dependsOn, ...deps.map((d) => T.dependency(reportOf(d), d.n, d.title)));

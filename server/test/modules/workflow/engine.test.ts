@@ -28,7 +28,7 @@ class FakeSessions implements SessionPort {
   resumed: string[] = [];
   constructor(private readonly state: StateStore) {}
 
-  async create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent; title?: string; model?: string }): Promise<SessionView> {
+  async create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent; title?: string; model?: string; subagent?: string }): Promise<SessionView> {
     const id = `00000000-0000-4000-8000-${String(this.sessions.size).padStart(12, "0")}`;
     const meta: SessionMeta = { id, repo, taskKey, title: "Session", createdAt: Date.now(), ...opts };
     await this.state.update((s) => void s.sessions.push(meta));
@@ -291,7 +291,7 @@ describe("workflow engine", () => {
     expect(fake.stopped).toEqual([first]);
     expect(fake.sessions.get(next.sessionId)).toMatchObject({ agent: "claude", model: "haiku" });
     const log = await readFile(path.join(taskDir(), HISTORY_FILE), "utf8");
-    expect(log).toContain("Bước này chạy bằng Claude (haiku) trong session mới; session Claude (opus) của bước trước đã dừng.");
+    expect(log).toContain("· Đổi model\n\nBước này chạy bằng Claude (haiku) trong session mới; session Claude (opus) của bước trước đã dừng.");
   });
 
     it("runs a step for another agent in a new session and logs the switch", async () => {
@@ -619,6 +619,32 @@ describe("workflow engine: dispatch", () => {
     for (const heading of ["· Giao việc\n\n1. Claude — Parser\n2. Copilot — UI (sau việc 1)", "· Việc 1 xong · Claude\n\nBáo cáo: 03-viec-1.md", "· Việc 2 xong · Copilot", "· Giao việc · Về leader rà soát\n\n2 việc đã xong"]) {
       expect(log).toContain(heading);
     }
+  });
+
+  it("opens each subtask's session with the subagent and model of its row", async () => {
+    await dispatch(
+      [
+        "## 7. Phân công",
+        "",
+        "| # | Việc | Agent | Subagent | Model | File | Đầu ra | Phụ thuộc |",
+        "|---|---|---|---|---|---|---|---|",
+        "| 1 | Parser | claude | taskpilot-implementer | haiku | server/a.ts | parser | - |",
+        "| 2 | UI | claude | - | default | client/ | ui | 1 |",
+      ].join("\n"),
+    );
+    let r = await run();
+    expect(r.subtasks![0]).toMatchObject({ subagent: "taskpilot-implementer", model: "haiku" });
+    expect(fake.sessions.get(r.subtasks![0].sessionId!)).toMatchObject({ agent: "claude", subagent: "taskpilot-implementer", model: "haiku" });
+    await hookOn(r.subtasks![0].sessionId!, "SessionStart");
+    expect(fake.pastedBy.get(r.subtasks![0].sessionId!)![0]).toContain("Chạy bằng subagent `taskpilot-implementer`, model `haiku`.");
+    await write("03-viec-1.md");
+    r = await hookOn(r.subtasks![0].sessionId!, "Stop");
+    // `default` is written down as such but passes no --model.
+    expect(fake.sessions.get(r.subtasks![1].sessionId!)).toMatchObject({ subagent: undefined, model: undefined });
+
+    const log = await readFile(path.join(taskDir(), "00-history.md"), "utf8");
+    expect(log).toContain("· Giao việc\n\n1. Claude · taskpilot-implementer · haiku — Parser\n2. Claude · default — UI (sau việc 1)");
+    expect(log).toContain("· Việc 1 xong · Claude · taskpilot-implementer · haiku\n\nBáo cáo: 03-viec-1.md");
   });
 
   it("ignores hooks of the leader's idle session while subtasks work", async () => {

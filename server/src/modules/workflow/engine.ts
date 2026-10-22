@@ -9,6 +9,7 @@ import type { SessionMeta, StateStore } from "../../core/state.js";
 import { checkForParallel, overlaps, parseAssignments, type ParsedAssignments } from "./assignments.js";
 import { loadWorkflow, modeOf, OVERRIDE_DIR, reportOf } from "./definition.js";
 import { CUSTOM_MODE } from "./modes.js";
+import { launchModel } from "./models.js";
 import { archiveOutputs } from "./archive.js";
 import { appendHistory, HISTORY_TEXT } from "./history.js";
 import { parseQuestions, type Question } from "./questions.js";
@@ -21,7 +22,7 @@ export type LoadDef = (repo: string, mode?: string) => Promise<WorkflowDef>;
 
 /** The parts of SessionManager the engine uses. */
 export interface SessionPort {
-  create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent; title?: string; model?: string }): Promise<SessionView>;
+  create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent; title?: string; model?: string; subagent?: string }): Promise<SessionView>;
   resume(id: string): Promise<SessionView>;
   stop(id: string): Promise<void>;
   get(id: string): Promise<SessionView>;
@@ -442,7 +443,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       return;
     }
     await this.saveLane(run, sub, { phase: "done", pendingPrompt: undefined }, "");
-    await this.log(run, HISTORY_TEXT.subtaskDone(sub.n, AGENT_LABELS[sub.agent]), { body: HISTORY_TEXT.subtaskDoneBody(sub.report) });
+    await this.log(run, HISTORY_TEXT.subtaskDone(sub.n, AGENT_LABELS[sub.agent], sub.subagent, sub.model), { body: HISTORY_TEXT.subtaskDoneBody(sub.report) });
     if ((await this.sessions.get(sub.sessionId!).catch(() => null))?.status === "running") await this.sessions.stop(sub.sessionId!);
     if ((run.subtasks ?? []).every((s) => s.phase === "done")) {
       await this.log(run, HISTORY_TEXT.backToLeader, { body: HISTORY_TEXT.backToLeaderBody(run.subtasks!.length) });
@@ -465,7 +466,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     if (current && (current.agent !== agent || current.model !== step.model)) {
       if (current.status === "running") await this.sessions.stop(run.sessionId);
       const session = await this.sessions.create(run.repo, run.taskKey, { permissionMode: def.permissionMode, agent, model: step.model });
-      await this.log(run, HISTORY_TEXT.switchAgent, { body: HISTORY_TEXT.switchAgentBody(sessionLabel(current.agent, current.model), sessionLabel(agent, step.model)) });
+      await this.log(run, current.agent === agent ? HISTORY_TEXT.switchModel : HISTORY_TEXT.switchAgent, { body: HISTORY_TEXT.switchAgentBody(sessionLabel(current.agent, current.model), sessionLabel(agent, step.model)) });
       await this.save(run, { sessionId: session.id });
     }
     await this.deliver(run, await this.prompt(run, step.prompt));
@@ -502,6 +503,8 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
         permissionMode: def.permissionMode,
         agent: next.agent,
         title: t("run.subtaskTitle", { n: next.n }),
+        model: launchModel(next.model),
+        subagent: next.subagent,
       });
       next.sessionId = session.id;
       next.phase = "starting";

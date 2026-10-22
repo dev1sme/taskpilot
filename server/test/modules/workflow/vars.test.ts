@@ -161,6 +161,18 @@ describe("prompt variables", () => {
       expect(parallel).toContain("Không commit");
     });
 
+    it("names the subagent and model of a subtask in its prompt and in the review list", () => {
+      const withRunner = [{ ...subs[0], subagent: "taskpilot-implementer", model: "haiku" }, { ...subs[1], model: "gpt-5" }];
+      expect(promptVars(dispatchDef(1), 1, task, { subtask: withRunner[0], subtasks: withRunner }).subtask).toBe(
+        ["Việc 1: Parser", "Đầu ra mong đợi: parser", "Chạy bằng subagent `taskpilot-implementer`, model `haiku`.", "File được sửa: `server/a.ts`"].join("\n"),
+      );
+      expect(promptVars(dispatchDef(1), 1, task, { subtask: withRunner[1], subtasks: withRunner }).subtask).toContain("Chạy bằng model `gpt-5`.");
+      expect(promptVars(dispatchDef(1), 1, task, { subtask: subs[0], subtasks: subs }).subtask).not.toContain("Chạy bằng");
+      expect(promptVars(dispatchDef(1), 2, task, { subtasks: withRunner }).subtasks).toBe(
+        "- Việc 1 · Claude · taskpilot-implementer · haiku · Parser → `.claude/tasks/A-1/03-viec-1.md`\n- Việc 2 · Copilot · gpt-5 · UI → `.claude/tasks/A-1/03-viec-2.md`",
+      );
+    });
+
     it("lists every subtask for the review step, and nothing outside a run", () => {
       expect(promptVars(dispatchDef(1), 2, task, { subtasks: subs }).subtasks).toBe(
         "- Việc 1 · Claude · Parser → `.claude/tasks/A-1/03-viec-1.md`\n- Việc 2 · Copilot · UI → `.claude/tasks/A-1/03-viec-2.md`",

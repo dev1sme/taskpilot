@@ -3,7 +3,7 @@ import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../../src/app.js";
-import type { Launcher } from "../../../src/core/claude/launch.js";
+import type { LaunchOptions, Launcher } from "../../../src/core/claude/launch.js";
 import { StateStore } from "../../../src/core/state.js";
 import { loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
@@ -30,7 +30,16 @@ done`;
 const hookedClaude: Launcher = (id) => ({ file: "/bin/sh", args: ["-c", SCRIPT, "sh", id] });
 
 /** A leader and its members: the plan carries an assignment table, each subtask writes its own report. */
-const TABLE = ["## 7. Phân công", "", "| # | Việc | Agent | File | Đầu ra | Phụ thuộc |", "|---|---|---|---|---|---|", "| 1 | Parser | claude | server/a.ts | parser | - |", "| 2 | UI | copilot | client/ | ui | 1 |"];
+const TABLE = [
+  "## 7. Phân công",
+  "",
+  "| # | Việc | Agent | Subagent | Model | File | Đầu ra | Phụ thuộc |",
+  "|---|---|---|---|---|---|---|---|",
+  "| 1 | Parser | claude | taskpilot-implementer | haiku | server/a.ts | parser | - |",
+  "| 2 | UI | copilot | - | gpt-5 | client/ | ui | 1 |",
+];
+/** The options each fake agent was launched with, in order. */
+const launched: Array<{ agent: string } & LaunchOptions> = [];
 const LEADER_CLAUDE = `
 post() { printf '{"session_id":"%s"}' "$1" | curl -sS -m 5 -o /dev/null -X POST \\
   -H "x-taskpilot-hook-token: $TASKPILOT_HOOK_TOKEN" -H "content-type: application/json" \\
@@ -44,8 +53,8 @@ while IFS= read -r line; do
   esac
   post "$1" Stop
 done`;
-const leaderClaude: Launcher = (id) => ({ file: "/bin/sh", args: ["-c", LEADER_CLAUDE, "sh", id] });
-const memberCopilot: Launcher = (id) => ({ file: "/bin/sh", args: ["-c", COPILOT_SCRIPT.replace("*04-summary.md*) echo summary > .claude/tasks/DEMO-1/04-summary.md", '*"Việc 2: "*) echo r > .claude/tasks/DEMO-1/03-viec-2.md'), "sh", id] });
+const leaderClaude: Launcher = (id, opts) => (launched.push({ agent: "claude", ...opts }), { file: "/bin/sh", args: ["-c", LEADER_CLAUDE, "sh", id] });
+const memberCopilot: Launcher = (id, opts) => (launched.push({ agent: "copilot", ...opts }), { file: "/bin/sh", args: ["-c", COPILOT_SCRIPT.replace("*04-summary.md*) echo summary > .claude/tasks/DEMO-1/04-summary.md", '*"Việc 2: "*) echo r > .claude/tasks/DEMO-1/03-viec-2.md'), "sh", id] });
 
 /**
  * Stands in for copilot: prints its input box footer (the ready marker), and fires SessionStart
@@ -149,6 +158,7 @@ describe("workflow run end to end", () => {
     const app = await start({ leader: true });
     const view = async () => (await app.inject({ url: "/api/tasks/DEMO-1/run", headers: ok })).json();
     const post = (url: string, payload: object = {}) => app.inject({ method: "POST", url, headers: ok, payload });
+    launched.length = 0;
     const leader = (await post("/api/tasks/DEMO-1/run")).json();
     const gate = await waitFor(view, (v) => v.run?.phase === "gate");
     expect(gate.assignments.items.map((a: { n: number; agent: string }) => [a.n, a.agent])).toEqual([[1, "claude"], [2, "copilot"]]);
@@ -159,6 +169,12 @@ describe("workflow run end to end", () => {
     expect(review.run.subtasks.map((s: { phase: string }) => s.phase)).toEqual(["done", "done"]);
     const sessions = (await app.inject({ url: "/api/tasks/DEMO-1/sessions", headers: ok })).json();
     expect(sessions.map((x: { agent: string; title: string }) => [x.agent, x.title]).slice(1)).toEqual([["claude", "Việc 1"], ["copilot", "Việc 2"]]);
+    // Each member runs with the subagent and model of its row; the leader with neither.
+    expect(launched.map((o) => [o.agent, o.subagent, o.model])).toEqual([
+      ["claude", undefined, undefined],
+      ["claude", "taskpilot-implementer", "haiku"],
+      ["copilot", undefined, "gpt-5"],
+    ]);
     expect((await post("/api/tasks/DEMO-1/run/subtasks/1/retry")).statusCode).toBe(409);
     expect((await post("/api/tasks/DEMO-1/run/subtasks/1/reply", {})).statusCode).toBe(400);
     expect((await post("/api/tasks/DEMO-1/run/approve")).statusCode).toBe(200);

@@ -5,12 +5,7 @@ import type { Preview, SaveResult } from "./types";
  * Review-then-save: `review()` asks the server for a diff and opens the dialog; the dialog's
  * confirm saves. Errors (409 conflict, validation) stay in the dialog.
  */
-export function useSaveFlow(opts: {
-  title: string;
-  preview: () => Promise<Preview>;
-  save: () => Promise<SaveResult>;
-  onSaved: (result: SaveResult) => void;
-}) {
+export function useSaveFlow(opts: { title: string; preview: () => Promise<Preview>; save: () => Promise<SaveResult>; onSaved: (result: SaveResult) => void }) {
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [busy, setBusy] = useState(false);

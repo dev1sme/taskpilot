@@ -17,7 +17,11 @@ const STATIC = /^(import|export)\s+(type\s+)?(?:([^;"]*?)\s+from\s+)?"(\.[^"]+)"
 const DYNAMIC = /import\(\s*"(\.[^"]+)"\s*\)/g;
 
 function allTypes(clause: string | undefined): boolean {
-  const names = /\{([\s\S]*)\}/.exec(clause ?? "")?.[1].split(",").map((n) => n.trim()).filter(Boolean);
+  const names = /\{([\s\S]*)\}/
+    .exec(clause ?? "")?.[1]
+    .split(",")
+    .map((n) => n.trim())
+    .filter(Boolean);
   return !!names?.length && /^\{/.test(clause!.trim()) && names.every((n) => n.startsWith("type "));
 }
 
@@ -95,7 +99,12 @@ describe("server import boundaries", () => {
   });
 
   it("modules have no runtime import cycles", () => {
-    expect(cycles(all.filter((e) => !e.typeOnly), moduleOf)).toEqual([]);
+    expect(
+      cycles(
+        all.filter((e) => !e.typeOnly),
+        moduleOf,
+      ),
+    ).toEqual([]);
   });
 });
 

@@ -93,8 +93,7 @@ export async function normalizeCopilot(event: HookEvent, payload: Record<string,
     }
     case "Stop": {
       const stoppedAt = typeof out.timestamp === "string" ? Date.parse(out.timestamp) : NaN;
-      const message =
-        typeof out.transcript_path === "string" ? await lastAssistantMessage(out.transcript_path, Number.isNaN(stoppedAt) ? undefined : stoppedAt) : null;
+      const message = typeof out.transcript_path === "string" ? await lastAssistantMessage(out.transcript_path, Number.isNaN(stoppedAt) ? undefined : stoppedAt) : null;
       return message ? { ...out, last_assistant_message: message } : out;
     }
     default:
@@ -222,7 +221,10 @@ export async function ensureCopilotHooks(repo: string): Promise<void> {
 
 function serialized(key: string, task: () => Promise<void>): Promise<void> {
   const next = (locks.get(key) ?? Promise.resolve()).then(task);
-  locks.set(key, next.catch(() => undefined));
+  locks.set(
+    key,
+    next.catch(() => undefined),
+  );
   return next;
 }
 

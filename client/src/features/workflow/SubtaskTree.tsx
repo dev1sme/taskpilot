@@ -160,12 +160,7 @@ function SubtaskRow(props: TreeProps & { sub: SubtaskRun }) {
         </p>
         {sub.metrics && <Metrics metrics={sub.metrics} />}
         {sub.phase === "waiting" && (
-          <ReplyForm
-            send={(text) => workflowApi.replySubtask(props.taskKey, sub.n, text)}
-            questions={questions}
-            agent={AGENT_LABELS[sub.agent]}
-            onChanged={props.onChanged}
-          />
+          <ReplyForm send={(text) => workflowApi.replySubtask(props.taskKey, sub.n, text)} questions={questions} agent={AGENT_LABELS[sub.agent]} onChanged={props.onChanged} />
         )}
         {error && (
           <p className="error" role="alert">

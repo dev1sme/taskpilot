@@ -61,10 +61,7 @@ export class ActivityStore extends EventEmitter<{ item: [item: ActivityItem] }> 
     const str = (key: string) => (typeof payload[key] === "string" ? (payload[key] as string) : "");
     const toolUseId = str("tool_use_id");
     const tool = str("tool_name");
-    const input = (typeof payload.tool_input === "object" && payload.tool_input ? payload.tool_input : {}) as Record<
-      string,
-      unknown
-    >;
+    const input = (typeof payload.tool_input === "object" && payload.tool_input ? payload.tool_input : {}) as Record<string, unknown>;
 
     switch (event) {
       case "SessionStart":

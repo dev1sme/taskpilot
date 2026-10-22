@@ -108,9 +108,7 @@ export function TasksPage() {
                           {task.title !== task.key && <span className="task-link-title">{task.title}</span>}
                         </a>
                       </td>
-                      <td className="muted">
-                        {t("page.docs", { spec: task.specFiles.length, written: task.outputFiles.filter((f) => f.path !== task.historyFile).length })}
-                      </td>
+                      <td className="muted">{t("page.docs", { spec: task.specFiles.length, written: task.outputFiles.filter((f) => f.path !== task.historyFile).length })}</td>
                       <td className="muted mono">{clockTime(task.updatedAt)}</td>
                       <td className="task-action" title={runActive(task) ? t("page.action.blocked") : undefined}>
                         <DoneButton task={task} done={s.kind === "done"} busy={busyKey === task.key} onSet={(done) => void setDone(task.key, done)} />

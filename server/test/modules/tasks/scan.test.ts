@@ -48,13 +48,7 @@ describe("readTaskFile", () => {
     expect(await readTaskFile(repo, "DEMO-2", "spec/ui/screen.md")).toContain("no heading");
   });
 
-  it.each([
-    ["../../../secret.md"],
-    ["spec/../../../../secret.md"],
-    ["/etc/passwd.md"],
-    ["notes.txt"],
-    [""],
-  ])("rejects %j", async (rel) => {
+  it.each([["../../../secret.md"], ["spec/../../../../secret.md"], ["/etc/passwd.md"], ["notes.txt"], [""]])("rejects %j", async (rel) => {
     const repo = await makeRepo();
     await expect(readTaskFile(repo, "DEMO-1", rel)).rejects.toMatchObject({ status: 400 });
   });

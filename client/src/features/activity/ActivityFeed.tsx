@@ -113,11 +113,5 @@ function Row({ item }: { item: ActivityItem }) {
 
 /** Claude writes `code` in its messages; show it as code instead of raw backticks. */
 function InlineCode({ text }: { text: string }) {
-  return (
-    <>
-      {text.split(/(`[^`]+`)/).map((part, i) =>
-        part.startsWith("`") && part.endsWith("`") && part.length > 2 ? <code key={i}>{part.slice(1, -1)}</code> : part,
-      )}
-    </>
-  );
+  return <>{text.split(/(`[^`]+`)/).map((part, i) => (part.startsWith("`") && part.endsWith("`") && part.length > 2 ? <code key={i}>{part.slice(1, -1)}</code> : part))}</>;
 }

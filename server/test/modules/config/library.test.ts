@@ -45,8 +45,7 @@ interface Agent {
 }
 
 const agent = (front: string) => `---\n${front}\n---\nBody\n`;
-const putAgent = (scope: "project" | "user", rel: string, content: string) =>
-  send("PUT", `/api/config/library/agents/${scope}`, { rel, content, baseHash: "absent" });
+const putAgent = (scope: "project" | "user", rel: string, content: string) => send("PUT", `/api/config/library/agents/${scope}`, { rel, content, baseHash: "absent" });
 const agents = async (): Promise<Agent[]> => get("/api/config/agents");
 const byName = async (name: string, scope = "project") => (await agents()).find((a) => a.name === name && a.scope === scope)!;
 

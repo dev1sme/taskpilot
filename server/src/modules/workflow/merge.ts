@@ -112,7 +112,7 @@ function patchStep(target: Doc, patch: Doc, at: string, info: StepProvenance, er
     if (key === "before" || key === "after") {
       errors.push(`${at}: step ${id} is already in the workflow; \`${key}\` is only for a new step`);
     } else if (target.dispatch !== undefined) {
-      if (key === "title") (target.title = patch.title, note(key));
+      if (key === "title") ((target.title = patch.title), note(key));
       else if (key === "dispatch") patchDispatch(target, patch.dispatch, at, errors, note);
       else errors.push(`${at}: step ${id} is the dispatch step; it only takes \`title\` and \`dispatch.${DISPATCH_KEYS.join("|")}\``);
     } else if (key === "dispatch") {

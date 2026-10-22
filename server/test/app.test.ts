@@ -35,7 +35,12 @@ describe("api", () => {
     expect((await state.load()).lastRepo).toBe(put.json().path);
 
     const tasks = await app.inject({ url: "/api/tasks", headers: ok });
-    expect(tasks.json().map((t: { key: string }) => t.key).sort()).toEqual(["DEMO-1", "DEMO-2"]);
+    expect(
+      tasks
+        .json()
+        .map((t: { key: string }) => t.key)
+        .sort(),
+    ).toEqual(["DEMO-1", "DEMO-2"]);
 
     const file = await app.inject({ url: "/api/tasks/DEMO-1/file?path=spec%2Freq.md", headers: ok });
     expect(file.json().content).toContain("Add /health");
@@ -62,8 +67,7 @@ describe("api", () => {
     const repo = await makeRepo();
     const { app, state } = await start();
     const current = (await app.inject({ method: "PUT", url: "/api/repo", headers: ok, payload: { path: repo } })).json().path;
-    const doneOf = async (key: string) =>
-      (await app.inject({ url: "/api/tasks", headers: ok })).json().find((t: { key: string }) => t.key === key).done;
+    const doneOf = async (key: string) => (await app.inject({ url: "/api/tasks", headers: ok })).json().find((t: { key: string }) => t.key === key).done;
 
     expect(await doneOf("DEMO-1")).toBeNull();
     // An older run that reached its end counts while the task has no task.yml.

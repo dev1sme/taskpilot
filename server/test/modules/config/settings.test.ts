@@ -9,10 +9,7 @@ describe("permission editing", () => {
   const settingsFile = () => path.join(repo, ".claude", "settings.json");
 
   beforeEach(async () => {
-    await writeFile(
-      settingsFile(),
-      JSON.stringify({ env: { API_TOKEN: "s3cret" }, permissions: { allow: ["Read"], additionalDirectories: ["../x"] }, hooks: { Stop: [] } }),
-    );
+    await writeFile(settingsFile(), JSON.stringify({ env: { API_TOKEN: "s3cret" }, permissions: { allow: ["Read"], additionalDirectories: ["../x"] }, hooks: { Stop: [] } }));
   });
 
   it("replaces rules and mode, keeps every other key, never shows secrets in the diff", async () => {

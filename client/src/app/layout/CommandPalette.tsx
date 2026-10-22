@@ -132,15 +132,7 @@ export function CommandPalette({ open, onClose, sidebar }: { open: boolean; onCl
             <ul id="palette-list" role="listbox" className="palette-list">
               {entries.length === 0 && <li className="palette-empty">{t("palette.empty", { query })}</li>}
               {entries.map((e, i) => (
-                <li
-                  key={e.id}
-                  id={e.id}
-                  role="option"
-                  aria-selected={i === index}
-                  className="palette-item"
-                  onMouseEnter={() => setIndex(i)}
-                  onClick={() => go(e)}
-                >
+                <li key={e.id} id={e.id} role="option" aria-selected={i === index} className="palette-item" onMouseEnter={() => setIndex(i)} onClick={() => go(e)}>
                   <span className="palette-label">{e.label}</span>
                   <span className="palette-hint">{e.hint}</span>
                   <ArrowRight className="palette-go" aria-hidden="true" />

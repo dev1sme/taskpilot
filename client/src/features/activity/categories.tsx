@@ -1,14 +1,4 @@
-import {
-  BookOpenText,
-  Globe,
-  ListChecks,
-  MagnifyingGlass,
-  PencilSimpleLine,
-  Robot,
-  TerminalWindow,
-  Wrench,
-  type Icon,
-} from "@phosphor-icons/react";
+import { BookOpenText, Globe, ListChecks, MagnifyingGlass, PencilSimpleLine, Robot, TerminalWindow, Wrench, type Icon } from "@phosphor-icons/react";
 import type { ToolCategory } from "./types";
 
 const ICONS: Record<ToolCategory, Icon> = {

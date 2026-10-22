@@ -55,7 +55,13 @@ while IFS= read -r line; do
   post "$1" Stop
 done`;
 const leaderClaude: Launcher = (id, opts) => (launched.push({ agent: "claude", ...opts }), { file: "/bin/sh", args: ["-c", LEADER_CLAUDE, "sh", id] });
-const memberCopilot: Launcher = (id, opts) => (launched.push({ agent: "copilot", ...opts }), { file: "/bin/sh", args: ["-c", COPILOT_SCRIPT.replace("*04-summary.md*) echo summary > .claude/tasks/DEMO-1/04-summary.md", '*"Việc 2: "*) echo r > .claude/tasks/DEMO-1/03-viec-2.md'), "sh", id] });
+const memberCopilot: Launcher = (id, opts) => (
+  launched.push({ agent: "copilot", ...opts }),
+  {
+    file: "/bin/sh",
+    args: ["-c", COPILOT_SCRIPT.replace("*04-summary.md*) echo summary > .claude/tasks/DEMO-1/04-summary.md", '*"Việc 2: "*) echo r > .claude/tasks/DEMO-1/03-viec-2.md'), "sh", id],
+  }
+);
 
 /**
  * Stands in for copilot: prints its input box footer (the ready marker), and fires SessionStart
@@ -93,7 +99,15 @@ async function start(opts: { implementWith?: "copilot"; leader?: boolean } = {})
   if (opts.leader) await rm(path.join(repo, ".claude", "tasks", "DEMO-1", "02-plan.md"));
   // The leader's plan runs subtask 1 with this subagent; the engine checks the repo has it.
   if (opts.leader) await cp(path.join(SUBAGENTS_DIR, "taskpilot-implementer.md"), path.join(repo, ".claude", "agents", "taskpilot-implementer.md"));
-  app = await buildApp({ token: TOKEN, state, repo, launcher: opts.leader ? leaderClaude : hookedClaude, launchers: { copilot: opts.leader ? memberCopilot : hookedCopilot }, loadWorkflow: loadDef, copilotQuota: async () => ({ ok: false, reason: "missing" }) });
+  app = await buildApp({
+    token: TOKEN,
+    state,
+    repo,
+    launcher: opts.leader ? leaderClaude : hookedClaude,
+    launchers: { copilot: opts.leader ? memberCopilot : hookedCopilot },
+    loadWorkflow: loadDef,
+    copilotQuota: async () => ({ ok: false, reason: "missing" }),
+  });
   // Hooks need a real port to call back to.
   await app.listen({ host: "127.0.0.1", port: 0 });
   return app;
@@ -164,14 +178,20 @@ describe("workflow run end to end", () => {
     launched.length = 0;
     const leader = (await post("/api/tasks/DEMO-1/run")).json();
     const gate = await waitFor(view, (v) => v.run?.phase === "gate");
-    expect(gate.assignments.items.map((a: { n: number; agent: string }) => [a.n, a.agent])).toEqual([[1, "claude"], [2, "copilot"]]);
+    expect(gate.assignments.items.map((a: { n: number; agent: string }) => [a.n, a.agent])).toEqual([
+      [1, "claude"],
+      [2, "copilot"],
+    ]);
     expect((await post("/api/tasks/DEMO-1/run/approve")).statusCode).toBe(200);
 
     const review = await waitFor(view, (v) => v.run?.stepIndex === 2 && v.run.phase === "gate");
     expect(review.run.sessionId).toBe(leader.sessionId);
     expect(review.run.subtasks.map((s: { phase: string }) => s.phase)).toEqual(["done", "done"]);
     const sessions = (await app.inject({ url: "/api/tasks/DEMO-1/sessions", headers: ok })).json();
-    expect(sessions.map((x: { agent: string; title: string }) => [x.agent, x.title]).slice(1)).toEqual([["claude", "Việc 1"], ["copilot", "Việc 2"]]);
+    expect(sessions.map((x: { agent: string; title: string }) => [x.agent, x.title]).slice(1)).toEqual([
+      ["claude", "Việc 1"],
+      ["copilot", "Việc 2"],
+    ]);
     // Each member runs with the subagent and model of its row; the leader with neither.
     expect(launched.map((o) => [o.agent, o.subagent, o.model])).toEqual([
       ["claude", undefined, undefined],

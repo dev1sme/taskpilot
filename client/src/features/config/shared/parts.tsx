@@ -66,13 +66,7 @@ export function WorkflowTabs({ current }: { current: "workflow" | "formats" }) {
  * Toolbar of the config pages: what the page shows on the left (scope tabs…), reload and the actions
  * on what is shown on the right. `readOnly` pages get a marker in place of actions.
  */
-export function ConfigToolbar(props: {
-  start?: ReactNode;
-  actions?: ReactNode;
-  readOnly?: boolean;
-  loading: boolean;
-  onReload: () => void;
-}) {
+export function ConfigToolbar(props: { start?: ReactNode; actions?: ReactNode; readOnly?: boolean; loading: boolean; onReload: () => void }) {
   const { t } = useTranslation("config");
   return (
     <Toolbar

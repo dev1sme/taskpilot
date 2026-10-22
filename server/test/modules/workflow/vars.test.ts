@@ -162,7 +162,10 @@ describe("prompt variables", () => {
     });
 
     it("names the subagent and model of a subtask in its prompt and in the review list", () => {
-      const withRunner = [{ ...subs[0], subagent: "taskpilot-implementer", model: "haiku" }, { ...subs[1], model: "gpt-5" }];
+      const withRunner = [
+        { ...subs[0], subagent: "taskpilot-implementer", model: "haiku" },
+        { ...subs[1], model: "gpt-5" },
+      ];
       expect(promptVars(dispatchDef(1), 1, task, { subtask: withRunner[0], subtasks: withRunner }).subtask).toBe(
         ["Việc 1: Parser", "Đầu ra mong đợi: parser", "Chạy bằng subagent `taskpilot-implementer`, model `haiku`.", "File được sửa: `server/a.ts`"].join("\n"),
       );

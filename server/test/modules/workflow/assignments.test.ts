@@ -23,9 +23,7 @@ describe("assignment table", () => {
   });
 
   it("finds columns by name in any order, and accepts — and empty cells as no dependency", () => {
-    const { items, errors } = parseAssignments(
-      plan(["| Agent | phụ thuộc | VIỆC | # |", "|---|---|---|---|", "| **Copilot** | — | Một | 1 |", "| claude |  | Hai | 2 |"]),
-    );
+    const { items, errors } = parseAssignments(plan(["| Agent | phụ thuộc | VIỆC | # |", "|---|---|---|---|", "| **Copilot** | — | Một | 1 |", "| claude |  | Hai | 2 |"]));
     expect(errors).toEqual([]);
     expect(items.map((a) => [a.n, a.title, a.agent, a.deps, a.files, a.output])).toEqual([
       [1, "Một", "copilot", [], [], ""],
@@ -35,14 +33,7 @@ describe("assignment table", () => {
 
   it("reports every problem of the table", () => {
     const { items, errors } = parseAssignments(
-      plan([
-        "| # | Việc | Agent | Phụ thuộc |",
-        "|---|---|---|---|",
-        "| 1 | A | gemini | 9 |",
-        "| 1 | B | claude | - |",
-        "| x | C | claude | - |",
-        "| 2 | D | claude | 2 |",
-      ]),
+      plan(["| # | Việc | Agent | Phụ thuộc |", "|---|---|---|---|", "| 1 | A | gemini | 9 |", "| 1 | B | claude | - |", "| x | C | claude | - |", "| 2 | D | claude | 2 |"]),
     );
     expect(items).toEqual([]);
     expect(errors).toEqual(
@@ -103,9 +94,7 @@ describe("assignment table", () => {
   });
 
   it("rejects a dependency loop", () => {
-    const { errors } = parseAssignments(
-      plan(["| # | Việc | Agent | Phụ thuộc |", "|---|---|---|---|", "| 1 | A | claude | 3 |", "| 2 | B | claude | 1 |", "| 3 | C | claude | 2 |"]),
-    );
+    const { errors } = parseAssignments(plan(["| # | Việc | Agent | Phụ thuộc |", "|---|---|---|---|", "| 1 | A | claude | 3 |", "| 2 | B | claude | 1 |", "| 3 | C | claude | 2 |"]));
     expect(errors).toEqual(["dependency loop: 1 → 3 → 2 → 1"]);
   });
 

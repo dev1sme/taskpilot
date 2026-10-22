@@ -86,9 +86,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     },
   });
   /** A mode's workflow; the repo's own choice (.taskpilot/settings.yml) when `mode` is absent. */
-  const loadDef: LoadDef =
-    opts.loadWorkflow ??
-    (async (r, mode) => loadWorkflow(r, mode, (await readRepoSettings(r)).mode));
+  const loadDef: LoadDef = opts.loadWorkflow ?? (async (r, mode) => loadWorkflow(r, mode, (await readRepoSettings(r)).mode));
   // The engine checks the plan's subagents and lists them to the leader; config reads them.
   const engine = new WorkflowEngine(opts.state, sessions, loadDef, subagentsOf);
   const logError = (e: unknown) => app.log.error(e);

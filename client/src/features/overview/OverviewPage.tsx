@@ -32,7 +32,15 @@ export function OverviewPage() {
     <div className="page">
       <PageHeader
         title={t("title")}
-        subtitle={repo?.path ? <span className="mono path-line" title={repo.path}>{repo.path}</span> : t("common:noRepo")}
+        subtitle={
+          repo?.path ? (
+            <span className="mono path-line" title={repo.path}>
+              {repo.path}
+            </span>
+          ) : (
+            t("common:noRepo")
+          )
+        }
       />
 
       <div className="bento" aria-label={t("label", { repo: repoName })}>
@@ -54,12 +62,7 @@ export function OverviewPage() {
                 {needs.slice(0, NEEDS_SHOWN).map((task, i) => {
                   const s = statusOf(task);
                   return (
-                    <motion.li
-                      key={task.key}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.05 * i + 0.1 }}
-                    >
+                    <motion.li key={task.key} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 * i + 0.1 }}>
                       <span className="need-glyph" aria-hidden="true">
                         {s.glyph}
                       </span>
@@ -108,9 +111,7 @@ export function OverviewPage() {
               {counts.idle > 0 && <span style={{ flex: counts.idle, background: "var(--line-strong)" }} />}
             </div>
           )}
-          <p className="tile-note">
-            {t("tasks.counts", counts)}
-          </p>
+          <p className="tile-note">{t("tasks.counts", counts)}</p>
         </section>
 
         {/* CLAUDE.md */}
@@ -120,9 +121,7 @@ export function OverviewPage() {
           </h2>
           {inventory?.claudeMd.exists ? (
             <>
-              <p className="tile-mono">
-                {t("memory.size", { lines: inventory.claudeMd.lines, tokens: formatTokens(inventory.claudeMd.bytes / 4) })}
-              </p>
+              <p className="tile-mono">{t("memory.size", { lines: inventory.claudeMd.lines, tokens: formatTokens(inventory.claudeMd.bytes / 4) })}</p>
               <div className="chips">
                 {inventory.claudeMd.headings.slice(0, 3).map((h) => (
                   <span key={h} className="chip">
@@ -190,12 +189,7 @@ export function OverviewPage() {
   );
 }
 
-function InvLink(props: {
-  icon: typeof Robot;
-  n: number | undefined;
-  label: string;
-  section: "agents" | "commands" | "skills" | "hooks";
-}) {
+function InvLink(props: { icon: typeof Robot; n: number | undefined; label: string; section: "agents" | "commands" | "skills" | "hooks" }) {
   return (
     <a className="inv" href={href({ page: "config", section: props.section })}>
       <props.icon aria-hidden="true" />
@@ -211,7 +205,9 @@ function RunningTile({ tasks }: { tasks: TaskSummary[] }) {
   const first = tasks[0];
   return (
     <section className={`tile tile-wide tile-running${first ? " is-live" : ""}`} aria-labelledby="run-title">
-      {first ? <Live task={first} others={tasks.length - 1} /> : (
+      {first ? (
+        <Live task={first} others={tasks.length - 1} />
+      ) : (
         <>
           <h2 id="run-title" className="tile-title">
             {t("running.title")}
@@ -272,13 +268,7 @@ function Pulse({ items }: { items: ActivityItem[] }) {
   return (
     <div className="pulse" role="img" aria-label={t("running.pulse", { count: buckets.reduce((a, b) => a + b, 0) })}>
       {buckets.map((n, i) => (
-        <motion.span
-          key={i}
-          initial={false}
-          animate={{ height: `${Math.max(6, (n / max) * 100)}%` }}
-          transition={{ duration: 0.4 }}
-          className={n > 0 ? "is-on" : undefined}
-        />
+        <motion.span key={i} initial={false} animate={{ height: `${Math.max(6, (n / max) * 100)}%` }} transition={{ duration: 0.4 }} className={n > 0 ? "is-on" : undefined} />
       ))}
     </div>
   );

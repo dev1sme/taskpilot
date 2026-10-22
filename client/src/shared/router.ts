@@ -1,11 +1,6 @@
 import { useEffect, useState } from "react";
 
-export type Route =
-  | { page: "overview" }
-  | { page: "tasks" }
-  | { page: "task"; key: string }
-  | { page: "config"; section: ConfigSection; file?: string }
-  | { page: "backups" };
+export type Route = { page: "overview" } | { page: "tasks" } | { page: "task"; key: string } | { page: "config"; section: ConfigSection; file?: string } | { page: "backups" };
 
 export type ConfigSection = "memory" | "settings" | "hooks" | "agents" | "commands" | "skills" | "workflow" | "formats" | "mcp" | "codegraph";
 

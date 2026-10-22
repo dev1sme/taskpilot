@@ -138,13 +138,7 @@ export function GateCard(props: {
         >
           <label htmlFor={feedbackId}>{answered ? t("gate.feedbackLabelAnswered", { agent }) : t("gate.feedbackLabel", { agent })}</label>
           <div className="gate-feedback-row">
-            <textarea
-              id={feedbackId}
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              placeholder={t("gate.feedbackPlaceholder")}
-              rows={2}
-            />
+            <textarea id={feedbackId} value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder={t("gate.feedbackPlaceholder")} rows={2} />
             <Button type="submit" icon={ChatText} busy={busy === "feedback"} disabled={busy !== null || !feedbackText}>
               {t("gate.sendFeedback")}
             </Button>

@@ -90,7 +90,14 @@ const TIME = new Intl.DateTimeFormat("sv-SE", { dateStyle: "short", timeStyle: "
 
 export function formatEntry(entry: HistoryEntry): string {
   const parts = [`## ${TIME.format(entry.at)} · ${entry.step} · ${entry.source}`];
-  if (entry.quote !== undefined) parts.push(entry.quote.trim().split("\n").map((l) => (l ? `> ${l}` : ">")).join("\n"));
+  if (entry.quote !== undefined)
+    parts.push(
+      entry.quote
+        .trim()
+        .split("\n")
+        .map((l) => (l ? `> ${l}` : ">"))
+        .join("\n"),
+    );
   if (entry.body) parts.push(entry.body.trim());
   return `${parts.join("\n\n")}\n`;
 }

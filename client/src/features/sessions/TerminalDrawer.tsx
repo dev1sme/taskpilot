@@ -64,13 +64,7 @@ export function TerminalDrawer(props: Props) {
   return (
     <section className={`drawer${props.open ? " is-open" : ""}`} aria-label={label}>
       <div className="drawer-bar">
-        <button
-          type="button"
-          className="drawer-toggle"
-          aria-expanded={props.open}
-          aria-controls={bodyId}
-          onClick={() => props.onToggle(!props.open)}
-        >
+        <button type="button" className="drawer-toggle" aria-expanded={props.open} aria-controls={bodyId} onClick={() => props.onToggle(!props.open)}>
           <TerminalWindow weight="bold" aria-hidden="true" />
           {label}
           {props.open ? <CaretDown aria-hidden="true" /> : <CaretUp aria-hidden="true" />}
@@ -110,14 +104,7 @@ export function TerminalDrawer(props: Props) {
               if (e.key === "Escape") setChoosing(false);
             }}
           >
-            <button
-              type="button"
-              className="drawer-add"
-              disabled={busy === "create"}
-              aria-expanded={choosing}
-              aria-controls={menuId}
-              onClick={() => setChoosing((c) => !c)}
-            >
+            <button type="button" className="drawer-add" disabled={busy === "create"} aria-expanded={choosing} aria-controls={menuId} onClick={() => setChoosing((c) => !c)}>
               <Plus weight="bold" aria-hidden="true" />
               <SrOnly>{t("new")}</SrOnly>
             </button>

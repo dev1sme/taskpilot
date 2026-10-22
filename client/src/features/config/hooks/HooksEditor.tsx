@@ -112,13 +112,7 @@ export function HooksEditor({ draft }: { draft: HooksDraft }) {
             </label>
             <label className="hook-timeout-field">
               <span className="field-label">{t("hooks.timeout")}</span>
-              <input
-                type="number"
-                min={1}
-                max={3600}
-                value={h.timeout ?? ""}
-                onChange={(e) => update(i, { timeout: e.target.value ? Number(e.target.value) : undefined })}
-              />
+              <input type="number" min={1} max={3600} value={h.timeout ?? ""} onChange={(e) => update(i, { timeout: e.target.value ? Number(e.target.value) : undefined })} />
             </label>
             <button type="button" className="rule-remove hook-remove" aria-label={t("hooks.remove", { n: i + 1 })} onClick={() => setHooks(draft.hooks.filter((_, j) => j !== i))}>
               <Trash weight="bold" />

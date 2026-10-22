@@ -1,14 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import {
-  credentialsMatch,
-  LoginLimiter,
-  SESSION_COOKIE,
-  sessionCookie,
-  setSessionCookie,
-  type AuthMode,
-  type AuthSessions,
-  type Credentials,
-} from "./sessions.js";
+import { credentialsMatch, LoginLimiter, SESSION_COOKIE, sessionCookie, setSessionCookie, type AuthMode, type AuthSessions, type Credentials } from "./sessions.js";
 import { tokenMatches } from "./security.js";
 import { t } from "../../core/i18n.js";
 
@@ -37,9 +28,7 @@ export function registerAuthRoutes(app: FastifyInstance, opts: AuthRoutesOptions
         .send({ error: t("auth.tooMany", { minutes }) });
     }
     const body = req.body ?? {};
-    const ok = opts.login
-      ? credentialsMatch(opts.login, body.user, body.password)
-      : opts.token !== undefined && typeof body.token === "string" && tokenMatches(opts.token, body.token);
+    const ok = opts.login ? credentialsMatch(opts.login, body.user, body.password) : opts.token !== undefined && typeof body.token === "string" && tokenMatches(opts.token, body.token);
     if (!ok) {
       limiter.fail(req.ip);
       return reply.code(401).send({ error: opts.login ? t("auth.badLogin") : t("auth.badToken") });

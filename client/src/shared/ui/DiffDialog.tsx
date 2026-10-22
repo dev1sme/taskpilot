@@ -84,10 +84,7 @@ export function DiffDialog(props: {
             ) : (
               <pre className="diff-view" aria-label={t("diff.label")}>
                 {lines.map((l, i) => (
-                  <span
-                    key={i}
-                    className={l.startsWith("+") ? "is-add" : l.startsWith("-") ? "is-del" : l.startsWith("@@") ? "is-hunk" : undefined}
-                  >
+                  <span key={i} className={l.startsWith("+") ? "is-add" : l.startsWith("-") ? "is-del" : l.startsWith("@@") ? "is-hunk" : undefined}>
                     {l || " "}
                     {"\n"}
                   </span>
@@ -99,13 +96,7 @@ export function DiffDialog(props: {
               <Button variant="quiet" onClick={props.onClose}>
                 {t("diff.keepEditing")}
               </Button>
-              <Button
-                icon={FloppyDisk}
-                variant="primary"
-                busy={props.busy}
-                disabled={props.diff === null || props.changed === false || props.stale}
-                onClick={props.onConfirm}
-              >
+              <Button icon={FloppyDisk} variant="primary" busy={props.busy} disabled={props.diff === null || props.changed === false || props.stale} onClick={props.onConfirm}>
                 {props.confirmLabel ?? t("save")}
               </Button>
             </footer>

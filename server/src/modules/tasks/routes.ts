@@ -18,17 +18,17 @@ export type DescribeTasks = (repo: string) => Promise<{ stageOf: (files: string[
 const UNKNOWN = { stageOf: () => ({ done: 0, total: 0, step: null }), historyFile: "" };
 
 /** Tasks of the current repo, with their run phase and sessions, and the files inside a task. */
-export function registerTasksRoutes(
-  app: FastifyInstance,
-  opts: { repo: RepoContext; state: StateStore; sessions: SessionManager; describe?: DescribeTasks },
-) {
+export function registerTasksRoutes(app: FastifyInstance, opts: { repo: RepoContext; state: StateStore; sessions: SessionManager; describe?: DescribeTasks }) {
   const { sessions } = opts;
   const requireRepo = opts.repo.require;
   // A broken workflow file must not hide the task list.
   const describe = (repo: string) => opts.describe?.(repo).catch(() => UNKNOWN) ?? Promise.resolve(UNKNOWN);
   const withStage = (task: TaskSummary, d: Awaited<ReturnType<typeof describe>>) => ({
     ...task,
-    stage: d.stageOf(task.outputFiles.map((f) => f.path), task.key),
+    stage: d.stageOf(
+      task.outputFiles.map((f) => f.path),
+      task.key,
+    ),
     historyFile: d.historyFile,
   });
 

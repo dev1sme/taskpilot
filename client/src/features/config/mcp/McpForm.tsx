@@ -25,8 +25,7 @@ interface Row {
 /** Example arguments, one per line (not translated: it is a command line). */
 const ARGS_EXAMPLE = "-y\n@modelcontextprotocol/server-github";
 
-const toRows = (values: McpEntryForm["env"]): Row[] =>
-  values.map((v) => ({ key: v.key, value: "", existing: true, masked: v.value, secret: !v.reference }));
+const toRows = (values: McpEntryForm["env"]): Row[] => values.map((v) => ({ key: v.key, value: "", existing: true, masked: v.value, secret: !v.reference }));
 
 /**
  * Add or edit one MCP server. Configured values are never sent to the browser: an untouched
@@ -68,7 +67,13 @@ export function McpForm(props: {
       ...(base ? { originalName: base.name } : {}),
       type,
       command: type === "stdio" ? command.trim() : undefined,
-      args: type === "stdio" ? args.split("\n").map((a) => a.trim()).filter(Boolean) : [],
+      args:
+        type === "stdio"
+          ? args
+              .split("\n")
+              .map((a) => a.trim())
+              .filter(Boolean)
+          : [],
       url: type === "stdio" ? undefined : url.trim(),
       env: type === "stdio" ? rows(env) : [],
       headers: type === "stdio" ? [] : rows(headers),
@@ -180,7 +185,14 @@ function ValueRows(props: { title: string; rows: Row[]; onChange: (rows: Row[]) 
       )}
       {props.rows.map((r, i) => (
         <div key={i} className="value-row">
-          <input aria-label={t("mcpForm.keyLabel")} value={r.key} onChange={(e) => update(i, { key: e.target.value })} placeholder={props.keyPlaceholder} spellCheck={false} disabled={r.existing} />
+          <input
+            aria-label={t("mcpForm.keyLabel")}
+            value={r.key}
+            onChange={(e) => update(i, { key: e.target.value })}
+            placeholder={props.keyPlaceholder}
+            spellCheck={false}
+            disabled={r.existing}
+          />
           <input
             aria-label={t("mcpForm.valueLabel", { key: r.key })}
             value={r.value}
@@ -195,7 +207,12 @@ function ValueRows(props: { title: string; rows: Row[]; onChange: (rows: Row[]) 
               <input type="checkbox" checked={r.secret} onChange={(e) => update(i, { secret: e.target.checked })} /> {t("mcpForm.secret")}
             </label>
           )}
-          <button type="button" className="rule-remove" aria-label={t("mcpForm.remove", { key: r.key || t("mcpForm.thisRow") })} onClick={() => props.onChange(props.rows.filter((_, j) => j !== i))}>
+          <button
+            type="button"
+            className="rule-remove"
+            aria-label={t("mcpForm.remove", { key: r.key || t("mcpForm.thisRow") })}
+            onClick={() => props.onChange(props.rows.filter((_, j) => j !== i))}
+          >
             <Trash weight="bold" />
           </button>
         </div>

@@ -62,27 +62,14 @@ export function PermissionsEditor({ scope, draft }: { scope: Scope; draft: Permi
 
       <div className="rule-columns">
         {COLUMNS.map((c) => (
-          <RuleColumn
-            key={c.key}
-            title={t(`settings.column.${c.key}`)}
-            tone={c.key}
-            example={c.example}
-            rules={draft.permissions[c.key]}
-            onChange={(rules) => update({ [c.key]: rules })}
-          />
+          <RuleColumn key={c.key} title={t(`settings.column.${c.key}`)} tone={c.key} example={c.example} rules={draft.permissions[c.key]} onChange={(rules) => update({ [c.key]: rules })} />
         ))}
       </div>
     </div>
   );
 }
 
-function RuleColumn(props: {
-  title: string;
-  tone: "allow" | "ask" | "deny";
-  example: string;
-  rules: string[];
-  onChange: (rules: string[]) => void;
-}) {
+function RuleColumn(props: { title: string; tone: "allow" | "ask" | "deny"; example: string; rules: string[]; onChange: (rules: string[]) => void }) {
   const { t } = useTranslation("config");
   const [value, setValue] = useState("");
   const inputId = useId();

@@ -143,7 +143,10 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     /** Where a file is used: step titles for prompts, document files for skeletons, the history file. */
     const usedBy = (name: string) => [
       ...(def?.steps.filter((s) => s.promptFile === name || s.onRejectFile === name || s.dispatch?.promptFile === name).map((s) => s.title) ?? []),
-      ...(def?.steps.flatMap((s) => s.outputs).filter((o) => o.format === name).map((o) => o.file) ?? []),
+      ...(def?.steps
+        .flatMap((s) => s.outputs)
+        .filter((o) => o.format === name)
+        .map((o) => o.file) ?? []),
       ...(def?.steps.filter((s) => s.dispatch?.format === name).map((s) => s.dispatch!.report) ?? []),
       ...(def?.history.format === name ? [def.history.file] : []),
     ];
@@ -243,10 +246,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     const next = migration.files.get(WORKFLOW_FILE) ?? "";
     const current = info.files.get(WORKFLOW_FILE) ?? "";
     const target = workflowTarget(repo, WORKFLOW_FILE);
-    const diff = [
-      diffText(target.display, current, next),
-      ...migration.remove.map((name) => diffText(workflowTarget(repo, name).display, info.files.get(name) ?? "", null)),
-    ].join("\n");
+    const diff = [diffText(target.display, current, next), ...migration.remove.map((name) => diffText(workflowTarget(repo, name).display, info.files.get(name) ?? "", null))].join("\n");
     const result = { base, errors: migration.errors, diff, remove: migration.remove };
     if (body.apply !== true || migration.errors.length) return { ...result, applied: false };
 
@@ -375,9 +375,17 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     if (template === undefined) throw new HttpError(404, t("errors.noOnReject", { step: step.title }));
     const feedback = kind === "onReject" ? (typeof body.feedback === "string" && body.feedback.trim() ? body.feedback : PROMPT_TEXT.sampleFeedback) : undefined;
     const previous = body.restart === true ? { dir: PROMPT_TEXT.sampleArchive, files: def.steps.flatMap((s) => s.outputs.map((o) => o.file)).sort() } : undefined;
-    const subtask = step.dispatch && { ...PROMPT_TEXT.sampleSubtask, files: [...PROMPT_TEXT.sampleSubtask.files], phase: "pending" as const, report: reportOf(step.dispatch.report, PROMPT_TEXT.sampleSubtask.n) };
+    const subtask = step.dispatch && {
+      ...PROMPT_TEXT.sampleSubtask,
+      files: [...PROMPT_TEXT.sampleSubtask.files],
+      phase: "pending" as const,
+      report: reportOf(step.dispatch.report, PROMPT_TEXT.sampleSubtask.n),
+    };
     // The repo's real subagents, as a run would list them to the leader.
     const subagents = template.includes("{{subagents}}") ? await subagentsOf(repo) : undefined;
-    return { task: PROMPT_TEXT.sampleTask, text: renderPrompt(template, promptVars(def, index, PROMPT_TEXT.sampleTask, { feedback, previous, subtask, subtasks: subtask && [subtask], subagents })) };
+    return {
+      task: PROMPT_TEXT.sampleTask,
+      text: renderPrompt(template, promptVars(def, index, PROMPT_TEXT.sampleTask, { feedback, previous, subtask, subtasks: subtask && [subtask], subagents })),
+    };
   });
 }

@@ -74,7 +74,10 @@ test("the row button marks a task done and reopens it with PUT /done", async ({ 
 
   // The list refetches: the task leaves "Đang làm" and shows up under "Hoàn thành".
   await expect(page.getByRole("link", { name: /OPEN-1/ })).toHaveCount(0);
-  await page.getByRole("group", { name: "Lọc task" }).getByRole("button", { name: /Hoàn thành/ }).click();
+  await page
+    .getByRole("group", { name: "Lọc task" })
+    .getByRole("button", { name: /Hoàn thành/ })
+    .click();
   await page.getByRole("button", { name: "Mở lại OPEN-1" }).click();
   await expect.poll(() => puts.length).toBe(2);
   expect(puts[1]).toEqual({ key: "OPEN-1", body: { done: false } });

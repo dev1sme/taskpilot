@@ -52,14 +52,7 @@ export function subagentsOf(repo: string): Promise<LibraryItem[]> {
   return readLibrary(repo, "agents");
 }
 
-async function readMarkdownItems(
-  root: string,
-  dir: string,
-  kind: LibraryKind,
-  scope: LibraryScope,
-  repo: string,
-  templates?: Map<string, string>,
-): Promise<LibraryItem[]> {
+async function readMarkdownItems(root: string, dir: string, kind: LibraryKind, scope: LibraryScope, repo: string, templates?: Map<string, string>): Promise<LibraryItem[]> {
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
@@ -102,15 +95,7 @@ async function readSkills(root: string, scope: LibraryScope, repo: string): Prom
   return out;
 }
 
-async function toItem(
-  file: string,
-  kind: LibraryKind,
-  scope: LibraryScope,
-  repo: string,
-  fallback: string,
-  rel: string,
-  templates?: Map<string, string>,
-): Promise<LibraryItem> {
+async function toItem(file: string, kind: LibraryKind, scope: LibraryScope, repo: string, fallback: string, rel: string, templates?: Map<string, string>): Promise<LibraryItem> {
   const [text, info] = await Promise.all([readText(file), fileInfo(file)]);
   const { meta, body, error } = frontmatter(text ?? "");
   const name = kind === "commands" ? fallback : typeof meta.name === "string" && meta.name ? meta.name : fallback;
@@ -172,5 +157,11 @@ async function entryType(dir: string, e: Dirent): Promise<"file" | "dir" | null>
 }
 
 function firstLine(text: string): string {
-  return text.split("\n").find((l) => l.trim() && !l.startsWith("#"))?.trim().slice(0, 200) ?? "";
+  return (
+    text
+      .split("\n")
+      .find((l) => l.trim() && !l.startsWith("#"))
+      ?.trim()
+      .slice(0, 200) ?? ""
+  );
 }

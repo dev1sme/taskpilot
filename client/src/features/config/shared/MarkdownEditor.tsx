@@ -29,12 +29,7 @@ const highlight = HighlightStyle.define([
 ]);
 
 /** `insertRef` receives a function that types text at the cursor (e.g. a template variable). */
-export function MarkdownEditor(props: {
-  value: string;
-  onChange: (value: string) => void;
-  label: string;
-  insertRef?: MutableRefObject<((text: string) => void) | null>;
-}) {
+export function MarkdownEditor(props: { value: string; onChange: (value: string) => void; label: string; insertRef?: MutableRefObject<((text: string) => void) | null> }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const onChange = useRef(props.onChange);

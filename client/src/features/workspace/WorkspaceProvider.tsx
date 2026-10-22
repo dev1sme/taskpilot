@@ -46,17 +46,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const openRepo = useCallback(async (path: string) => {
     queryClient.setQueryData(["repo"], await workspaceApi.setRepo(path));
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["tasks"] }),
-      queryClient.invalidateQueries({ queryKey: ["inventory"] }),
-    ]);
+    await Promise.all([queryClient.invalidateQueries({ queryKey: ["tasks"] }), queryClient.invalidateQueries({ queryKey: ["inventory"] })]);
   }, []);
 
-  const error = repoQuery.error
-    ? (repoQuery.error as Error).message
-    : tasksQuery.error
-      ? (tasksQuery.error as Error).message
-      : null;
+  const error = repoQuery.error ? (repoQuery.error as Error).message : tasksQuery.error ? (tasksQuery.error as Error).message : null;
 
   return (
     <Ctx.Provider

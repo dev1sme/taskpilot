@@ -16,9 +16,7 @@ describe("task status file", () => {
 
     const at = new Date("2026-10-22T08:30:00.000Z");
     expect(await writeTaskStatus(dir, "done", at)).toEqual({ status: "done", doneAt: at.getTime() });
-    expect(await readFile(path.join(dir, TASK_STATUS_FILE), "utf8")).toBe(
-      "# Written by TaskPilot: status is open or done.\nstatus: done\ndoneAt: 2026-10-22T08:30:00.000Z\n",
-    );
+    expect(await readFile(path.join(dir, TASK_STATUS_FILE), "utf8")).toBe("# Written by TaskPilot: status is open or done.\nstatus: done\ndoneAt: 2026-10-22T08:30:00.000Z\n");
     expect(await readTaskStatus(dir)).toEqual({ status: "done", doneAt: at.getTime() });
 
     expect(await writeTaskStatus(dir, "open")).toEqual({ status: "open", doneAt: null });
@@ -27,12 +25,7 @@ describe("task status file", () => {
     expect((await readdir(dir)).filter((f) => f.startsWith(TASK_STATUS_FILE))).toEqual([TASK_STATUS_FILE]);
   });
 
-  it.each([
-    ["not: [valid"],
-    ["status: finished\n"],
-    ["- done\n"],
-    [""],
-  ])("treats %j as no status", async (content) => {
+  it.each([["not: [valid"], ["status: finished\n"], ["- done\n"], [""]])("treats %j as no status", async (content) => {
     const dir = taskDir(await makeRepo());
     await writeFile(path.join(dir, TASK_STATUS_FILE), content);
     expect(await readTaskStatus(dir)).toBeNull();

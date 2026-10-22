@@ -30,12 +30,7 @@ const ID = /^\d{13}-[0-9a-f]{6}$/;
 export class BackupStore {
   constructor(private readonly dir: string) {}
 
-  async save(
-    file: { abs: string; display: string },
-    content: string | null,
-    reason: string,
-    mcp?: BackupEntry["mcp"],
-  ): Promise<BackupEntry> {
+  async save(file: { abs: string; display: string }, content: string | null, reason: string, mcp?: BackupEntry["mcp"]): Promise<BackupEntry> {
     const id = `${Date.now()}-${randomBytes(3).toString("hex")}`;
     const entry: BackupEntry = {
       id,
@@ -62,15 +57,20 @@ export class BackupStore {
       return [];
     }
     const entries = await Promise.all(
-      names.filter((n) => ID.test(n)).map(async (n) => {
-        try {
-          return JSON.parse(await readFile(path.join(this.dir, n, "meta.json"), "utf8")) as BackupEntry;
-        } catch {
-          return null;
-        }
-      }),
+      names
+        .filter((n) => ID.test(n))
+        .map(async (n) => {
+          try {
+            return JSON.parse(await readFile(path.join(this.dir, n, "meta.json"), "utf8")) as BackupEntry;
+          } catch {
+            return null;
+          }
+        }),
     );
-    return entries.filter((e): e is BackupEntry => e !== null).sort((a, b) => b.at - a.at).slice(0, limit);
+    return entries
+      .filter((e): e is BackupEntry => e !== null)
+      .sort((a, b) => b.at - a.at)
+      .slice(0, limit);
   }
 
   async get(id: string): Promise<{ entry: BackupEntry; content: string | null }> {

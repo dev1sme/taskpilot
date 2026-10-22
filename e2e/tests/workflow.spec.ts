@@ -62,7 +62,10 @@ test("an override is only what differs: one file, applied to its own mode", asyn
   await expect(page.getByRole("navigation", { name: "File của workflow" })).toContainText("có sẵn");
 
   // Another mode runs as shipped, and says the override is not part of it.
-  await page.getByRole("tablist", { name: "Xem từng cách chạy" }).getByRole("tab", { name: /Leader/ }).click();
+  await page
+    .getByRole("tablist", { name: "Xem từng cách chạy" })
+    .getByRole("tab", { name: /Leader/ })
+    .click();
   await expect(page.getByText("không áp dụng cho cách chạy này")).toBeVisible();
   await expect(toolbar(page).getByRole("button", { name: /Tạo override/ })).toHaveCount(0);
 });

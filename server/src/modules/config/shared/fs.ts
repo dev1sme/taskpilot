@@ -60,7 +60,11 @@ export function isObject(v: unknown): v is Record<string, unknown> {
 }
 
 export function strings(v: unknown): string[] {
-  if (typeof v === "string") return v.split(",").map((s) => s.trim()).filter(Boolean);
+  if (typeof v === "string")
+    return v
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 }
 

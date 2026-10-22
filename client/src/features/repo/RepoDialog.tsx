@@ -23,13 +23,7 @@ export function RepoDialog({ open, onClose }: { open: boolean; onClose: () => vo
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
-          className="palette-backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onMouseDown={(e) => e.target === e.currentTarget && onClose()}
-        >
+        <motion.div className="palette-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
           <motion.div
             className="repo-dialog"
             role="dialog"

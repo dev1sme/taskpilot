@@ -27,7 +27,10 @@ export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOpt
   app.post("/api/config/agents/templates/preview", async (req) => {
     const repo = requireRepo();
     const files = await Promise.all((await chosenTemplates(req.body)).map((tpl) => templateState(repo, tpl)));
-    const diff = files.filter((f) => !f.same).map((f) => diffText(f.path, f.current, f.content)).join("\n");
+    const diff = files
+      .filter((f) => !f.same)
+      .map((f) => diffText(f.path, f.current, f.content))
+      .join("\n");
     return { files: files.map(({ current: _, content: __, ...f }) => f), diff };
   });
 
@@ -69,14 +72,11 @@ export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOpt
     return libraryTarget(requireRepo(), kind as LibraryKind, scope as LibraryScope, rel);
   };
 
-  app.get<{ Params: { kind: string; scope: string }; Querystring: { rel?: string } }>(
-    "/api/config/library/:kind/:scope/raw",
-    async (req) => {
-      const target = libraryOf(req.params.kind, req.params.scope, req.query.rel ?? "");
-      const content = await readCurrent(target.abs);
-      return { path: target.display, exists: content !== null, content: content ?? "", hash: hashOf(content) };
-    },
-  );
+  app.get<{ Params: { kind: string; scope: string }; Querystring: { rel?: string } }>("/api/config/library/:kind/:scope/raw", async (req) => {
+    const target = libraryOf(req.params.kind, req.params.scope, req.query.rel ?? "");
+    const content = await readCurrent(target.abs);
+    return { path: target.display, exists: content !== null, content: content ?? "", hash: hashOf(content) };
+  });
 
   app.post<{ Params: { kind: string; scope: string } }>("/api/config/library/:kind/:scope/preview", async (req) => {
     const target = libraryOf(req.params.kind, req.params.scope, stringField(req.body, "rel"));
@@ -98,14 +98,11 @@ export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOpt
     });
   });
 
-  app.delete<{ Params: { kind: string; scope: string }; Querystring: { rel?: string; baseHash?: string } }>(
-    "/api/config/library/:kind/:scope",
-    async (req) => {
-      const repo = requireRepo();
-      const target = libraryOf(req.params.kind, req.params.scope, req.query.rel ?? "");
-      return writeWithBackup({ repo, target, next: null, baseHash: req.query.baseHash ?? "", reason: t("backup.delete"), backups });
-    },
-  );
+  app.delete<{ Params: { kind: string; scope: string }; Querystring: { rel?: string; baseHash?: string } }>("/api/config/library/:kind/:scope", async (req) => {
+    const repo = requireRepo();
+    const target = libraryOf(req.params.kind, req.params.scope, req.query.rel ?? "");
+    return writeWithBackup({ repo, target, next: null, baseHash: req.query.baseHash ?? "", reason: t("backup.delete"), backups });
+  });
 }
 
 /** Templates named in the body's `names`, or all of them when it has none. */

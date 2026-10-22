@@ -115,12 +115,7 @@ export function McpPage() {
                 const hidden = shadowedBy("mcp", s, all);
                 return (
                   <li key={keyOf(s)}>
-                    <button
-                      type="button"
-                      className="mcp-item"
-                      aria-current={current && keyOf(current) === keyOf(s) ? "true" : undefined}
-                      onClick={() => setPicked(keyOf(s))}
-                    >
+                    <button type="button" className="mcp-item" aria-current={current && keyOf(current) === keyOf(s) ? "true" : undefined} onClick={() => setPicked(keyOf(s))}>
                       <span className={`mcp-dot${s.error || s.missingEnv.length ? " is-warn" : ""}`} aria-hidden="true" />
                       <span className="mcp-text">
                         <span className="mono mcp-name">{s.name}</span>

@@ -1,14 +1,4 @@
-import {
-  ArrowClockwise,
-  ArrowCounterClockwise,
-  ChatCircleDots,
-  CheckCircle,
-  FileText,
-  HandPalm,
-  Play,
-  PlugsConnected,
-  TerminalWindow,
-} from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowCounterClockwise, ChatCircleDots, CheckCircle, FileText, HandPalm, Play, PlugsConnected, TerminalWindow } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState, type ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
@@ -77,9 +67,7 @@ export function NowCard(props: Props) {
     </Button>
   );
   const step = run ? props.steps[run.stepIndex] : undefined;
-  const markDone = run?.noHook && step?.doneFile && (
-    <MarkDoneButton complete={() => workflowApi.completeStep(props.taskKey)} onChanged={props.onChanged} onError={setError} />
-  );
+  const markDone = run?.noHook && step?.doneFile && <MarkDoneButton complete={() => workflowApi.completeStep(props.taskKey)} onChanged={props.onChanged} onError={setError} />;
   /** Run strings name the agent of the current step (of the first one before a run). */
   const agent = AGENT_LABELS[(step ?? props.steps[0])?.agent ?? "claude"];
   const errorLine = error && (
@@ -252,8 +240,19 @@ export function NowCard(props: Props) {
         </ul>
       )}
       {errorLine}
-      {run.phase === "starting" && <div className="now-actions">{openTerminal}{retry}</div>}
-      {run.phase === "running" && markDone && <div className="now-actions">{openTerminal}{markDone}{retry}</div>}
+      {run.phase === "starting" && (
+        <div className="now-actions">
+          {openTerminal}
+          {retry}
+        </div>
+      )}
+      {run.phase === "running" && markDone && (
+        <div className="now-actions">
+          {openTerminal}
+          {markDone}
+          {retry}
+        </div>
+      )}
     </Card>
   );
 }

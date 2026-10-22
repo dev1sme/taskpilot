@@ -133,9 +133,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       run: run ? withoutSnapshot(run) : null,
       questions: run ? await this.questionsOf(run, def) : [],
       assignments: run?.phase === "gate" && def.steps[run.stepIndex + 1]?.dispatch ? await this.assignmentsFor(run, def, run.stepIndex + 1) : null,
-      subtaskQuestions: Object.fromEntries(
-        (run?.subtasks ?? []).filter((s) => s.phase === "waiting").map((s) => [s.n, parseQuestions(s.lastMessage ?? "")]),
-      ),
+      subtaskQuestions: Object.fromEntries((run?.subtasks ?? []).filter((s) => s.phase === "waiting").map((s) => [s.n, parseQuestions(s.lastMessage ?? "")])),
     };
   }
 
@@ -501,7 +499,9 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     if (current && (current.agent !== agent || current.model !== step.model)) {
       if (current.status === "running") await this.sessions.stop(run.sessionId);
       const session = await this.sessions.create(run.repo, run.taskKey, { permissionMode: def.permissionMode, agent, model: step.model });
-      await this.log(run, current.agent === agent ? HISTORY_TEXT.switchModel : HISTORY_TEXT.switchAgent, { body: HISTORY_TEXT.switchAgentBody(sessionLabel(current.agent, current.model), sessionLabel(agent, step.model)) });
+      await this.log(run, current.agent === agent ? HISTORY_TEXT.switchModel : HISTORY_TEXT.switchAgent, {
+        body: HISTORY_TEXT.switchAgentBody(sessionLabel(current.agent, current.model), sessionLabel(agent, step.model)),
+      });
       await this.save(run, { sessionId: session.id });
     }
     await this.deliver(run, await this.prompt(run, step.prompt));
@@ -512,7 +512,10 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     const subtasks: SubtaskRun[] = items.map((a) => ({ ...a, phase: "pending", report: reportOf(report, a.n) }));
     await this.save(run, { subtasks, pendingPrompt: undefined, phase: "running", message: t("run.dispatching", { done: 0, total: subtasks.length }) });
     await this.log(run, HISTORY_TEXT.dispatch, {
-      body: HISTORY_TEXT.dispatchBody(items.map((a) => ({ ...a, agent: AGENT_LABELS[a.agent] })), dispatch.parallel),
+      body: HISTORY_TEXT.dispatchBody(
+        items.map((a) => ({ ...a, agent: AGENT_LABELS[a.agent] })),
+        dispatch.parallel,
+      ),
     });
     await this.launchReady(run, def);
   }
@@ -528,10 +531,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       const busy = subs.filter((s) => s.phase !== "pending" && s.phase !== "done");
       const next = subs.find(
         (s) =>
-          s.phase === "pending" &&
-          s.deps.every((d) => subs.find((o) => o.n === d)?.phase === "done") &&
-          busy.length < dispatch.parallel &&
-          !busy.some((b) => overlaps(b.files, s.files)),
+          s.phase === "pending" && s.deps.every((d) => subs.find((o) => o.n === d)?.phase === "done") && busy.length < dispatch.parallel && !busy.some((b) => overlaps(b.files, s.files)),
       );
       if (!next) break;
       const session = await this.sessions.create(run.repo, run.taskKey, {

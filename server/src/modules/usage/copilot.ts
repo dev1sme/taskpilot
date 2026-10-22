@@ -52,10 +52,13 @@ export class CopilotQuotaPoller {
       return;
     }
     // A read still running past its minute (up to the 15 s timeout) is retried a second later.
-    this.timer = setTimeout(() => {
-      this.timer = null;
-      this.request();
-    }, Math.max(wait, 1000));
+    this.timer = setTimeout(
+      () => {
+        this.timer = null;
+        this.request();
+      },
+      Math.max(wait, 1000),
+    );
   }
 
   stop(): void {

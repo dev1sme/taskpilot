@@ -24,20 +24,11 @@ export function Stepper({ steps, run }: { steps: WorkflowStep[]; run: RunState |
   return (
     <div className="stepper" style={{ ["--nodes" as string]: nodes.length }}>
       <div className="stepper-track" aria-hidden="true">
-        <motion.div
-          className="stepper-fill"
-          initial={false}
-          animate={{ scaleX: progress }}
-          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-        />
+        <motion.div className="stepper-fill" initial={false} animate={{ scaleX: progress }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }} />
       </div>
       <ol aria-label={t("stepper.label")}>
         {nodes.map((n) => (
-          <li
-            key={n.key}
-            className={`node ${n.kind} ${n.state}${working && n.state === "current" ? " working" : ""}`}
-            aria-current={n.state === "current" ? "step" : undefined}
-          >
+          <li key={n.key} className={`node ${n.kind} ${n.state}${working && n.state === "current" ? " working" : ""}`} aria-current={n.state === "current" ? "step" : undefined}>
             <span className="node-marker" aria-hidden="true">
               {n.state === "done" && <Check weight="bold" className="node-check" />}
             </span>

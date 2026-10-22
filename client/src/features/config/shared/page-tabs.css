@@ -18,7 +18,9 @@
   font-weight: 500;
   color: var(--muted);
   text-decoration: none;
-  transition: color var(--fast) var(--ease-out), box-shadow var(--fast) var(--ease-out);
+  transition:
+    color var(--fast) var(--ease-out),
+    box-shadow var(--fast) var(--ease-out);
 }
 
 .page-tabs a:hover {

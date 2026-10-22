@@ -159,7 +159,8 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
         <Button icon={CheckCircle} variant="quiet" busy={busy} onClick={() => void setDefaultMode()}>
           {t("workflow.modes.setDefault")}
         </Button>
-      )}      <Button icon={FilePlus} variant="quiet" onClick={() => setAdding((a) => !a)}>
+      )}{" "}
+      <Button icon={FilePlus} variant="quiet" onClick={() => setAdding((a) => !a)}>
         {t("workflow.addPrompt")}
       </Button>
       {confirm === "reset" ? (
@@ -183,13 +184,7 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
     <div className="page">
       <ConfigHeader title={t("workflow.title")} subtitle={t("workflow.subtitle")} />
       <WorkflowTabs current="workflow" />
-      <ConfigToolbar
-        start={data && <OriginBadge config={data} />}
-        readOnly={!!data && !isOverride}
-        loading={loading}
-        onReload={() => void reload()}
-        actions={actions}
-      />
+      <ConfigToolbar start={data && <OriginBadge config={data} />} readOnly={!!data && !isOverride} loading={loading} onReload={() => void reload()} actions={actions} />
       <LoadError error={error} />
       {data && (
         <div className="page-body wf-page">
@@ -199,9 +194,7 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
             <section className="card wf-intro">
               <h2 className="card-title">{t("workflow.defaultTitle", { name: data.mode.name })}</h2>
               <p>{t("workflow.defaultBody", { dir: data.overrideDir })}</p>
-              {data.overrideKind !== "none" && (
-                <p className="alert-warn">{t("workflow.notApplied", { dir: data.overrideDir, base: data.overrideExtends ?? "custom" })}</p>
-              )}
+              {data.overrideKind !== "none" && <p className="alert-warn">{t("workflow.notApplied", { dir: data.overrideDir, base: data.overrideExtends ?? "custom" })}</p>}
               <ul className="file-list">
                 {data.files.map((f) => (
                   <li key={f.name} className="mono">
@@ -253,7 +246,10 @@ export function WorkflowPage({ file: initialFile }: { file?: string }) {
 
 /** Which documents a skeleton file shapes, for its label in the file list. */
 function formatUse(config: WorkflowConfig, name: string): string {
-  const files = (config.def?.steps ?? []).flatMap((s) => s.outputs).filter((o) => o.format === name).map((o) => o.file);
+  const files = (config.def?.steps ?? [])
+    .flatMap((s) => s.outputs)
+    .filter((o) => o.format === name)
+    .map((o) => o.file);
   if (config.def?.history.format === name) files.push(config.def.history.file);
   return files.join(", ");
 }
@@ -427,21 +423,12 @@ function Checks({ config, draft }: { config: WorkflowConfig; draft: WorkflowDraf
   );
 }
 
-function FileNav(props: {
-  config: WorkflowConfig;
-  picked: string;
-  newFiles: string[];
-  adding: boolean;
-  onPick: (name: string) => void;
-  onAdd: (name: string) => void;
-}) {
+function FileNav(props: { config: WorkflowConfig; picked: string; newFiles: string[]; adding: boolean; onPick: (name: string) => void; onAdd: (name: string) => void }) {
   const { t } = useTranslation("config");
   const { config } = props;
   const steps = config.def?.steps ?? [];
   // Skeletons get their own group (and their own page, Định dạng tài liệu), apart from the steps' prompts.
-  const formats = [
-    ...new Set([config.def?.history.format ?? "", ...steps.flatMap((s) => s.outputs.map((o) => o.format ?? ""))].filter(Boolean)),
-  ];
+  const formats = [...new Set([config.def?.history.format ?? "", ...steps.flatMap((s) => s.outputs.map((o) => o.format ?? ""))].filter(Boolean))];
   const known = new Set([WORKFLOW_FILE, ...formats, ...steps.flatMap((s) => [s.promptFile, s.onRejectFile ?? ""])]);
   const loose = [...config.files.map((f) => f.name).filter((n) => !known.has(n)), ...props.newFiles];
 
@@ -453,7 +440,9 @@ function FileNav(props: {
       return (
         <li key={`${label ?? ""}${name}`}>
           <span className="lib-item wf-item">
-            <span className="lib-name mono" title={name}>{name}</span>
+            <span className="lib-name mono" title={name}>
+              {name}
+            </span>
             <span className="wf-tag">{t("workflow.tag.builtin")}</span>
             {label && <span className="lib-desc">{label}</span>}
           </span>
@@ -463,7 +452,9 @@ function FileNav(props: {
     return (
       <li key={`${label ?? ""}${name}`}>
         <button type="button" className="lib-item wf-item" aria-current={props.picked === name} onClick={() => props.onPick(name)}>
-          <span className="lib-name mono" title={name}>{name}</span>
+          <span className="lib-name mono" title={name}>
+            {name}
+          </span>
           {isDirty(draftKey(name)) ? (
             <span className="unsaved-pill">{t("draft.unsaved")}</span>
           ) : file?.provenance ? (
@@ -484,9 +475,7 @@ function FileNav(props: {
 
   return (
     <nav className="library-list wf-nav" aria-label={t("workflow.files")}>
-      <ul>
-        {item(WORKFLOW_FILE, t("workflow.ymlLabel"))}
-      </ul>
+      <ul>{item(WORKFLOW_FILE, t("workflow.ymlLabel"))}</ul>
       {steps.map((s, i) => (
         <div key={s.id} className="wf-nav-step">
           <div className="pane-label">
@@ -564,16 +553,17 @@ function FileView(props: { file: WorkflowFile; editable: boolean; confirmDelete:
     <section className="code-view wf-file" aria-label={t("library.contentLabel", { path: file.path })}>
       <div className="code-head">
         <span className="mono">{file.path}</span>
-        <span className="code-meta">
-          {file.usedBy.length > 0 ? t("workflow.usedBy", { steps: file.usedBy.join(", ") }) : file.name === WORKFLOW_FILE ? "" : t("workflow.unused")}
-        </span>
+        <span className="code-meta">{file.usedBy.length > 0 ? t("workflow.usedBy", { steps: file.usedBy.join(", ") }) : file.name === WORKFLOW_FILE ? "" : t("workflow.unused")}</span>
         {props.editable && file.sameAsDefault === false && (
           <Button
             icon={GitDiff}
             variant="quiet"
             onClick={() =>
               diff === null
-                ? void workflowConfigApi.defaultDiff(file.name).then((r) => setDiff(r.diff), (e: Error) => toast(e.message, { error: true }))
+                ? void workflowConfigApi.defaultDiff(file.name).then(
+                    (r) => setDiff(r.diff),
+                    (e: Error) => toast(e.message, { error: true }),
+                  )
                 : setDiff(null)
             }
           >
@@ -658,7 +648,13 @@ function FileEditor({ draft, config }: { draft: WorkflowDraft; config: WorkflowC
         <div className="wf-chips" aria-label={t("workflow.variables")}>
           <span className="pane-label">{t("workflow.variables")}</span>
           {[...config.variables, ...outputIds.map((id) => `out.${id}`)].map((v) => (
-            <button key={v} type="button" className="wf-chip mono" title={t(`workflow.var.${v.startsWith("out.") ? "out" : v}` as "workflow.var.key")} onClick={() => insert.current?.(`{{${v}}}`)}>
+            <button
+              key={v}
+              type="button"
+              className="wf-chip mono"
+              title={t(`workflow.var.${v.startsWith("out.") ? "out" : v}` as "workflow.var.key")}
+              onClick={() => insert.current?.(`{{${v}}}`)}
+            >
               {`{{${v}}}`}
             </button>
           ))}

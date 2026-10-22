@@ -43,10 +43,7 @@ export function agentArgs(opts: Pick<LaunchOptions, "model" | "subagent">): stri
  */
 const UI_SECRETS = new Set(["TASKPILOT_TOKEN", "TASKPILOT_AUTH_USER", "TASKPILOT_AUTH_PASSWORD"]);
 
-export function childEnv(
-  base: NodeJS.ProcessEnv = process.env,
-  extra: Record<string, string> = {},
-): Record<string, string> {
+export function childEnv(base: NodeJS.ProcessEnv = process.env, extra: Record<string, string> = {}): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(base)) {
     if (value !== undefined && !key.startsWith("CLAUDE") && !UI_SECRETS.has(key)) env[key] = value;

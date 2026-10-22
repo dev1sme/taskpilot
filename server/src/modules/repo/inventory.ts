@@ -110,9 +110,7 @@ async function countSkills(dir: string): Promise<number> {
     return 0;
   }
   // A skill folder may be a symlink; exists() follows it.
-  const found = await Promise.all(
-    entries.filter((e) => e.isDirectory() || e.isSymbolicLink()).map((e) => exists(path.join(dir, e.name, "SKILL.md"))),
-  );
+  const found = await Promise.all(entries.filter((e) => e.isDirectory() || e.isSymbolicLink()).map((e) => exists(path.join(dir, e.name, "SKILL.md"))));
   return found.filter(Boolean).length;
 }
 

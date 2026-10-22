@@ -2,12 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { hookSettings, HOOK_EVENTS } from "../../../src/modules/sessions/hooks.js";
-import {
-  DEFAULT_WORKFLOW_DIR,
-  loadWorkflow,
-  parseWorkflowFiles,
-  readWorkflowDir,
-} from "../../../src/modules/workflow/definition.js";
+import { DEFAULT_WORKFLOW_DIR, loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
 import { readRepoSettings } from "../../../src/modules/workflow/settings.js";
 import { cleanupTempDirs, makeRepo } from "../../helpers/fixtures.js";
 import { modeDir } from "../../../src/modules/workflow/modes.js";
@@ -172,8 +167,7 @@ describe("workflow definition", () => {
   });
 
   describe("model", () => {
-    const two = (top: string, a = "", b = "") =>
-      `version: 2\n${top}steps:\n  - id: a\n    prompt: p.md\n${a}  - id: b\n    prompt: p.md\n${b}`;
+    const two = (top: string, a = "", b = "") => `version: 2\n${top}steps:\n  - id: a\n    prompt: p.md\n${a}  - id: b\n    prompt: p.md\n${b}`;
 
     it("gives each step its own model, else the workflow's; default and inherit pass none", () => {
       const { def, errors } = parse(two("model: opus\n", "    model: claude-haiku-5-5\n", ""));
@@ -200,7 +194,10 @@ describe("workflow definition", () => {
 
       const copilot = parse(two("agent: copilot\nmodel: gpt-5.1-codex\n", "", "    agent: claude\n    model: sonnet\n"));
       expect(copilot.errors).toEqual([]);
-      expect(copilot.def!.steps.map((s) => [s.agent, s.model])).toEqual([["copilot", "gpt-5.1-codex"], ["claude", "sonnet"]]);
+      expect(copilot.def!.steps.map((s) => [s.agent, s.model])).toEqual([
+        ["copilot", "gpt-5.1-codex"],
+        ["claude", "sonnet"],
+      ]);
     });
 
     it("checks the workflow's model against a step that runs another agent", () => {

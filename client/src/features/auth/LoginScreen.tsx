@@ -42,16 +42,7 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
         </div>
 
         <label htmlFor={`${id}-user`}>{t("user")}</label>
-        <input
-          id={`${id}-user`}
-          value={user}
-          onChange={(e) => setUser(e.target.value)}
-          autoComplete="username"
-          autoCapitalize="none"
-          spellCheck={false}
-          autoFocus
-          required
-        />
+        <input id={`${id}-user`} value={user} onChange={(e) => setUser(e.target.value)} autoComplete="username" autoCapitalize="none" spellCheck={false} autoFocus required />
 
         <label htmlFor={`${id}-password`}>{t("password")}</label>
         <input

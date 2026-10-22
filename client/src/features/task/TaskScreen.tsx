@@ -93,8 +93,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
         <PageHeader
           crumbs={
             <>
-              <a href={href({ page: "overview" })}>{t("shell:nav.overview")}</a> / <a href={href({ page: "tasks" })}>{t("shell:nav.tasks")}</a> /{" "}
-              <span aria-current="page">{task.key}</span>
+              <a href={href({ page: "overview" })}>{t("shell:nav.overview")}</a> / <a href={href({ page: "tasks" })}>{t("shell:nav.tasks")}</a> / <span aria-current="page">{task.key}</span>
             </>
           }
           title={
@@ -109,10 +108,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
             pillPhase &&
             pill &&
             PillIcon && (
-              <span
-                className={`pill ${pill.tone}`}
-                title={pillPhase === "done" && task.done?.at ? t("doneAt", { time: new Date(task.done.at).toLocaleString("vi-VN") }) : undefined}
-              >
+              <span className={`pill ${pill.tone}`} title={pillPhase === "done" && task.done?.at ? t("doneAt", { time: new Date(task.done.at).toLocaleString("vi-VN") }) : undefined}>
                 <PillIcon weight="bold" className={working ? "spin" : undefined} aria-hidden="true" />
                 {t(`phase.${pillPhase}`)}
               </span>

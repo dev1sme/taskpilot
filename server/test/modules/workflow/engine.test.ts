@@ -108,7 +108,7 @@ describe("workflow engine", () => {
     expect(fake.pasted).toEqual([]);
 
     expect(await hook("SessionStart")).toMatchObject({ phase: "running" });
-    expect(fake.pasted[0]).toContain("task DEMO-1: \"Health endpoint\"");
+    expect(fake.pasted[0]).toContain('task DEMO-1: "Health endpoint"');
     expect(fake.pasted[0]).toContain(".claude/tasks/DEMO-1/spec/");
 
     // The fixture already has an old 02-plan.md; it must be rewritten during the step.
@@ -296,7 +296,7 @@ describe("workflow engine", () => {
     expect(log).toContain("· Đổi model\n\nBước này chạy bằng Claude (haiku) trong session mới; session Claude (opus) của bước trước đã dừng.");
   });
 
-    it("runs a step for another agent in a new session and logs the switch", async () => {
+  it("runs a step for another agent in a new session and logs the switch", async () => {
     engine = new WorkflowEngine(state, fake, async (r) => {
       const def = await loadWorkflow(r);
       def.steps[1].agent = "copilot";
@@ -449,14 +449,10 @@ describe("workflow engine", () => {
   it("keeps a run on the workflow it started with; a restart picks up edits", async () => {
     const dir = path.join(repo, ".taskpilot");
     await mkdir(dir, { recursive: true });
-    const yml = (prompt: string, steps: string) =>
-      `version: 2\nhistory: {file: log.md}\nsteps:\n${steps}`.replace("PROMPT", prompt);
+    const yml = (prompt: string, steps: string) => `version: 2\nhistory: {file: log.md}\nsteps:\n${steps}`.replace("PROMPT", prompt);
     await writeFile(path.join(dir, "one.md"), "First {{key}} {{outputs}} {{previousRun}}");
     await writeFile(path.join(dir, "two.md"), "Second {{out.plan}}");
-    await writeFile(
-      path.join(dir, "workflow.yml"),
-      yml("", "  - {id: a, prompt: one.md, outputs: [{id: plan, file: ke-hoach.md}], done-when: plan}\n  - {id: b, prompt: two.md}\n"),
-    );
+    await writeFile(path.join(dir, "workflow.yml"), yml("", "  - {id: a, prompt: one.md, outputs: [{id: plan, file: ke-hoach.md}], done-when: plan}\n  - {id: b, prompt: two.md}\n"));
     await engine.start(repo, "DEMO-1");
     await hook("SessionStart");
     expect(fake.pasted[0]).toContain("First DEMO-1 - `.claude/tasks/DEMO-1/ke-hoach.md`");
@@ -584,7 +580,10 @@ describe("workflow engine: dispatch", () => {
     const leader = await dispatch();
     let r = await run();
     expect(r).toMatchObject({ stepIndex: 1, phase: "running", message: "Đang giao việc: 0/2 xong.", sessionId: leader });
-    expect(r.subtasks!.map((s) => [s.n, s.phase, s.agent])).toEqual([[1, "starting", "claude"], [2, "pending", "copilot"]]);
+    expect(r.subtasks!.map((s) => [s.n, s.phase, s.agent])).toEqual([
+      [1, "starting", "claude"],
+      [2, "pending", "copilot"],
+    ]);
     const first = r.subtasks![0].sessionId!;
     expect(fake.sessions.get(first)).toMatchObject({ agent: "claude", title: "Việc 1" });
 
@@ -618,7 +617,12 @@ describe("workflow engine: dispatch", () => {
     expect(await engine.approve(repo, "DEMO-1")).toMatchObject({ phase: "done" });
 
     const log = await readFile(path.join(taskDir(), "00-history.md"), "utf8");
-    for (const heading of ["· Giao việc\n\n1. Claude — Parser\n2. Copilot — UI (sau việc 1)", "· Việc 1 xong · Claude\n\nBáo cáo: 03-viec-1.md", "· Việc 2 xong · Copilot", "· Giao việc · Về leader rà soát\n\n2 việc đã xong"]) {
+    for (const heading of [
+      "· Giao việc\n\n1. Claude — Parser\n2. Copilot — UI (sau việc 1)",
+      "· Việc 1 xong · Claude\n\nBáo cáo: 03-viec-1.md",
+      "· Việc 2 xong · Copilot",
+      "· Giao việc · Về leader rà soát\n\n2 việc đã xong",
+    ]) {
       expect(log).toContain(heading);
     }
   });
@@ -747,7 +751,12 @@ describe("workflow engine: dispatch", () => {
     ];
     const asked: string[] = [];
     const def = await leaderDef();
-    engine = new WorkflowEngine(state, fake, async () => def, async (r) => (asked.push(r), agents));
+    engine = new WorkflowEngine(
+      state,
+      fake,
+      async () => def,
+      async (r) => (asked.push(r), agents),
+    );
     const leader = (await engine.start(repo, "DEMO-1")).sessionId;
     await hookOn(leader, "SessionStart");
     const prompt = fake.pastedBy.get(leader)![0];
@@ -756,25 +765,23 @@ describe("workflow engine: dispatch", () => {
     expect(prompt).not.toContain("Writes.");
     expect(asked).toEqual([repo]);
 
-    const rows = (explorer: string) => [
-      "## 7. Phân công",
-      "",
-      "| # | Việc | Agent | Subagent | Model | File | Đầu ra | Phụ thuộc |",
-      "|---|---|---|---|---|---|---|---|",
-      "| 1 | A | claude | taskpilot-implementer | - | a/ | a | - |",
-      `| 2 | B | claude | ${explorer} | - | b/ | b | - |`,
-      "| 3 | C | claude | nope | - | c/ | c | - |",
-      // Copilot's custom agents are not checked.
-      "| 4 | D | copilot | nope | - | d/ | d | - |",
-    ].join("\n");
+    const rows = (explorer: string) =>
+      [
+        "## 7. Phân công",
+        "",
+        "| # | Việc | Agent | Subagent | Model | File | Đầu ra | Phụ thuộc |",
+        "|---|---|---|---|---|---|---|---|",
+        "| 1 | A | claude | taskpilot-implementer | - | a/ | a | - |",
+        `| 2 | B | claude | ${explorer} | - | b/ | b | - |`,
+        "| 3 | C | claude | nope | - | c/ | c | - |",
+        // Copilot's custom agents are not checked.
+        "| 4 | D | copilot | nope | - | d/ | d | - |",
+      ].join("\n");
     await write("02-plan.md", `# Plan\n\n${rows("taskpilot-explorer")}\n`);
     await hookOn(leader, "Stop");
     expect((await engine.view(repo, "DEMO-1")).assignments).toEqual({
       items: [],
-      errors: [
-        'subtask 2: subagent "taskpilot-explorer" cannot run a subtask: read-only',
-        'subtask 3: subagent "nope" not found in .claude/agents/ or ~/.claude/agents/',
-      ],
+      errors: ['subtask 2: subagent "taskpilot-explorer" cannot run a subtask: read-only', 'subtask 3: subagent "nope" not found in .claude/agents/ or ~/.claude/agents/'],
     });
     await expect(engine.approve(repo, "DEMO-1")).rejects.toMatchObject({ status: 400, message: expect.stringContaining("nope") });
 
@@ -785,7 +792,12 @@ describe("workflow engine: dispatch", () => {
 
   it("tells the leader when no subagent is usable", async () => {
     const def = await leaderDef();
-    engine = new WorkflowEngine(state, fake, async () => def, async () => []);
+    engine = new WorkflowEngine(
+      state,
+      fake,
+      async () => def,
+      async () => [],
+    );
     const leader = (await engine.start(repo, "DEMO-1")).sessionId;
     await hookOn(leader, "SessionStart");
     expect(fake.pastedBy.get(leader)![0]).toContain("Chưa có subagent nào dùng được");
@@ -793,12 +805,7 @@ describe("workflow engine: dispatch", () => {
 
   it("starts subtasks at once only when their files do not overlap; the rest queue", async () => {
     await setup(2);
-    const rows = [
-      "| 1 | A | claude | server/ | a | - |",
-      "| 2 | B | copilot | client/ | b | - |",
-      "| 3 | C | claude | server/x.ts | c | - |",
-      "| 4 | D | claude | docs/ | d | 1 |",
-    ];
+    const rows = ["| 1 | A | claude | server/ | a | - |", "| 2 | B | copilot | client/ | b | - |", "| 3 | C | claude | server/x.ts | c | - |", "| 4 | D | claude | docs/ | d | 1 |"];
     await dispatch(table(...rows));
     let r = await run();
     expect(r.subtasks!.map((s) => s.phase)).toEqual(["starting", "starting", "pending", "pending"]);

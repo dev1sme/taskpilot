@@ -138,12 +138,18 @@ function findTable(markdown: string): { header: string[]; rows: string[][] } | n
 
 /** A cell without the markdown a model decorates it with: `agent`, **agent**. */
 function plain(text: string): string {
-  return text.replace(/[`*_]/g, "").replace(/<br\s*\/?>/gi, " ").trim();
+  return text
+    .replace(/[`*_]/g, "")
+    .replace(/<br\s*\/?>/gi, " ")
+    .trim();
 }
 
 /** A name cell (subagent, model) without its decoration; unlike `plain`, keeps `_`, which names may contain. */
 function word(text: string): string {
-  return text.replace(/`|\*\*/g, "").replace(/<br\s*\/?>/gi, " ").trim();
+  return text
+    .replace(/`|\*\*/g, "")
+    .replace(/<br\s*\/?>/gi, " ")
+    .trim();
 }
 
 function list(text: string): string[] {

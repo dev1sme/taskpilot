@@ -14,8 +14,7 @@ import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer
 export function registerBackupsRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {
   const { requireRepo, backups } = opts;
 
-  const restorable = (b: { path: string; mcp?: { scope: string; repo: string } }, repo: string) =>
-    b.mcp ? b.mcp.scope === "user" || b.mcp.repo === repo : isAllowedPath(b.path, repo);
+  const restorable = (b: { path: string; mcp?: { scope: string; repo: string } }, repo: string) => (b.mcp ? b.mcp.scope === "user" || b.mcp.repo === repo : isAllowedPath(b.path, repo));
 
   app.get("/api/backups", async () => {
     const repo = requireRepo();

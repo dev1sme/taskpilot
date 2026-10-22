@@ -302,11 +302,13 @@ const hooklessCopilot: Launcher = (id) => ({ file: "/bin/sh", args: ["-c", HOOKL
 describe("launcher env", () => {
   it("reaches the child on top of the inherited environment, and not Claude's", async () => {
     const state = new StateStore(await tempDir("taskpilot-state-"));
-    const printEnv = (env?: Record<string, string>): Launcher => (id) => ({
-      file: "/bin/sh",
-      args: ["-c", 'echo "env:[$TP_LAUNCH_VAR]"; cat', "sh", id],
-      ...(env ? { env } : {}),
-    });
+    const printEnv =
+      (env?: Record<string, string>): Launcher =>
+      (id) => ({
+        file: "/bin/sh",
+        args: ["-c", 'echo "env:[$TP_LAUNCH_VAR]"; cat', "sh", id],
+        ...(env ? { env } : {}),
+      });
     app = await buildApp({ token: TOKEN, state, repo: await makeRepo(), launcher: printEnv(), launchers: { copilot: printEnv({ TP_LAUNCH_VAR: "yes" }) } });
     const open = async (agent: string) => {
       const s = (await app!.inject({ method: "POST", url: "/api/tasks/DEMO-1/sessions", headers: ok, payload: { agent } })).json();
@@ -325,7 +327,14 @@ describe("copilot sessions", () => {
   async function startCopilot() {
     const state = new StateStore(await tempDir("taskpilot-state-"));
     const repo = await makeRepo();
-    app = await buildApp({ token: TOKEN, state, repo, launcher: fakeClaude, launchers: { copilot: fakeCopilot }, copilotQuota: async () => ({ ok: true, snapshots: { premium_interactions: { remainingPercentage: 75 } } }) });
+    app = await buildApp({
+      token: TOKEN,
+      state,
+      repo,
+      launcher: fakeClaude,
+      launchers: { copilot: fakeCopilot },
+      copilotQuota: async () => ({ ok: true, snapshots: { premium_interactions: { remainingPercentage: 75 } } }),
+    });
     await app.listen({ host: "127.0.0.1", port: 0 });
     return { app, repo };
   }
@@ -383,7 +392,7 @@ describe("copilot sessions", () => {
     for (let i = 0; i < 100 && (await list())[0].activity !== "idle"; i++) await new Promise((r) => setTimeout(r, 50));
     expect((await list())[0].activity).toBe("idle");
     term.ws.close();
-   }, 15_000);
+  }, 15_000);
 
   describe("when no hook arrives", () => {
     async function hookless() {

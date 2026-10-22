@@ -65,13 +65,7 @@ function Viewer(props: { title: string | null; onClose: () => void; children: Re
     <AnimatePresence>
       {title && (
         <>
-          <motion.div
-            className="viewer-backdrop"
-            onClick={onClose}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          />
+          <motion.div className="viewer-backdrop" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
           <motion.div
             className="viewer"
             role="dialog"

@@ -5,15 +5,7 @@ import { Button } from "../../shared/ui/Button";
 import "./repo.css";
 import type { RepoInfo } from "../workspace";
 
-export function RepoPicker({
-  repo,
-  onChange,
-  autoFocus = false,
-}: {
-  repo: RepoInfo | null;
-  onChange: (path: string) => Promise<void>;
-  autoFocus?: boolean;
-}) {
+export function RepoPicker({ repo, onChange, autoFocus = false }: { repo: RepoInfo | null; onChange: (path: string) => Promise<void>; autoFocus?: boolean }) {
   const { t } = useTranslation("repo");
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);

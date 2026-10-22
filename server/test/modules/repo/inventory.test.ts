@@ -11,10 +11,7 @@ describe("readInventory", () => {
     const repo = await makeRepo();
     const claude = path.join(repo, ".claude");
     await writeFile(path.join(repo, "CLAUDE.md"), "# Repo\n\n## 1. Identity\nx\n\n## Git\ny\n\n```md\n## Not a heading\n```\n");
-    await writeFile(
-      path.join(repo, ".mcp.json"),
-      JSON.stringify({ mcpServers: { github: { type: "http", url: "https://x" }, pg: { command: "npx" } } }),
-    );
+    await writeFile(path.join(repo, ".mcp.json"), JSON.stringify({ mcpServers: { github: { type: "http", url: "https://x" }, pg: { command: "npx" } } }));
     await mkdir(path.join(claude, "agents"), { recursive: true });
     await writeFile(path.join(claude, "agents", "reviewer.md"), "");
     await mkdir(path.join(claude, "commands", "git"), { recursive: true });
@@ -27,14 +24,29 @@ describe("readInventory", () => {
       path.join(claude, "settings.json"),
       JSON.stringify({
         permissions: { allow: ["Bash(npm test)", "Read"], deny: ["Bash(rm *)"] },
-        hooks: { Stop: [{ hooks: [{ type: "command", command: "a" }, { type: "command", command: "b" }] }] },
+        hooks: {
+          Stop: [
+            {
+              hooks: [
+                { type: "command", command: "a" },
+                { type: "command", command: "b" },
+              ],
+            },
+          ],
+        },
       }),
     );
 
     expect(await readInventory(repo)).toEqual({
       claudeMd: expect.objectContaining({ exists: true, lines: 12, headings: ["Identity", "Git"] }),
       claudeLocalMd: false,
-      mcp: { exists: true, servers: [{ name: "github", type: "http" }, { name: "pg", type: "stdio" }] },
+      mcp: {
+        exists: true,
+        servers: [
+          { name: "github", type: "http" },
+          { name: "pg", type: "stdio" },
+        ],
+      },
       claudeDir: { agents: 1, commands: 2, skills: 1, hooks: 2, allow: 2, deny: 1 },
     });
   });

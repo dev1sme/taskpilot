@@ -85,8 +85,7 @@ export function promptVars(
   const taskDir = taskDirOf(task.key);
   const step = def.steps[stepIndex];
   const historyFile = `${taskDir}/${def.history.file}`;
-  const list = (outs: WorkflowDef["steps"][number]["outputs"]) =>
-    outs.map((o) => `- \`${taskDir}/${o.file}\`${o.content ? `: ${o.content}` : ""}`).join("\n");
+  const list = (outs: WorkflowDef["steps"][number]["outputs"]) => outs.map((o) => `- \`${taskDir}/${o.file}\`${o.content ? `: ${o.content}` : ""}`).join("\n");
   /** Each document of the step, with its skeleton when the workflow gives one; the skeleton rule is said once. */
   const documents = (outs: WorkflowDef["steps"][number]["outputs"]) => {
     const items = outs.map((o) => {
@@ -121,17 +120,19 @@ export function promptVars(
     Object.assign(subtaskVars, {
       subtask: subtaskBlock(sub, opts.subtasks ?? [], dispatch.parallel, reportOf),
       subtaskReport: reportOf(sub),
-      outputs: documents([
-        { id: "report", file: reportOf(sub).slice(taskDir.length + 1), content: PROMPT_TEXT.subtask.report, format: dispatch.format, formatText: dispatch.formatText },
-      ]),
+      outputs: documents([{ id: "report", file: reportOf(sub).slice(taskDir.length + 1), content: PROMPT_TEXT.subtask.report, format: dispatch.format, formatText: dispatch.formatText }]),
     });
   }
   const all = opts.subtasks ?? [];
   const lastDispatch = def.steps.find((s) => s.dispatch)?.dispatch;
   const listed = all.map(
     (a) =>
-      PROMPT_TEXT.subtaskLine(a.n, HISTORY_TEXT.worker(AGENT_LABELS[a.agent], a.subagent, a.model), a.title, `${taskDir}/${a.report ?? lastDispatch?.report.replaceAll("{{n}}", String(a.n)) ?? ""}`) +
-      (a.metrics ? ` · ${HISTORY_TEXT.metrics(a.metrics)}` : ""),
+      PROMPT_TEXT.subtaskLine(
+        a.n,
+        HISTORY_TEXT.worker(AGENT_LABELS[a.agent], a.subagent, a.model),
+        a.title,
+        `${taskDir}/${a.report ?? lastDispatch?.report.replaceAll("{{n}}", String(a.n)) ?? ""}`,
+      ) + (a.metrics ? ` · ${HISTORY_TEXT.metrics(a.metrics)}` : ""),
   );
 
   return {
@@ -149,12 +150,7 @@ export function promptVars(
 }
 
 /** The description of one subtask: what to do, where, and which earlier reports to read. */
-function subtaskBlock(
-  sub: Assignment,
-  all: Array<Assignment & { report?: string }>,
-  parallel: number,
-  reportOf: (a: { n: number; report?: string }) => string,
-): string {
+function subtaskBlock(sub: Assignment, all: Array<Assignment & { report?: string }>, parallel: number, reportOf: (a: { n: number; report?: string }) => string): string {
   const T = PROMPT_TEXT.subtask;
   const lines = [T.heading(sub.n, sub.title)];
   if (sub.output) lines.push(T.output(sub.output));
@@ -172,9 +168,7 @@ function subagentList(list: SubagentInfo[]): string {
   const usable = list.filter((a) => a.check?.roles.length && subagentNamed(list, a.name) === a);
   if (usable.length === 0) return T.none;
   const field = (a: SubagentInfo, key: string) => a.fields.find((f) => f.key === key)?.value;
-  return usable
-    .map((a) => T.line(a.name, a.scope, oneLine(a.description), field(a, "model"), field(a, "tools"), a.check!.roles))
-    .join("\n");
+  return usable.map((a) => T.line(a.name, a.scope, oneLine(a.description), field(a, "model"), field(a, "tools"), a.check!.roles)).join("\n");
 }
 
 /** A description on one line and short enough for a list; agent descriptions often carry examples. */
@@ -197,7 +191,12 @@ function previousRun(def: WorkflowDef, previous: RunState["previous"], taskDir: 
   const log = PROMPT_TEXT.restartLog(historyFile);
   if (previous.files.length === 0) return [PROMPT_TEXT.restartedEmpty, PROMPT_TEXT.readFirst, log].join("\n");
   const wanted = def.restart
-    ? def.restart.read.flatMap((id) => def.steps.flatMap((s) => s.outputs).filter((o) => o.id === id).map((o) => o.file))
+    ? def.restart.read.flatMap((id) =>
+        def.steps
+          .flatMap((s) => s.outputs)
+          .filter((o) => o.id === id)
+          .map((o) => o.file),
+      )
     : previous.files;
   const read = wanted.filter((f) => previous.files.includes(f));
   return [PROMPT_TEXT.restarted(dir, previous.files), PROMPT_TEXT.readFirst, ...read.map((f) => `- ${dir}/${f}`), log].join("\n");

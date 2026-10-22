@@ -142,15 +142,7 @@ function Shell() {
       </a>
       {narrow && (
         <header className="mobile-bar" inert={drawerOpen}>
-          <button
-            ref={menuRef}
-            type="button"
-            className="mobile-menu"
-            onClick={() => setDrawer(true)}
-            aria-label={t("sidebar.open")}
-            aria-expanded={drawerOpen}
-            aria-controls="sidebar"
-          >
+          <button ref={menuRef} type="button" className="mobile-menu" onClick={() => setDrawer(true)} aria-label={t("sidebar.open")} aria-expanded={drawerOpen} aria-controls="sidebar">
             <List aria-hidden="true" />
           </button>
           <span className="mobile-repo">{repoName}</span>

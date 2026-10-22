@@ -23,7 +23,14 @@ describe("copilotLauncher", () => {
 
   it("passes --agent and --model after the permission flags", () => {
     expect(copilotLauncher("s1", { resume: true, permissionMode: "plan", subagent: "reviewer", model: "gpt-5.4" }).args).toEqual([
-      "--session-id", "s1", "--mode", "plan", "--agent", "reviewer", "--model", "gpt-5.4",
+      "--session-id",
+      "s1",
+      "--mode",
+      "plan",
+      "--agent",
+      "reviewer",
+      "--model",
+      "gpt-5.4",
     ]);
   });
 

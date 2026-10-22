@@ -136,7 +136,12 @@ function ScopeSection({ file, draft }: { file: SettingsFile; draft: PermissionsD
         <>
           {file.defaultMode && (
             <p className="mode-line">
-              <Trans t={t} i18nKey="settings.defaultMode" values={{ mode: file.defaultMode, label: knownMode(file.defaultMode) ? t(`settings.modeLabel.${file.defaultMode}`) : "" }} components={{ code: <code /> }} />
+              <Trans
+                t={t}
+                i18nKey="settings.defaultMode"
+                values={{ mode: file.defaultMode, label: knownMode(file.defaultMode) ? t(`settings.modeLabel.${file.defaultMode}`) : "" }}
+                components={{ code: <code /> }}
+              />
             </p>
           )}
           <div className="rule-columns">
@@ -146,7 +151,10 @@ function ScopeSection({ file, draft }: { file: SettingsFile; draft: PermissionsD
           </div>
           {file.additionalDirectories.length > 0 && (
             <p className="mode-line">
-              {t("settings.extraDirs")}{file.additionalDirectories.map((d) => <code key={d}>{d}</code>)}
+              {t("settings.extraDirs")}
+              {file.additionalDirectories.map((d) => (
+                <code key={d}>{d}</code>
+              ))}
             </p>
           )}
           {file.env.length > 0 && (

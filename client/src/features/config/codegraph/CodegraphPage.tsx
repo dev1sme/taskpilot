@@ -55,9 +55,7 @@ export function CodegraphPage() {
       <ConfigToolbar readOnly loading={loading} onReload={() => void reload()} />
       <LoadError error={error} />
       <div className="page-body">
-        {status && !status.supported && (
-          <EmptyCard title={t("codegraph.outsideTitle")}>{t("codegraph.outsideBody")}</EmptyCard>
-        )}
+        {status && !status.supported && <EmptyCard title={t("codegraph.outsideTitle")}>{t("codegraph.outsideBody")}</EmptyCard>}
         {status && status.supported && (
           <div className="cg-stack">
             <section className="card">

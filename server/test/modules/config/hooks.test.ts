@@ -13,13 +13,31 @@ describe("hooks editing", () => {
       settings(),
       JSON.stringify({
         env: { K: "secret-env" },
-        hooks: { Stop: [{ hooks: [{ type: "command", command: "old" }, { type: "prompt", prompt: "keep me" }] }] },
+        hooks: {
+          Stop: [
+            {
+              hooks: [
+                { type: "command", command: "old" },
+                { type: "prompt", prompt: "keep me" },
+              ],
+            },
+          ],
+        },
       }),
     );
     const before = await get("/api/config/settings/project/hooks");
     expect(before.hooks).toEqual([{ event: "Stop", matcher: "", command: "old" }]);
     // raw is the "hooks" value as written, prompt hooks included, and nothing else from the file.
-    expect(before.raw).toEqual({ Stop: [{ hooks: [{ type: "command", command: "old" }, { type: "prompt", prompt: "keep me" }] }] });
+    expect(before.raw).toEqual({
+      Stop: [
+        {
+          hooks: [
+            { type: "command", command: "old" },
+            { type: "prompt", prompt: "keep me" },
+          ],
+        },
+      ],
+    });
 
     const body = {
       hooks: [
@@ -41,12 +59,11 @@ describe("hooks editing", () => {
     });
   });
 
-  it.each([
-    [{ event: "not an event", matcher: "", command: "x" }],
-    [{ event: "Stop", matcher: "", command: "a\nb" }],
-    [{ event: "Stop", matcher: "", command: "x", timeout: 0 }],
-  ])("rejects invalid hook %#", async (hook) => {
-    const before = await get("/api/config/settings/project/hooks");
-    expect((await send("PUT", "/api/config/settings/project/hooks", { hooks: [hook], baseHash: before.hash })).statusCode).toBe(400);
-  });
+  it.each([[{ event: "not an event", matcher: "", command: "x" }], [{ event: "Stop", matcher: "", command: "a\nb" }], [{ event: "Stop", matcher: "", command: "x", timeout: 0 }]])(
+    "rejects invalid hook %#",
+    async (hook) => {
+      const before = await get("/api/config/settings/project/hooks");
+      expect((await send("PUT", "/api/config/settings/project/hooks", { hooks: [hook], baseHash: before.hash })).statusCode).toBe(400);
+    },
+  );
 });

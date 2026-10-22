@@ -41,13 +41,7 @@ export function ToastHost() {
     <div className="toast-stack" role="status" aria-live="polite">
       <AnimatePresence>
         {items.map((t) => (
-          <motion.div
-            key={t.id}
-            className={`toast${t.error ? " is-error" : ""}`}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, x: 24 }}
-          >
+          <motion.div key={t.id} className={`toast${t.error ? " is-error" : ""}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 24 }}>
             {t.error ? <WarningCircle weight="fill" aria-hidden="true" /> : <CheckCircle weight="fill" aria-hidden="true" />}
             <span>{t.text}</span>
             {t.action && (

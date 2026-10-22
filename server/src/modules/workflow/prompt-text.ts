@@ -6,13 +6,11 @@ import { HISTORY_TEXT } from "./history.js";
  */
 export const PROMPT_TEXT = {
   skeleton: "Tài liệu có khung: giữ heading đúng thứ tự, điền mọi mục, bỏ gợi ý <!-- -->.",
-  restarted: (dir: string, files: string[]) =>
-    `Task này được chạy lại từ bước đầu. Tài liệu của lần chạy trước đã được lưu vào\n${dir}/ (${files.join(", ")}).`,
+  restarted: (dir: string, files: string[]) => `Task này được chạy lại từ bước đầu. Tài liệu của lần chạy trước đã được lưu vào\n${dir}/ (${files.join(", ")}).`,
   restartedEmpty: "Task này được chạy lại từ bước đầu; lần chạy trước chưa có tài liệu nào để lưu.",
   readFirst: "Trước tiên, đọc các file sau để biết lần trước đã làm gì và vì sao chạy lại:",
   /** Starting text of a prompt file added on the Workflow page, laid out like the built-in prompts. */
-  newPrompt:
-    '## Bối cảnh\n\nTask {{key}}: "{{title}}". Yêu cầu nằm trong {{specDir}}/.\n\n## Tài liệu cần viết\n\n{{outputs}}\n\n## Quy tắc\n\n{{rules}}\n\n{{language}}\n',
+  newPrompt: '## Bối cảnh\n\nTask {{key}}: "{{title}}". Yêu cầu nằm trong {{specDir}}/.\n\n## Tài liệu cần viết\n\n{{outputs}}\n\n## Quy tắc\n\n{{rules}}\n\n{{language}}\n',
   /** The task the Workflow page previews prompts with: a sample, so no real task's state is implied. */
   sampleTask: { key: "TASK-1", title: "Tên task mẫu" },
   sampleArchive: "archive/<YYYYMMDD-HHMMSS>",
@@ -28,8 +26,7 @@ export const PROMPT_TEXT = {
     noFiles: "File được sửa: leader không khai; chỉ sửa những gì việc này cần.",
     dependsOn: "Các việc trước đó đã xong; đọc báo cáo của chúng trước khi làm:",
     dependency: (report: string, n: number, title: string) => `- \`${report}\` (việc ${n}: ${title})`,
-    noCommit:
-      "Không commit: các việc có thể chạy song song và dùng chung working tree. Leader commit ở bước rà soát. Chỉ sửa các file đã liệt kê ở trên.",
+    noCommit: "Không commit: các việc có thể chạy song song và dùng chung working tree. Leader commit ở bước rà soát. Chỉ sửa các file đã liệt kê ở trên.",
     report: "báo cáo việc này: đã làm gì, file đã sửa, kết quả build/test, vướng mắc",
   },
   /** One line of {{subtasks}}, the list the leader reviews; `worker` is the agent with its subagent and model. */

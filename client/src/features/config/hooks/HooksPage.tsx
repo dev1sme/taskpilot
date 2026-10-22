@@ -85,7 +85,15 @@ export function HooksPage() {
     <div className="page">
       <ConfigHeader title={t("hooks.title")} subtitle={t("hooks.subtitle")} />
       <ConfigToolbar
-        start={<ScopeTabs value={scope} onChange={setScope} label={t("settings.tabsLabel")} labels={{ project: tabLabel("project"), local: tabLabel("local"), user: tabLabel("user") }} isDirty={(s) => isDirty(hooksKey(s))} />}
+        start={
+          <ScopeTabs
+            value={scope}
+            onChange={setScope}
+            label={t("settings.tabsLabel")}
+            labels={{ project: tabLabel("project"), local: tabLabel("local"), user: tabLabel("user") }}
+            isDirty={(s) => isDirty(hooksKey(s))}
+          />
+        }
         loading={loading}
         onReload={() => void reload()}
         actions={actions}
@@ -101,9 +109,7 @@ export function HooksPage() {
           <HooksView file={data} />
         ) : (
           <div className="page-body">
-            <EmptyCard title={t("hooks.emptyTitle", { file: tabLabel(scope) })}>
-              {t("hooks.emptyBody", { state: data.exists ? t("hooks.noSection") : t("settings.missingFile") })}
-            </EmptyCard>
+            <EmptyCard title={t("hooks.emptyTitle", { file: tabLabel(scope) })}>{t("hooks.emptyBody", { state: data.exists ? t("hooks.noSection") : t("settings.missingFile") })}</EmptyCard>
           </div>
         ))
       )}

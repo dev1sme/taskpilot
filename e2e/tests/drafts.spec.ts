@@ -32,9 +32,7 @@ test("an edited draft is unsaved and cancelling asks first", async ({ page }) =>
 
 test("saving leaves a toast that links to Lịch sử thay đổi", async ({ page }) => {
   // The write is faked so the shared fixture's CLAUDE.md stays as it is for the other tests.
-  await page.route("**/api/config/memory/project", (route) =>
-    route.request().method() === "PUT" ? route.fulfill({ json: { ok: true, hash: "next" } }) : route.fallback(),
-  );
+  await page.route("**/api/config/memory/project", (route) => (route.request().method() === "PUT" ? route.fulfill({ json: { ok: true, hash: "next" } }) : route.fallback()));
   await page.goto("/#/memory");
   await page.getByRole("button", { name: "Sửa", exact: true }).click();
   await page.locator(".cm-content").click();

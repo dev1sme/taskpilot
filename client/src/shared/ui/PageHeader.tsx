@@ -7,17 +7,16 @@ import "./page-header.css";
 export const OPEN_PALETTE = "taskpilot:palette";
 
 /** Page title row: optional breadcrumb, title, subtitle, actions, and the ⌘K search button. */
-export function PageHeader(props: {
-  crumbs?: ReactNode;
-  title: ReactNode;
-  subtitle?: ReactNode;
-  actions?: ReactNode;
-}) {
+export function PageHeader(props: { crumbs?: ReactNode; title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
   const { t } = useTranslation("shell");
   return (
     <header className="page-header">
       <div className="page-heading">
-        {props.crumbs && <nav className="crumbs" aria-label={t("header.crumbs")}>{props.crumbs}</nav>}
+        {props.crumbs && (
+          <nav className="crumbs" aria-label={t("header.crumbs")}>
+            {props.crumbs}
+          </nav>
+        )}
         <h1>{props.title}</h1>
         {props.subtitle && <p className="page-sub">{props.subtitle}</p>}
       </div>

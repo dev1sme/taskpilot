@@ -9,7 +9,7 @@ afterAll(cleanupTempDirs);
 describe("dotenv", () => {
   it("fills unset variables only, skips empty values, ignores a missing file", async () => {
     const file = path.join(await tempDir("taskpilot-env-"), ".env");
-    await writeFile(file, "A=from-file\nB=from-file\nC=\n# comment\nD=\"quoted value\"\n");
+    await writeFile(file, 'A=from-file\nB=from-file\nC=\n# comment\nD="quoted value"\n');
     const env: NodeJS.ProcessEnv = { B: "from-env" };
     loadDotEnv(file, env);
     expect(env).toEqual({ A: "from-file", B: "from-env", D: "quoted value" });

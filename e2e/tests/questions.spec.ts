@@ -56,18 +56,16 @@ test("at the gate each question gets its own answer; approving sends them along"
   await form.getByRole("textbox", { name: "Câu trả lời cho câu 3" }).fill("Không");
 
   await page.getByRole("button", { name: "Duyệt kèm trả lời, sang bước tiếp" }).click();
-  await expect.poll(() => sent).toEqual([
-    {
-      url: "/api/tasks/PROJ-1/run/approve",
-      body: {
-        note: [
-          "1. Đổi tên bước 2?\n   → Theo đề xuất: đổi thành Triển khai",
-          "2. Tách phần G ra task riêng?\n   → Tách ra TPL-009",
-          "3. Có cần banner?\n   → Không",
-        ].join("\n"),
+  await expect
+    .poll(() => sent)
+    .toEqual([
+      {
+        url: "/api/tasks/PROJ-1/run/approve",
+        body: {
+          note: ["1. Đổi tên bước 2?\n   → Theo đề xuất: đổi thành Triển khai", "2. Tách phần G ra task riêng?\n   → Tách ra TPL-009", "3. Có cần banner?\n   → Không"].join("\n"),
+        },
       },
-    },
-  ]);
+    ]);
 });
 
 test("the answers can go back to Claude as feedback, with an extra note", async ({ page }) => {
@@ -77,9 +75,7 @@ test("the answers can go back to Claude as feedback, with an extra note", async 
   await form.getByRole("radiogroup", { name: "Trả lời câu 2" }).getByRole("radio", { name: "Chưa trả lời" }).check();
   await page.getByRole("textbox", { name: /gửi các câu trả lời như góp ý/ }).fill("Thêm test e2e");
   await page.getByRole("button", { name: "Gửi góp ý" }).click();
-  await expect.poll(() => sent).toEqual([
-    { url: "/api/tasks/PROJ-1/run/feedback", body: { text: "1. Đổi tên bước 2?\n   → Theo đề xuất: đổi thành Triển khai\n\nThêm test e2e" } },
-  ]);
+  await expect.poll(() => sent).toEqual([{ url: "/api/tasks/PROJ-1/run/feedback", body: { text: "1. Đổi tên bước 2?\n   → Theo đề xuất: đổi thành Triển khai\n\nThêm test e2e" } }]);
 });
 
 test("while Claude waits, it is answered from the card instead of the terminal", async ({ page }) => {
@@ -89,12 +85,14 @@ test("while Claude waits, it is answered from the card instead of the terminal",
   await expect(card.getByRole("group", { name: "Claude hỏi 3 câu" })).toBeVisible();
   await card.getByRole("textbox", { name: "Câu trả lời cho câu 3" }).fill("Có");
   await card.getByRole("button", { name: "Gửi trả lời" }).click();
-  await expect.poll(() => sent).toEqual([
-    {
-      url: "/api/tasks/PROJ-1/run/reply",
-      body: { text: "1. Đổi tên bước 2?\n   → Theo đề xuất: đổi thành Triển khai\n2. Tách phần G ra task riêng?\n   → Theo đề xuất: giữ\n3. Có cần banner?\n   → Có" },
-    },
-  ]);
+  await expect
+    .poll(() => sent)
+    .toEqual([
+      {
+        url: "/api/tasks/PROJ-1/run/reply",
+        body: { text: "1. Đổi tên bước 2?\n   → Theo đề xuất: đổi thành Triển khai\n2. Tách phần G ra task riêng?\n   → Theo đề xuất: giữ\n3. Có cần banner?\n   → Có" },
+      },
+    ]);
 });
 
 test("the prompt sent to the task opens from the toolbar", async ({ page }) => {

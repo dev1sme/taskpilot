@@ -34,11 +34,7 @@ export function Button({
       disabled={disabled || busy}
       aria-busy={busy || undefined}
     >
-      {busy ? (
-        <CircleNotch className="btn-icon spin" aria-hidden="true" />
-      ) : (
-        IconComponent && <IconComponent className="btn-icon" weight="bold" aria-hidden="true" />
-      )}
+      {busy ? <CircleNotch className="btn-icon spin" aria-hidden="true" /> : IconComponent && <IconComponent className="btn-icon" weight="bold" aria-hidden="true" />}
       <span>{children}</span>
     </button>
   );

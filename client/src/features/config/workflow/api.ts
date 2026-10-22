@@ -12,8 +12,7 @@ export const workflowConfigApi = {
   migrate: (body: { apply?: boolean; hashes?: Record<string, string> }) => call<MigrationPreview>("POST", "/api/config/workflow/override/migrate", body),
   reset: (hashes: Record<string, string>) => call<{ files: string[] }>("POST", "/api/config/workflow/reset", { hashes }),
   validate: (name: string, content: string) => call<{ errors: string[]; warnings: string[] }>("POST", "/api/config/workflow/validate", { name, content }),
-  preview: (name: string, content: string, baseHash: string) =>
-    call<Preview & { warnings: string[] }>("POST", "/api/config/workflow/preview", { name, content, baseHash }),
+  preview: (name: string, content: string, baseHash: string) => call<Preview & { warnings: string[] }>("POST", "/api/config/workflow/preview", { name, content, baseHash }),
   save: (name: string, content: string, baseHash: string) => call<SaveResult>("PUT", "/api/config/workflow/file", { name, content, baseHash }),
   remove: (name: string, baseHash: string) => call<SaveResult>("DELETE", `/api/config/workflow/file?name=${q(name)}&baseHash=${q(baseHash)}`),
   defaultDiff: (name: string) => call<{ diff: string; same: boolean }>("GET", `/api/config/workflow/default-diff?name=${q(name)}`),

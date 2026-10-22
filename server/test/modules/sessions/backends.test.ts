@@ -62,7 +62,10 @@ describe("normalizeCopilot", () => {
     const dir = await tempDir("taskpilot-copilot-");
     const transcript = path.join(dir, "events.jsonl");
     const line = (type: string, content: string) => JSON.stringify({ type, data: { content } });
-    await writeFile(transcript, [line("user.message", "hi"), line("assistant.message", "Plan.\n\n1. Q? — Đề xuất: có"), line("assistant.message", ""), line("assistant.turn_end", "")].join("\n"));
+    await writeFile(
+      transcript,
+      [line("user.message", "hi"), line("assistant.message", "Plan.\n\n1. Q? — Đề xuất: có"), line("assistant.message", ""), line("assistant.turn_end", "")].join("\n"),
+    );
     const stop = { session_id: SID, transcript_path: transcript, stop_reason: "end_turn" };
     expect(await normalizeCopilot("Stop", stop, state())).toMatchObject({ last_assistant_message: "Plan.\n\n1. Q? — Đề xuất: có" });
     expect(await lastAssistantMessage(path.join(dir, "missing.jsonl"))).toBeNull();
@@ -94,7 +97,8 @@ describe("copilot hook file", () => {
 
   it("does nothing in a Copilot that TaskPilot did not start", () => {
     const stop = (JSON.parse(userHooksText()) as { hooks: { Stop: Array<{ bash: string }> } }).hooks.Stop[0].bash;
-    const run = (env: Record<string, string>) => spawnSync("sh", ["-c", stop.replace("curl ", "echo curl-ran #")], { env: { PATH: process.env.PATH ?? "", ...env }, encoding: "utf8" }).stdout;
+    const run = (env: Record<string, string>) =>
+      spawnSync("sh", ["-c", stop.replace("curl ", "echo curl-ran #")], { env: { PATH: process.env.PATH ?? "", ...env }, encoding: "utf8" }).stdout;
     expect(run({})).toBe("");
     expect(run({ TASKPILOT_HOOK_TOKEN: "t" })).toBe("");
     expect(run({ TASKPILOT_HOOK_AGENT: "copilot" })).toBe("");

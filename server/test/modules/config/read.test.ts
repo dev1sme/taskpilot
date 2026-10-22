@@ -102,11 +102,7 @@ describe("readMemory", () => {
       ["missing.md", false, 1],
     ]);
     const warnings = project.checks.filter((c) => c.level === "warn").map((c) => c.message);
-    expect(warnings).toEqual([
-      "Không tìm thấy missing.md",
-      'Nhắc "npm run e2e" nhưng package.json không có script này',
-      "Có thể chứa khoá API dạng sk-…; file này được nạp vào mọi session",
-    ]);
+    expect(warnings).toEqual(["Không tìm thấy missing.md", 'Nhắc "npm run e2e" nhưng package.json không có script này', "Có thể chứa khoá API dạng sk-…; file này được nạp vào mọi session"]);
     expect(local.exists).toBe(false);
     expect(user).toMatchObject({ exists: true, content: "# Global\n" });
   });
@@ -131,9 +127,7 @@ describe("readSettings / readHooks", () => {
   });
 
   it("flattens hooks", async () => {
-    expect(await readHooks(repo)).toEqual([
-      expect.objectContaining({ scope: "project", event: "PostToolUse", matcher: "Edit|Write", command: "npx prettier -w", timeout: 30 }),
-    ]);
+    expect(await readHooks(repo)).toEqual([expect.objectContaining({ scope: "project", event: "PostToolUse", matcher: "Edit|Write", command: "npx prettier -w", timeout: 30 })]);
   });
 });
 

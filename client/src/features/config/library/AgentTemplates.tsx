@@ -55,11 +55,7 @@ export function CheckSection({ check }: { check: AgentCheck }) {
       <p className="agent-check-status">
         <CheckPill check={check} /> {t(`library.check.status.${check.status}`)}
       </p>
-      <p>
-        {check.roles.length > 0
-          ? t("library.check.roles", { roles: check.roles.map((r) => t(`library.check.role.${r}`)).join(", ") })
-          : t("library.check.noRoles")}
-      </p>
+      <p>{check.roles.length > 0 ? t("library.check.roles", { roles: check.roles.map((r) => t(`library.check.role.${r}`)).join(", ") }) : t("library.check.noRoles")}</p>
       {check.problems.length > 0 && (
         <ul className="agent-check-problems">
           {check.problems.map((p) => (

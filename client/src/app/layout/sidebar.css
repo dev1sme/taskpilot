@@ -67,7 +67,10 @@
   background: none;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
-  transition: color var(--fast) var(--ease-out), border-color var(--fast) var(--ease-out), background-color var(--fast) var(--ease-out);
+  transition:
+    color var(--fast) var(--ease-out),
+    border-color var(--fast) var(--ease-out),
+    background-color var(--fast) var(--ease-out);
 }
 
 .account-logout:hover {
@@ -117,7 +120,9 @@
   background: none;
   border: 1px solid transparent;
   border-radius: var(--r-sm);
-  transition: color var(--fast) var(--ease-out), background-color var(--fast) var(--ease-out);
+  transition:
+    color var(--fast) var(--ease-out),
+    background-color var(--fast) var(--ease-out);
 }
 
 .sidebar-toggle:hover {
@@ -225,7 +230,9 @@
   background: none;
   border: 0;
   border-radius: var(--r-sm);
-  transition: color var(--fast) var(--ease-out), background-color var(--fast) var(--ease-out);
+  transition:
+    color var(--fast) var(--ease-out),
+    background-color var(--fast) var(--ease-out);
 }
 
 .nav-toggle:hover {
@@ -256,7 +263,9 @@
   color: var(--muted);
   text-decoration: none;
   border-radius: var(--r-sm);
-  transition: color var(--fast) var(--ease-out), background-color var(--fast) var(--ease-out);
+  transition:
+    color var(--fast) var(--ease-out),
+    background-color var(--fast) var(--ease-out);
 }
 
 .nav-item:hover {
@@ -460,7 +469,9 @@
   width: min(300px, 86vw);
   transform: translateX(-100%);
   visibility: hidden;
-  transition: transform 200ms var(--ease-out), visibility 0s linear 200ms;
+  transition:
+    transform 200ms var(--ease-out),
+    visibility 0s linear 200ms;
 }
 
 .shell.drawer-open > .sidebar.is-drawer {

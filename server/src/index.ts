@@ -94,12 +94,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 }
 
 function openBrowser(target: string): void {
-  const [cmd, args] =
-    process.platform === "darwin"
-      ? ["open", [target]]
-      : process.platform === "win32"
-        ? ["cmd", ["/c", "start", "", target]]
-        : ["xdg-open", [target]];
+  const [cmd, args] = process.platform === "darwin" ? ["open", [target]] : process.platform === "win32" ? ["cmd", ["/c", "start", "", target]] : ["xdg-open", [target]];
   const child = spawn(cmd, args, { stdio: "ignore", detached: true });
   child.on("error", () => console.log("Could not open a browser; open the URL above."));
   child.unref();

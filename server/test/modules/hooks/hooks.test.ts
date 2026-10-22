@@ -14,8 +14,7 @@ describe("hook route", () => {
   it("logs a hook it refuses, since the hook command swallows the error", async () => {
     app = await buildApp({ token: TOKEN, state: new StateStore(await tempDir("taskpilot-state-")) });
     const warn = vi.spyOn(app.log, "warn");
-    const post = (headers: Record<string, string>) =>
-      app!.inject({ method: "POST", url: "/hook/Stop", headers: { host: "127.0.0.1:8790", ...headers }, payload: {} });
+    const post = (headers: Record<string, string>) => app!.inject({ method: "POST", url: "/hook/Stop", headers: { host: "127.0.0.1:8790", ...headers }, payload: {} });
 
     expect((await post({ "x-taskpilot-hook-token": "stale" })).statusCode).toBe(403);
     expect(warn).toHaveBeenLastCalledWith({ event: "Stop", hasToken: true }, expect.stringContaining("refused"));

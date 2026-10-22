@@ -77,7 +77,10 @@ describe("status line relay", () => {
       if (frame.t === "o") output += frame.d;
     });
     ws.send(JSON.stringify({ t: "r", cols: 80, rows: 24 }));
-    await waitFor(async () => output, (o) => o.includes("done"));
+    await waitFor(
+      async () => output,
+      (o) => o.includes("done"),
+    );
     expect(output).toContain("user-line");
     ws.close();
     await app.inject({ method: "POST", url: `/api/sessions/${s.id}/stop`, headers: ok });

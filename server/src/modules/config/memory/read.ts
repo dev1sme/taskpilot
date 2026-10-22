@@ -116,14 +116,7 @@ async function readOne(scope: MemoryScope, file: string, repo: string, scripts: 
 }
 
 /** `@path` references outside code, resolved relative to the importing file, recursively. */
-async function collectImports(
-  text: string,
-  dir: string,
-  depth: number,
-  out: MemoryImport[],
-  seen: Set<string>,
-  repo: string,
-): Promise<void> {
+async function collectImports(text: string, dir: string, depth: number, out: MemoryImport[], seen: Set<string>, repo: string): Promise<void> {
   if (depth > MAX_IMPORT_DEPTH) return;
   let inFence = false;
   const lines = text.split("\n");

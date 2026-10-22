@@ -57,8 +57,7 @@ export function WorkflowForm(props: { text: string; prompts: string[]; onChange:
     props.onChange(next.toString());
   };
   /** Sets a value; an empty optional value removes the key. */
-  const set = (path: Path, value: string, optional = false) =>
-    edit((d) => (optional && value === "" ? d.deleteIn(path) : d.setIn(path, value)));
+  const set = (path: Path, value: string, optional = false) => edit((d) => (optional && value === "" ? d.deleteIn(path) : d.setIn(path, value)));
   const add = (path: Path, value: unknown) =>
     edit((d) => {
       if (!isSeq(d.getIn(path))) d.setIn(path, d.createNode([]));
@@ -164,7 +163,10 @@ export function WorkflowForm(props: { text: string; prompts: string[]; onChange:
           {step.dispatch && (
             <DispatchFields
               step={step}
-              earlierOutputs={steps.slice(0, i).flatMap((s) => (s.outputs ?? []).map((o) => o.id ?? "")).filter(Boolean)}
+              earlierOutputs={steps
+                .slice(0, i)
+                .flatMap((s) => (s.outputs ?? []).map((o) => o.id ?? ""))
+                .filter(Boolean)}
               prompts={props.prompts}
               onSet={(key, value, optional) => set(["steps", i, "dispatch", key], value, optional)}
               onParallel={(n) => edit((d) => d.setIn(["steps", i, "dispatch", "parallel"], n))}
@@ -172,87 +174,106 @@ export function WorkflowForm(props: { text: string; prompts: string[]; onChange:
               onId={(v) => set(["steps", i, "id"], v)}
             />
           )}
-          {!step.dispatch && (<>
-          <div className="form-grid">
-            <Field label={t("workflow.form.title")}>{(id) => <input id={id} value={step.title ?? ""} onChange={(e) => set(["steps", i, "title"], e.target.value, true)} />}</Field>
-            <Field label={t("workflow.form.id")} help={t("workflow.form.idHelp")}>
-              {(id) => <input id={id} className="mono" value={step.id ?? ""} onChange={(e) => set(["steps", i, "id"], e.target.value)} />}
-            </Field>
-            <Field label={t("workflow.form.prompt")}>
-              {(id) => (
-                <select id={id} value={step.prompt ?? ""} onChange={(e) => set(["steps", i, "prompt"], e.target.value)}>
-                  {!props.prompts.includes(step.prompt ?? "") && <option value={step.prompt ?? ""}>{step.prompt || "—"}</option>}
-                  {props.prompts.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </Field>
-            <Field label={t("workflow.form.onReject")} help={t("workflow.form.onRejectHelp")}>
-              {(id) => (
-                <select id={id} value={step["on-reject"] ?? ""} onChange={(e) => set(["steps", i, "on-reject"], e.target.value, true)}>
-                  <option value="">{t("workflow.form.none")}</option>
-                  {props.prompts.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </Field>
-            <Field label={t("workflow.form.agent")} help={t("workflow.form.stepAgentHelp")}>
-              {(id) => (
-                <select id={id} value={step.agent ?? ""} onChange={(e) => set(["steps", i, "agent"], e.target.value, true)}>
-                  <option value="">{t("workflow.form.stepAgentDefault", { agent: AGENT_LABELS[workflowAgent] })}</option>
-                  {AGENTS.map((a) => (
-                    <option key={a} value={a}>
-                      {AGENT_LABELS[a]}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </Field>
-            <Field label={t("workflow.form.gate")}>
-              {(id) => (
-                <select id={id} value={step.gate ?? "none"} onChange={(e) => set(["steps", i, "gate"], e.target.value)}>
-                  <option value="approve">{t("workflow.gate.approve")}</option>
-                  <option value="none">{t("workflow.gate.none")}</option>
-                </select>
-              )}
-            </Field>
-            <Field label={t("workflow.form.doneWhen")} help={t("workflow.form.doneWhenHelp")}>
-              {(id) => (
-                <select id={id} value={step["done-when"] ?? ""} onChange={(e) => set(["steps", i, "done-when"], e.target.value, true)}>
-                  <option value="">{t("workflow.form.none")}</option>
-                  {(step.outputs ?? []).map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.id} ({o.file})
-                    </option>
-                  ))}
-                </select>
-              )}
-            </Field>
-          </div>
+          {!step.dispatch && (
+            <>
+              <div className="form-grid">
+                <Field label={t("workflow.form.title")}>{(id) => <input id={id} value={step.title ?? ""} onChange={(e) => set(["steps", i, "title"], e.target.value, true)} />}</Field>
+                <Field label={t("workflow.form.id")} help={t("workflow.form.idHelp")}>
+                  {(id) => <input id={id} className="mono" value={step.id ?? ""} onChange={(e) => set(["steps", i, "id"], e.target.value)} />}
+                </Field>
+                <Field label={t("workflow.form.prompt")}>
+                  {(id) => (
+                    <select id={id} value={step.prompt ?? ""} onChange={(e) => set(["steps", i, "prompt"], e.target.value)}>
+                      {!props.prompts.includes(step.prompt ?? "") && <option value={step.prompt ?? ""}>{step.prompt || "—"}</option>}
+                      {props.prompts.map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+                <Field label={t("workflow.form.onReject")} help={t("workflow.form.onRejectHelp")}>
+                  {(id) => (
+                    <select id={id} value={step["on-reject"] ?? ""} onChange={(e) => set(["steps", i, "on-reject"], e.target.value, true)}>
+                      <option value="">{t("workflow.form.none")}</option>
+                      {props.prompts.map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+                <Field label={t("workflow.form.agent")} help={t("workflow.form.stepAgentHelp")}>
+                  {(id) => (
+                    <select id={id} value={step.agent ?? ""} onChange={(e) => set(["steps", i, "agent"], e.target.value, true)}>
+                      <option value="">{t("workflow.form.stepAgentDefault", { agent: AGENT_LABELS[workflowAgent] })}</option>
+                      {AGENTS.map((a) => (
+                        <option key={a} value={a}>
+                          {AGENT_LABELS[a]}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+                <Field label={t("workflow.form.gate")}>
+                  {(id) => (
+                    <select id={id} value={step.gate ?? "none"} onChange={(e) => set(["steps", i, "gate"], e.target.value)}>
+                      <option value="approve">{t("workflow.gate.approve")}</option>
+                      <option value="none">{t("workflow.gate.none")}</option>
+                    </select>
+                  )}
+                </Field>
+                <Field label={t("workflow.form.doneWhen")} help={t("workflow.form.doneWhenHelp")}>
+                  {(id) => (
+                    <select id={id} value={step["done-when"] ?? ""} onChange={(e) => set(["steps", i, "done-when"], e.target.value, true)}>
+                      <option value="">{t("workflow.form.none")}</option>
+                      {(step.outputs ?? []).map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.id} ({o.file})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+              </div>
 
-          <div className="pane-label">{t("workflow.form.outputs")}</div>
-          <p className="field-help">{t("workflow.form.outputsHelp", { v: "{{outputs}}", w: "{{out.<id>}}" })}</p>
-          <ul className="wf-rows">
-            {(step.outputs ?? []).map((o, j) => (
-              <li key={j} className="wf-row wf-output">
-                <input className="mono" aria-label={t("workflow.form.outputId")} placeholder="plan" value={o.id ?? ""} onChange={(e) => set(["steps", i, "outputs", j, "id"], e.target.value)} />
-                <input className="mono" aria-label={t("workflow.form.outputFile")} placeholder="02-plan.md" value={o.file ?? ""} onChange={(e) => set(["steps", i, "outputs", j, "file"], e.target.value)} />
-                <input aria-label={t("workflow.form.outputContent")} placeholder={t("workflow.form.outputContentPlaceholder")} value={o.content ?? ""} onChange={(e) => set(["steps", i, "outputs", j, "content"], e.target.value, true)} />
-                <FileSelect label={t("workflow.form.outputFormat")} value={o.format ?? ""} files={props.prompts} onChange={(v) => set(["steps", i, "outputs", j, "format"], v, true)} />
-                <IconAction icon={Trash} label={t("workflow.form.removeOutput")} onClick={() => remove(["steps", i, "outputs", j])} />
-              </li>
-            ))}
-          </ul>
-          <Button icon={Plus} variant="quiet" onClick={() => add(["steps", i, "outputs"], { id: "", file: "", content: "" })}>
-            {t("workflow.form.addOutput")}
-          </Button>
-          </>)}
+              <div className="pane-label">{t("workflow.form.outputs")}</div>
+              <p className="field-help">{t("workflow.form.outputsHelp", { v: "{{outputs}}", w: "{{out.<id>}}" })}</p>
+              <ul className="wf-rows">
+                {(step.outputs ?? []).map((o, j) => (
+                  <li key={j} className="wf-row wf-output">
+                    <input
+                      className="mono"
+                      aria-label={t("workflow.form.outputId")}
+                      placeholder="plan"
+                      value={o.id ?? ""}
+                      onChange={(e) => set(["steps", i, "outputs", j, "id"], e.target.value)}
+                    />
+                    <input
+                      className="mono"
+                      aria-label={t("workflow.form.outputFile")}
+                      placeholder="02-plan.md"
+                      value={o.file ?? ""}
+                      onChange={(e) => set(["steps", i, "outputs", j, "file"], e.target.value)}
+                    />
+                    <input
+                      aria-label={t("workflow.form.outputContent")}
+                      placeholder={t("workflow.form.outputContentPlaceholder")}
+                      value={o.content ?? ""}
+                      onChange={(e) => set(["steps", i, "outputs", j, "content"], e.target.value, true)}
+                    />
+                    <FileSelect label={t("workflow.form.outputFormat")} value={o.format ?? ""} files={props.prompts} onChange={(v) => set(["steps", i, "outputs", j, "format"], v, true)} />
+                    <IconAction icon={Trash} label={t("workflow.form.removeOutput")} onClick={() => remove(["steps", i, "outputs", j])} />
+                  </li>
+                ))}
+              </ul>
+              <Button icon={Plus} variant="quiet" onClick={() => add(["steps", i, "outputs"], { id: "", file: "", content: "" })}>
+                {t("workflow.form.addOutput")}
+              </Button>
+            </>
+          )}
         </section>
       ))}
 

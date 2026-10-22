@@ -25,7 +25,7 @@ export function registerRepoRoutes(app: FastifyInstance, opts: { repo: RepoConte
   });
 
   app.put<{ Body: { path?: unknown } }>("/api/repo", async (req) => {
-    if (typeof req.body?.path !== "string") throw new HttpError(400, "Body must be {\"path\": string}");
+    if (typeof req.body?.path !== "string") throw new HttpError(400, 'Body must be {"path": string}');
     const resolved = await opts.repo.set(req.body.path);
     return { path: resolved, tasksDir: tasksRoot(resolved), tasksDirExists: existsSync(tasksRoot(resolved)) };
   });

@@ -75,7 +75,9 @@
   background: none;
   border: none;
   border-radius: 6px;
-  transition: background-color var(--fast) var(--ease-out), color var(--fast) var(--ease-out);
+  transition:
+    background-color var(--fast) var(--ease-out),
+    color var(--fast) var(--ease-out);
 }
 
 .task-filter button:hover {

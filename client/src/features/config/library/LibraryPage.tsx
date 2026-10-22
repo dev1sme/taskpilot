@@ -194,12 +194,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
                   const hidden = shadowedBy(kind, i, data ?? []);
                   return (
                     <li key={keyOf(i)}>
-                      <button
-                        type="button"
-                        className="lib-item"
-                        aria-current={current && keyOf(current) === keyOf(i) ? "true" : undefined}
-                        onClick={() => setPicked(keyOf(i))}
-                      >
+                      <button type="button" className="lib-item" aria-current={current && keyOf(current) === keyOf(i) ? "true" : undefined} onClick={() => setPicked(keyOf(i))}>
                         <span className="lib-name mono" title={`${copy.prefix}${i.name}`}>
                           {copy.prefix}
                           {i.name}
@@ -221,15 +216,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
                 })}
               </ul>
             </div>
-            {current && (
-              <LibraryDetail
-                key={keyOf(current)}
-                item={current}
-                prefix={copy.prefix}
-                onEdit={() => void startEdit(current)}
-                onDeleted={refresh}
-              />
-            )}
+            {current && <LibraryDetail key={keyOf(current)} item={current} prefix={copy.prefix} onEdit={() => void startEdit(current)} onDeleted={refresh} />}
           </div>
         )}
       </div>
@@ -311,9 +298,7 @@ function LibraryDetail({ item, prefix, onEdit, onDeleted }: { item: LibraryItem;
         </div>
       </header>
       <p className="mono lib-path">{item.path}</p>
-      {confirmDelete && item.kind === "skills" && item.files && item.files.length > 0 && (
-        <p className="hint">{t("library.skillDeleteHint", { count: item.files.length })}</p>
-      )}
+      {confirmDelete && item.kind === "skills" && item.files && item.files.length > 0 && <p className="hint">{t("library.skillDeleteHint", { count: item.files.length })}</p>}
       {item.error && (
         <p className="error" role="alert">
           {item.error}
@@ -351,13 +336,7 @@ function LibraryDetail({ item, prefix, onEdit, onDeleted }: { item: LibraryItem;
   );
 }
 
-function NewItemDialog(props: {
-  open: boolean;
-  kind: LibraryKind;
-  scope: LibraryScope;
-  onClose: () => void;
-  onCreate: (name: string) => Promise<void>;
-}) {
+function NewItemDialog(props: { open: boolean; kind: LibraryKind; scope: LibraryScope; onClose: () => void; onCreate: (name: string) => Promise<void> }) {
   const { t } = useTranslation(["config", "common"]);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -403,9 +382,7 @@ function NewItemDialog(props: {
               <label htmlFor={nameId}>{t("library.new.name")}</label>
               <input id={nameId} value={name} onChange={(e) => setName(e.target.value)} placeholder={props.kind === "commands" ? "git/pr" : "reviewer"} autoFocus spellCheck={false} />
               <span className="field-help">
-                {props.kind === "commands"
-                  ? t("library.new.commandHelp")
-                  : t("library.new.help", { file: relFor(props.kind, name || t("library.new.namePlaceholder")) })}
+                {props.kind === "commands" ? t("library.new.commandHelp") : t("library.new.help", { file: relFor(props.kind, name || t("library.new.namePlaceholder")) })}
               </span>
               <span>{t("library.new.where")}</span>
               <span className="mono">

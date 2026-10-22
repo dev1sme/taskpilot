@@ -155,9 +155,7 @@ function UsageButton({ usage }: { usage: UsageView }) {
                 {copilotVersion && <span className="usage-version">{copilotVersion}</span>}
               </header>
               <p className="usage-scope">
-                {copilotQuota.unlimited
-                  ? t("status.copilotUsageUnlimited", { unit: copilotUnit(copilotQuota, t) })
-                  : t("status.copilotUsageTitle", { unit: copilotUnit(copilotQuota, t) })}
+                {copilotQuota.unlimited ? t("status.copilotUsageUnlimited", { unit: copilotUnit(copilotQuota, t) }) : t("status.copilotUsageTitle", { unit: copilotUnit(copilotQuota, t) })}
               </p>
               <MeterList meters={[copilot]} />
               <p className="usage-updated">{t("status.usageUpdated", { time: formatTime(copilotQuota.updatedAt, true) })}</p>

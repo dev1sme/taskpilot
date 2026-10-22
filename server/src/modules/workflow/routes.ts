@@ -9,7 +9,7 @@ import type { WorkflowEngine } from "./engine.js";
 function modeOf(body: unknown): string | undefined {
   const mode = (body as { mode?: unknown } | null)?.mode;
   if (mode === undefined || mode === null) return undefined;
-  if (typeof mode !== "string") throw new HttpError(400, "Body must be {\"mode\"?: string}");
+  if (typeof mode !== "string") throw new HttpError(400, 'Body must be {"mode"?: string}');
   return mode;
 }
 
@@ -17,62 +17,50 @@ export function registerWorkflowRoutes(app: FastifyInstance, opts: { repo: RepoC
   const { engine } = opts;
   const requireRepo = opts.repo.require;
 
-  app.get<{ Params: { key: string } }>("/api/tasks/:key/run", async (req) =>
-    engine.view(requireRepo(), (await getTask(requireRepo(), req.params.key)).key),
-  );
+  app.get<{ Params: { key: string } }>("/api/tasks/:key/run", async (req) => engine.view(requireRepo(), (await getTask(requireRepo(), req.params.key)).key));
 
   app.post<{ Params: { key: string }; Body: { mode?: unknown } | null }>("/api/tasks/:key/run", async (req) =>
     engine.start(requireRepo(), (await getTask(requireRepo(), req.params.key)).key, modeOf(req.body)),
   );
 
-  app.delete<{ Params: { key: string } }>("/api/tasks/:key/run", async (req) =>
-    engine.cancel(requireRepo(), req.params.key),
-  );
+  app.delete<{ Params: { key: string } }>("/api/tasks/:key/run", async (req) => engine.cancel(requireRepo(), req.params.key));
 
   app.post<{ Params: { key: string }; Body: { note?: unknown } | null }>("/api/tasks/:key/run/approve", async (req) => {
     const note = req.body?.note;
-    if (note !== undefined && typeof note !== "string") throw new HttpError(400, "Body must be {\"note\"?: string}");
+    if (note !== undefined && typeof note !== "string") throw new HttpError(400, 'Body must be {"note"?: string}');
     return engine.approve(requireRepo(), req.params.key, note);
   });
 
   app.post<{ Params: { key: string }; Body: { text?: unknown } }>("/api/tasks/:key/run/feedback", async (req) => {
-    if (typeof req.body?.text !== "string") throw new HttpError(400, "Body must be {\"text\": string}");
+    if (typeof req.body?.text !== "string") throw new HttpError(400, 'Body must be {"text": string}');
     return engine.feedback(requireRepo(), req.params.key, req.body.text);
   });
 
   app.post<{ Params: { key: string }; Body: { text?: unknown } }>("/api/tasks/:key/run/reply", async (req) => {
-    if (typeof req.body?.text !== "string") throw new HttpError(400, "Body must be {\"text\": string}");
+    if (typeof req.body?.text !== "string") throw new HttpError(400, 'Body must be {"text": string}');
     return engine.reply(requireRepo(), req.params.key, req.body.text);
   });
 
   app.post<{ Params: { key: string; n: string }; Body: { text?: unknown } }>("/api/tasks/:key/run/subtasks/:n/reply", async (req) => {
-    if (typeof req.body?.text !== "string") throw new HttpError(400, "Body must be {\"text\": string}");
+    if (typeof req.body?.text !== "string") throw new HttpError(400, 'Body must be {"text": string}');
     return engine.replySubtask(requireRepo(), req.params.key, Number(req.params.n), req.body.text);
   });
 
-  app.post<{ Params: { key: string; n: string } }>("/api/tasks/:key/run/subtasks/:n/retry", async (req) =>
-    engine.retrySubtask(requireRepo(), req.params.key, Number(req.params.n)),
-  );
+  app.post<{ Params: { key: string; n: string } }>("/api/tasks/:key/run/subtasks/:n/retry", async (req) => engine.retrySubtask(requireRepo(), req.params.key, Number(req.params.n)));
 
-  app.post<{ Params: { key: string; n: string } }>("/api/tasks/:key/run/subtasks/:n/complete", async (req) =>
-    engine.completeSubtask(requireRepo(), req.params.key, Number(req.params.n)),
-  );
+  app.post<{ Params: { key: string; n: string } }>("/api/tasks/:key/run/subtasks/:n/complete", async (req) => engine.completeSubtask(requireRepo(), req.params.key, Number(req.params.n)));
 
-  app.post<{ Params: { key: string } }>("/api/tasks/:key/run/complete", async (req) =>
-    engine.completeStep(requireRepo(), req.params.key),
-  );
+  app.post<{ Params: { key: string } }>("/api/tasks/:key/run/complete", async (req) => engine.completeStep(requireRepo(), req.params.key));
 
   app.post<{ Params: { key: string }; Body: { mode?: unknown } | null }>("/api/tasks/:key/run/restart", async (req) =>
     engine.restart(requireRepo(), (await getTask(requireRepo(), req.params.key)).key, modeOf(req.body)),
   );
 
-  app.post<{ Params: { key: string } }>("/api/tasks/:key/run/retry", async (req) =>
-    engine.retry(requireRepo(), req.params.key),
-  );
+  app.post<{ Params: { key: string } }>("/api/tasks/:key/run/retry", async (req) => engine.retry(requireRepo(), req.params.key));
 
   // Not under run/: `run/complete` already marks one step done; this marks the whole task.
   app.put<{ Params: { key: string }; Body: { done?: unknown } | null }>("/api/tasks/:key/done", async (req) => {
-    if (typeof req.body?.done !== "boolean") throw new HttpError(400, "Body must be {\"done\": boolean}");
+    if (typeof req.body?.done !== "boolean") throw new HttpError(400, 'Body must be {"done": boolean}');
     return engine.setDone(requireRepo(), (await getTask(requireRepo(), req.params.key)).key, req.body.done);
   });
 }

@@ -45,10 +45,7 @@ export function hasOverride(repo: string): boolean {
  * The repo's override: none; `legacy` (a complete workflow, no `extends`: it is the mode "custom");
  * or `extends` a mode, with only what differs from it.
  */
-export type OverrideInfo =
-  | { kind: "none"; files: Map<string, string> }
-  | { kind: "legacy"; files: Map<string, string> }
-  | { kind: "extends"; extends: string; files: Map<string, string> };
+export type OverrideInfo = { kind: "none"; files: Map<string, string> } | { kind: "legacy"; files: Map<string, string> } | { kind: "extends"; extends: string; files: Map<string, string> };
 
 export async function readOverride(repo: string): Promise<OverrideInfo> {
   const files = await readWorkflowDir(overrideDir(repo));
@@ -409,14 +406,7 @@ export function reportOf(pattern: string, n: number): string {
 
 const VAR = /\{\{([\w.]+)\}\}/g;
 
-function checkTemplates(
-  steps: StepDef[],
-  rules: string[],
-  history: WorkflowDef["history"],
-  outputIds: Set<string>,
-  errors: string[],
-  warnings: string[],
-) {
+function checkTemplates(steps: StepDef[], rules: string[], history: WorkflowDef["history"], outputIds: Set<string>, errors: string[], warnings: string[]) {
   const known = new Set<string>(templateVars);
   const check = (where: string, text: string, allowFeedback: boolean, allowSubtask = false) => {
     for (const [, name] of text.matchAll(VAR)) {

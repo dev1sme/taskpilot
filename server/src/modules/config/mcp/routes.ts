@@ -28,10 +28,7 @@ function baseHashOf(body: unknown): string {
  * user servers live in ~/.claude.json and are changed only through `claude mcp`, with the
  * previous entry kept as a backup. Secrets of project servers go to TaskPilot's env store.
  */
-export function registerMcpRoutes(
-  app: FastifyInstance,
-  opts: { requireRepo: () => string; backups: BackupStore; envStore: EnvStore },
-) {
+export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () => string; backups: BackupStore; envStore: EnvStore }) {
   const { requireRepo, backups, envStore } = opts;
   const projectFile = (repo: string) => path.join(repo, ".mcp.json");
 
@@ -59,8 +56,7 @@ export function registerMcpRoutes(
     const { entry, hash } = await current(repo, scope, req.params.name);
     if (!entry) throw new HttpError(404, t("mcp.notFound", { name: req.params.name }));
     const masked = maskEntry(entry)!;
-    const rows = (v: unknown) =>
-      isObject(v) ? Object.entries(v).map(([key, val]) => ({ key, ...maskValue(val) })) : [];
+    const rows = (v: unknown) => (isObject(v) ? Object.entries(v).map(([key, val]) => ({ key, ...maskValue(val) })) : []);
     return {
       name: req.params.name,
       scope,
@@ -143,30 +139,27 @@ export function registerMcpRoutes(
     return { hash: hashOf(JSON.stringify(entry)), backup };
   });
 
-  app.delete<{ Params: { scope: string; name: string }; Querystring: { baseHash?: string } }>(
-    "/api/config/mcp/:scope/:name",
-    async (req) => {
-      const repo = requireRepo();
-      const scope = scopeOf(req.params.scope);
-      const name = req.params.name;
-      const before = await current(repo, scope, name);
-      if (!before.entry) throw new HttpError(404, t("mcp.notFound", { name }));
-      if (before.hash !== req.query.baseHash) throw new HttpError(409, t("mcp.changedOutside"));
-      if (scope === "project") {
-        return writeWithBackup({
-          repo,
-          target: { abs: projectFile(repo), display: ".mcp.json" },
-          next: withServer(before.doc!, name, null, null),
-          baseHash: before.hash,
-          reason: t("backup.mcpDelete", { name }),
-          backups,
-        });
-      }
-      const backup = await backupEntry(repo, scope, name, before.entry, t("backup.mcpDelete", { name }));
-      await runClaude(["mcp", "remove", "--scope", scope, name], { cwd: repo });
-      return { hash: "absent", backup };
-    },
-  );
+  app.delete<{ Params: { scope: string; name: string }; Querystring: { baseHash?: string } }>("/api/config/mcp/:scope/:name", async (req) => {
+    const repo = requireRepo();
+    const scope = scopeOf(req.params.scope);
+    const name = req.params.name;
+    const before = await current(repo, scope, name);
+    if (!before.entry) throw new HttpError(404, t("mcp.notFound", { name }));
+    if (before.hash !== req.query.baseHash) throw new HttpError(409, t("mcp.changedOutside"));
+    if (scope === "project") {
+      return writeWithBackup({
+        repo,
+        target: { abs: projectFile(repo), display: ".mcp.json" },
+        next: withServer(before.doc!, name, null, null),
+        baseHash: before.hash,
+        reason: t("backup.mcpDelete", { name }),
+        backups,
+      });
+    }
+    const backup = await backupEntry(repo, scope, name, before.entry, t("backup.mcpDelete", { name }));
+    await runClaude(["mcp", "remove", "--scope", scope, name], { cwd: repo });
+    return { hash: "absent", backup };
+  });
 
   /** Connection status as Claude reports it (`claude mcp get`); only the status is returned. */
   app.post<{ Params: { name: string } }>("/api/config/mcp/check/:name", async (req) => {
@@ -176,21 +169,16 @@ export function registerMcpRoutes(
   });
 
   async function backupEntry(repo: string, scope: "local" | "user", name: string, entry: unknown, reason: string) {
-    return backups.save(
-      { abs: claudeJson(), display: `${displayPath(claudeJson(), repo)} › ${scope} › ${name}` },
-      entry ? JSON.stringify(entry, null, 2) : null,
-      reason,
-      { scope, name, repo },
-    );
+    return backups.save({ abs: claudeJson(), display: `${displayPath(claudeJson(), repo)} › ${scope} › ${name}` }, entry ? JSON.stringify(entry, null, 2) : null, reason, {
+      scope,
+      name,
+      repo,
+    });
   }
 }
 
 /** Restores an MCP entry backup through `claude mcp` (called from the backups route). */
-export async function restoreMcpEntry(
-  backup: { mcp: { scope: "local" | "user"; name: string; repo: string } },
-  content: string | null,
-  backups: BackupStore,
-): Promise<void> {
+export async function restoreMcpEntry(backup: { mcp: { scope: "local" | "user"; name: string; repo: string } }, content: string | null, backups: BackupStore): Promise<void> {
   const { scope, name, repo } = backup.mcp;
   const now = await claudeJsonEntry(scope, repo, name);
   await backups.save(

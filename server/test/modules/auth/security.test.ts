@@ -28,7 +28,9 @@ function cookieOf(res: { headers: Record<string, unknown> }): string {
 
 /** Set-Cookie attributes by lowercase name ("" for flags); the order is up to the cookie library. */
 function cookieAttrs(res: { headers: Record<string, unknown> }): Record<string, string> {
-  const [, ...attrs] = String(res.headers["set-cookie"]).split(";").map((a) => a.trim());
+  const [, ...attrs] = String(res.headers["set-cookie"])
+    .split(";")
+    .map((a) => a.trim());
   return Object.fromEntries(attrs.map((a) => [a.split("=")[0].toLowerCase(), a.split("=")[1] ?? ""]));
 }
 
@@ -117,8 +119,7 @@ describe("security", () => {
 
   it("locks login out after repeated failures", async () => {
     const { app } = await start(undefined, [], { user: "u", password: "p" });
-    const post = (password: string) =>
-      app.inject({ method: "POST", url: "/api/login", headers: { host: ok.host }, payload: { user: "u", password } });
+    const post = (password: string) => app.inject({ method: "POST", url: "/api/login", headers: { host: ok.host }, payload: { user: "u", password } });
     for (let i = 0; i < 5; i++) expect((await post("wrong")).statusCode).toBe(401);
     const locked = await post("p");
     expect(locked.statusCode).toBe(429);

@@ -43,14 +43,7 @@ export function FormatsPage() {
               <h2 className="pane-label">{t("workflow.form.stepLabel", { n: i + 1, title: s.title })}</h2>
               {s.outputs.length === 0 && <p className="hint">{t("formats.noOutputs")}</p>}
               {s.outputs.map((o) => (
-                <FormatCard
-                  key={o.id}
-                  config={data}
-                  file={o.file}
-                  description={o.content}
-                  format={o.format}
-                  done={o.id === s.doneWhen}
-                />
+                <FormatCard key={o.id} config={data} file={o.file} description={o.content} format={o.format} done={o.id === s.doneWhen} />
               ))}
             </section>
           ))}

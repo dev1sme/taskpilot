@@ -35,9 +35,7 @@ export async function readMcp(repo: string, provided: Record<string, string> = {
   const project = await readJsonFile(projectFile);
   const home = await readJsonFile(claudeJson());
 
-  const sources: McpConfig["sources"] = [
-    { scope: "project", path: ".mcp.json", exists: project.exists, ...("error" in project ? { error: project.error } : {}) },
-  ];
+  const sources: McpConfig["sources"] = [{ scope: "project", path: ".mcp.json", exists: project.exists, ...("error" in project ? { error: project.error } : {}) }];
   const servers: McpServer[] = [];
   if ("data" in project && isObject(project.data)) servers.push(...toServers(project.data.mcpServers, "project", provided));
 
@@ -66,10 +64,7 @@ function toServers(value: unknown, scope: McpScope, provided: Record<string, str
     const missingEnv = vars.filter((v) => process.env[v] === undefined && provided[v] === undefined);
     const fromTaskPilot = vars.filter((v) => provided[v] !== undefined);
     // Claude Code reads an entry without `type` as stdio, so a bare `url` entry fails to load.
-    const error =
-      cfg.type === undefined && !command && url
-        ? t("mcp.urlWithoutType")
-        : undefined;
+    const error = cfg.type === undefined && !command && url ? t("mcp.urlWithoutType") : undefined;
     return {
       name,
       scope,

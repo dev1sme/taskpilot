@@ -19,7 +19,7 @@ export default {
     dispatching: "Đang giao việc: {{done}}/{{total}} xong.",
     subtaskWaiting: "Việc {{n}} đã dừng nhưng chưa ghi báo cáo {{file}}. Trả lời việc đó từ cây việc, hoặc gửi lại.",
     subtaskNoHook: 'Việc {{n}}: {{agent}} không gửi hook về TaskPilot. Khi báo cáo {{file}} đã ghi, bấm "Đánh dấu xong" ở việc đó, hoặc "Gửi lại".',
-    subtaskInterrupted: "Việc {{n}} dừng giữa chừng. Bấm \"Gửi lại\" ở việc đó để resume session và chạy tiếp.",
+    subtaskInterrupted: 'Việc {{n}} dừng giữa chừng. Bấm "Gửi lại" ở việc đó để resume session và chạy tiếp.',
     subtaskTitle: "Việc {{n}}",
     assignmentsInvalid: "Bảng phân công chưa dùng được: {{errors}}",
     activeForDone: "Huỷ quy trình trước khi đánh dấu xong hoặc mở lại task.",

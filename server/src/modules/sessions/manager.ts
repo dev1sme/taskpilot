@@ -174,21 +174,23 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     if (!live) return;
     clearInterval(live.transcriptTimer ?? undefined);
     live.transcriptTimer = null;
-    void this.find(id).then((meta) => {
-      const backend = backendOf(meta.agent);
-      if (!backend.finishedTurn || live.lastHookAt !== null) return;
-      this.stopWatching(live);
-      let busy = false;
-      const timer = setInterval(() => {
-        if (busy) return;
-        busy = true;
-        void this.pollTranscript(meta, live, backend.finishedTurn!, since)
-          .catch((e: unknown) => this.emit("warning", e))
-          .finally(() => (busy = false));
-      }, this.transcriptPollMs);
-      timer.unref();
-      live.transcriptTimer = timer;
-    }).catch((e: unknown) => this.emit("warning", e));
+    void this.find(id)
+      .then((meta) => {
+        const backend = backendOf(meta.agent);
+        if (!backend.finishedTurn || live.lastHookAt !== null) return;
+        this.stopWatching(live);
+        let busy = false;
+        const timer = setInterval(() => {
+          if (busy) return;
+          busy = true;
+          void this.pollTranscript(meta, live, backend.finishedTurn!, since)
+            .catch((e: unknown) => this.emit("warning", e))
+            .finally(() => (busy = false));
+        }, this.transcriptPollMs);
+        timer.unref();
+        live.transcriptTimer = timer;
+      })
+      .catch((e: unknown) => this.emit("warning", e));
   }
 
   private async pollTranscript(meta: SessionMeta, live: Live, finishedTurn: NonNullable<AgentBackend["finishedTurn"]>, since: number): Promise<void> {
@@ -337,7 +339,11 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     // Without its hooks the session still runs; the run then waits and can be retried by hand.
     await backend.prepare?.(meta.repo).catch((e: unknown) => this.emit("warning", e));
     const launcher = this.launchers[meta.agent ?? DEFAULT_AGENT] ?? backend.launcher;
-    const { file, args, env: launchEnv } = launcher(meta.id, {
+    const {
+      file,
+      args,
+      env: launchEnv,
+    } = launcher(meta.id, {
       resume,
       settings: backend.launchSettings?.(),
       permissionMode: meta.permissionMode,
@@ -446,7 +452,10 @@ function emptyHookState(): HookState {
 
 /** Terminal output without escape sequences, enough to find a line of text in it. */
 function stripAnsi(s: string): string {
-  return s.replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "").replace(/\x1b\[[0-9;?<>=]*[ -\/]*[@-~]/g, "").replace(/\x1b[()][A-Za-z0-9]/g, "");
+  return s
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "")
+    .replace(/\x1b\[[0-9;?<>=]*[ -\/]*[@-~]/g, "")
+    .replace(/\x1b[()][A-Za-z0-9]/g, "");
 }
 
 function send(ws: WebSocket, frame: ServerFrame): void {

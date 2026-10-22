@@ -34,6 +34,7 @@ import { displayPath, isObject } from "../shared/fs.js";
 import { stringField, type ConfigRouteOptions } from "../shared/http.js";
 import { repoSettingsTarget, workflowTarget } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
+import { subagentsOf } from "../library/read.js";
 
 /** The mode an existing override belongs to: the one it extends, or "custom" for a complete one. */
 const targetMode = (info: OverrideInfo) => (info.kind === "extends" ? info.extends : CUSTOM_MODE);
@@ -375,6 +376,8 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     const feedback = kind === "onReject" ? (typeof body.feedback === "string" && body.feedback.trim() ? body.feedback : PROMPT_TEXT.sampleFeedback) : undefined;
     const previous = body.restart === true ? { dir: PROMPT_TEXT.sampleArchive, files: def.steps.flatMap((s) => s.outputs.map((o) => o.file)).sort() } : undefined;
     const subtask = step.dispatch && { ...PROMPT_TEXT.sampleSubtask, files: [...PROMPT_TEXT.sampleSubtask.files], phase: "pending" as const, report: reportOf(step.dispatch.report, PROMPT_TEXT.sampleSubtask.n) };
-    return { task: PROMPT_TEXT.sampleTask, text: renderPrompt(template, promptVars(def, index, PROMPT_TEXT.sampleTask, { feedback, previous, subtask, subtasks: subtask && [subtask] })) };
+    // The repo's real subagents, as a run would list them to the leader.
+    const subagents = template.includes("{{subagents}}") ? await subagentsOf(repo) : undefined;
+    return { task: PROMPT_TEXT.sampleTask, text: renderPrompt(template, promptVars(def, index, PROMPT_TEXT.sampleTask, { feedback, previous, subtask, subtasks: subtask && [subtask], subagents })) };
   });
 }

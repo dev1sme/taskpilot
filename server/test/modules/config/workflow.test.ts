@@ -90,6 +90,12 @@ describe("workflow config", () => {
     expect((await send("POST", "/api/config/workflow/render", { stepId: "review", kind: "subtask" })).statusCode).toBe(404);
     expect((await send("POST", "/api/config/workflow/render", { stepId: "review", kind: "prompt" })).statusCode).toBe(200);
     expect((await send("POST", "/api/config/workflow/render", { stepId: "implement", kind: "prompt", mode: "default" })).statusCode).toBe(200);
+
+    // The leader's prompt lists the repo's real subagents, as a run would.
+    await mkdir(path.join(repo, ".claude", "agents"), { recursive: true });
+    await writeFile(path.join(repo, ".claude", "agents", "render-helper.md"), "---\nname: render-helper\ndescription: Helps.\ntools: Read, Write\n---\n\nBody\n");
+    const leader = (await send("POST", "/api/config/workflow/render", { stepId: "investigate", kind: "prompt" })).json().text;
+    expect(leader).toContain("`render-helper`");
     await builtInUnchanged();
   });
 

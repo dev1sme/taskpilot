@@ -5,8 +5,11 @@ import { TMP } from "../env";
 
 /**
  * A small repo with one task, CLAUDE.md, permissions (long user path included), a hook, a skill with
- * wide content, and an agent and an MCP server that also exist in a higher-priority scope.
+ * wide content, an agent and an MCP server that also exist in a higher-priority scope, plus an agent with a
+ * very long name and an MCP server with many arguments (for the layout regression tests).
  */
+export const LONG_AGENT = "taskpilot-implementer-with-a-very-long-descriptive-name";
+export const LONG_MCP = "taskpilot-codegraph-server-with-a-long-name";
 export const FIXTURE_REPO = path.join(TMP, "repos", "fixture-repo");
 
 const FILES: Record<string, string> = {
@@ -32,7 +35,17 @@ const FILES: Record<string, string> = {
     "",
   ].join("\n"),
   ".claude/agents/reviewer.md": "---\nname: reviewer\ndescription: Review của repo\n---\n\nReview code.\n",
-  ".mcp.json": JSON.stringify({ mcpServers: { docs: { type: "http", url: "https://docs.example/mcp" } } }),
+  [`.claude/agents/${LONG_AGENT}.md`]: `---\nname: ${LONG_AGENT}\ndescription: Agent có tên rất dài để thử bố cục danh sách\ntools: Read, Edit, Write, Bash\n---\n\nImplement.\n`,
+  ".mcp.json": JSON.stringify({
+    mcpServers: {
+      docs: { type: "http", url: "https://docs.example/mcp" },
+      [LONG_MCP]: {
+        type: "stdio",
+        command: "npx",
+        args: ["-y", "@example/some-long-package-name@latest", "--root", "/very/long/path/to/the/workspace/root", "--config", "./config/server.json", "--verbose", "--log-level", "debug"],
+      },
+    },
+  }),
   ".claude/settings.json": JSON.stringify({
     permissions: { allow: ["Bash(npm test:*)"], deny: ["Bash(rm -rf:*)"] },
     hooks: { PostToolUse: [{ matcher: "Edit|Write", hooks: [{ type: "command", command: "npx prettier --write ." }] }] },

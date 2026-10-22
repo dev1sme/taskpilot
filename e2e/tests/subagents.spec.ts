@@ -42,7 +42,8 @@ async function fakeTemplates(page: Page, templates: ReturnType<typeof template>[
 test("each agent shows whether a TaskPilot workflow can use it", async ({ page }) => {
   await page.goto("/#/agents");
   const list = page.locator(".library-list");
-  await expect(list.locator(".check-pill")).toHaveText("leader · member");
+  // The long-named fixture agent has the same roles, so look at the reviewer's row.
+  await expect(list.locator(".lib-item", { hasText: "Review của repo" }).locator(".check-pill")).toHaveText("leader · member");
   const check = page.getByRole("region", { name: "Kiểm tra cho TaskPilot" });
   await expect(check).toContainText("Vai trò: leader (leader gọi qua Task tool), member (chạy cả một việc con).");
   // A repo agent is there, so no banner.

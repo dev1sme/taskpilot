@@ -57,10 +57,10 @@ test("hooks tab of a file without hooks offers to add one", async ({ page }) => 
 test("agents show one tab per folder and mark the agent another scope hides", async ({ page }) => {
   await page.goto("/#/agents");
   const tabs = page.getByRole("tablist", { name: "Thư mục agents" });
-  await expect(tabs.getByRole("tab", { name: ".claude/agents (1)", exact: true })).toBeVisible();
+  await expect(tabs.getByRole("tab", { name: ".claude/agents (2)", exact: true })).toBeVisible();
   await expect(tabs.getByRole("tab", { name: "~/.claude/agents (1)", exact: true })).toBeVisible();
   const list = page.locator(".library-list");
-  await expect(list.locator(".lib-item")).toHaveCount(1);
+  await expect(list.locator(".lib-item")).toHaveCount(2);
   await expect(list.getByText("Review của repo")).toBeVisible();
   await expect(list.locator(".shadow-pill")).toHaveCount(0);
 
@@ -83,7 +83,7 @@ test("mcp shows three scope tabs and marks the server a local one hides", async 
   const tabs = page.getByRole("tablist", { name: "File MCP" });
   await expect(tabs.getByRole("tab")).toHaveCount(3);
   const list = page.locator(".mcp-list");
-  await expect(list.locator(".mcp-item")).toHaveCount(1);
+  await expect(list.locator(".mcp-item")).toHaveCount(2);
   await expect(list.locator(".shadow-pill")).toHaveText("Bị Local che");
 
   await tabs.getByRole("tab", { name: "~/.claude.json · repo này" }).click();

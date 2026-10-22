@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { get, home, repo, send, useConfigApp } from "../../helpers/configApp.js";
@@ -55,6 +55,19 @@ describe("agents, commands and skills", () => {
     const raw2 = await get(`/api/config/library/${kind}/project/raw?rel=${encodeURIComponent(rel)}`);
     const del = await send("DELETE", `/api/config/library/${kind}/project?rel=${encodeURIComponent(rel)}&baseHash=${raw2.hash}`);
     expect(del.statusCode).toBe(200);
+  });
+});
+
+describe("directory symlink loops", () => {
+  it("lists each command once when a directory links back to itself", async () => {
+    const dir = path.join(repo, ".claude", "commands");
+    await mkdir(path.join(dir, "git"), { recursive: true });
+    await writeFile(path.join(dir, "top.md"), "Top\n");
+    await writeFile(path.join(dir, "git", "pr.md"), "PR\n");
+    await symlink(".", path.join(dir, "self"));
+    await symlink("..", path.join(dir, "git", "up"));
+    const names = (await get("/api/config/commands")).map((c: { name: string }) => c.name).sort();
+    expect(names).toEqual(["git:pr", "top"]);
   });
 });
 

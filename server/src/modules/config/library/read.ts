@@ -1,4 +1,4 @@
-import { readdir, stat } from "node:fs/promises";
+import { readdir, realpath, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import path from "node:path";
 import { claudeHome, displayPath, fileInfo, frontmatter, readText, strings } from "../shared/fs.js";
@@ -52,9 +52,21 @@ export function subagentsOf(repo: string): Promise<LibraryItem[]> {
   return readLibrary(repo, "agents");
 }
 
-async function readMarkdownItems(root: string, dir: string, kind: LibraryKind, scope: LibraryScope, repo: string, templates?: Map<string, string>): Promise<LibraryItem[]> {
+async function readMarkdownItems(
+  root: string,
+  dir: string,
+  kind: LibraryKind,
+  scope: LibraryScope,
+  repo: string,
+  templates?: Map<string, string>,
+  seen = new Set<string>(),
+): Promise<LibraryItem[]> {
   let entries;
   try {
+    // A symlink may point back at an ancestor; walk each real directory once.
+    const real = await realpath(dir);
+    if (seen.has(real)) return [];
+    seen.add(real);
     entries = await readdir(dir, { withFileTypes: true });
   } catch {
     return [];
@@ -65,7 +77,7 @@ async function readMarkdownItems(root: string, dir: string, kind: LibraryKind, s
     const type = await entryType(dir, e);
     // Both are scanned recursively. Commands are namespaced by folder (git/pr.md → git:pr); an
     // agent is identified by its frontmatter name, the folder does not count.
-    if (type === "dir") out.push(...(await readMarkdownItems(root, file, kind, scope, repo, templates)));
+    if (type === "dir") out.push(...(await readMarkdownItems(root, file, kind, scope, repo, templates, seen)));
     if (type !== "file" || !e.name.endsWith(".md")) continue;
     const rel = path.relative(root, file);
     const fallback = kind === "commands" ? rel.replace(/\.md$/, "").split(path.sep).join(":") : path.basename(file, ".md");

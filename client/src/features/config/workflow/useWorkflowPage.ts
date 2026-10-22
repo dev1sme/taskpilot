@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { queryClient } from "../../../shared/api/queryClient";
 import { toast } from "../../../shared/ui/Toast";
@@ -33,11 +33,14 @@ export function useWorkflowPage(initialFile: string | undefined) {
     void queryClient.invalidateQueries({ queryKey: ["tasks"] });
   };
 
-  useEffect(() => setConfirm(null), [picked]);
   // A new prompt whose draft was cancelled no longer exists: go back to workflow.yml.
-  useEffect(() => {
-    if (data && !draft && !file) setPicked(WORKFLOW_FILE);
-  }, [data, draft, file]);
+  if (data && !draft && !file && picked !== WORKFLOW_FILE) setPicked(WORKFLOW_FILE);
+  // A confirmation belongs to the file it was asked on.
+  const [seenPicked, setSeenPicked] = useState(picked);
+  if (seenPicked !== picked) {
+    setSeenPicked(picked);
+    setConfirm(null);
+  }
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);

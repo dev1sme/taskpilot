@@ -10,9 +10,11 @@ export function Checks({ config, draft }: { config: WorkflowConfig; draft: Workf
   const [live, setLive] = useState<{ errors: string[]; warnings: string[] } | null>(null);
   const content = draft?.content;
   const name = draft?.name;
+  // Without a draft there is nothing to check live: show the config's own result again.
+  if ((name === undefined || content === undefined) && live !== null) setLive(null);
 
   useEffect(() => {
-    if (name === undefined || content === undefined) return setLive(null);
+    if (name === undefined || content === undefined) return;
     // A slower answer for older text must not replace the newer one.
     let cancelled = false;
     const timer = setTimeout(() => {

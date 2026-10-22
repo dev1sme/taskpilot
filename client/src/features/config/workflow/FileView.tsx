@@ -1,5 +1,5 @@
 import { ArrowUUpLeft, GitDiff, Trash } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "../../../shared/ui/Button";
 import { toast } from "../../../shared/ui/Toast";
@@ -11,7 +11,12 @@ export function FileView(props: { file: WorkflowFile; editable: boolean; confirm
   const { t } = useTranslation("config");
   const { file } = props;
   const [diff, setDiff] = useState<string | null>(null);
-  useEffect(() => setDiff(null), [file.name, file.hash]);
+  const fileId = `${file.name}:${file.hash}`;
+  const [seenFile, setSeenFile] = useState(fileId);
+  if (seenFile !== fileId) {
+    setSeenFile(fileId);
+    setDiff(null);
+  }
 
   const lines = (diff ?? "").split("\n").filter((l) => !/^(={3,}|-{3} |\+{3} |Index: |\\ No newline)/.test(l));
   return (

@@ -81,12 +81,20 @@ export function TemplatesDialog(props: { open: boolean; onClose: () => void; onI
   const [reviewing, setReviewing] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // Every time the dialog opens it starts from nothing, then loads the list.
+  const [seenOpen, setSeenOpen] = useState(false);
+  if (seenOpen !== props.open) {
+    setSeenOpen(props.open);
+    if (props.open) {
+      setTemplates(null);
+      setError(null);
+      setReviewing(false);
+      setPreview(null);
+    }
+  }
+
   useEffect(() => {
     if (!props.open) return;
-    setTemplates(null);
-    setError(null);
-    setReviewing(false);
-    setPreview(null);
     libraryApi
       .agentTemplates()
       .then((list) => {

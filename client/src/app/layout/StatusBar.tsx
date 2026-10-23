@@ -65,12 +65,12 @@ interface Meter {
   label: string;
   percent: number | null;
   notes: string[];
-  /** Agent name shown before the first meter of a group in the summary ("Codex 5h 30% · 7d 10%"). */
+  /** Agent name that owns the meter (Codex). */
   group?: string;
 }
 
 /**
- * Claude's plan usage and Copilot's quota as one footer button ("5h 42% · 7d 18% · Copilot 9%"); the
+ * Claude's plan usage and Copilot's quota as one "Usage" footer button, highlighted when any meter is near its limit; the
  * details (reset times, used x/y, agent versions) sit in a popover that opens on click or keyboard.
  */
 function UsageButton({ usage }: { usage: UsageView }) {
@@ -89,9 +89,6 @@ function UsageButton({ usage }: { usage: UsageView }) {
   const codex = codexUsage ? codexMeters(codexUsage, t) : [];
   const meters = [...claude, ...(copilot ? [copilot] : []), ...codex];
   const warn = meters.some((m) => m.percent !== null && m.percent >= WARN_PERCENT);
-  const summary = meters.map((m, i) => (m.group && meters[i - 1]?.group === m.group ? shortLabel(m) : short(m))).join(" · ");
-  // Narrow screens show only the fullest meter.
-  const peak = meters.reduce((a, b) => ((b.percent ?? -1) > (a.percent ?? -1) ? b : a), meters[0]);
 
   useEffect(() => {
     if (!open) return;
@@ -136,11 +133,7 @@ function UsageButton({ usage }: { usage: UsageView }) {
         onClick={() => setOpen((v) => !v)}
       >
         <Gauge aria-hidden="true" />
-        <span className="sr-only">{t("status.usageLabel")}</span>
-        <span className="usage-summary">{summary}</span>
-        <span className="usage-peak" aria-hidden="true">
-          {peak && short(peak)}
-        </span>
+        {t("status.usageLabel")}
       </button>
       {open && (
         <div className="usage-popover" id={panelId} ref={panelRef} role="dialog" aria-label={t("status.usageDialog")} tabIndex={-1}>
@@ -210,17 +203,6 @@ function MeterList({ meters }: { meters: Meter[] }) {
       })}
     </ul>
   );
-}
-
-/** "5h 42%", "Copilot ∞", "Codex 5h 30%". */
-function short(m: Meter): string {
-  const label = m.id === "copilot" ? AGENT_LABELS.copilot : m.group ? `${m.group} ${m.label}` : m.label;
-  return `${label} ${m.percent === null ? "∞" : `${Math.round(m.percent)}%`}`;
-}
-
-/** Same without the group prefix: "7d 10%". */
-function shortLabel(m: Meter): string {
-  return `${m.label} ${m.percent === null ? "∞" : `${Math.round(m.percent)}%`}`;
 }
 
 function hasCodexNumbers(codex: CodexUsage | undefined): boolean {

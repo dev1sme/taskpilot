@@ -63,7 +63,7 @@
     "waitingPermission": "chờ quyền",
     "sessionsRunning": "{{count}} session đang chạy",
     "asking": "{{count}} xin quyền",
-    "usageLabel": "Usage: ",
+    "usageLabel": "Usage",
     "usageDialog": "Chi tiết usage",
     "usageTitle": "Giới hạn gói Claude đã dùng (toàn tài khoản)",
     "usageReset": "{{window}} reset lúc {{time}}",

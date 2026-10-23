@@ -94,10 +94,6 @@ a.status-item.is-warn,
   white-space: nowrap;
 }
 
-.usage-peak {
-  display: none;
-}
-
 .usage-popover {
   position: absolute;
   bottom: calc(100% + 10px);
@@ -236,20 +232,5 @@ a.status-item.is-warn,
     right: 16px;
     width: auto;
     max-width: none;
-  }
-}
-
-@media (max-width: 520px) {
-  /* Still read out in full; only the fullest meter is shown. */
-  .usage-summary {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
-
-  .usage-peak {
-    display: inline;
   }
 }

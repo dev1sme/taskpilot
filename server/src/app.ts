@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import type { Agent } from "./core/agents.js";
 import type { Launcher } from "./core/claude/launch.js";
+import type { CodexUsageFields } from "./core/codex/usage.js";
 import type { CopilotQuotaResult } from "./core/copilot/quota.js";
 import { HttpError } from "./core/errors.js";
 import { t } from "./core/i18n.js";
@@ -21,7 +22,7 @@ import { registerHooksRoutes } from "./modules/hooks/index.js";
 import { createRepoContext, registerRepoRoutes } from "./modules/repo/index.js";
 import { SessionManager, registerSessionsRoutes } from "./modules/sessions/index.js";
 import { registerTasksRoutes, TasksWatcher } from "./modules/tasks/index.js";
-import { CopilotQuotaPoller, registerUsageRoutes, UsageStore } from "./modules/usage/index.js";
+import { CodexQuotaPoller, CopilotQuotaPoller, registerUsageRoutes, UsageStore } from "./modules/usage/index.js";
 import { ExecutionValidationError, WorkflowEngine, loadWorkflow, readRepoSettings, type LoadDef, registerWorkflowRoutes, stageOf } from "./modules/workflow/index.js";
 
 export interface AppOptions {
@@ -50,6 +51,8 @@ export interface AppOptions {
   loadWorkflow?: LoadDef;
   /** Overrides reading Copilot's account quota (tests). */
   copilotQuota?: () => Promise<CopilotQuotaResult>;
+  /** Overrides reading Codex's account rate limits (tests). */
+  codexUsage?: () => Promise<CodexUsageFields | null>;
 }
 
 /** Address hook callbacks reach the server on: the listen address, or loopback when listening on all. */
@@ -126,6 +129,9 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   sessions.on("hook", (meta, event) => {
     if (meta.agent === "copilot" && (event === "SessionStart" || event === "PostToolUse" || event === "Stop")) copilotQuota.request();
   });
+  // Codex's numbers also come from its sessions; this poller fills them in before any session exists.
+  const codexQuota = new CodexQuotaPoller(usage, opts.codexUsage, logError);
+  codexQuota.start();
   usage.on("change", (view) => hub.publish("usage", view));
   engine.on("change", (run) => hub.publish("run", { taskKey: run.taskKey }));
   engine.on("warning", logError);
@@ -183,6 +189,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
 
   app.addHook("onClose", async () => {
     copilotQuota.stop();
+    codexQuota.stop();
     sessions.closeAll();
     hub.close();
     await watcher.close();

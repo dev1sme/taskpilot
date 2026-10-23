@@ -12,6 +12,7 @@ afterEach(() => {
 
 describe("codexCommand", () => {
   it("starts one app-server on stdio, from TASKPILOT_CODEX when set", () => {
+    delete process.env.TASKPILOT_CODEX; // vitest.config.ts points it at no binary
     expect(codexCommand()).toEqual({ file: "codex", args: ["app-server", "--listen", "stdio://"] });
     process.env.TASKPILOT_CODEX = "/opt/fake-codex";
     expect(codexCommand().file).toBe("/opt/fake-codex");

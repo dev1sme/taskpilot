@@ -100,4 +100,19 @@ describe("UsageStore", () => {
     await store.apply({ rate_limits: { spend_limit: { used_percentage: 63 } } });
     expect(await store.view()).toMatchObject({ spend: { usedPercentage: 63 } });
   });
+
+  it("merges sparse Codex updates, publishes on change only, and gives no quota evidence", async () => {
+    const store = new UsageStore(new StateStore(await tempDir("taskpilot-state-")));
+    const seen: unknown[] = [];
+    store.on("change", (u) => seen.push(u.agents?.codex));
+    await store.applyCodex(null);
+    expect(await store.view()).toBeNull();
+    const five = { usedPercentage: 100, resetsAt: Date.now() + 60_000 };
+    await store.applyCodex({ fiveHour: five, planType: "plus" });
+    await store.applyCodex({ sevenDay: { usedPercentage: 5, resetsAt: null } });
+    await store.applyCodex({ sevenDay: { usedPercentage: 5, resetsAt: null } });
+    expect(seen).toHaveLength(2);
+    expect((await store.view())!.agents!.codex).toEqual({ fiveHour: five, sevenDay: { usedPercentage: 5, resetsAt: null }, planType: "plus", updatedAt: expect.any(Number) });
+    expect(await store.evidence("codex")).toBeNull();
+  });
 });

@@ -18,6 +18,8 @@ const records = (scenario) =>
     .filter((r) => r.dir === "recv")
     .map((r) => r.msg);
 const sample = records("turn");
+// Real snapshot from the recording; the read response wraps it like GetAccountRateLimitsResponse.
+const rateLimits = sample.find((m) => m.method === "account/rateLimits/updated").params.rateLimits;
 const approvalSample = records("approval-accept");
 const editSample = records("edit");
 const send = (m) => {
@@ -91,6 +93,7 @@ const finish = (text = "DONE", status = "completed") => {
     notify("item/agentMessage/delta", { turnId, itemId: agent.id, delta: text });
     notify("item/completed", { turnId, item: agent });
   }
+  if (!process.env.FAKE_CODEX_NO_RATE_LIMITS) send({ method: "account/rateLimits/updated", params: { rateLimits } });
   notify("thread/tokenUsage/updated", { turnId, tokenUsage: { total: { inputTokens: 100, outputTokens: 20 } } });
   notify("turn/completed", { turn: { id: turnId, status, items: status === "completed" ? [agent] : [], error: null } });
   turnId = undefined;
@@ -118,7 +121,10 @@ createInterface({ input: process.stdin }).on("line", (line) => {
     else reply(m.id, { userAgent: "codex-cli/0.163.0" });
   } else if (m.method === "initialized") return;
   else if (m.method === "account/read") reply(m.id, { account: process.env.FAKE_CODEX_LOGGED_OUT ? null : { type: "chatgpt" } });
-  else if (m.method === "model/list") reply(m.id, { data: [{ id: "gpt-6.1-sol", model: "gpt-6.1-sol", isDefault: true }], nextCursor: null });
+  else if (m.method === "account/rateLimits/read") {
+    if (process.env.FAKE_CODEX_NO_RATE_LIMITS) error(m.id, "rate limits unavailable");
+    else reply(m.id, { rateLimits, rateLimitsByLimitId: { codex: rateLimits } });
+  } else if (m.method === "model/list") reply(m.id, { data: [{ id: "gpt-6.1-sol", model: "gpt-6.1-sol", isDefault: true }], nextCursor: null });
   else if (m.method === "thread/start" || m.method === "thread/resume") {
     model = p.model ?? model;
     if (m.method === "thread/resume") {

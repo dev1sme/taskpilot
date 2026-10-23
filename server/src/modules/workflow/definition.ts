@@ -9,7 +9,7 @@ import { MAX_PARALLEL } from "./assignments.js";
 import { mergeOverride, type Provenance } from "./merge.js";
 import { CUSTOM_MODE, DEFAULT_MODE, WORKFLOW_FILE, isMode, listModes, modeDir } from "./modes.js";
 import { launchModel, modelProblem } from "./models.js";
-import type { DispatchDef, OutputDef, StepDef, WorkflowDef } from "./types.js";
+import type { CodexOptions, DispatchDef, OutputDef, StepDef, WorkflowDef } from "./types.js";
 import { templateVars } from "./vars.js";
 
 /** <package>/workflows/default: the "Mặc định" mode. */
@@ -183,6 +183,28 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
     errors.push(`permission-mode must be one of ${PERMISSION_MODES.join(", ")}`);
   }
 
+  /** `codex: {approvals-reviewer, network}` of the workflow or of a step; undefined when absent or invalid. */
+  const readCodex = (where: string, value: unknown): CodexOptions | undefined => {
+    if (value === undefined) return undefined;
+    if (!isObject(value)) return void errors.push(`${where} must be {approvals-reviewer, network}`);
+    const out: CodexOptions = {};
+    for (const key of Object.keys(value)) {
+      if (key !== "approvals-reviewer" && key !== "network") errors.push(`${where}.${key} is not allowed; use approvals-reviewer or network`);
+    }
+    const reviewer = value["approvals-reviewer"];
+    if (reviewer !== undefined) {
+      if (reviewer === "user" || reviewer === "auto_review") out.approvalsReviewer = reviewer;
+      else errors.push(`${where}.approvals-reviewer must be user or auto_review`);
+    }
+    const network = value.network;
+    if (network !== undefined) {
+      if (typeof network === "boolean") out.networkAccess = network;
+      else errors.push(`${where}.network must be true or false`);
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  };
+  const codex = readCodex("codex", doc.codex);
+
   /** `agent` of the workflow or of a step; undefined when absent or invalid (then reported). */
   const readAgent = (where: string, value: unknown): Agent | undefined => {
     if (value === undefined) return undefined;
@@ -305,7 +327,11 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
     else if (steps.some((s) => s.id === id)) errors.push(`duplicate step id ${id}`);
     if (raw.dispatch !== undefined) {
       const step = readDispatch(at, raw, i);
-      if (step) steps.push(step);
+      if (step) {
+        const own = readCodex(`${at}.codex`, raw.codex);
+        const merged = mergeCodex(codex, own);
+        steps.push(merged ? { ...step, codex: merged } : step);
+      }
       continue;
     }
     const gate = raw.gate ?? "none";
@@ -355,11 +381,13 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
       if (problem) errors.push(`${at}: the workflow's model ${model} ${problem}; give this step a model of its own`);
       else stepModel = model;
     }
+    const stepCodex = mergeCodex(codex, readCodex(`${at}.codex`, raw.codex));
     steps.push({
       id: String(id),
       title: typeof raw.title === "string" ? raw.title : String(id),
       agent: stepAgent,
       model: launchModel(stepModel),
+      ...(stepCodex ? { codex: stepCodex } : {}),
       prompt: prompt?.text ?? "",
       promptFile: prompt?.file ?? "",
       outputs,
@@ -380,6 +408,12 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
   }
 
   if (permissionMode === "plan" && steps.some((s) => s.agent === "codex")) errors.push(t("codex.modeUnsupported"));
+  if ((codex || steps.some((s) => s.codex)) && permissionMode !== "acceptEdits" && permissionMode !== "auto") {
+    warnings.push("codex options apply only with permission-mode acceptEdits or auto; Codex ignores them otherwise");
+  }
+  if ((codex || steps.some((s) => s.codex)) && !steps.some((s) => s.agent === "codex" || s.dispatch)) {
+    warnings.push("codex options are set but no step runs on codex");
+  }
   checkTemplates(steps, rules, history, outputIds, errors, warnings);
   for (const name of files.keys()) {
     if (name !== WORKFLOW_FILE && !used.has(name)) warnings.push(`${name} is not used by any step`);
@@ -392,6 +426,7 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
     agent,
     ...(model !== undefined ? { model } : {}),
     permissionMode: permissionMode as string | undefined,
+    ...(codex ? { codex } : {}),
     history,
     language,
     rules,
@@ -446,6 +481,11 @@ function checkTemplates(steps: StepDef[], rules: string[], history: WorkflowDef[
   if (first?.promptFile && !first.prompt.includes("{{previousRun}}")) {
     warnings.push(`${first.promptFile}: without {{previousRun}}, a restarted run is not told to read the archived documents`);
   }
+}
+
+function mergeCodex(base?: CodexOptions, own?: CodexOptions): CodexOptions | undefined {
+  const merged = { ...base, ...own };
+  return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {

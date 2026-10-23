@@ -9,7 +9,7 @@ export const codexBackend: AgentBackend = {
   transport: "rpc",
   launcher: () => codexCommand(),
   permissionModes: ["default", "acceptEdits", "auto"],
-  supportsSubagents: false,
+  supportsSubagents: true,
   probe: probeCodex,
 };
 

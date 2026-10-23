@@ -26,6 +26,17 @@ if (process.env.FAKE_CODEX_LOGGED_OUT) answers["account/read"] = { account: null
 if (process.env.FAKE_CODEX_ACCOUNT_INVALID) answers["account/read"] = {};
 if (process.env.FAKE_CODEX_PROTOCOL) answers.initialize = {};
 
+// Synthetic read response (no recording of it); shape checked against generate-ts 0.163.0.
+const snapshot = {
+  limitId: "codex",
+  primary: { usedPercent: 3, windowDurationMins: 300, resetsAt: 1792684986 },
+  secondary: { usedPercent: 5, windowDurationMins: 10080, resetsAt: 1793248622 },
+  credits: { hasCredits: false, unlimited: false, balance: "0" },
+  planType: "plus",
+  rateLimitReachedType: null,
+};
+answers["account/rateLimits/read"] = { rateLimits: snapshot, rateLimitsByLimitId: { codex: snapshot } };
+
 const write = (message) => process.stdout.write(`${JSON.stringify(message)}\n`);
 createInterface({ input: process.stdin }).on("line", (line) => {
   const msg = JSON.parse(line);

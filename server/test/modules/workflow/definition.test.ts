@@ -128,6 +128,10 @@ describe("workflow definition", () => {
     ["version: 2\nrules: [1, 2]\nsteps:\n  - {id: a, prompt: p.md}", "rules"],
     ["version: 2\nsteps:\n  - {id: a, prompt: bad.md}", "{{out.missing}} names no output"],
     ["version: 2\nsteps:\n  - {id: a, prompt: fb.md}", "only available in on-reject"],
+    ["version: 2\ncodex: {approvals-reviewer: guardian_subagent}\nsteps:\n  - {id: a, prompt: p.md}", "codex.approvals-reviewer must be user or auto_review"],
+    ["version: 2\ncodex: {network: yes please}\nsteps:\n  - {id: a, prompt: p.md}", "codex.network must be true or false"],
+    ["version: 2\ncodex: {sandbox: danger-full-access}\nsteps:\n  - {id: a, prompt: p.md}", "codex.sandbox is not allowed"],
+    ["version: 2\nsteps:\n  - {id: a, prompt: p.md, codex: [1]}", "steps[0].codex must be"],
   ])("rejects %j", (yml, message) => {
     const { def, errors } = parse(yml, { "bad.md": "{{out.missing}}", "fb.md": "{{feedback}}", "f.md": "# {{feedback}}" });
     expect(def).toBeNull();
@@ -158,6 +162,23 @@ describe("workflow definition", () => {
     const two = "version: 2\nagent: copilot\nsteps:\n  - id: a\n    prompt: p.md\n    agent: claude\n  - id: b\n    prompt: p.md\n";
     const parsed = parse(two).def!;
     expect([parsed.agent, ...parsed.steps.map((s) => s.agent)]).toEqual(["copilot", "claude", "copilot"]);
+  });
+
+  it("reads `codex:` at the workflow and step level, a step overriding field by field", () => {
+    const { def, errors, warnings } = parse(
+      "version: 2\nagent: codex\npermission-mode: acceptEdits\ncodex: {approvals-reviewer: auto_review, network: false}\nsteps:\n  - {id: a, prompt: p.md}\n  - {id: b, prompt: p.md, codex: {network: true}}\n",
+    );
+    expect(errors).toEqual([]);
+    expect(warnings).toEqual([]);
+    expect(def?.codex).toEqual({ approvalsReviewer: "auto_review", networkAccess: false });
+    expect(def?.steps[0].codex).toEqual({ approvalsReviewer: "auto_review", networkAccess: false });
+    expect(def?.steps[1].codex).toEqual({ approvalsReviewer: "auto_review", networkAccess: true });
+  });
+
+  it("leaves codex absent by default and warns when the options cannot take effect", () => {
+    expect(parse(ONE_STEP.replace("steps:", "agent: codex\nsteps:")).def?.codex).toBeUndefined();
+    const { warnings } = parse("version: 2\nagent: codex\ncodex: {network: true}\nsteps:\n  - {id: a, prompt: p.md}\n");
+    expect(warnings.join("\n")).toContain("apply only with permission-mode acceptEdits or auto");
   });
 
   it("rejects an unknown agent", () => {

@@ -16,6 +16,7 @@ import type { SessionMetrics, SessionTransport } from "./transports/types.js";
 import { preflightSession, sessionCapabilities, type PreflightRequest } from "./capabilities.js";
 import type { BackendProbeContext } from "./backends/types.js";
 import { unknownFailure, type SessionFailure } from "./failure.js";
+import type { CodexUsageFields } from "../../core/codex/usage.js";
 import type { AccountQuotaEvidence } from "../usage/index.js";
 
 export type SessionStatus = "running" | "exited";
@@ -91,6 +92,8 @@ export interface SessionManagerOptions {
 
 export interface SessionEvents {
   metrics: [meta: SessionMeta, data: SessionMetrics];
+  /** Codex account rate limits, from the session's own app-server. */
+  rateLimits: [meta: SessionMeta, data: CodexUsageFields];
   /** Status or activity changed; for UI refresh. */
   change: [meta: SessionMeta];
   hook: [meta: SessionMeta, event: HookEvent, payload: Record<string, unknown>];
@@ -742,6 +745,9 @@ export class SessionManager extends EventEmitter<SessionEvents> {
           },
           metrics: (data) => {
             if (this.live.get(meta.id) === live && !live.stopping) this.emit("metrics", meta, data);
+          },
+          rateLimits: (data) => {
+            if (this.live.get(meta.id) === live && !live.stopping) this.emit("rateLimits", meta, data);
           },
           failure: (data) => {
             if (this.live.get(meta.id) !== live || live.stopping) return;

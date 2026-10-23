@@ -17,7 +17,7 @@ CODEX_HOME=$(mktemp -d) node server/test/fixtures/codex/probe.mjs --scenario not
 node server/test/fixtures/codex/probe.mjs --scenario turn --repo "$(mktemp -d)" --out server/test/fixtures/codex
 ```
 
-Kịch bản: `handshake`, `defaults`, `turn`, `edit`, `approval-accept`, `approval-decline`, `approval-cancel`, `untrusted`, `auto`, `interrupt`, `busy`, `resume`, `bad-model`, `not-logged-in`, `plan`. `--repo` trống thì probe tạo git repo tạm. `TASKPILOT_CODEX` thay đường dẫn `codex` như server. `--timeout <ms>` mặc định 180000.
+Kịch bản: `handshake`, `defaults`, `turn`, `edit`, `approval-accept`, `approval-decline`, `approval-cancel`, `untrusted`, `auto`, `git-commit`, `network`, `npm-test`, `interrupt`, `busy`, `resume`, `bad-model`, `not-logged-in`, `plan`. `--repo` trống thì probe tạo git repo tạm. `TASKPILOT_CODEX` thay đường dẫn `codex` như server. `--timeout <ms>` mặc định 180000.
 
 Mỗi dòng là `{"dir":"send"|"recv"|"note","msg":…}`. `send` là probe gửi, `recv` là app-server gửi, `note` là ghi chú của probe (pid, kill, tóm tắt cuối). Probe thay đường dẫn repo bằng `<REPO>`, thư mục ngoài workspace bằng `<OUTSIDE>`, `CODEX_HOME` bằng `<CODEX_HOME>`, thư mục tạm bằng `<TMP>`, home bằng `<HOME>`, e-mail bằng `<EMAIL>`, và các id tài khoản/cài đặt bằng `<ID>`.
 
@@ -99,6 +99,29 @@ recv serverRequest/resolved             {threadId, requestId:0}
 | `collaborationMode: {mode:"plan"}` trên `turn/start` (`plan.jsonl`) | Cần `capabilities.experimentalApi: true`. Model từ chối tạo file ("I can't create files in Plan Mode") |
 
 `workspace-write` cho ghi `/tmp` và `$TMPDIR` (`excludeSlashTmp: false`, `excludeTmpdirEnvVar: false`) và tắt mạng (`networkAccess: false`). Response trả `sandbox` dạng `SandboxPolicy` (`{type:"workspaceWrite",…}`), khác chuỗi `SandboxMode` gửi đi.
+
+### Lệnh thật nào bị hỏi (TPL-035, việc 4)
+
+Kịch bản `git-commit`, `network`, `npm-test` của `probe.mjs` chạy một lệnh thật ở `workspace-write` + `on-request`, chấp nhận mọi `requestApproval` và ghi lại `approvals` (method, reason, command, cwd) trong tóm tắt. **Chưa có `git-commit.jsonl`, `network.jsonl`, `npm-test.jsonl`**: lần chạy ngày 2026-10-23 cả ba lượt `failed` với `usageLimitExceeded` ("hit your usage limit… try again at 6:24 PM") trước khi model chạy lệnh nào, nên không chứng minh được gì về approval. Bản ghi lỗi đã bị xoá để không bị nhầm là fixture; probe giờ ghi `summary.error` khi lượt không `completed`. Chạy lại khi có quota:
+
+```bash
+for s in git-commit network npm-test; do
+  node server/test/fixtures/codex/probe.mjs --scenario $s --repo "$(mktemp -d)" --out server/test/fixtures/codex
+done
+```
+
+Chỉ lưu fixture khi `summary.status` là `completed`. Cả ba file phải có `requestApproval` hoặc không có; kết quả đó mới là bằng chứng approval.
+
+Bằng chứng **sandbox** (không qua model, không tốn quota), `codex-cli 0.163.0`, Linux, ngày 2026-10-23, repo git tạm trong `/tmp`, `codex sandbox -c 'sandbox_mode="workspace-write"' -- <lệnh>`:
+
+| Lệnh                                                         | Trong sandbox `workspace-write`                                                      | Hệ quả với `on-request`                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `git commit -m …`                                            | Lỗi `Unable to create '<REPO>/.git/index.lock': Read-only file system`; không commit | Cần chạy ngoài sandbox, **[Suy luận]** model xin `requestApproval` |
+| `curl https://example.com`                                   | `Could not resolve host` (mạng tắt)                                                  | Cần chạy ngoài sandbox, **[Suy luận]** model xin `requestApproval` |
+| cùng lệnh + `-c sandbox_workspace_write.network_access=true` | HTTP 200                                                                             | Không cần hỏi nữa                                                  |
+| `npm test` (script `node -e …`, không mạng, không cài)       | Chạy bình thường, exit 0                                                             | Không bị hỏi                                                       |
+
+Kết luận tạm: (1) `.git` chỉ đọc trong `workspace-write`, nên **mọi `git commit`/`git add` (ghi index) đều ra ngoài sandbox**; `network_access` không giải quyết được việc này, `approvalsReviewer: auto_review` thì có. (2) Mạng tắt là nguyên nhân cho `npm install`, `curl`, `git fetch/push`; `network_access=true` giải quyết. (3) `npm test` thuần cục bộ không bị hỏi. Phần "model có thật sự xin quyền và xin thế nào" (`reason`, `command` của `requestApproval`) vẫn **chưa kiểm chứng** cho tới khi có ba fixture trên; việc 5 chỉ nên chốt `networkAccess`/`approvalsReviewer` sau đó.
 
 ## Daemon và danh sách resume
 

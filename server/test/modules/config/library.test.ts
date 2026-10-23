@@ -2,6 +2,7 @@ import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { get, home, repo, send, useConfigApp } from "../../helpers/configApp.js";
+import { checkCodexAgent } from "../../../src/modules/config/library/check.js";
 import { SUBAGENTS_DIR } from "../../../src/modules/config/library/templates.js";
 
 useConfigApp();
@@ -185,5 +186,52 @@ describe("subagent templates", () => {
     const res = await send("POST", "/api/config/agents/templates/install", { names: ["taskpilot-explorer"], overwrite: ["taskpilot-explorer"] });
     expect(res.statusCode).toBe(409);
     expect(res.json().error).toContain("team/explorer.md");
+  });
+});
+
+describe("Codex subagent templates", () => {
+  it("ships four TOML templates that pass the check", async () => {
+    const list = await get("/api/config/agents/templates?cli=codex");
+    expect(list.map((x: { name: string }) => x.name)).toEqual(TEMPLATES);
+    for (const x of list) expect(x.check.status).toBe("ok");
+    expect(list.find((x: { name: string }) => x.name === "taskpilot-explorer").check.roles).toEqual(["leader"]);
+  });
+
+  it("installs to .codex/agents with backups, skips equal files and refuses silent overwrite", async () => {
+    const preview = (await send("POST", "/api/config/agents/templates/preview", { cli: "codex" })).json();
+    expect(preview.files).toHaveLength(4);
+    expect(preview.diff).toContain('+name = "taskpilot-explorer"');
+
+    const res = await send("POST", "/api/config/agents/templates/install", { cli: "codex", names: TEMPLATES });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().files).toEqual(TEMPLATES.map((n) => `.codex/agents/${n}.toml`));
+    expect(await readFile(path.join(repo, ".codex/agents/taskpilot-tester.toml"), "utf8")).toContain('name = "taskpilot-tester"');
+    expect(await get("/api/backups")).toHaveLength(4);
+    expect((await get("/api/config/agents/templates")).every((x: { exists: boolean }) => !x.exists)).toBe(true);
+    expect((await get("/api/config/agents/templates?cli=codex")).every((x: { same: boolean }) => x.same)).toBe(true);
+
+    const again = (await send("POST", "/api/config/agents/templates/install", { cli: "codex" })).json();
+    expect(again.files).toEqual([]);
+
+    await writeFile(path.join(repo, ".codex/agents/taskpilot-reviewer.toml"), 'name = "taskpilot-reviewer"\n');
+    const clash = await send("POST", "/api/config/agents/templates/install", { cli: "codex", names: ["taskpilot-reviewer"] });
+    expect(clash.statusCode).toBe(409);
+    expect(clash.json().error).toContain(".codex/agents/taskpilot-reviewer.toml");
+  });
+
+  it("refuses an unknown cli and a name already declared by another file", async () => {
+    expect((await send("POST", "/api/config/agents/templates/install", { cli: "gemini" })).statusCode).toBe(400);
+    await mkdir(path.join(repo, ".codex/agents"), { recursive: true });
+    await writeFile(path.join(repo, ".codex/agents/mine.toml"), 'name = "taskpilot-explorer"\ndescription = "x"\ndeveloper_instructions = "x"\n');
+    const res = await send("POST", "/api/config/agents/templates/install", { cli: "codex", names: ["taskpilot-explorer"] });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toContain("mine.toml");
+  });
+
+  it("checks a Codex agent file", () => {
+    expect(checkCodexAgent("name = ").status).toBe("error");
+    expect(checkCodexAgent('name = "a"\ndescription = "b"').problems).toHaveLength(1);
+    expect(checkCodexAgent('name = "a"\ndescription = "b"\ndeveloper_instructions = "c"\nsandbox_mode = "x"').status).toBe("error");
+    expect(checkCodexAgent('name = "a"\ndescription = "b"\ndeveloper_instructions = "c"').roles).toEqual(["leader", "member"]);
   });
 });

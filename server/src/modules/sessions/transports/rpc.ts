@@ -4,12 +4,14 @@ import { randomUUID } from "node:crypto";
 import type { WebSocket } from "ws";
 import { CodexError } from "../../../core/codex/errors.js";
 import { codexResumeOptions, codexThreadOptions } from "../../../core/codex/launch.js";
+import { codexRateLimits, parseCodexRateLimits } from "../../../core/codex/usage.js";
 import { listCodexModels } from "../../../core/codex/models.js";
 import { codexLoggedIn, initializeCodex, CodexRpc, type CodexProcess, type ServerRequest } from "../../../core/codex/rpc.js";
 import { HttpError } from "../../../core/errors.js";
 import { t } from "../../../core/i18n.js";
 import type { HookEvent } from "../hooks.js";
 import { codexHttpError } from "./codex-errors.js";
+import { resolveCodexInput } from "./codex-commands.js";
 import { codexStartupFailure, codexTurnFailure, unknownFailure } from "../failure.js";
 import type { ConversationItem, SessionTransport, TransportEvents, TransportLaunch } from "./types.js";
 
@@ -30,6 +32,9 @@ export class RpcTransport implements SessionTransport {
   private starting = false;
   private stopping = false;
   private submittedText = "";
+  private cwd?: string;
+  /** Set by `/model`; sent with every later turn/start. */
+  private model?: string;
   /** Native request ids restart at zero in each process; browser answers must identify the spawn. */
   private approvalPrefix = "";
   private readonly items = new Map<string, ConversationItem>();
@@ -53,6 +58,8 @@ export class RpcTransport implements SessionTransport {
     const params = resume ? codexResumeOptions({ ...opts, threadId: meta.nativeId }) : codexThreadOptions(opts);
     this.events = events;
     this.sessionId = meta.id;
+    this.cwd = meta.repo;
+    this.model = undefined;
     this.approvalPrefix = randomUUID();
     this.ready = false;
     this.starting = true;
@@ -103,6 +110,7 @@ export class RpcTransport implements SessionTransport {
       this.starting = false;
       events.ready?.();
       this.hook("SessionStart", { source: resume ? "resume" : "startup" });
+      void this.readRateLimits(current);
     } catch (error) {
       events.failure?.(codexStartupFailure(error));
       this.starting = false;
@@ -122,8 +130,19 @@ export class RpcTransport implements SessionTransport {
     this.submittedText = text;
     // turn/start can steer a running turn; UserPromptSubmit comes only from turn/started.
     const proc = this.proc;
-    void proc.rpc
-      .request("turn/start", { threadId: this.threadId, input: [{ type: "text", text, text_elements: [] }] })
+    const threadId = this.threadId;
+    void resolveCodexInput(text, { rpc: proc.rpc, threadId, cwd: this.cwd })
+      .then(async (resolved) => {
+        if (resolved.kind === "handled") {
+          if (this.proc !== proc || this.stopping) return;
+          if (resolved.model) this.model = resolved.model;
+          const at = Date.now();
+          if (resolved.error) this.upsert({ id: randomUUID(), kind: "error", text: resolved.error, at });
+          else if (resolved.notice) this.upsert({ id: randomUUID(), kind: "agent", text: resolved.notice, status: "done", at });
+          return;
+        }
+        await proc.rpc.request("turn/start", { threadId, input: resolved.input, ...(this.model ? { model: this.model } : {}) });
+      })
       .catch((error: unknown) => {
         if (this.proc !== proc || this.stopping) return;
         const message = codexHttpError(error).message;
@@ -196,7 +215,22 @@ export class RpcTransport implements SessionTransport {
     this.hook("PermissionRequest", tool);
   }
 
+  /** Best effort: an old Codex or a signed-out API key has no rate limits, and that must not fail the session. */
+  private async readRateLimits(proc: CodexProcess): Promise<void> {
+    try {
+      const usage = await codexRateLimits(proc.rpc);
+      if (usage && this.proc === proc && !this.stopping) this.events?.rateLimits?.(usage);
+    } catch {
+      // Display only.
+    }
+  }
+
   private notification(method: string, p: Obj): void {
+    if (method === "account/rateLimits/updated") {
+      const usage = parseCodexRateLimits(p);
+      if (usage) this.events?.rateLimits?.(usage);
+      return;
+    }
     if (this.threadId && p.threadId && p.threadId !== this.threadId) return;
     if (method === "turn/started") {
       this.turnId = str(obj(p.turn).id);

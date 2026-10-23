@@ -1,12 +1,15 @@
+import { readdir } from "node:fs/promises";
+import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { HttpError } from "../../../core/errors.js";
 import { t } from "../../../core/i18n.js";
 import { isObject } from "../shared/fs.js";
 import { stringField, type ConfigRouteOptions } from "../shared/http.js";
-import { libraryTarget } from "../shared/targets.js";
+import { codexAgentTarget, libraryTarget } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
 import { readLibrary, type LibraryKind, type LibraryScope } from "./read.js";
-import { readTemplates, type AgentTemplate } from "./templates.js";
+import { checkCodexAgent } from "./check.js";
+import { readTemplates, tomlMeta, type AgentCli, type AgentTemplate } from "./templates.js";
 
 /** Agents, commands and skills. */
 export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {
@@ -16,17 +19,22 @@ export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOpt
   app.get("/api/config/commands", async () => readLibrary(requireRepo(), "commands"));
   app.get("/api/config/skills", async () => readLibrary(requireRepo(), "skills"));
 
-  /** TaskPilot's subagents and how each compares with the repo's .claude/agents/<name>.md. */
-  app.get("/api/config/agents/templates", async () => {
+  /**
+   * TaskPilot's subagents and how each compares with the repo's .claude/agents/<name>.md, or with
+   * .codex/agents/<name>.toml when `?cli=codex`.
+   */
+  app.get<{ Querystring: { cli?: string } }>("/api/config/agents/templates", async (req) => {
     const repo = requireRepo();
-    const files = await Promise.all((await readTemplates()).map((tpl) => templateState(repo, tpl)));
+    const cli = cliOf(req.query.cli);
+    const files = await Promise.all((await readTemplates(cli)).map((tpl) => templateState(repo, tpl, cli)));
     return files.map(({ current: _, ...f }) => f);
   });
 
-  /** The diff of writing the chosen templates (all when `names` is left out). */
+  /** The diff of writing the chosen templates (all when `names` is left out); `cli` in the body picks Codex. */
   app.post("/api/config/agents/templates/preview", async (req) => {
     const repo = requireRepo();
-    const files = await Promise.all((await chosenTemplates(req.body)).map((tpl) => templateState(repo, tpl)));
+    const cli = cliOf((req.body as { cli?: unknown } | null)?.cli);
+    const files = await Promise.all((await chosenTemplates(req.body, cli)).map((tpl) => templateState(repo, tpl, cli)));
     const diff = files
       .filter((f) => !f.same)
       .map((f) => diffText(f.path, f.current, f.content))
@@ -35,18 +43,19 @@ export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOpt
   });
 
   /**
-   * Writes the chosen templates to .claude/agents/. A file that exists is overwritten only when
+   * Writes the chosen templates to .claude/agents/ (.codex/agents/ for `cli: "codex"`). A file that exists is overwritten only when
    * named in `overwrite`, and only if it still has the hash the preview showed (`hashes`);
    * otherwise nothing is written (409). Every write is backed up; files already equal are skipped.
    */
   app.post("/api/config/agents/templates/install", async (req) => {
     const repo = requireRepo();
-    const body = (req.body as { overwrite?: unknown; hashes?: unknown } | null) ?? {};
+    const body = (req.body as { overwrite?: unknown; hashes?: unknown; cli?: unknown } | null) ?? {};
+    const cli = cliOf(body.cli);
     const overwrite = Array.isArray(body.overwrite) ? body.overwrite.filter((n): n is string => typeof n === "string") : [];
     const hashes = isObject(body.hashes) ? body.hashes : {};
-    const files = await Promise.all((await chosenTemplates(req.body)).map((tpl) => templateState(repo, tpl)));
+    const files = await Promise.all((await chosenTemplates(req.body, cli)).map((tpl) => templateState(repo, tpl, cli)));
 
-    const project = (await readLibrary(repo, "agents")).filter((a) => a.scope === "project");
+    const project = cli === "codex" ? await codexProjectAgents(repo) : (await readLibrary(repo, "agents")).filter((a) => a.scope === "project");
     for (const f of files) {
       const other = project.find((a) => a.name === f.name && a.rel !== f.rel);
       if (other) throw new HttpError(409, t("errors.agentTemplateNameTaken", { name: f.name, file: other.path }));
@@ -59,7 +68,7 @@ export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOpt
 
     const written: string[] = [];
     for (const f of files.filter((x) => !x.same)) {
-      const target = libraryTarget(repo, "agents", "project", f.rel);
+      const target = cli === "codex" ? codexAgentTarget(repo, f.rel) : libraryTarget(repo, "agents", "project", f.rel);
       await writeWithBackup({ repo, target, next: f.content, baseHash: f.hash, reason: t("backup.agentTemplates"), backups });
       written.push(target.display);
     }
@@ -106,8 +115,8 @@ export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOpt
 }
 
 /** Templates named in the body's `names`, or all of them when it has none. */
-async function chosenTemplates(body: unknown): Promise<AgentTemplate[]> {
-  const all = await readTemplates();
+async function chosenTemplates(body: unknown, cli: AgentCli): Promise<AgentTemplate[]> {
+  const all = await readTemplates(cli);
   const names = (body as { names?: unknown } | null)?.names;
   if (names === undefined) return all;
   if (!Array.isArray(names)) throw new HttpError(400, t("errors.missing", { key: "names" }));
@@ -118,8 +127,31 @@ async function chosenTemplates(body: unknown): Promise<AgentTemplate[]> {
   });
 }
 
-async function templateState(repo: string, tpl: AgentTemplate) {
-  const target = libraryTarget(repo, "agents", "project", tpl.rel);
+function cliOf(v: unknown): AgentCli {
+  if (v === undefined || v === "claude") return "claude";
+  if (v === "codex") return "codex";
+  throw new HttpError(400, t("errors.invalidKind", { kind: String(v) }));
+}
+
+/** The repo's .codex/agents/*.toml with the name each file declares, to catch a name used twice. */
+async function codexProjectAgents(repo: string): Promise<{ name: string; rel: string; path: string }[]> {
+  let files: string[];
+  try {
+    files = (await readdir(path.join(repo, ".codex", "agents"))).filter((n) => n.endsWith(".toml"));
+  } catch {
+    return [];
+  }
+  return Promise.all(
+    files.map(async (rel) => {
+      const target = codexAgentTarget(repo, rel);
+      const meta = tomlMeta((await readCurrent(target.abs)) ?? "");
+      return { name: typeof meta.name === "string" ? meta.name : rel.replace(/\.toml$/, ""), rel, path: target.display };
+    }),
+  );
+}
+
+async function templateState(repo: string, tpl: AgentTemplate, cli: AgentCli = "claude") {
+  const target = cli === "codex" ? codexAgentTarget(repo, tpl.rel) : libraryTarget(repo, "agents", "project", tpl.rel);
   const current = await readCurrent(target.abs);
   return {
     name: tpl.name,
@@ -132,5 +164,6 @@ async function templateState(repo: string, tpl: AgentTemplate) {
     hash: hashOf(current),
     current,
     content: tpl.content,
+    ...(cli === "codex" ? { check: checkCodexAgent(tpl.content) } : {}),
   };
 }

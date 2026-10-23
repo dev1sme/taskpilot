@@ -121,6 +121,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     // A subtask's model and cost, for the leader's review of the subtasks.
     void engine.onStatusLine(meta, payload).catch(logError);
   });
+  sessions.on("rateLimits", (_meta, data) => void usage.applyCodex(data).catch(logError));
   const copilotQuota = new CopilotQuotaPoller(usage, opts.copilotQuota, logError);
   sessions.on("hook", (meta, event) => {
     if (meta.agent === "copilot" && (event === "SessionStart" || event === "PostToolUse" || event === "Stop")) copilotQuota.request();

@@ -100,6 +100,7 @@ export function resolveExecution({ workflow, scope, run = {}, assignment }: Reso
     ...(model === undefined ? {} : { model }),
     ...(row?.subagent ? { subagent: row.subagent } : {}),
     ...(workflow.permissionMode === undefined ? {} : { permissionMode: workflow.permissionMode }),
+    ...(choice.agent === "codex" && step.codex ? { codex: { ...step.codex } } : {}),
     source,
     modelSource: model === undefined ? "default" : "explicit",
   };

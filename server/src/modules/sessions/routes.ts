@@ -4,7 +4,6 @@ import { HttpError } from "../../core/errors.js";
 import type { RepoContext } from "../repo/index.js";
 import { getTask, REPO_SESSION_KEY } from "../tasks/index.js";
 import type { SessionManager } from "./manager.js";
-import { t } from "../../core/i18n.js";
 
 const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -18,7 +17,6 @@ function agentOf(body: unknown): Agent | undefined {
   const agent = typeof body === "object" && body !== null ? (body as { agent?: unknown }).agent : undefined;
   if (agent === undefined || agent === null) return undefined;
   if (!isAgent(agent)) throw new HttpError(400, `Unknown agent: ${String(agent)}`);
-  if (agent === "codex" && (body as { subagent?: unknown }).subagent) throw new HttpError(400, t("codex.subagentUnsupported"));
   return agent;
 }
 

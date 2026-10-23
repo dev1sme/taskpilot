@@ -1,4 +1,5 @@
 import type { Launcher } from "../../../core/claude/launch.js";
+import type { CodexUsageFields } from "../../../core/codex/usage.js";
 import type { SessionMeta } from "../../../core/state.js";
 import type { AgentBackend } from "../backends/types.js";
 import type { HookEvent } from "../hooks.js";
@@ -23,6 +24,8 @@ export interface TransportEvents {
   process?(pid: number, groupId?: number): Promise<void>;
   ready?(): void;
   metrics?(data: SessionMetrics): void;
+  /** Account rate limits Codex reported (read after ready or pushed by `account/rateLimits/updated`); sparse. */
+  rateLimits?(data: CodexUsageFields): void;
   /** Only final failures of this process/turn; retry notifications are not failures. */
   failure?(data: SessionFailure): void;
   /** An event the transport saw itself, in Claude Code's hook names and payload fields. */

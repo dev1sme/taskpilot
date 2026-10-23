@@ -1,7 +1,11 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { CodexError } from "../../../src/core/codex/errors.js";
+import { cleanupTempDirs, tempDir } from "../../helpers/fixtures.js";
 import { codexCommand, codexResumeOptions, codexThreadOptions } from "../../../src/core/codex/launch.js";
 
+afterAll(cleanupTempDirs);
 afterEach(() => {
   delete process.env.TASKPILOT_CODEX;
 });
@@ -37,8 +41,59 @@ describe("codexThreadOptions", () => {
     }
   });
 
-  it("refuses a subagent", () => {
-    expect(() => codexThreadOptions({ cwd, subagent: "taskpilot-implementer" })).toThrowError(expect.objectContaining({ code: "subagentUnsupported" }));
+  describe("subagent", () => {
+    const agentRepo = async (toml: string) => {
+      const repo = await tempDir("codex-agent-");
+      await mkdir(path.join(repo, ".codex", "agents"), { recursive: true });
+      await writeFile(path.join(repo, ".codex", "agents", "worker.toml"), toml);
+      return repo;
+    };
+
+    it("applies the agent's instructions and model", async () => {
+      const repo = await agentRepo('name = "worker"\nmodel = "agent-model"\ndeveloper_instructions = "Be careful."\n');
+      expect(codexThreadOptions({ cwd: repo, subagent: "worker" })).toEqual({ cwd: repo, model: "agent-model", developerInstructions: "Be careful." });
+      expect(codexThreadOptions({ cwd: repo, subagent: "worker", model: "row-model" }).model).toBe("row-model");
+      expect(codexResumeOptions({ cwd: repo, threadId: "t1", subagent: "worker" })).toMatchObject({ developerInstructions: "Be careful." });
+    });
+
+    it("keeps the session model when the agent has none", async () => {
+      const repo = await agentRepo('developer_instructions = "x"\n');
+      expect(codexThreadOptions({ cwd: repo, subagent: "worker" })).toEqual({ cwd: repo, developerInstructions: "x" });
+    });
+
+    it.each(["missing", "../worker", "bad name"])("refuses %s", async (subagent) => {
+      const repo = await agentRepo('developer_instructions = "x"\n');
+      expect(() => codexThreadOptions({ cwd: repo, subagent })).toThrowError(expect.objectContaining({ code: "subagentUnsupported" }));
+    });
+
+    it("refuses an agent without instructions or with broken TOML", async () => {
+      for (const toml of ['name = "worker"\n', "= broken"]) {
+        const repo = await agentRepo(toml);
+        expect(() => codexThreadOptions({ cwd: repo, subagent: "worker" })).toThrowError(expect.objectContaining({ code: "subagentUnsupported" }));
+      }
+    });
+  });
+
+  it("passes approvalsReviewer and networkAccess only inside the workspace sandbox", () => {
+    expect(codexThreadOptions({ cwd, permissionMode: "acceptEdits", approvalsReviewer: "auto_review", networkAccess: true })).toEqual({
+      cwd,
+      sandbox: "workspace-write",
+      approvalPolicy: "on-request",
+      approvalsReviewer: "auto_review",
+      config: { sandbox_workspace_write: { network_access: true } },
+    });
+    expect(codexThreadOptions({ cwd, permissionMode: "auto", networkAccess: false }).config).toEqual({ sandbox_workspace_write: { network_access: false } });
+    expect(codexThreadOptions({ cwd, approvalsReviewer: "auto_review", networkAccess: true })).toEqual({ cwd });
+    expect(codexThreadOptions({ cwd, permissionMode: "default", networkAccess: true })).toEqual({ cwd });
+  });
+
+  it("refuses unknown reviewers and non-boolean network values", () => {
+    for (const approvalsReviewer of ["guardian_subagent", "", "yes"]) {
+      expect(() => codexThreadOptions({ cwd, permissionMode: "acceptEdits", approvalsReviewer: approvalsReviewer as never }), approvalsReviewer).toThrowError(
+        expect.objectContaining({ code: "modeUnsupported" }),
+      );
+    }
+    expect(() => codexThreadOptions({ cwd, permissionMode: "acceptEdits", networkAccess: "true" as never })).toThrowError(expect.objectContaining({ code: "modeUnsupported" }));
   });
 
   it("never asks for full access, whatever the mode", () => {
@@ -58,6 +113,11 @@ describe("codexResumeOptions", () => {
       approvalPolicy: "never",
       excludeTurns: true,
     });
+  });
+
+  it("repeats approvalsReviewer and networkAccess on resume", () => {
+    const r = codexResumeOptions({ cwd: "/repo", threadId: "t1", permissionMode: "acceptEdits", approvalsReviewer: "auto_review", networkAccess: true });
+    expect(r).toMatchObject({ approvalsReviewer: "auto_review", config: { sandbox_workspace_write: { network_access: true } } });
   });
 
   it("fails without a thread id instead of starting a new thread", () => {

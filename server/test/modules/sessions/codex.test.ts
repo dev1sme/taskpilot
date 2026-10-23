@@ -251,4 +251,26 @@ describe("Codex sessions", () => {
       expect(activity.some((i: { kind: string }) => i.kind === "stop")).toBe(true);
     });
   });
+
+  it("reports account rate limits on ready and when Codex updates them, and survives a Codex without them", async () => {
+    const state = new StateStore(await tempDir("codex-usage-"));
+    const app = await buildApp({ state, token: "test", repo: await makeRepo(), launchers: { codex: () => ({ file: process.execPath, args: [FAKE] }) } });
+    apps.push(app);
+    const headers = { host: "127.0.0.1:8790", "x-taskpilot-token": "test" };
+    const usage = async () => (await app.inject({ url: "/api/usage", headers })).json();
+    expect((await usage())?.agents?.codex).toBeUndefined();
+    const session = (await app.inject({ method: "POST", url: "/api/tasks/DEMO-1/sessions", headers, payload: { agent: "codex" } })).json();
+    await vi.waitFor(async () => expect((await usage()).agents.codex).toMatchObject({ planType: "plus", fiveHour: { usedPercentage: 0 }, sevenDay: { usedPercentage: 5 } }));
+    await app.inject({ method: "POST", url: `/api/sessions/${session.id}/input`, headers, payload: { text: "hello" } });
+    await vi.waitFor(async () => expect((await app.inject({ url: "/api/tasks/DEMO-1/activity", headers })).json().some((i: { kind: string }) => i.kind === "stop")).toBe(true));
+  });
+
+  it("keeps the session working when rate limits cannot be read", async () => {
+    const { manager, session, waitStop } = await setup({ FAKE_CODEX_NO_RATE_LIMITS: "1" });
+    const limits: unknown[] = [];
+    manager.on("rateLimits", (_meta, data) => limits.push(data));
+    manager.paste(session.id, "hello");
+    await waitStop();
+    expect(limits).toEqual([]);
+  });
 });

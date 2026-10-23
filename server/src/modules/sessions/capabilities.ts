@@ -1,3 +1,4 @@
+import { readCodexAgent } from "../../core/codex/agents.js";
 import { AGENTS, type Agent } from "../../core/agents.js";
 import { HttpError } from "../../core/errors.js";
 import { backendOf } from "./backends/index.js";
@@ -64,6 +65,13 @@ export async function preflightSession(request: PreflightRequest, contextOf: Con
   if (configuration.permissionMode !== undefined && !backend.permissionModes.includes(configuration.permissionMode))
     errors.push(problem(request.agent, "unsupported_permission", "permissionMode"));
   if (configuration.subagent && !backend.supportsSubagents) errors.push(problem(request.agent, "unsupported_subagent", "subagent"));
+  if (request.agent === "codex" && configuration.subagent && backend.supportsSubagents) {
+    try {
+      readCodexAgent((await contextOf(configuration)).repo, configuration.subagent);
+    } catch {
+      errors.push(problem(request.agent, "unsupported_subagent", "subagent"));
+    }
+  }
   if (configuration.model !== undefined && !/^[A-Za-z0-9][\w.:/[\]-]*$/.test(configuration.model)) errors.push(problem(request.agent, "invalid_model", "model"));
   // Reject unsupported permissions before invoking even a read-only CLI.
   const capability = errors.length ? emptyCapability(backend) : await probe(configuration, contextOf);

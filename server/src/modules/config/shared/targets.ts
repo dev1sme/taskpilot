@@ -69,6 +69,13 @@ export function libraryTarget(repo: string, kind: LibraryKind, scope: LibrarySco
   return { abs, display: displayPath(abs, repo) };
 }
 
+/** A Codex custom agent: <repo>/.codex/agents/<name>.toml, directly in the folder. */
+export function codexAgentTarget(repo: string, rel: string): FileTarget {
+  if (!/^[A-Za-z0-9][\w.-]*\.toml$/.test(rel)) throw new HttpError(400, t("errors.invalidName", { name: rel }));
+  const abs = path.join(repo, ".codex", "agents", rel);
+  return { abs, display: displayPath(abs, repo) };
+}
+
 /** A file of the repo's workflow override: workflow.yml or a prompt next to it. */
 export function workflowTarget(repo: string, name: string): FileTarget {
   if (!isWorkflowFileName(name)) throw new HttpError(400, t("errors.invalidName", { name }));
@@ -105,6 +112,7 @@ export function isAllowedPath(abs: string, repo: string): boolean {
   if (exact.includes(p)) return true;
   // The workflow override and settings.yml: files directly in .taskpilot/, never TaskPilot's own workflows/default/.
   if (path.dirname(p) === path.resolve(overrideDir(repo)) && (isWorkflowFileName(path.basename(p)) || path.basename(p) === SETTINGS_FILE)) return true;
+  if (path.dirname(p) === path.resolve(repo, ".codex", "agents") && p.endsWith(".toml")) return true;
   // Anything inside the agents/commands/skills folders (skills also hold scripts and templates).
   const roots = LIBRARY_DIRS.flatMap((d) => [path.join(repo, ".claude", d), path.join(claudeHome(), d)]);
   return roots.some((root) => {

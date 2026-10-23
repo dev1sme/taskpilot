@@ -1,4 +1,4 @@
-import { chmod, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import Fastify from "fastify";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
@@ -102,7 +102,6 @@ describe("session capabilities and preflight", () => {
   it.each([
     [{ permissionMode: "plan" }, "unsupported_permission"],
     [{ permissionMode: "bypassPermissions" }, "unsupported_permission"],
-    [{ subagent: "reviewer" }, "unsupported_subagent"],
     [{ model: "--other-flag" }, "invalid_model"],
   ] as const)("rejects incompatible options %j before probing", async (options, code) => {
     const { repo, manager, launch } = await setup();
@@ -159,6 +158,19 @@ describe("session capabilities and preflight", () => {
     expect(next.errors.map((error) => error.code)).toEqual(["not_logged_in", "model_unavailable"]);
     vi.unstubAllEnvs();
     expect((await manager.preflight(repo, { agent: "codex", model: "gpt-6.1-sol" })).status).toBe("ready");
+  });
+
+  it("checks a Codex subagent file in the repo before probing", async () => {
+    const { repo, manager } = await setup();
+    const request = { agent: "codex", subagent: "reviewer" } as PreflightRequest;
+    const missing = await manager.preflight(repo, request);
+    expect(missing.status).toBe("blocked");
+    expect(missing.errors[0].code).toBe("unsupported_subagent");
+    await mkdir(path.join(repo, ".codex", "agents"), { recursive: true });
+    await writeFile(path.join(repo, ".codex", "agents", "reviewer.toml"), 'developer_instructions = "Review."\n');
+    const found = await manager.preflight(repo, request);
+    expect(found.errors).toEqual([]);
+    expect(found.capability.subagents.status).toBe("supported");
   });
 
   it.each(["claude", "copilot"] as const)("keeps %s login/models unknown and preserves legacy workflow options", async (agent) => {

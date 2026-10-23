@@ -11,10 +11,18 @@ export interface SelectedExecution {
   source: ExecutionSelectionSource;
 }
 
+/** Codex permission options from `codex:` in workflow.yml; absent = Codex's own configuration. */
+export interface CodexOptions {
+  approvalsReviewer?: "user" | "auto_review";
+  networkAccess?: boolean;
+}
+
 /** Requested launch configuration; this does not claim account/model availability. */
 export interface EffectiveExecution extends AgentExecution {
   subagent?: string;
   permissionMode?: string;
+  /** Only set for a Codex lane, and only when the workflow asks for it. */
+  codex?: CodexOptions;
   source: ExecutionSource;
   modelSource: "explicit" | "default";
 }
@@ -212,6 +220,8 @@ export interface StepDef {
   agent: Agent;
   /** Passed as --model to the step's session: the step's own `model`, else the workflow's; absent for the agent's default. */
   model?: string;
+  /** The step's `codex` options merged over the workflow's. */
+  codex?: CodexOptions;
   /** Prompt template text, already loaded. */
   prompt: string;
   /** Prompt file name, inside the workflow directory. */
@@ -241,6 +251,8 @@ export interface WorkflowDef {
   /** Default model of the steps (`model` at the top of workflow.yml), as written; absent = the agent's default. */
   model?: string;
   permissionMode?: string;
+  /** `codex` at the top of workflow.yml: default permission options of the Codex steps. */
+  codex?: CodexOptions;
   /**
    * The task's decision log: file name in the task dir, the heading Claude uses for its entries, and
    * an optional skeleton file for a whole entry ({{historyFormat}}).

@@ -1,5 +1,6 @@
 import { t } from "../../../core/i18n.js";
 import { isClaudeModel } from "../../workflow/index.js";
+import { parse as parseToml } from "smol-toml";
 import { strings } from "../shared/fs.js";
 import type { LibraryScope } from "./read.js";
 
@@ -43,6 +44,30 @@ export function checkAgent(meta: Record<string, unknown>, parseError: string | u
   if (errors.length) return { status: "error", roles: [], problems: [...errors, ...warnings, ...notes] };
   const roles: AgentRole[] = canWrite ? ["leader", "member"] : ["leader"];
   return { status: warnings.length ? "warn" : "ok", roles, problems: [...warnings, ...notes] };
+}
+
+/** Sandbox modes a Codex custom agent may set. */
+const CODEX_SANDBOX_MODES = ["read-only", "workspace-write", "danger-full-access"];
+
+/** What a .codex/agents/*.toml file says about itself: it needs a name, a description and instructions. */
+export function checkCodexAgent(text: string): AgentCheck {
+  let meta: Record<string, unknown>;
+  try {
+    meta = parseToml(text);
+  } catch (e) {
+    return { status: "error", roles: [], problems: [t("agentCheck.badToml", { error: (e as Error).message })] };
+  }
+  const blank = (v: unknown) => typeof v !== "string" || !v.trim();
+  const errors: string[] = [];
+  if (blank(meta.name)) errors.push(t("agentCheck.noName"));
+  if (blank(meta.description)) errors.push(t("agentCheck.noDescription"));
+  if (blank(meta.developer_instructions)) errors.push(t("agentCheck.noInstructions"));
+  if (meta.sandbox_mode !== undefined && !CODEX_SANDBOX_MODES.includes(String(meta.sandbox_mode))) {
+    errors.push(t("agentCheck.badSandbox", { mode: String(meta.sandbox_mode) }));
+  }
+  if (errors.length) return { status: "error", roles: [], problems: errors };
+  const readOnly = meta.sandbox_mode === "read-only";
+  return { status: "ok", roles: readOnly ? ["leader"] : ["leader", "member"], problems: readOnly ? [t("agentCheck.readOnly")] : [] };
 }
 
 /**

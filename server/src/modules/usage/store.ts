@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import type { Agent } from "../../core/agents.js";
+import type { CodexUsage, CodexUsageFields } from "../../core/codex/usage.js";
 import type { StateStore } from "../../core/state.js";
 
 export interface UsageWindow {
@@ -35,7 +36,7 @@ export interface AgentQuota {
 
 /** Claude's plan usage (top-level fields, absent until a Claude session reports it) and other agents' quotas. */
 export interface UsageView extends Partial<ClaudeUsage> {
-  agents?: Partial<Record<Exclude<Agent, "claude">, AgentQuota>>;
+  agents?: { copilot?: AgentQuota; codex?: CodexUsage };
 }
 
 /** Account observation, never the cause of a particular session/turn failure. */
@@ -103,7 +104,7 @@ export class UsageStore extends EventEmitter<{ change: [usage: UsageView] }> {
   }
 
   /** Latest quota of an agent; null removes it (agent not installed or logged out). */
-  async applyAgent(agent: Exclude<Agent, "claude">, quota: Omit<AgentQuota, "updatedAt"> | null): Promise<void> {
+  async applyAgent(agent: "copilot", quota: Omit<AgentQuota, "updatedAt"> | null): Promise<void> {
     const prev = (await this.state.load()).agentUsage?.[agent];
     const now = Date.now();
     if (!quota && !prev) return;
@@ -113,6 +114,20 @@ export class UsageStore extends EventEmitter<{ change: [usage: UsageView] }> {
       if (quota) agents[agent] = { ...quota, updatedAt: now };
       else delete agents[agent];
       s.agentUsage = agents;
+    });
+    await this.publish();
+  }
+
+  /** Merges a (possibly sparse) Codex rate-limit update into the stored numbers; absent fields keep their last value. */
+  async applyCodex(update: CodexUsageFields | null): Promise<void> {
+    if (!update) return;
+    const prev = (await this.state.load()).agentUsage?.codex;
+    const now = Date.now();
+    const { updatedAt: _prevAt, ...prevFields } = prev ?? { updatedAt: 0 };
+    const merged: CodexUsageFields = { ...prevFields, ...update };
+    if (prev && sameCodex(prevFields, merged) && now - prev.updatedAt < REFRESH_MS) return;
+    await this.state.update((s) => {
+      s.agentUsage = { ...s.agentUsage, codex: { ...merged, updatedAt: now } };
     });
     await this.publish();
   }
@@ -149,6 +164,11 @@ function sameNumbers(a: Omit<ClaudeUsage, "updatedAt">, b: Omit<ClaudeUsage, "up
 
 function sameQuota(a: Omit<AgentQuota, "updatedAt">, b: Omit<AgentQuota, "updatedAt">): boolean {
   const key = (q: Omit<AgentQuota, "updatedAt">) => JSON.stringify([q.usedPercentage, q.unlimited, q.unit, q.used, q.entitlement, q.resetsAt]);
+  return key(a) === key(b);
+}
+
+function sameCodex(a: CodexUsageFields, b: CodexUsageFields): boolean {
+  const key = (u: CodexUsageFields) => JSON.stringify([u.fiveHour, u.sevenDay, u.credits, u.planType, u.rateLimitReachedType]);
   return key(a) === key(b);
 }
 

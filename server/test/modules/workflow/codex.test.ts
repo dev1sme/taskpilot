@@ -5,6 +5,7 @@ import { StateStore } from "../../../src/core/state.js";
 import { SessionManager } from "../../../src/modules/sessions/index.js";
 import { WorkflowEngine } from "../../../src/modules/workflow/engine.js";
 import { parseWorkflowFiles } from "../../../src/modules/workflow/definition.js";
+import { resolveExecution } from "../../../src/modules/workflow/execution.js";
 import { subagentProblems } from "../../../src/modules/workflow/run-checks.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
@@ -138,4 +139,20 @@ it("preserves legacy Codex model switches when the run has no execution or attem
   expect((await state.load()).runs[0].sessionId).not.toBe(first);
   expect((await state.load()).sessions).toHaveLength(2);
   expect(failures).toEqual([]);
+});
+
+it("passes `codex:` options to a Codex lane only", () => {
+  const yml = (agent: string) => `version: 2\nagent: ${agent}\npermission-mode: acceptEdits\ncodex: {approvals-reviewer: auto_review, network: true}\nsteps:\n  - {id: a, prompt: p.md}\n`;
+  const lane = (agent: string) => {
+    const def = parseWorkflowFiles(
+      new Map([
+        ["workflow.yml", yml(agent)],
+        ["p.md", "Plan"],
+      ]),
+      { dir: "/x", origin: "repo" },
+    ).def!;
+    return resolveExecution({ workflow: def, scope: { kind: "step", stepId: "a" } });
+  };
+  expect(lane("codex").codex).toEqual({ approvalsReviewer: "auto_review", networkAccess: true });
+  expect(lane("claude").codex).toBeUndefined();
 });

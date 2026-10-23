@@ -24,6 +24,9 @@ const SCENARIOS = [
   "approval-cancel",
   "untrusted",
   "auto",
+  "git-commit",
+  "network",
+  "npm-test",
   "interrupt",
   "busy",
   "resume",
@@ -53,6 +56,13 @@ function scratchRepo(dir) {
   }
   return repo;
 }
+
+// Real-world commands for the permission probe: which of them make `workspace-write` + `on-request` ask for approval.
+const COMMAND_SCENARIOS = {
+  "git-commit": "Run exactly this one shell command and nothing else: git add -A && git commit -m probe\nThen reply with one word: DONE or FAILED.",
+  network: "Run exactly this one shell command and nothing else: curl -sS -m 15 -o /dev/null -w '%{http_code}' https://example.com\nThen reply with one word: DONE or FAILED.",
+  "npm-test": "Run exactly this one shell command and nothing else: npm test\nThen reply with one word: DONE or FAILED.",
+};
 
 const HOME = os.homedir();
 function redactor(repo, outside) {
@@ -270,6 +280,39 @@ async function run(args) {
         const r = await oneTurn(server, { threadParams: { ...acceptEdits, approvalPolicy: "never" }, prompt: escalate, timeout });
         summary.status = r.completed?.params?.turn?.status;
         summary.outsideFileCreated = existsSync(outsideFile);
+        break;
+      }
+      case "git-commit":
+      case "network":
+      case "npm-test": {
+        if (args.scenario === "git-commit") {
+          execFileSync("git", ["-C", repo, "config", "user.name", "probe"]);
+          execFileSync("git", ["-C", repo, "config", "user.email", "probe@example.invalid"]);
+          writeFileSync(path.join(repo, "change.txt"), "change\n");
+        }
+        if (args.scenario === "npm-test") {
+          writeFileSync(path.join(repo, "package.json"), JSON.stringify({ name: "probe", version: "0.0.0", scripts: { test: "node -e \"console.log('tests ok')\"" } }) + "\n");
+        }
+        // Every approval is accepted so the command really runs; what was asked is the evidence.
+        const approvals = [];
+        server.onRequest = (msg) => {
+          approvals.push({ method: msg.method, reason: msg.params?.reason, command: msg.params?.command, cwd: msg.params?.cwd });
+          return { decision: "accept" };
+        };
+        const r = await oneTurn(server, { threadParams: acceptEdits, prompt: COMMAND_SCENARIOS[args.scenario], timeout });
+        summary.status = r.completed?.params?.turn?.status;
+        summary.approvals = approvals;
+        // A failed turn (usage limit, auth) proves nothing about approvals; do not record it as a fixture.
+        if (summary.status !== "completed") summary.error = r.completed?.params?.turn?.error ?? "no turn/completed";
+        if (args.scenario === "git-commit") {
+          try {
+            summary.commits = execFileSync("git", ["-C", repo, "log", "--oneline"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
+              .trim()
+              .split("\n").length;
+          } catch {
+            summary.commits = 0;
+          }
+        }
         break;
       }
       case "interrupt":

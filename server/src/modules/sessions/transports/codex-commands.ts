@@ -1,3 +1,4 @@
+import { t } from "../../../core/i18n.js";
 import { listCodexModels } from "../../../core/codex/models.js";
 
 /** Codex App Server has no slash commands (they live in the TUI), so the client resolves the ones with an equivalent RPC. */
@@ -73,7 +74,7 @@ async function listSkills(ctx: CodexCommandContext): Promise<SkillRef[]> {
   return skills;
 }
 
-export const unsupportedText = (name: string): string => `/${name} chỉ có trong TUI Codex, App Server không có lệnh này. Dùng được: /compact, /review, /model, /skills, $skill.`;
+export const unsupportedText = (name: string): string => t("codex.cmdUnsupported", { name });
 
 /** Runs a command against the open thread. Plain text returns `turn` unchanged. */
 export async function resolveCodexInput(text: string, ctx: CodexCommandContext): Promise<CodexResolved> {
@@ -85,23 +86,23 @@ export async function resolveCodexInput(text: string, ctx: CodexCommandContext):
       return { kind: "handled", error: unsupportedText(command.name) };
     case "compact":
       await ctx.rpc.request("thread/compact/start", { threadId: ctx.threadId });
-      return { kind: "handled", notice: "Đang nén ngữ cảnh (/compact)…" };
+      return { kind: "handled", notice: t("codex.cmdCompact") };
     case "review":
       await ctx.rpc.request("review/start", { threadId: ctx.threadId, target: command.target, delivery: "inline" });
       return { kind: "handled" };
     case "skills": {
       const skills = (await listSkills(ctx)).filter((s) => s.enabled);
       const lines = skills.map((s) => `$${s.name}${s.description ? ` — ${s.description}` : ""}`);
-      return { kind: "handled", notice: skills.length ? `Skill có sẵn:\n${lines.join("\n")}` : "Không có skill nào." };
+      return { kind: "handled", notice: skills.length ? t("codex.cmdSkills", { list: lines.join("\n") }) : t("codex.cmdNoSkills") };
     }
     case "model": {
       const models = await listCodexModels(ctx.rpc as Parameters<typeof listCodexModels>[0]);
       if (!command.id) {
-        return { kind: "handled", notice: `Model có sẵn: ${models.map((m) => m.id).join(", ") || "(trống)"}. Dùng /model <id> để đổi cho các lượt sau.` };
+        return { kind: "handled", notice: t("codex.cmdModels", { list: models.map((m) => m.id).join(", ") || t("codex.cmdEmpty") }) };
       }
       const found = models.find((m) => m.id === command.id || m.model === command.id);
-      if (!found) return { kind: "handled", error: `Model "${command.id}" không có. Có: ${models.map((m) => m.id).join(", ")}.` };
-      return { kind: "handled", notice: `Các lượt sau dùng model ${found.model}.`, model: found.model };
+      if (!found) return { kind: "handled", error: t("codex.cmdModelUnknown", { id: command.id, list: models.map((m) => m.id).join(", ") }) };
+      return { kind: "handled", notice: t("codex.cmdModelSet", { model: found.model }), model: found.model };
     }
     case "skill": {
       const skill = (await listSkills(ctx)).find((s) => s.enabled && s.name === command.name);

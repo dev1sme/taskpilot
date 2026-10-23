@@ -22,7 +22,7 @@ test("the footer shows plan usage and warns near the limit", async ({ page }) =>
   );
   await page.goto("/#/");
   const button = usageButton(page);
-  await expect(button).toContainText("5h 85% · 7d 39%");
+  await expect(button).toHaveText("Usage");
   await expect(button).toHaveClass(/is-warn/);
   await expect(button).toHaveAttribute("aria-expanded", "false");
 
@@ -76,7 +76,7 @@ test("the footer merges copilot's quota into the same usage button", async ({ pa
   await page.goto("/#/");
   await expect(page.locator("footer.status-bar .status-usage")).toHaveCount(1);
   const button = usageButton(page);
-  await expect(button).toContainText("5h 20% · Copilot 85%");
+  await expect(button).toHaveText("Usage");
   await expect(button).toHaveClass(/is-warn/);
 
   await button.click();
@@ -86,6 +86,8 @@ test("the footer merges copilot's quota into the same usage button", async ({ pa
   await expect(claude.locator("li.is-warn")).toHaveCount(0);
   await expect(claude.locator(".usage-version")).toHaveText(/^claude |chưa có claude/);
   await expect(copilot).toContainText("Đã dùng 255/300 premium requests");
+  await expect(copilot).toContainText("premium requests reset lúc");
+  await expect(copilot.locator(".usage-meter-value")).toHaveText("85%");
   await expect(copilot.locator("li.is-warn")).toHaveCount(1);
 });
 
@@ -98,7 +100,7 @@ test("the footer shows an unlimited copilot account without claude's usage", asy
   );
   await page.goto("/#/");
   const button = usageButton(page);
-  await expect(button).toContainText("Copilot ∞");
+  await expect(button).toHaveText("Usage");
   await expect(button).not.toHaveClass(/is-warn/);
   await button.click();
   const dialog = usageDialog(page);
@@ -125,7 +127,7 @@ test("the footer shows codex's 5h/7d account limits next to the others", async (
   );
   await page.goto("/#/");
   const button = usageButton(page);
-  await expect(button).toContainText("Codex 5h 30% · 7d 85%");
+  await expect(button).toHaveText("Usage");
   await expect(button).toHaveClass(/is-warn/);
 
   await button.click();
@@ -165,7 +167,7 @@ test("the footer stays on one line at 1440px", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.route("**/api/usage", (route) => route.fulfill({ json: fullUsage(Date.now()) }));
   await page.goto("/#/");
-  await expect(usageButton(page)).toContainText("Copilot 9%");
+  await expect(usageButton(page)).toHaveText("Usage");
   const footer = page.locator("footer.status-bar");
   const footerBox = (await footer.boundingBox())!;
   const buttonBox = (await usageButton(page).boundingBox())!;
@@ -173,18 +175,18 @@ test("the footer stays on one line at 1440px", async ({ page }) => {
   expect(footerBox.height).toBeLessThanOrEqual(buttonBox.height + 20);
 });
 
-test("on a phone the usage button shows only the fullest meter and the popover fits", async ({ page }) => {
+test('on a phone the usage button is just "Usage" and the popover shows every agent and fits', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/api/usage", (route) => route.fulfill({ json: fullUsage(Date.now()) }));
   await page.goto("/#/");
   const button = usageButton(page);
-  await expect(button.locator(".usage-peak")).toHaveText("5h 42%");
-  await expect(button.locator(".usage-peak")).toBeVisible();
-  // The full summary is still in the accessible name.
-  await expect(button).toHaveAccessibleName(/5h 42% · 7d 18% · spend 7% · Copilot 9%/);
+  await expect(button).toHaveText("Usage");
+  await expect(button.locator(".usage-peak")).toHaveCount(0);
 
   await button.click();
-  const box = (await usageDialog(page).boundingBox())!;
+  const dialog = usageDialog(page);
+  await expect(dialog.locator(".usage-meter-value")).toHaveText(["42%", "18%", "7%", "9%"]);
+  const box = (await dialog.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(390);
   expect(box.y).toBeGreaterThanOrEqual(0);

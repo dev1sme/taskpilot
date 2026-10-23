@@ -122,11 +122,19 @@ codex:
 - Khoá đặt ở đầu workflow hoặc từng bước (kể cả `dispatch`); bước ghi đè từng trường. Khoá/giá trị lạ (ví dụ `sandbox`) là lỗi; không có đường nào dẫn tới `danger-full-access`. Có cảnh báo khi đặt `codex:` mà `permission-mode` không phải `acceptEdits`/`auto`, hoặc không có bước Codex nào.
 - Giá trị của lane được lưu vào phiên (`codex`) và truyền vào `thread/start`/`thread/resume`; đổi giá trị giữa các bước thì mở phiên mới. Chưa kiểm với Codex thật vì hết quota lúc probe.
 
-### Slash command và usage của Codex
+### Slash command của Codex
 
 App Server không có slash command (đó là tính năng TUI). Ô nhập phiên Codex tự phân giải tập con có RPC tương đương: `/compact`, `/review [branch <tên>|commit <sha>|<hướng dẫn>]`, `/model [id]` (kiểm `model/list`, áp dụng cho các lượt sau), `/skills`, và `$tên-skill …`. Lệnh khác (`/xyz`) báo rõ là chỉ có trong TUI Codex và không gửi cho model; đường dẫn như `/home/x` và `$HOME` được gửi nguyên văn.
 
-Nút usage ở thanh trạng thái hiện hạn mức tài khoản Codex (cửa sổ 5h và 7d, % đã dùng, giờ reset, gói, credits, thời điểm cập nhật) từ `account/rateLimits/read` và `account/rateLimits/updated`. Số liệu chỉ có khi đang có phiên Codex, là số toàn tài khoản (không gán cho task), cửa sổ thiếu thì không hiện và không đoán; không suy quota từ phần trăm.
+### Nút usage (Claude, Copilot, Codex)
+
+Nút ở thanh trạng thái chỉ hiện chữ "Usage" (đổi sang cảnh báo khi một cửa sổ gần hết); chi tiết nằm trong popover. Cả ba agent dùng chung cách hiện: mỗi cửa sổ có % đã dùng và giờ reset, hôm nay chỉ hiện giờ, khác ngày kèm thứ/ngày. Cửa sổ đã qua giờ reset vẫn hiện số kèm nhãn "có thể đã cũ". Cửa sổ thiếu thì không hiện và không đoán; không suy quota từ phần trăm. Đây là số toàn tài khoản, không gán cho task.
+
+- **Claude:** cửa sổ 5h và 7d lấy từ `claude -p "/usage"` (không tốn token), chi phí phiên (`spend`) từ status line. Nếu bản Claude không trả `usage_report` (API key, gateway, thiếu scope) thì giữ số từ status line/lần đọc trước.
+- **Copilot:** premium requests, giờ reset theo đơn vị (`premium requests reset lúc …`).
+- **Codex:** cửa sổ 5h và 7d, gói, credits, từ `account/rateLimits/read` và `account/rateLimits/updated`.
+
+Số liệu làm tươi khi khởi động server, nền mỗi 5 phút và khi agent đó có hoạt động (tối đa một lần mỗi phút), nên không cần phiên đang chạy.
 
 ## Subagent và model
 

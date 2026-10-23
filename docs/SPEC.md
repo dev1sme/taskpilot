@@ -80,7 +80,13 @@ Các đường dẫn dưới đây mặc định nằm trong `~/.taskpilot`; có
 
 Terminal chung của repo dùng khóa `@repo`, không thuộc danh sách task hay workflow. Phiên CLI là tiến trình con nên không sống qua lần khởi động lại server.
 
-Mức sử dụng Claude đến từ `statusLine`. Copilot được đọc qua JSON-RPC `account.getQuota` của tiến trình headless, khi phiên sẵn sàng, khi tool xong hoặc khi lượt kết thúc; giới hạn tối đa một lần mỗi phút. CLI thiếu hoặc chưa đăng nhập sẽ xóa số liệu Copilot; lỗi khác giữ số gần nhất, nên giao diện có thời điểm cập nhật.
+Hạn mức tài khoản của cả ba agent đi qua một lớp [`QuotaPoller`](../server/src/modules/usage/poller.ts); mỗi agent chỉ cung cấp phần đọc và phần ghi vào `UsageStore`. Poller đọc ngay khi khởi động và nền mỗi 5 phút (không cần phiên); hoạt động của phiên agent đó (hook, status line) gọi `request()`, đọc ngay nếu lần đọc trước cách ≥1 phút, không thì đọc một lần vào cuối phút để không lỡ hoạt động cuối. Các lần đọc không chồng nhau; lỗi giữ số gần nhất, nên giao diện có thời điểm cập nhật.
+
+- **Claude:** `claude -p "/usage" --output-format stream-json --verbose --no-session-persistence` chạy ở thư mục tạm với env đã lọc, timeout 15 giây; đọc `usage_report.rate_limits.limits` (`session` → 5h, `weekly_all` → 7d). `usage_report` là tính năng experimental và có thể null (API key, gateway, thiếu scope): khi đó không ghi gì và giữ số cũ. `claude` thiếu thì bỏ qua. `statusLine` vẫn gửi mức sử dụng và là nguồn duy nhất của `spend`; `applyClaude` merge thưa nên không xoá số có sẵn.
+- **Copilot:** JSON-RPC `account.getQuota` của tiến trình headless. CLI thiếu hoặc chưa đăng nhập xóa số liệu Copilot; lỗi khác giữ số gần nhất.
+- **Codex:** xem mục Codex bên dưới.
+
+Giao diện dùng một model meter và một quy tắc giờ cho mọi agent: giờ reset hôm nay chỉ hiện giờ, khác ngày thì kèm thứ/ngày; cửa sổ đã qua `resetsAt` vẫn hiện số kèm nhãn "có thể đã cũ", không ẩn. Nút ở thanh trạng thái chỉ hiện "Usage" (giữ cảnh báo `is-warn`), chi tiết nằm trong popover.
 
 ## 6. Thêm CLI mới
 
@@ -92,7 +98,7 @@ Trước khi nối vào engine, cần kiểm tra bằng CLI thật: tạo/tiếp
 
 Các kết quả đã quan sát trên Claude Code `2.1.303–2.1.307` và Copilot CLI `1.0.100–1.0.102` trong ngày 19–22/10/2026; cần kiểm tra lại khi nâng phiên bản:
 
-- Claude ghép hooks từ `--settings` với hooks người dùng, nhưng thay `statusLine`; vì vậy TaskPilot phải gọi tiếp lệnh status line cũ. Dữ liệu hạn mức chỉ có sau phản hồi đầu tiên.
+- Claude ghép hooks từ `--settings` với hooks người dùng, nhưng thay `statusLine`; vì vậy TaskPilot phải gọi tiếp lệnh status line cũ. Dữ liệu status line chỉ có sau phản hồi đầu tiên; 5h/7d còn được poller đọc riêng qua `/usage`.
 - Biến `CLAUDECODE` hoặc `CLAUDE_CODE_CHILD_SESSION` kế thừa từng khiến Claude không lưu transcript. Biến `${VAR}` trong MCP được lấy từ môi trường tiến trình, không phải trường `env` của settings.
 - Copilot phát `SessionStart` sau prompt đầu tiên. Backend dùng dấu `/ commands` ở ô nhập để nhận biết sẵn sàng; dấu này thay đổi có thể khiến lần chạy kẹt ở `starting`.
 - Hooks Copilot ở cấp repo từng bị loại khi nạp lại plugin trong thư mục chưa tin cậy; hooks cấp user vẫn hoạt động. Cần xác minh lại sau nâng cấp, kể cả khi dùng chế độ hỏi quyền.
@@ -112,7 +118,7 @@ Tích hợp theo [tài liệu App Server chính thức](https://learn.chatgpt.co
 
 Conversation dùng WebSocket `/api/sessions/:id/conversation` với replay/upsert theo item id và bộ đệm tối đa 2 triệu ký tự, 1.000 item. REST `/input`, `/interrupt`, `/approvals/:requestId` dùng cùng xác thực HTTP. Approval chỉ nhận `accept` hoặc `decline`, giữ đúng id gốc kể cả số `0`; dừng phiên hủy request chưa trả lời. Request tương tác khác (user-input, elicitation, quyền mở rộng) bị từ chối bằng lỗi RPC có thông báo; bản đầu chưa có biểu mẫu cho chúng.
 
-Hạn mức tài khoản lấy từ `account/rateLimits/read` (best effort sau `ready`) và notification `account/rateLimits/updated` (không có `threadId`); cửa sổ gán theo `windowDurationMins` (300 = 5h, 10080 = 7d), từng trường sai bị bỏ riêng, `UsageStore.applyCodex` merge thưa và throttle 60 giây khi số không đổi. Không đọc khi chưa có phiên Codex và không dùng làm quota evidence.
+Hạn mức tài khoản lấy từ `account/rateLimits/read` (best effort sau `ready`) và notification `account/rateLimits/updated` (không có `threadId`); cửa sổ gán theo `windowDurationMins` (300 = 5h, 10080 = 7d), từng trường sai bị bỏ riêng, `UsageStore.applyCodex` merge thưa và throttle 60 giây khi số không đổi. Đọc qua `QuotaPoller` chung; không dùng làm quota evidence.
 
 Slash command là tính năng TUI nên `paste()` tự phân giải tập con có RPC tương đương: `/compact` → `thread/compact/start`, `/review` → `review/start`, `/model` → `model/list` rồi lưu model cho `turn/start` sau, `/skills` → `skills/list`, `$name` → `UserInput` loại `skill`; lệnh khác trả lỗi tại chỗ. Subagent là custom agent `.codex/agents/<tên>.toml` (đọc bằng `smol-toml`), `developer_instructions` và `model` đưa vào `thread/start|resume`. Tuỳ chọn `approvalsReviewer`/`networkAccess` (chỉ với sandbox `acceptEdits`/`auto`) đã có ở launch; việc nối từ YAML `codex:` vào phiên chưa hoàn tất. MCP của Codex do chính Codex đọc từ `~/.codex/config.toml`, TaskPilot không hiển thị hay chuyển.
 
@@ -170,6 +176,6 @@ Attempts lưu scope, session/generation, cấu hình yêu cầu, model thực t�
 | Startup missing / notLoggedIn / modelUnknown | cli / auth / model từ kiểm tra startup, không gán quota. |
 | `rateLimitExceeded`, HTTP 429, session budget, timeout/no-hook/text lạ | unknown; không đủ chứng minh hết usage tài khoản. |
 | Claude / Copilot failure quota theo lượt | unknown; chưa có adapter/fixture xác minh, vẫn dùng bàn giao thủ công. |
-| Claude statusline / Copilot account quota | Quan sát toàn tài khoản, có source/time; tối đa 5 phút, hết hiệu lực sớm khi qua reset. Không dùng làm nguyên nhân lỗi lane. |
+| Claude `/usage` + statusline / Copilot account quota | Quan sát toàn tài khoản, có source/time; tối đa 5 phút, hết hiệu lực sớm khi qua reset. Không dùng làm nguyên nhân lỗi lane. |
 
 Khi có quota evidence phù hợp, UI gợi ý tiếp tục bằng Codex/chọn agent khác/để sau; vẫn qua preview và xác nhận, không tự chuyển, mua quota hay đổi quyền. Nguồn/version/giới hạn fixture nằm trong [`server/test/fixtures/codex/README.md`](../server/test/fixtures/codex/README.md). Cách chạy smoke CLI thật có giới hạn và lưu kết quả ở [DEVELOP](DEVELOP.md#smoke-codex-thật-có-giới-hạn).

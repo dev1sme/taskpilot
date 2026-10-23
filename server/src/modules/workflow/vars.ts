@@ -1,5 +1,6 @@
 import path from "node:path";
 import { AGENT_LABELS } from "../../core/agents.js";
+import type { CopilotAgent } from "../../core/copilot/agents.js";
 import { SPEC_DIR, TASKS_DIR } from "../tasks/index.js";
 import { HISTORY_TEXT, summarizeMetrics } from "./history.js";
 import { PROMPT_TEXT } from "./prompt-text.js";
@@ -48,6 +49,12 @@ export interface SubagentInfo {
   check?: { status: "ok" | "warn" | "error"; roles: Array<"leader" | "member">; problems: string[] };
 }
 
+/** What a Copilot leader may name in the table: its custom agents and the account's model names (null = list unreadable). */
+export interface CopilotLists {
+  agents: CopilotAgent[];
+  models: string[] | null;
+}
+
 /** The agent Claude Code runs for `name`: the project's when both scopes have one. */
 export function subagentNamed(list: SubagentInfo[], name: string): SubagentInfo | undefined {
   const same = list.filter((a) => a.name === name);
@@ -88,6 +95,8 @@ export function promptVars(
     subtasks?: Array<Assignment & { report?: string; metrics?: SubtaskMetrics; sessionId?: string }>;
     /** The subagents a leader may assign, for {{subagents}}. */
     subagents?: SubagentInfo[];
+    /** For a Copilot leader: its custom agents and account models (null = could not be read), for {{subagents}}. */
+    copilot?: CopilotLists;
   } = {},
 ): Record<string, string> {
   const taskDir = taskDirOf(task.key);
@@ -188,7 +197,7 @@ export function promptVars(
     inputs: list(def.steps.slice(0, Math.max(stepIndex, 0)).flatMap((s) => s.outputs)),
     previousRun: previousRun(def, opts.previous, taskDir, historyFile),
     subtasks: listed.join("\n"),
-    subagents: subagentList(opts.subagents ?? []),
+    subagents: effective.agent === "copilot" && opts.copilot ? copilotList(opts.copilot) : subagentList(opts.subagents ?? []),
     ...subtaskVars,
   };
 }
@@ -224,6 +233,15 @@ function subagentList(list: SubagentInfo[]): string {
   if (usable.length === 0) return T.none;
   const field = (a: SubagentInfo, key: string) => a.fields.find((f) => f.key === key)?.value;
   return usable.map((a) => T.line(a.name, a.scope, oneLine(a.description), field(a, "model"), field(a, "tools"), a.check!.roles)).join("\n");
+}
+
+/** Copilot's custom agents and the models it accepts; the leader fills the table's Subagent and Model columns from it. */
+function copilotList({ agents, models }: CopilotLists): string {
+  const T = PROMPT_TEXT.subagents.copilot;
+  return [
+    agents.length ? agents.map((a) => T.agentLine(a.name, a.scope, a.description && oneLine(a.description), a.model)).join("\n") : T.noAgents,
+    models?.length ? T.models(models) : T.noModels,
+  ].join("\n\n");
 }
 
 /** A description on one line and short enough for a list; agent descriptions often carry examples. */

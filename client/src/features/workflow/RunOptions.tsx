@@ -45,7 +45,7 @@ function OptionsForm({ taskKey, initial, disabled, children }: Props) {
   });
   const shown = previewFor === signature ? preview.data : undefined;
   const capability = capabilities.data?.agents.find((item) => item.agent === execution.agent);
-  const models = execution.agent === "codex" && capability?.models.status === "supported" ? capability.models.items : [];
+  const models = (execution.agent === "codex" || execution.agent === "copilot") && capability?.models.status === "supported" ? capability.models.items : [];
   const savedModel = execution.model && !models.some((item) => item.model === execution.model) ? execution.model : undefined;
   const dataError = defaults.error ?? modes.error;
   const diagnostics = defaults.data?.errors ?? [];

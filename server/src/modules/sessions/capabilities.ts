@@ -1,4 +1,5 @@
 import { readCodexAgent } from "../../core/codex/agents.js";
+import { CopilotAgentError, readCopilotAgent } from "../../core/copilot/agents.js";
 import { AGENTS, type Agent } from "../../core/agents.js";
 import { HttpError } from "../../core/errors.js";
 import { backendOf } from "./backends/index.js";
@@ -72,9 +73,20 @@ export async function preflightSession(request: PreflightRequest, contextOf: Con
       errors.push(problem(request.agent, "unsupported_subagent", "subagent"));
     }
   }
+  // Copilot also has built-in and plugin agents that are not files: only a malformed name is blocked, a missing file is a warning below.
+  let copilotAgentMissing = false;
+  if (request.agent === "copilot" && configuration.subagent && backend.supportsSubagents) {
+    try {
+      readCopilotAgent((await contextOf(configuration)).repo, configuration.subagent);
+    } catch (error) {
+      if (error instanceof CopilotAgentError && error.code === "invalidName") errors.push(problem(request.agent, "unsupported_subagent", "subagent"));
+      else copilotAgentMissing = true;
+    }
+  }
   if (configuration.model !== undefined && !/^[A-Za-z0-9][\w.:/[\]-]*$/.test(configuration.model)) errors.push(problem(request.agent, "invalid_model", "model"));
   // Reject unsupported permissions before invoking even a read-only CLI.
   const capability = errors.length ? emptyCapability(backend) : await probe(configuration, contextOf);
+  if (copilotAgentMissing) capability.subagents = { status: "unknown", source: "adapter", error: problem(request.agent, "unsupported_subagent", "subagent") };
   let model: CapabilityCheck = { status: "unknown", source: "unverified" };
   if (!errors.length) {
     if (capability.cli.status !== "supported") errors.push(capability.cli.error ?? problem(request.agent, "probe_failed", "cli"));

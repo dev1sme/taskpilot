@@ -58,6 +58,14 @@ export const PROMPT_TEXT = {
     none: "Chưa có subagent nào dùng được (`.claude/agents/`, `~/.claude/agents/`): ghi `-` ở cột Subagent.",
     line: (name: string, scope: "project" | "user", description: string, model: string | undefined, tools: string | undefined, roles: ReadonlyArray<"leader" | "member">) =>
       `- \`${name}\` (${scope === "project" ? "repo" : "user"}) — ${description} · model: ${model ?? "kế thừa session"} · tools: ${tools ?? "mọi tool"} · vai trò: ${roles.join(", ")}`,
+    /** The same variable for a Copilot leader: its custom agents and the models its account offers. */
+    copilot: {
+      noAgents: "Chưa có custom agent nào dùng được (`.github/agents/`, `.claude/agents/`, `~/.copilot/agents/`): ghi `-` ở cột Subagent.",
+      agentLine: (name: string, scope: "project" | "user", description: string | undefined, model: string | undefined) =>
+        `- \`${name}\` (${scope === "project" ? "repo" : "user"})${description ? ` — ${description}` : ""} · model: ${model ?? "kế thừa session"}`,
+      models: (names: string[]) => `Model Copilot dùng được cho cột Model (ghi đúng tên, hoặc \`-\` để mặc định): ${names.map((n) => `\`${n}\``).join(", ")}.`,
+      noModels: "Không đọc được danh sách model của Copilot: ghi `-` ở cột Model.",
+    },
   },
   sampleSubtask: { n: 1, title: "Tên việc mẫu", agent: "claude", files: ["đường/dẫn/file.ts"], output: "kết quả mẫu", deps: [] as number[] },
   restartLog: (historyFile: string) => `- ${historyFile} (entry "${HISTORY_TEXT.restart}" mới nhất và góp ý ngay trước nó)`,

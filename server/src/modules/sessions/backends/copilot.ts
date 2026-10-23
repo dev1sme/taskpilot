@@ -2,9 +2,12 @@ import { open, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { copilotLauncher } from "../../../core/copilot/launch.js";
+import { CopilotError } from "../../../core/copilot/acp.js";
+import { copilotModels } from "../../../core/copilot/models.js";
 import { HOOK_EVENTS, copilotHookCommand, type HookEvent } from "../hooks.js";
 import type { AgentBackend, HookState } from "./types.js";
-import { probePty } from "./probe.js";
+import { probeError, probePty, problem } from "./probe.js";
+import type { AgentCapability, BackendProbeContext } from "./types.js";
 
 /**
  * Repo-local Copilot settings: where TaskPilot put its hooks before TPL-017. They are removed from
@@ -59,7 +62,7 @@ export const copilotBackend: AgentBackend = {
   id: "copilot",
   permissionModes: ["default", "acceptEdits", "plan", "auto"],
   supportsSubagents: true,
-  probe: (context) => probePty(copilotBackend, context),
+  probe: probeCopilot,
   launcher: copilotLauncher,
   prepare: ensureCopilotHooks,
   // Copilot fires SessionStart only together with the first prompt, so the engine cannot wait for it.
@@ -69,6 +72,30 @@ export const copilotBackend: AgentBackend = {
   normalize: normalizeCopilot,
   finishedTurn: copilotFinishedTurn,
 };
+
+/** `--version`, then the account's model list through `copilot --acp`. Login stays unknown; a list that cannot be read is unknown, never blocking. */
+async function probeCopilot(context: BackendProbeContext): Promise<AgentCapability> {
+  const capability = await probePty(copilotBackend, context);
+  if (capability.cli.status !== "supported") return capability;
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    const models = await Promise.race([
+      copilotModels(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(Object.assign(new Error("timeout"), { code: "timeout" })), context.timeoutMs);
+      }),
+    ]);
+    capability.models = { status: "supported", source: "model/list", items: models.map((m) => ({ id: m.model, model: m.model, displayName: m.displayName, isDefault: m.isDefault })) };
+  } catch (error) {
+    const code = error instanceof CopilotError ? error.code : (error as { code?: string }).code;
+    const issue =
+      code === "timeout" ? problem("copilot", "timeout", "model") : code === "protocol" ? problem("copilot", "protocol", "model") : code === "missing" || code === "ENOENT" ? problem("copilot", "missing_cli", "model") : probeError("copilot", error, "model");
+    capability.models = { status: "unknown", source: "model/list", items: [], error: issue };
+  } finally {
+    clearTimeout(timer);
+  }
+  return capability;
+}
 
 export async function normalizeCopilot(event: HookEvent, payload: Record<string, unknown>, state: HookState): Promise<Record<string, unknown> | null> {
   const out = { ...payload };

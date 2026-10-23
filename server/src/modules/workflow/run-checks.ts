@@ -52,7 +52,7 @@ export async function assignmentProblems(
 
 /**
  * Why a Claude row's subagent cannot run its subtask: it must exist and be able to write, since a
- * member writes its report. Copilot's custom agents are not checked (TPL-019, question 2).
+ * member writes its report. Codex and Copilot agents are checked by the session preflight (assignmentProblems): a missing Copilot agent file only warns there, since built-in and plugin agents are not files.
  */
 export async function subagentProblems(repo: string, items: Assignment[], subagents?: SubagentsOf): Promise<string[]> {
   const named = items.filter((a) => a.agent === "claude" && a.subagent);

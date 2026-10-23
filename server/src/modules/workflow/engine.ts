@@ -2,6 +2,8 @@ import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { AGENT_LABELS, DEFAULT_AGENT } from "../../core/agents.js";
+import { listCopilotAgents } from "../../core/copilot/agents.js";
+import { copilotModels } from "../../core/copilot/models.js";
 import { HttpError } from "../../core/errors.js";
 import { getTask, TASKS_DIR, writeTaskStatus } from "../tasks/index.js";
 import { requirePreflight, type HookEvent, type SessionMetrics, type PreflightResult } from "../sessions/index.js";
@@ -115,14 +117,16 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     const { def, selected, snapshot, checks } = prepared;
     const task = await getTask(repo, taskKey);
     const subagents = def.steps.some((s) => s.prompt.includes("{{subagents}}") || s.prompt.includes("{{leaderTools}}")) && this.subagents ? await this.subagents(repo) : undefined;
+    const copilots = await Promise.all(def.steps.map((step, index) => this.copilotLists(repo, def, index, step.prompt, { execution: selected.execution })));
     return {
       workflow: { source: def.source, mode: modeOf(def) },
       execution: selected.execution,
       source: selected.source,
       steps: def.steps.map((step, index) => {
+        const copilot = copilots[index];
         const configured = resolveExecution({ workflow: def, scope: { kind: "step", stepId: step.id } });
         const effective = snapshot.steps[step.id];
-        const vars = promptVars(def, index, task, { run: { execution: selected.execution }, subagents, feedback: PROMPT_TEXT.sampleFeedback });
+        const vars = promptVars(def, index, task, { run: { execution: selected.execution }, subagents, copilot, feedback: PROMPT_TEXT.sampleFeedback });
         return {
           id: step.id,
           configured,
@@ -807,7 +811,20 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     const task = await getTask(run.repo, run.taskKey);
     // Read only for a prompt that lists them: the agent folders are read on every call.
     const subagents = (template.includes("{{subagents}}") || template.includes("{{leaderTools}}")) && this.subagents ? await this.subagents(run.repo) : undefined;
-    return renderPrompt(template, promptVars(await this.store.defOf(run), run.stepIndex, task, { run, previous: run.previous, subtasks: run.subtasks, subagents, ...extra }));
+    const def = await this.store.defOf(run);
+    const copilot = await this.copilotLists(run.repo, def, run.stepIndex, template, run);
+    return renderPrompt(template, promptVars(def, run.stepIndex, task, { run, previous: run.previous, subtasks: run.subtasks, subagents, copilot, ...extra }));
+  }
+
+  /** What a Copilot step's {{subagents}} lists; read only when the step runs on Copilot and its prompt uses the variable. An unreadable model list is not an error. */
+  private async copilotLists(repo: string, def: WorkflowDef, stepIndex: number, template: string, run?: Parameters<typeof resolveExecution>[0]["run"]) {
+    if (!template.includes("{{subagents}}")) return undefined;
+    if (resolveExecution({ workflow: def, run, scope: { kind: "step", stepId: def.steps[stepIndex].id } }).agent !== "copilot") return undefined;
+    const models = await copilotModels().then(
+      (list) => list.map((m) => m.model),
+      () => null,
+    );
+    return { agents: listCopilotAgents(repo), models };
   }
 
   private async subtaskPrompt(run: RunState, sub: SubtaskRun): Promise<string> {

@@ -118,8 +118,8 @@ function TaskScreenContent({ task }: { task: TaskSummary }) {
   const PillIcon = pill?.icon;
   const working = run?.phase === "running" || run?.phase === "starting";
   // Interrupted, finished and cancelled runs offer the restart in the card already.
-  // The subagent library describes Claude members; other leaders use their own configuration.
-  const dispatches = steps.some((s) => s.dispatch && (s.agent ?? "claude") === "claude") && (run === null || active);
+  // The subagent library (.claude/agents) serves Claude and Copilot leaders; Codex uses its own configuration.
+  const dispatches = steps.some((s) => s.dispatch && ["claude", "copilot"].includes(s.agent ?? "claude")) && (run === null || active);
   const toolbarRestart = run !== null && !["interrupted", "done", "cancelled"].includes(run.phase);
 
   return (

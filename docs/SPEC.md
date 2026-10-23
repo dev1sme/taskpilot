@@ -107,8 +107,20 @@ Các kết quả đã quan sát trên Claude Code `2.1.303–2.1.307` và Copilo
 - Đọc hạn mức Copilot phụ thuộc giao thức headless JSON-RPC, đã thử với protocol 3. Nâng CLI cần kiểm tra cả hooks, dấu sẵn sàng và hạn mức.
 - Claude 2.1.307, spike `--agent`/`--model`: `--agent` vẫn nạp CLAUDE.md và hooks của `--settings` (cả `-p` lẫn interactive), nên không cần chèn mô tả agent vào prompt. `--model` đè `model:` của agent. `--resume` giữ agent nhưng mất `--model`, vì vậy launcher truyền lại cả hai mỗi lần. Agent hoặc model không tồn tại làm Claude và Copilot thoát code 1 ngay khi mở, nên tên phải được kiểm trước khi chạy. Status line có `model.id`, `cost.total_cost_usd`, `cost.total_duration_ms`, `agent.name`.
 - Copilot 1.0.102 nhận `--agent`/`--model` và liệt kê agent cả trong `.claude/agents/`. Chưa chạy với model/agent hợp lệ (tốn premium request), nên cấu hình thực tế còn phụ thuộc bản CLI và tài khoản.
+- Chi tiết model/subagent của Copilot: xem [Model và subagent của Copilot](#model-và-subagent-của-copilot).
 
 Leader với CLI thật và khả năng khôi phục dispatch sau khởi động lại cần được kiểm tra khi thay đổi engine; xem các bài E2E [`subtasks.spec.ts`](../e2e/tests/subtasks.spec.ts) và [`run-restart.spec.ts`](../e2e/tests/run-restart.spec.ts) để biết phạm vi kiểm tra tự động.
+
+### Model và subagent của Copilot
+
+Quan sát trên Copilot CLI `1.0.103` ngày 23/10/2026; cần kiểm tra lại khi nâng phiên bản.
+
+- **Truyền vào CLI:** launcher (`core/copilot/launch.ts`) truyền `--agent <Subagent>` và `--model <Model>` từ bảng Phân công. Copilot tự từ chối khi spawn: agent sai → `No such agent: <tên>, available: …`; model sai → `Model "<tên>" from --model flag is not available.` (thoát ngay, không gọi model).
+- **Inventory model:** `copilot --acp` → `initialize` + `session/new` trả `models.availableModels[]` (`modelId`, `_meta.copilotEnablement`). `core/copilot/acp.ts` mở phiên ACP tạm trong thư mục tạm (~2 giây, timeout 20 giây), đọc model rồi `session/close`. `session/close` vẫn để lại `~/.copilot/session-state/<id>` (hoặc theo `COPILOT_HOME`), nên client xoá đúng thư mục đó (id phải là UUID). `core/copilot/models.ts` cache 10 phút, single-flight, lỗi không cache, dedupe `auto` (xuất hiện hai lần), bỏ model có `copilotEnablement` khác `enabled`. Phần ACP `models` trong `session/new` [chưa ổn định giữa các bản CLI] nên lỗi chỉ cho trạng thái `unknown`.
+- **Custom agent:** `core/copilot/agents.ts` tìm theo đúng nơi Copilot đọc: project `.github/agents/<tên>.agent.md` hoặc `.md`, `.claude/agents/<tên>.md`; user `$COPILOT_HOME|~/.copilot/agents/<tên>.agent.md`. Project thắng user. Không đọc `<project>/.copilot/agents` và `~/.claude/agents`. Chưa xác minh `~/.github/agents` và `.claude/agents/*.agent.md`. Agent built-in/plugin (vd `explore`, `task`) không phải file nên không kiểm được bằng cách này.
+- **Probe và preflight:** probe chạy `--version` rồi nạp `capability.models` từ inventory (`source: "model/list"`); đọc lỗi → `models.status = "unknown"` kèm lỗi, không chặn (khác Codex, vì Copilot trước nay chạy được khi không có inventory). Preflight: model không có trong inventory đọc được → chặn `model_unavailable`; tên subagent sai cú pháp → chặn `unsupported_subagent`; không tìm thấy file → chỉ cảnh báo (`subagents = unknown`), Copilot vẫn tự từ chối khi spawn. Cảnh báo này chưa hiện trong bảng Phân công.
+- **Leader Copilot:** khi bước chạy bằng Copilot và prompt có `{{subagents}}`, engine thay bằng danh sách custom agent Copilot (`listCopilotAgents`) cùng danh sách model của tài khoản (không đọc được thì ghi `-`), để leader điền bảng Phân công; leader Claude/Codex giữ danh sách Claude/Codex. Policy lane vẫn ép `Agent = copilot`; Model chỉ dùng giá trị trong danh sách hoặc `-`.
+- **Test:** vitest đặt `TASKPILOT_COPILOT` trỏ binary không tồn tại để test không đọc tài khoản thật; fixture ACP ghi từ 1.0.103 tại `server/test/fixtures/copilot/acp-handshake.jsonl`. Chưa nghiệm thu một task có việc con Copilot với Subagent/Model hợp lệ trên CLI thật (tốn premium request).
 
 ### Codex App Server
 

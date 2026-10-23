@@ -2,6 +2,7 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import Fastify from "fastify";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { resetCopilotModelsCache } from "../../../src/core/copilot/models.js";
 import { buildApp } from "../../../src/app.js";
 import { StateStore } from "../../../src/core/state.js";
 import { SessionManager, SessionPreflightError, requirePreflight, registerSessionsRoutes, type AgentCapability, type PreflightRequest } from "../../../src/modules/sessions/index.js";
@@ -13,6 +14,7 @@ const managers: SessionManager[] = [];
 afterEach(() => {
   managers.splice(0).forEach((manager) => manager.closeAll());
   vi.unstubAllEnvs();
+  resetCopilotModelsCache();
 });
 afterAll(cleanupTempDirs);
 
@@ -174,6 +176,8 @@ describe("session capabilities and preflight", () => {
   });
 
   it.each(["claude", "copilot"] as const)("keeps %s login/models unknown and preserves legacy workflow options", async (agent) => {
+    // No readable Copilot inventory: the model stays unverified instead of blocking.
+    vi.stubEnv("TASKPILOT_COPILOT", "/no/such/copilot");
     const repo = await makeRepo();
     const file = await ptyFixture();
     const manager = new SessionManager(new StateStore(await tempDir("pty-capability-")), { launchers: { [agent]: () => ({ file, args: [] }) } });
@@ -186,6 +190,46 @@ describe("session capabilities and preflight", () => {
       errors: [],
       model: { status: "unknown" },
       capability: { cli: { status: "supported", version: "1.2.3" }, login: { status: "unknown" }, models: { status: "unknown", items: [] }, defaultModel: { kind: "agent-default" } },
+    });
+  });
+
+  describe("copilot", () => {
+    const FAKE_ACP = path.resolve(import.meta.dirname, "../../core/copilot/fake-acp.mjs");
+    async function copilotManager() {
+      vi.stubEnv("TASKPILOT_COPILOT", FAKE_ACP);
+      vi.stubEnv("COPILOT_HOME", await tempDir("copilot-home-"));
+      const file = await ptyFixture();
+      const manager = new SessionManager(new StateStore(await tempDir("copilot-capability-")), { launchers: { copilot: () => ({ file, args: [] }) } });
+      managers.push(manager);
+      return manager;
+    }
+
+    it("reads the account models and blocks one the account does not offer", async () => {
+      const manager = await copilotManager();
+      const repo = await makeRepo();
+      const ok = await manager.preflight(repo, { agent: "copilot", model: "gpt-6-sol" });
+      expect(ok.errors).toEqual([]);
+      expect(ok.model).toEqual({ status: "supported", source: "model/list" });
+      expect(ok.capability.models.items.map((m) => m.model)).toContain("claude-sonnet-5.5");
+      const bad = await manager.preflight(repo, { agent: "copilot", model: "nonexistent" });
+      expect(bad.status).toBe("blocked");
+      expect(bad.errors[0]).toMatchObject({ code: "model_unavailable", field: "model" });
+    });
+
+    it("blocks a malformed agent name and only warns about one it finds no file for", async () => {
+      const manager = await copilotManager();
+      const repo = await makeRepo();
+      const bad = await manager.preflight(repo, { agent: "copilot", subagent: "../x" });
+      expect(bad.errors[0]).toMatchObject({ code: "unsupported_subagent", field: "subagent" });
+      const missing = await manager.preflight(repo, { agent: "copilot", subagent: "explore" });
+      expect(missing.errors).toEqual([]);
+      expect(missing.status).toBe("unknown");
+      expect(missing.capability.subagents).toMatchObject({ status: "unknown", error: { code: "unsupported_subagent" } });
+      await mkdir(path.join(repo, ".github", "agents"), { recursive: true });
+      await writeFile(path.join(repo, ".github", "agents", "reviewer.agent.md"), "---\ndescription: Reviews\n---\nReview.\n");
+      const found = await manager.preflight(repo, { agent: "copilot", subagent: "reviewer" });
+      expect(found.errors).toEqual([]);
+      expect(found.capability.subagents.status).toBe("supported");
     });
   });
 

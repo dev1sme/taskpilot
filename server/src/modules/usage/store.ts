@@ -103,6 +103,22 @@ export class UsageStore extends EventEmitter<{ change: [usage: UsageView] }> {
     await this.publish();
   }
 
+  /** Merges windows read by `/usage` into the stored numbers; absent windows and `spend` (status line only) keep their value. */
+  async applyClaude(fields: { fiveHour?: UsageWindow; sevenDay?: UsageWindow } | null): Promise<void> {
+    if (!fields || (!fields.fiveHour && !fields.sevenDay)) return;
+    const prev = (await this.state.load()).usage;
+    const now = Date.now();
+    const { updatedAt: _prevAt, ...prevFields } = prev ?? { updatedAt: 0 };
+    const merged: Omit<ClaudeUsage, "updatedAt"> = { ...prevFields };
+    if (fields.fiveHour) merged.fiveHour = fields.fiveHour;
+    if (fields.sevenDay) merged.sevenDay = fields.sevenDay;
+    if (prev && sameNumbers(prev, merged) && now - prev.updatedAt < REFRESH_MS) return;
+    await this.state.update((s) => {
+      s.usage = { ...merged, updatedAt: now };
+    });
+    await this.publish();
+  }
+
   /** Latest quota of an agent; null removes it (agent not installed or logged out). */
   async applyAgent(agent: "copilot", quota: Omit<AgentQuota, "updatedAt"> | null): Promise<void> {
     const prev = (await this.state.load()).agentUsage?.[agent];

@@ -116,3 +116,28 @@ describe("UsageStore", () => {
     expect(await store.evidence("codex")).toBeNull();
   });
 });
+
+describe("UsageStore.applyClaude", () => {
+  it("merges the windows and keeps spend and the window it lacks", async () => {
+    const store = new UsageStore(new StateStore(await tempDir("taskpilot-claude-usage-")));
+    await store.apply({ rate_limits: { ...RATE_LIMITS, spend_limit: { used_percentage: 7 } } });
+    await store.applyClaude({ fiveHour: { usedPercentage: 90, resetsAt: null } });
+    expect(await store.view()).toMatchObject({
+      fiveHour: { usedPercentage: 90, resetsAt: null },
+      sevenDay: { usedPercentage: 39 },
+      spend: { usedPercentage: 7 },
+    });
+    await store.applyClaude(null);
+    await store.applyClaude({});
+    expect((await store.view())!.fiveHour!.usedPercentage).toBe(90);
+  });
+
+  it("works before any status line and skips unchanged numbers within a minute", async () => {
+    const store = new UsageStore(new StateStore(await tempDir("taskpilot-claude-usage-")));
+    const fields = { sevenDay: { usedPercentage: 5, resetsAt: 1000 } };
+    await store.applyClaude(fields);
+    const at = (await store.view())!.updatedAt;
+    await store.applyClaude(fields);
+    expect((await store.view())!.updatedAt).toBe(at);
+  });
+});

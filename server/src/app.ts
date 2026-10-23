@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import type { Agent } from "./core/agents.js";
 import type { Launcher } from "./core/claude/launch.js";
+import type { ClaudeUsageFields } from "./core/claude/usage.js";
 import type { CodexUsageFields } from "./core/codex/usage.js";
 import type { CopilotQuotaResult } from "./core/copilot/quota.js";
 import { HttpError } from "./core/errors.js";
@@ -22,7 +23,7 @@ import { registerHooksRoutes } from "./modules/hooks/index.js";
 import { createRepoContext, registerRepoRoutes } from "./modules/repo/index.js";
 import { SessionManager, registerSessionsRoutes } from "./modules/sessions/index.js";
 import { registerTasksRoutes, TasksWatcher } from "./modules/tasks/index.js";
-import { CodexQuotaPoller, CopilotQuotaPoller, registerUsageRoutes, UsageStore } from "./modules/usage/index.js";
+import { createClaudePoller, createCodexPoller, createCopilotPoller, registerUsageRoutes, UsageStore } from "./modules/usage/index.js";
 import { ExecutionValidationError, WorkflowEngine, loadWorkflow, readRepoSettings, type LoadDef, registerWorkflowRoutes, stageOf } from "./modules/workflow/index.js";
 
 export interface AppOptions {
@@ -51,6 +52,8 @@ export interface AppOptions {
   loadWorkflow?: LoadDef;
   /** Overrides reading Copilot's account quota (tests). */
   copilotQuota?: () => Promise<CopilotQuotaResult>;
+  /** Overrides reading Claude's plan usage (tests). */
+  claudeUsage?: () => Promise<ClaudeUsageFields | null>;
   /** Overrides reading Codex's account rate limits (tests). */
   codexUsage?: () => Promise<CodexUsageFields | null>;
 }
@@ -119,19 +122,25 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   // Claude's plan usage comes from its status line; copilot's status line input has no account
   // quota (TPL-009 spike), so copilot's is read from its runtime: when a session is ready, while
   // it works and when a turn ends. The poller limits reads to one a minute.
+  const claudeUsage = createClaudePoller(usage, opts.claudeUsage, logError);
   sessions.on("statusline", (meta, payload) => {
-    if ((meta.agent ?? "claude") === "claude") void usage.apply(payload).catch(logError);
+    if ((meta.agent ?? "claude") === "claude") {
+      void usage.apply(payload).catch(logError);
+      claudeUsage.request();
+    }
     // A subtask's model and cost, for the leader's review of the subtasks.
     void engine.onStatusLine(meta, payload).catch(logError);
   });
   sessions.on("rateLimits", (_meta, data) => void usage.applyCodex(data).catch(logError));
-  const copilotQuota = new CopilotQuotaPoller(usage, opts.copilotQuota, logError);
+  const copilotQuota = createCopilotPoller(usage, opts.copilotQuota, logError);
   sessions.on("hook", (meta, event) => {
     if (meta.agent === "copilot" && (event === "SessionStart" || event === "PostToolUse" || event === "Stop")) copilotQuota.request();
   });
   // Codex's numbers also come from its sessions; this poller fills them in before any session exists.
-  const codexQuota = new CodexQuotaPoller(usage, opts.codexUsage, logError);
+  const codexQuota = createCodexPoller(usage, opts.codexUsage, logError);
   codexQuota.start();
+  copilotQuota.start();
+  claudeUsage.start();
   usage.on("change", (view) => hub.publish("usage", view));
   engine.on("change", (run) => hub.publish("run", { taskKey: run.taskKey }));
   engine.on("warning", logError);
@@ -189,6 +198,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
 
   app.addHook("onClose", async () => {
     copilotQuota.stop();
+    claudeUsage.stop();
     codexQuota.stop();
     sessions.closeAll();
     hub.close();

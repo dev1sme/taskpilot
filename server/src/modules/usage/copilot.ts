@@ -1,8 +1,6 @@
 import { copilotQuota, type CopilotQuotaResult } from "../../core/copilot/quota.js";
+import { QuotaPoller } from "./poller.js";
 import type { AgentQuota, UsageStore } from "./store.js";
-
-/** Copilot's quota is read by starting a runtime: at most this often. */
-const INTERVAL_MS = 60_000;
 
 /**
  * `premium_interactions` of `account.getQuota`: the account's main budget, in AI credits with
@@ -29,66 +27,22 @@ export function parseCopilotQuota(snapshots: unknown): Omit<AgentQuota, "updated
 }
 
 /**
- * Refreshes Copilot's quota when a Copilot session asks (ready, tool done, turn ended): right away when the last read is a
- * minute old, otherwise once at the end of that minute, so the last turn is never missed. Reads
- * never overlap. A missing or logged-out Copilot removes the quota; other failures keep it.
+ * Copilot's poller: a Copilot session asks (ready, tool done, turn ended) through `request()`.
+ * A missing or logged-out Copilot removes the quota; other failures keep it.
  */
-export class CopilotQuotaPoller {
-  private lastStart = 0;
-  private running: Promise<void> | null = null;
-  private timer: NodeJS.Timeout | null = null;
-
-  constructor(
-    private readonly usage: UsageStore,
-    private readonly fetch: () => Promise<CopilotQuotaResult> = copilotQuota,
-    private readonly onError: (e: unknown) => void = () => {},
-  ) {}
-
-  request(): void {
-    if (this.timer) return;
-    const wait = this.lastStart + INTERVAL_MS - Date.now();
-    if (wait <= 0 && !this.running) {
-      this.run();
-      return;
-    }
-    // A read still running past its minute (up to the 15 s timeout) is retried a second later.
-    this.timer = setTimeout(
-      () => {
-        this.timer = null;
-        this.request();
-      },
-      Math.max(wait, 1000),
-    );
-  }
-
-  stop(): void {
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = null;
-  }
-
-  /** Resolves when the read in progress, if any, is done (tests). */
-  idle(): Promise<void> {
-    return this.running ?? Promise.resolve();
-  }
-
-  private run(): void {
-    this.lastStart = Date.now();
-    this.running = this.refresh()
-      .catch(this.onError)
-      .finally(() => {
-        this.running = null;
-      });
-  }
-
-  private async refresh(): Promise<void> {
-    const result = await this.fetch();
-    if (result.ok) {
-      const quota = parseCopilotQuota(result.snapshots);
-      if (quota) await this.usage.applyAgent("copilot", quota);
-    } else if (result.reason !== "failed") {
-      await this.usage.applyAgent("copilot", null);
-    }
-  }
+export function createCopilotPoller(usage: UsageStore, fetch: () => Promise<CopilotQuotaResult> = copilotQuota, onError?: (e: unknown) => void): QuotaPoller<CopilotQuotaResult> {
+  return new QuotaPoller({
+    fetch,
+    apply: async (result) => {
+      if (result.ok) {
+        const quota = parseCopilotQuota(result.snapshots);
+        if (quota) await usage.applyAgent("copilot", quota);
+      } else if (result.reason !== "failed") {
+        await usage.applyAgent("copilot", null);
+      }
+    },
+    onError,
+  });
 }
 
 function finite(v: unknown): number | null {

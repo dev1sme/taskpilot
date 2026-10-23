@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StateStore } from "../../../src/core/state.js";
-import { CodexQuotaPoller, fetchCodexUsage } from "../../../src/modules/usage/codex.js";
+import { createCodexPoller, fetchCodexUsage } from "../../../src/modules/usage/codex.js";
 import { UsageStore } from "../../../src/modules/usage/store.js";
 import { cleanupTempDirs, tempDir } from "../../helpers/fixtures.js";
 
@@ -41,11 +41,11 @@ describe("fetchCodexUsage", () => {
   });
 });
 
-describe("CodexQuotaPoller", () => {
+describe("createCodexPoller", () => {
   async function setup(fetch: () => Promise<typeof FIELDS | null>, onError = vi.fn()) {
     const usage = new UsageStore(new StateStore(await tempDir("taskpilot-state-")));
     const spy = vi.fn(fetch);
-    return { usage, spy, onError, poller: new CodexQuotaPoller(usage, spy, onError) };
+    return { usage, spy, onError, poller: createCodexPoller(usage, spy, onError) };
   }
 
   it("fills agents.codex at start, before any session exists", async () => {

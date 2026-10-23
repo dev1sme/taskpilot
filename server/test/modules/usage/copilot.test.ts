@@ -1,6 +1,6 @@
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import type { CopilotQuotaResult } from "../../../src/core/copilot/quota.js";
-import { CopilotQuotaPoller, parseCopilotQuota } from "../../../src/modules/usage/copilot.js";
+import { createCopilotPoller, parseCopilotQuota } from "../../../src/modules/usage/copilot.js";
 import { UsageStore } from "../../../src/modules/usage/store.js";
 import { StateStore } from "../../../src/core/state.js";
 import { cleanupTempDirs, tempDir } from "../../helpers/fixtures.js";
@@ -69,11 +69,11 @@ describe("parseCopilotQuota", () => {
   });
 });
 
-describe("CopilotQuotaPoller", () => {
+describe("createCopilotPoller", () => {
   async function setup(results: CopilotQuotaResult[]) {
     const usage = new UsageStore(new StateStore(await tempDir("taskpilot-state-")));
     const fetch = vi.fn(async () => results.shift() ?? { ok: true as const, snapshots: LIMITED });
-    return { usage, fetch, poller: new CopilotQuotaPoller(usage, fetch) };
+    return { usage, fetch, poller: createCopilotPoller(usage, fetch) };
   }
 
   it("reads at most once a minute and still reads after the last turn", async () => {

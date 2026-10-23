@@ -65,8 +65,6 @@ interface Meter {
   label: string;
   percent: number | null;
   notes: string[];
-  /** Agent name that owns the meter (Codex). */
-  group?: string;
 }
 
 /**
@@ -144,7 +142,7 @@ function UsageButton({ usage }: { usage: UsageView }) {
             </header>
             <p className="usage-scope">{t("status.usageTitle")}</p>
             {claude.length > 0 ? <MeterList meters={claude} /> : <p className="usage-empty">{t("status.usageEmpty")}</p>}
-            {claude.length > 0 && usage.updatedAt && <p className="usage-updated">{t("status.usageUpdated", { time: formatTime(usage.updatedAt, true) })}</p>}
+            {claude.length > 0 && usage.updatedAt && <p className="usage-updated">{t("status.usageUpdated", { time: formatTime(usage.updatedAt) })}</p>}
           </section>
           {copilotQuota && copilot && (
             <section className="usage-agent">
@@ -156,7 +154,7 @@ function UsageButton({ usage }: { usage: UsageView }) {
                 {copilotQuota.unlimited ? t("status.copilotUsageUnlimited", { unit: copilotUnit(copilotQuota, t) }) : t("status.copilotUsageTitle", { unit: copilotUnit(copilotQuota, t) })}
               </p>
               <MeterList meters={[copilot]} />
-              <p className="usage-updated">{t("status.usageUpdated", { time: formatTime(copilotQuota.updatedAt, true) })}</p>
+              <p className="usage-updated">{t("status.usageUpdated", { time: formatTime(copilotQuota.updatedAt) })}</p>
             </section>
           )}
           {codexUsage && codex.length > 0 && (
@@ -172,7 +170,7 @@ function UsageButton({ usage }: { usage: UsageView }) {
                   {line}
                 </p>
               ))}
-              <p className="usage-updated">{t("status.usageUpdated", { time: formatTime(codexUsage.updatedAt, true) })}</p>
+              <p className="usage-updated">{t("status.usageUpdated", { time: formatTime(codexUsage.updatedAt) })}</p>
             </section>
           )}
         </div>
@@ -212,18 +210,8 @@ function hasCodexNumbers(codex: CodexUsage | undefined): boolean {
 /** Codex's windows as it last reported them; a window it did not report is left out, not guessed. */
 function codexMeters(codex: CodexUsage, t: TFunction<"shell">): Meter[] {
   const meters: Meter[] = [];
-  const add = (id: "5h" | "7d", w: CodexUsage["fiveHour"]) => {
-    if (!w) return;
-    meters.push({
-      id: `codex-${id}`,
-      label: id,
-      group: AGENT_LABELS.codex,
-      percent: w.usedPercentage,
-      notes: w.resetsAt ? [t("status.usageReset", { window: id, time: formatTime(w.resetsAt, id === "7d") })] : [],
-    });
-  };
-  add("5h", codex.fiveHour);
-  add("7d", codex.sevenDay);
+  if (codex.fiveHour) meters.push(buildMeter(t, "codex-5h", "5h", codex.fiveHour.usedPercentage, codex.fiveHour.resetsAt));
+  if (codex.sevenDay) meters.push(buildMeter(t, "codex-7d", "7d", codex.sevenDay.usedPercentage, codex.sevenDay.resetsAt));
   return meters;
 }
 
@@ -242,15 +230,9 @@ function codexExtras(codex: CodexUsage, t: TFunction<"shell">): string[] {
 
 function claudeMeters(usage: UsageView, t: TFunction<"shell">): Meter[] {
   const meters: Meter[] = [];
-  if (usage.fiveHour) {
-    const reset = usage.fiveHour.resetsAt;
-    meters.push({ id: "5h", label: "5h", percent: usage.fiveHour.usedPercentage, notes: reset ? [t("status.usageReset", { window: "5h", time: formatTime(reset, false) })] : [] });
-  }
-  if (usage.sevenDay) {
-    const reset = usage.sevenDay.resetsAt;
-    meters.push({ id: "7d", label: "7d", percent: usage.sevenDay.usedPercentage, notes: reset ? [t("status.usageReset", { window: "7d", time: formatTime(reset, true) })] : [] });
-  }
-  if (usage.spend) meters.push({ id: "spend", label: "spend", percent: usage.spend.usedPercentage, notes: [] });
+  if (usage.fiveHour) meters.push(buildMeter(t, "5h", "5h", usage.fiveHour.usedPercentage, usage.fiveHour.resetsAt));
+  if (usage.sevenDay) meters.push(buildMeter(t, "7d", "7d", usage.sevenDay.usedPercentage, usage.sevenDay.resetsAt));
+  if (usage.spend) meters.push(buildMeter(t, "spend", "spend", usage.spend.usedPercentage, null));
   return meters;
 }
 
@@ -261,14 +243,24 @@ function copilotUnit(quota: AgentQuota, t: TFunction<"shell">): string {
 /** Copilot's account quota as its runtime last reported it. */
 function copilotMeter(quota: AgentQuota, t: TFunction<"shell">): Meter {
   const unit = copilotUnit(quota, t);
-  const notes: string[] = [];
-  if (quota.used !== null && quota.entitlement !== null) notes.push(t("status.copilotUsageUsed", { used: quota.used, entitlement: quota.entitlement, unit }));
-  if (quota.resetsAt) notes.push(t("status.copilotUsageReset", { time: formatTime(quota.resetsAt, true) }));
-  return { id: "copilot", label: unit, percent: quota.usedPercentage, notes };
+  const extra = quota.used !== null && quota.entitlement !== null ? [t("status.copilotUsageUsed", { used: quota.used, entitlement: quota.entitlement, unit })] : [];
+  return buildMeter(t, "copilot", unit, quota.usedPercentage, quota.resetsAt, extra);
 }
 
-function formatTime(ms: number, withDay: boolean): string {
+/** The one Meter every agent goes through: same reset line, and a figure whose window already reset is flagged as possibly stale. */
+function buildMeter(t: TFunction<"shell">, id: string, label: string, percent: number | null, resetsAt: number | null | undefined, extra: string[] = []): Meter {
+  const notes = [...extra];
+  if (resetsAt) {
+    notes.push(t("status.usageReset", { window: label, time: formatTime(resetsAt) }));
+    if (resetsAt < Date.now()) notes.push(t("status.usageStale"));
+  }
+  return { id, label, percent, notes };
+}
+
+/** Same rule for every agent and window: time only when it is today, time plus weekday/date otherwise. */
+function formatTime(ms: number): string {
   const d = new Date(ms);
   const time = d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
-  return withDay ? `${time} ${d.toLocaleDateString(locale(), { weekday: "short", day: "2-digit", month: "2-digit" })}` : time;
+  if (d.toDateString() === new Date().toDateString()) return time;
+  return `${time} ${d.toLocaleDateString(locale(), { weekday: "short", day: "2-digit", month: "2-digit" })}`;
 }

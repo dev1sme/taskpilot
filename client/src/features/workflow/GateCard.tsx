@@ -7,7 +7,7 @@ import { AGENT_LABELS } from "../../shared/agents";
 import { AgentBadge } from "../../shared/ui/AgentBadge";
 import { Button } from "../../shared/ui/Button";
 import { Markdown } from "../../shared/ui/Markdown";
-import { workspaceApi } from "../workspace";
+import { useWorkspace, workspaceApi } from "../workspace";
 import { workflowApi } from "./api";
 import { composeAnswers, initialAnswers, QuestionForm } from "./QuestionForm";
 import { AssignmentPreview } from "./SubtaskTree";
@@ -34,9 +34,11 @@ export function GateCard(props: {
 }) {
   const { t } = useTranslation("workflow");
   const { taskKey, step } = props;
-  const agent = AGENT_LABELS[step.agent];
+  const { repo } = useWorkspace();
+  const effective = step.effective ?? step;
+  const agent = AGENT_LABELS[effective.agent];
   const docQuery = useQuery({
-    queryKey: ["doc", taskKey, step.doneFile, props.docVersion],
+    queryKey: ["doc", taskKey, step.doneFile, props.docVersion, repo?.path],
     queryFn: () => workspaceApi.file(taskKey, step.doneFile!),
     enabled: !!step.doneFile,
   });
@@ -84,7 +86,7 @@ export function GateCard(props: {
         </span>
         <div>
           <h3 id={`${feedbackId}-title`}>
-            {t("gate.title")} <AgentBadge agent={step.agent} />
+            {t("gate.title")} <AgentBadge agent={effective.agent} />
           </h3>
           <p>
             <Trans t={t} i18nKey="gate.body" values={{ step: step.title }} components={{ strong: <strong /> }} />
@@ -92,6 +94,7 @@ export function GateCard(props: {
           </p>
         </div>
       </header>
+      <p className="now-sub">{t("selection.effective", { agent, model: effective.model ?? t("selection.defaultModel") })}</p>
 
       {props.run.lastMessage && (
         <figure className="gate-claude">

@@ -19,8 +19,8 @@
 <!-- Mỗi câu một dòng: `1. <câu hỏi> — Đề xuất: <đề xuất của bạn>`. Ghi "Không có" nếu không còn câu nào. -->
 
 ## 7. Phân công
-<!-- Một bảng đúng các cột dưới đây; TaskPilot đọc bảng này để giao việc sau khi reviewer duyệt. Mỗi dòng là một việc con cho một agent (claude, copilot hoặc codex). `File`: file hoặc thư mục việc đó được sửa, cách nhau bằng dấu phẩy; hai việc có thể chạy song song chỉ khi File của chúng không trùng nhau. `Phụ thuộc`: số của các việc phải xong trước, vd `1, 2`; `-` nếu không có. `Subagent`, `Model`: theo mục "Subagent và model" của prompt; `-` nếu không đặt. -->
+<!-- Một bảng đúng các cột dưới đây; TaskPilot đọc bảng này để giao việc sau khi reviewer duyệt. Mỗi dòng là một việc con cho một agent (claude, copilot hoặc codex). `File`: file hoặc thư mục việc đó được sửa, cách nhau bằng dấu phẩy; hai việc có thể chạy song song chỉ khi File của chúng không trùng nhau. `Phụ thuộc`: số của các việc phải xong trước, vd `1, 2`; `-` nếu không có. `Agent`, `Subagent`, `Model`: theo chính sách thực thi TaskPilot và mục "Subagent và model" của prompt; `-` nếu không đặt. -->
 
 | # | Việc | Agent | Subagent | Model | File | Đầu ra | Phụ thuộc |
 |---|------|-------|----------|-------|------|--------|-----------|
-| 1 | <việc 1> | claude | <subagent hoặc -> | <model hoặc -> | <đường/dẫn> | <kết quả cần có> | - |
+| 1 | <việc 1> | <CLI theo policy> | <subagent hoặc -> | <model hoặc -> | <đường/dẫn> | <kết quả cần có> | - |

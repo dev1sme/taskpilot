@@ -38,6 +38,8 @@ export function registerSessionsRoutes(app: FastifyInstance, opts: { repo: RepoC
   const { sessions } = opts;
   const requireRepo = opts.repo.require;
 
+  app.get("/api/sessions/capabilities", async () => sessions.capabilities(requireRepo()));
+
   app.get<{ Params: { key: string } }>("/api/tasks/:key/sessions", async (req) => {
     const task = await getTask(requireRepo(), req.params.key);
     return sessions.list(requireRepo(), task.key);
@@ -56,7 +58,7 @@ export function registerSessionsRoutes(app: FastifyInstance, opts: { repo: RepoC
   app.post<{ Params: { id: string } }>("/api/sessions/:id/resume", async (req) => sessions.resume(sessionId(req.params.id)));
 
   app.post<{ Params: { id: string } }>("/api/sessions/:id/stop", async (req) => {
-    await sessions.stop(sessionId(req.params.id));
+    await sessions.stopAndWait(sessionId(req.params.id));
     return { ok: true };
   });
 

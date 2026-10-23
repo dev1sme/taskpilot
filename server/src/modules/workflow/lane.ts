@@ -1,9 +1,11 @@
-import { stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { AGENT_LABELS, DEFAULT_AGENT, type Agent } from "../../core/agents.js";
 import { TASKS_DIR } from "../tasks/index.js";
 import { t } from "../../core/i18n.js";
-import type { RunPhase, RunState, SubtaskMetrics, SubtaskPhase, WorkflowDef } from "./types.js";
+import { resolveExecution } from "./execution.js";
+import type { OutputBaseline, RunPhase, RunState, SubtaskMetrics, SubtaskPhase, WorkflowDef } from "./types.js";
 
 /**
  * What the engine drives in one session: the run itself (the leader) or one of its subtasks. Both
@@ -13,6 +15,9 @@ export interface Lane {
   sessionId?: string;
   phase: RunPhase | SubtaskPhase;
   stepStartedAt?: number;
+  promptId?: string;
+  outputBaseline?: OutputBaseline;
+  recoveryBlocked?: boolean;
   /** A subtask's first prompt; the run's own is set once when it begins. */
   startedAt?: number;
   pendingPrompt?: string;
@@ -34,14 +39,16 @@ export function dispatching(run: RunState, def: WorkflowDef): boolean {
   return !!run.subtasks && !!def.steps[run.stepIndex]?.dispatch;
 }
 
-export function withoutSnapshot(run: RunState): Omit<RunState, "workflow"> {
-  const { workflow: _workflow, ...rest } = run;
+export function withoutSnapshot(run: RunState): Omit<RunState, "workflow" | "handoffPreviews"> {
+  const { workflow: _workflow, handoffPreviews: _handoffPreviews, outputBaseline: _baseline, promptId: _promptId, ...rest } = run;
+  if (rest.subtasks) rest.subtasks = rest.subtasks.map(({ outputBaseline: _baseline, promptId: _promptId, ...sub }) => sub);
   return rest;
 }
 
 /** Name of the agent that runs the run's current step, for run messages. */
 export function agentLabel(run: RunState): string {
-  return AGENT_LABELS[run.workflow?.steps[run.stepIndex]?.agent ?? DEFAULT_AGENT];
+  if (run.workflow) return AGENT_LABELS[resolveExecution({ workflow: run.workflow, run, scope: { kind: "step", stepId: run.workflow.steps[run.stepIndex].id } }).agent];
+  return AGENT_LABELS[DEFAULT_AGENT];
 }
 
 export function taskDirOf(run: RunState): string {
@@ -76,9 +83,41 @@ export function syncDispatch(run: RunState): void {
   else Object.assign(run, { phase: "running", message: t("run.dispatching", { done, total: subs.length }) });
 }
 
-export async function writtenSince(run: RunState, file: string, since: number = run.stepStartedAt): Promise<boolean> {
+/** An unreadable baseline must block delivery, rather than treating the old report as absent. */
+export async function outputBaseline(run: RunState, file: string): Promise<OutputBaseline> {
+  try {
+    const target = path.join(taskDirOf(run), file);
+    const metadata = await stat(target);
+    if (!metadata.isFile()) throw new Error(`Output is not a file: ${file}`);
+    const digest = createHash("sha256")
+      .update(await readFile(target))
+      .digest("hex");
+    return { file, fingerprint: [metadata.dev, metadata.ino, metadata.size, metadata.mtimeMs, metadata.ctimeMs, digest].join(":") };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { file, fingerprint: null };
+    throw error;
+  }
+}
+
+/** A blocked/unfinished transfer fences the lane even if its source has already been unlocked. */
+export function laneBlocked(run: RunState, lane: Lane): boolean {
+  if (lane.recoveryBlocked) return true;
+  const stepId = run.workflow?.steps[run.stepIndex]?.id;
+  return !!run.handoffs?.some(
+    (operation) =>
+      operation.scope.stepId === stepId &&
+      (lane === run ? operation.scope.kind === "step" : operation.scope.kind === "subtask" && operation.scope.n === (lane as { n?: number }).n) &&
+      (operation.cleanup === "blocked" || !["committed", "failed"].includes(operation.stage)),
+  );
+}
+
+export async function writtenSince(run: RunState, file: string, since: number = run.stepStartedAt, lane: Lane = run): Promise<boolean> {
   try {
     const s = await stat(path.join(taskDirOf(run), file));
+    if (lane.outputBaseline?.file === file) {
+      const current = await outputBaseline(run, file);
+      if (current.fingerprint === lane.outputBaseline.fingerprint) return false;
+    }
     // File timestamps come from the kernel's coarse clock and can trail Date.now() by a few ms.
     return s.mtimeMs >= since - MTIME_SLACK_MS;
   } catch {

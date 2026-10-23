@@ -31,6 +31,7 @@ export function useWorkflowPage(initialFile: string | undefined) {
   const refresh = async () => {
     await reload();
     void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    await Promise.all(["workflow-modes", "execution-defaults", "agent-capabilities", "run-preview", "run"].map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
   };
 
   // A new prompt whose draft was cancelled no longer exists: go back to workflow.yml.

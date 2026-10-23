@@ -1,10 +1,30 @@
 import { call, taskUrl } from "../../shared/api/http";
-import type { ModesInfo, RunState, RunView } from "./types";
+import type {
+  AgentCapability,
+  ExecutionDefaults,
+  ExecutionSelection,
+  HandoffRequest,
+  HandoffCommitRequest,
+  HandoffPreviewResult,
+  HandoffJournal,
+  ModesInfo,
+  RunOptionsValue,
+  RunPreview,
+  RunState,
+  RunView,
+} from "./types";
 
 export const workflowApi = {
   modes: () => call<ModesInfo>("GET", "/api/config/workflow/modes"),
+  defaults: () => call<ExecutionDefaults>("GET", "/api/config/workflow/execution-defaults"),
+  saveDefaults: (execution: ExecutionSelection, baseHash: string) => call<ExecutionDefaults>("PUT", "/api/config/workflow/execution-defaults", { execution, baseHash }),
+  saveMode: (mode: string, baseHash: string) => call<{ hash: string }>("PUT", "/api/config/workflow/mode", { mode, baseHash }),
+  capabilities: () => call<{ agents: AgentCapability[] }>("GET", "/api/sessions/capabilities"),
+  preview: (key: string, options: RunOptionsValue) => call<RunPreview>("POST", `${taskUrl(key)}/run/preview`, options),
   run: (key: string) => call<RunView>("GET", `${taskUrl(key)}/run`),
-  startRun: (key: string, mode?: string) => call<RunState>("POST", `${taskUrl(key)}/run`, mode ? { mode } : undefined),
+  previewHandoff: (key: string, request: HandoffRequest) => call<HandoffPreviewResult>("POST", `${taskUrl(key)}/run/handoff/preview`, request),
+  commitHandoff: (key: string, request: HandoffCommitRequest) => call<{ operation: HandoffJournal }>("POST", `${taskUrl(key)}/run/handoff`, request),
+  startRun: (key: string, options?: RunOptionsValue) => call<RunState>("POST", `${taskUrl(key)}/run`, options),
   cancelRun: (key: string) => call<RunState>("DELETE", `${taskUrl(key)}/run`),
   approve: (key: string, note = "") => call<RunState>("POST", `${taskUrl(key)}/run/approve`, { note }),
   reply: (key: string, text: string) => call<RunState>("POST", `${taskUrl(key)}/run/reply`, { text }),
@@ -15,5 +35,5 @@ export const workflowApi = {
   completeSubtask: (key: string, n: number) => call<RunState>("POST", `${taskUrl(key)}/run/subtasks/${n}/complete`),
   completeStep: (key: string) => call<RunState>("POST", `${taskUrl(key)}/run/complete`),
   setDone: (key: string, done: boolean) => call<{ done: { at: number | null } | null }>("PUT", `${taskUrl(key)}/done`, { done }),
-  restartRun: (key: string, mode?: string) => call<RunState>("POST", `${taskUrl(key)}/run/restart`, mode ? { mode } : undefined),
+  restartRun: (key: string, options?: RunOptionsValue) => call<RunState>("POST", `${taskUrl(key)}/run/restart`, options),
 };

@@ -7,7 +7,7 @@ import { WebSocket } from "ws";
 import { buildApp } from "../../../src/app.js";
 import { SessionManager } from "../../../src/modules/sessions/index.js";
 import { type Launcher } from "../../../src/core/claude/launch.js";
-import { StateStore } from "../../../src/core/state.js";
+import { StateStore, type SessionMeta } from "../../../src/core/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
 const TOKEN = "test-token";
@@ -149,6 +149,30 @@ describe("sessions", () => {
       { resume: false, model: "haiku", subagent: "taskpilot-implementer" },
       { resume: true, model: "haiku", subagent: "taskpilot-implementer" },
     ]);
+  });
+
+  it("allows only one concurrent resume and advances the transport generation once", async () => {
+    const state = new StateStore(await tempDir("concurrent-resume-"));
+    let launches = 0;
+    const manager = new SessionManager(state, {
+      launcher: (id, opts) => {
+        launches++;
+        return fakeClaude(id, opts);
+      },
+    });
+    managers.push(manager);
+    const exits: SessionMeta[] = [];
+    manager.on("exit", (meta) => exits.push(meta));
+    const session = await manager.create(await makeRepo(), "DEMO-1");
+    await manager.stopAndWait(session.id);
+    const results = await Promise.allSettled([manager.resume(session.id), manager.resume(session.id)]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+    expect(launches).toBe(2);
+    expect(exits[0].generation).toBe(1);
+    expect((await manager.get(session.id)).generation).toBe(2);
+    await manager.stopAndWait(session.id);
+    expect((await manager.get(session.id)).exitedGeneration).toBe(2);
   });
 
   it("takes an optional model for a new session and refuses one that looks like a flag", async () => {

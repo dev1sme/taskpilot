@@ -1,8 +1,10 @@
+export { HandoffAction, HandoffDialog, WorkflowHistory, type HandoffTarget } from "./HandoffDialog";
 export { GateCard } from "./GateCard";
 export { NowCard } from "./NowCard";
 export { ModePicker } from "./ModePicker";
+export { RunOptions } from "./RunOptions";
 export { Stepper } from "./Stepper";
 export { AssignmentPreview } from "./SubtaskTree";
 export { workflowApi } from "./api";
-export type { Question, RunState, SubtaskRun, WorkflowStep } from "./types";
+export type { EffectiveExecution, ExecutionSelection, Question, RunOptionsValue, RunState, SubtaskRun, WorkflowStep } from "./types";
 export { ACTIVE_PHASES, useRun } from "./useRun";

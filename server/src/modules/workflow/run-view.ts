@@ -1,14 +1,18 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { DEFAULT_AGENT, type Agent } from "../../core/agents.js";
+import type { Agent } from "../../core/agents.js";
 import type { ParsedAssignments } from "./assignments.js";
 import { modeOf } from "./definition.js";
 import { ACTIVE, dispatching, taskDirOf, withoutSnapshot } from "./lane.js";
 import type { LoadDef } from "./ports.js";
 import { parseQuestions, type Question } from "./questions.js";
-import type { RunState, StepDef, WorkflowDef } from "./types.js";
+import type { EffectiveExecution, MetricsSummary, RunState, StepDef, WorkflowDef } from "./types.js";
+import { resolveExecution } from "./execution.js";
+import { summarizeMetrics } from "./history.js";
 
 export interface RunView {
+  /** The saved run's mode, including after done/cancelled; independent of new-run repo defaults. */
+  runMode: NonNullable<WorkflowDef["mode"]> | null;
   workflow: {
     source: string;
     origin: WorkflowDef["origin"];
@@ -19,6 +23,8 @@ export interface RunView {
       id: string;
       title: string;
       agent: Agent;
+      model?: string;
+      effective: EffectiveExecution;
       gate: StepDef["gate"];
       doneFile: string | null;
       outputs: Array<{ id: string; file: string }>;
@@ -28,14 +34,17 @@ export interface RunView {
     /** The run follows the workflow as it was when it started, which has been edited since. */
     outdated: boolean;
   };
-  /** Without the workflow snapshot, which only the engine needs. */
-  run: Omit<RunState, "workflow"> | null;
+  /** Without the workflow/preview snapshots and internal prompt/output fences. Recovery errors remain visible. */
+  run: Omit<RunState, "workflow" | "handoffPreviews"> | null;
   /** Claude's numbered questions for the reviewer, at a gate or while it waits for an answer. */
   questions: Question[];
   /** At a gate whose next step is a dispatch step: the subtasks the plan's table gives, or why it is not usable. */
   assignments: ParsedAssignments | null;
   /** Questions of each subtask that waits for an answer, by subtask number. */
   subtaskQuestions: Record<number, Question[]>;
+  /** Session cumulative counters, deduplicated across steps and resume attempts. */
+  usage: MetricsSummary | null;
+  subtaskUsage: Record<number, MetricsSummary>;
 }
 
 /** The view of `run` (the repo's active run for the task, if any) with the workflow it follows, else the one a new run would get. */
@@ -53,6 +62,7 @@ export async function buildRunView(
   });
   const def = pinned ?? current!;
   return {
+    runMode: run?.workflow ? modeOf(run.workflow) : null,
     workflow: {
       source: def.source,
       origin: def.origin,
@@ -61,7 +71,10 @@ export async function buildRunView(
       steps: def.steps.map((s) => ({
         id: s.id,
         title: s.title,
-        agent: s.agent ?? DEFAULT_AGENT,
+        ...(() => {
+          const effective = resolveExecution({ workflow: def, scope: { kind: "step", stepId: s.id }, run: pinned ? run : undefined });
+          return { agent: effective.agent, model: effective.model, effective };
+        })(),
         gate: s.gate,
         doneFile: s.doneWhen?.file ?? null,
         outputs: s.outputs.map((o) => ({ id: o.id, file: o.file })),
@@ -73,6 +86,13 @@ export async function buildRunView(
     questions: run ? await questionsOf(run, def) : [],
     assignments: run?.phase === "gate" && def.steps[run.stepIndex + 1]?.dispatch ? await assignmentsFor(run, def, run.stepIndex + 1) : null,
     subtaskQuestions: Object.fromEntries((run?.subtasks ?? []).filter((s) => s.phase === "waiting").map((s) => [s.n, parseQuestions(s.lastMessage ?? "")])),
+    usage: run ? summarizeMetrics(run) : null,
+    subtaskUsage: Object.fromEntries(
+      (run?.subtasks ?? []).map((sub) => [
+        sub.n,
+        summarizeMetrics(run!, { kind: "subtask", stepId: def.steps.slice(0, run!.stepIndex + 1).findLast((s) => s.dispatch)?.id ?? "", n: sub.n }),
+      ]),
+    ),
   };
 }
 

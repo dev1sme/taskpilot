@@ -31,12 +31,40 @@ E2E dùng Playwright, cần cài bộ phụ thuộc riêng và Chromium. Chạy 
 ```bash
 npm --prefix e2e ci
 (cd e2e && npx playwright install chromium)
-npm run e2e
+npm run e2e -- -- --workers=1
+npm --prefix e2e run typecheck
 ```
 
 Các test Codex dùng `e2e/fake-codex.mjs` (tái sử dụng fake trong `server/test/helpers/` với schema từ fixture 0.163.0); project `codex` chạy sau `chromium` vì dùng repo có workflow riêng. Chạy riêng sau khi có phiên đăng nhập E2E: `npm --prefix e2e test -- --project=codex --no-deps`.
 
-Bộ E2E tự mở server và client trên cổng `8891` / `5273`, dùng dữ liệu tạm trong `e2e/.tmp/`. Claude và Codex được thay bằng script giả; bài kiểm thử không xác nhận khả năng tương thích với CLI thật. Sau khi chạy, xem báo cáo bằng `npm --prefix e2e run report`.
+Bộ E2E tự mở server và client trên cổng `8891` / `5273`, dùng dữ liệu tạm trong `e2e/.tmp/`. Claude, Copilot và Codex được thay bằng script giả; bài kiểm thử không xác nhận khả năng tương thích với CLI thật. Cấu hình mặc định `workers: 1` vì server có một current repo: đổi repo trong các bài selection/handoff có thể xung đột nếu dùng nhiều worker. `npm run e2e` chạy tuần tự cả suite; hai dấu `--` ở lệnh gốc truyền cờ qua hai lớp npm khi cần thêm cờ. Không chạy hai suite E2E đồng thời trên cùng cổng/state. Sau khi chạy, xem báo cáo bằng `npm --prefix e2e run report`.
+
+### Regression execution và bàn giao
+
+Chạy từ gốc repo:
+
+```bash
+npm test -- server/test/modules/workflow server/test/modules/sessions server/test/modules/config/workflow.test.ts server/test/modules/config/preserved-fields.test.ts server/test/core/safe-text.test.ts server/test/modules/usage/store.test.ts server/test/architecture.test.ts server/test/i18n.test.ts
+npm --prefix e2e test -- tests/run-selection.spec.ts tests/handoff.spec.ts tests/run-mode.spec.ts tests/run-restart.spec.ts tests/subtasks.spec.ts tests/task-state.spec.ts tests/questions.spec.ts --project=chromium --workers=1
+npm --prefix e2e test -- tests/codex.spec.ts --project=codex --no-deps --workers=1
+```
+
+Selection kiểm launch thật qua fake CLI khớp preview cho default/Leader/custom, policy, repo defaults và recovery. Handoff kiểm main/member, source đang chạy/chờ quyền/đã thoát/no-hook, target mới, stale/request kép, reservation, output baseline và metrics. Unit fault matrix dựng restart tại các mốc journal và lỗi persist/start/stop/paste; không tự nhận tương đương SIGKILL production. Fake Copilot không được thay bằng CLI thật trong E2E.
+
+Quota fake Codex nhận `FAILURE:quota|rate|http429|auth|network|unknown|retry|stale`; quota là fixture tổng hợp theo schema 0.163.0, không phải recording tài khoản hết quota. Chi tiết coverage và nguồn nằm trong [fixture README](../server/test/fixtures/codex/README.md). Fake chứng minh đường adapter/UI/guard, không chứng minh quota thật. Nếu localhost/tsx/child process bị sandbox chặn (`EPERM`), chạy lại với quyền phù hợp và ghi riêng kết quả môi trường; không làm yếu test để né lỗi. Assertion cũ còn fail phải báo rõ, targeted PASS không thay cho full suite PASS.
+
+### Smoke Codex thật có giới hạn
+
+Chỉ chạy sau build và kiểm tự động, trong repo/state tạm riêng. Ghi thời điểm, TaskPilot version/HEAD và dirty state, Node, `codex --version`, `claude --version`, `copilot --version` nếu có; ghi model **yêu cầu** và **thực tế** riêng. Dùng đăng nhập Codex có sẵn, không chép auth vào báo cáo, không cài CLI, tự đăng nhập, bật credits hay cố làm nguồn hết quota.
+
+1. Tạo repo tạm dưới `/tmp`, spec tiếng Việt chỉ yêu cầu một file nhỏ, tối đa 1–2 việc con. Tạo `TASKPILOT_HOME` riêng; không đổi `HOME`/`CODEX_HOME`, không chạy trong checkout đang được TaskPilot điều khiển. Chọn cổng riêng, chẳng hạn `8894`, và build client có sẵn. Không tạo `.taskpilot/workflow.yml` cho ca Leader đầu tiên.
+2. Mở server thử nghiệm: `TASKPILOT_HOME=<state-tạm> TASKPILOT_TOKEN=<token-thử> node dist/server/index.js --repo <repo-tạm> --port 8894`. Nếu `.env` có auth, dùng tài khoản phù hợp hoặc harness `buildApp` với auth thử riêng; không ghi token/password thật vào artifact. Đảm bảo mọi session chạy đúng repo tạm. Giữ quyền mặc định; nếu Codex yêu cầu quyền, xem nội dung và chỉ duyệt thao tác thuộc phạm vi smoke. Không tăng quyền để tránh approval.
+3. Qua UI chọn **Leader + Codex + Mặc định của agent**, preview rồi start. Kiểm CLI/model hiệu lực, đầu ra điều tra/kế hoạch, gửi một góp ý ngắn, duyệt kế hoạch, chờ member báo cáo, leader review và duyệt đến done. Ghi session/native thread, model thực tế, token nếu có và tên file đầu ra. Kiểm bảng chỉ có 1–2 việc, agent/model đúng policy.
+4. Dựng một lane Claude **đã dừng** từ fixture state/tài liệu trước khi server nạp state (hoặc dùng phiên nguồn thật đã stop). Dùng `loadWorkflow` lấy snapshot hợp lệ; có SessionMeta nguồn và run interrupted với stepIndex/scope rõ ràng, không có process sống/pending approval giả. Giữ prompt nguồn đã render và tài liệu/format liên quan nếu có; fixture không có prompt nguồn phải ghi thiếu bối cảnh. Ghi rõ nguồn là fixture hay Claude thật; thiếu tài khoản nguồn không bỏ ca này. Chỉ chọn **Tiếp tục bằng… → Codex** qua UI, xem preview và commit; không viết journal/đổi lane thủ công để giả bàn giao thành công.
+5. Kiểm đích là session/thread mới, giữ bước, spec/tài liệu/file sentinel và phụ thuộc/việc done nếu fixture có; report/output mới qua gate, không archive; source ở lịch sử và resume trả 409. Kiểm riêng bảng Phân công tại gate: có file đầu ra chưa chứng minh bảng hợp lệ để duyệt. Ngoại lệ không đổi bước tương lai. Nếu fixture không có member/dependency, ghi giới hạn đó thay vì nhận đã smoke chúng.
+6. Giới hạn mỗi pha LLM 3 phút, toàn smoke khoảng 10 phút và chỉ một lượt sửa feedback; thời gian đợi người duyệt quyền ghi riêng. Nếu startup/account/model/network hoặc lane bị khóa, ghi BLOCKED cùng evidence, không báo PASS. Dừng tiến trình thử sau khi ghi artifact; giữ repo/state, log và screenshot để review, không để nguồn/đích tiếp tục viết nền.
+
+Ghi report với command/kết quả thật, version và đường dẫn artifact; phân biệt tự động, smoke thật và fixture. Không ép tài khoản hết quota, kiểm crash production, chuyển native chat/MCP/hooks giữa CLI hoặc suy phần Claude/Copilot chưa chạy từ kết quả Codex. Tham khảo schema/priority/recovery trong [SPEC](SPEC.md#8-execution-và-bàn-giao).
 
 ## Bố cục mã nguồn
 

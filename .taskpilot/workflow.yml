@@ -1,0 +1,10 @@
+# Override of the "Leader" workflow: write only what differs from it.
+# - top-level keys written here (agent, permission-mode, language, rules, history, restart) replace the mode's;
+# - a step with an id of the mode patches that step (only the keys written; outputs by output id);
+# - a step with a new id needs `before:` or `after:` (the id of a step) to say where it goes;
+# - a prompt or format file of this directory replaces the mode's file of the same name.
+# The dispatch step belongs to TaskPilot: only its title and dispatch.prompt / format / parallel can change.
+version: 2
+extends: leader
+agent: codex
+permission-mode: acceptEdits

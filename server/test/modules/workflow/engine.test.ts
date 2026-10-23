@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { preflightSession } from "../../../src/modules/sessions/capabilities.js";
 import type { SessionView } from "../../../src/modules/sessions/manager.js";
 import type { SessionMeta } from "../../../src/core/state.js";
 import { StateStore } from "../../../src/core/state.js";
@@ -28,6 +29,11 @@ class FakeSessions implements SessionPort {
   pastedBy = new Map<string, string[]>();
   resumed: string[] = [];
   constructor(private readonly state: StateStore) {}
+
+  // Read-only adapter probe for in-memory ports: /bin/bash --version never launches an agent.
+  preflight(repo: string, request: Parameters<typeof preflightSession>[0]) {
+    return preflightSession(request, async () => ({ repo, command: { file: "/bin/bash", args: [] }, extraEnv: {}, timeoutMs: 1000 }));
+  }
 
   async create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent; title?: string; model?: string; subagent?: string }): Promise<SessionView> {
     const id = `00000000-0000-4000-8000-${String(this.sessions.size).padStart(12, "0")}`;
@@ -100,6 +106,15 @@ describe("workflow engine", () => {
     // The fixture's 02-plan.md predates every run.
     const past = new Date("2020-01-01");
     await utimes(path.join(taskDir(), "02-plan.md"), past, past);
+  });
+
+  it("refuses handoff when a session port lacks lifecycle barriers without changing the run", async () => {
+    await engine.start(repo, "DEMO-1");
+    const before = structuredClone((await state.load()).runs[0]);
+    await expect(engine.previewHandoff(repo, "DEMO-1", { scope: { kind: "step", stepId: "investigate" }, target: { agent: "copilot" } })).rejects.toMatchObject({ status: 503 });
+    expect((await state.load()).runs[0]).toEqual(before);
+    expect(fake.stopped).toEqual([]);
+    expect(fake.sessions.size).toBe(1);
   });
 
   it("runs investigate → gate → feedback → gate → implement → done", async () => {
@@ -494,6 +509,142 @@ describe("workflow engine", () => {
     expect((await state.load()).runs[0]).toMatchObject({ phase: "starting", stepIndex: 0 });
   });
 
+  it("delivers a legitimate SessionStart emitted before create returns and the lane is bound", async () => {
+    const create = fake.create.bind(fake);
+    let ready: Promise<void> | undefined;
+    const early = vi.spyOn(fake, "create").mockImplementation(async (repo, key, options) => {
+      const view = await create(repo, key, options);
+      ready = engine.onHook(view, "SessionStart");
+      return view;
+    });
+    try {
+      await engine.start(repo, "DEMO-1");
+      await ready;
+      expect((await state.load()).runs[0]).toMatchObject({ phase: "running" });
+      expect(fake.pasted).toHaveLength(1);
+    } finally {
+      early.mockRestore();
+    }
+  });
+
+  it("drops a Stop already queued behind retry even when both prompts have the same timestamp", async () => {
+    await engine.start(repo, "DEMO-1");
+    await hook("SessionStart");
+    await hook("Stop");
+    await write("02-plan.md");
+    const now = (await state.load()).runs[0].sentPrompt!.at;
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    const meta = structuredClone(fake.meta((await state.load()).runs[0].sessionId));
+    try {
+      const retry = engine.retry(repo, "DEMO-1");
+      const staleStop = engine.onHook(meta, "Stop", { last_assistant_message: "OLD TURN" });
+      await retry;
+      await staleStop;
+      expect((await state.load()).runs[0]).toMatchObject({ phase: "running", sentPrompt: { at: now } });
+      expect((await state.load()).runs[0].lastMessage).not.toBe("OLD TURN");
+      // The existing report became the retry baseline; only another write can satisfy done-when.
+      expect(await hook("Stop")).toMatchObject({ phase: "waiting" });
+      await writeFile(path.join(taskDir(), "02-plan.md"), "new report after retry");
+      expect(await hook("Stop")).toMatchObject({ phase: "gate" });
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it("ignores hook/exit/metrics/statusline from a previous process generation on the same session", async () => {
+    const started = await engine.start(repo, "DEMO-1");
+    await hook("SessionStart");
+    await hook("Stop");
+    const stale = { ...fake.meta(started.sessionId), generation: 0 };
+    fake.exit(started.sessionId);
+    const resume = fake.resume.bind(fake);
+    const mocked = vi.spyOn(fake, "resume").mockImplementation(async (id) => {
+      const view = await resume(id);
+      view.generation = 1;
+      return view;
+    });
+    try {
+      await engine.retry(repo, "DEMO-1");
+      await hook("SessionStart");
+      await write("02-plan.md");
+      const before = structuredClone((await state.load()).runs[0]);
+      await engine.onHook(stale, "Stop", { last_assistant_message: "stale process" });
+      await engine.onExit(stale);
+      await engine.onMetrics(stale, { inputTokens: 999 });
+      await engine.onStatusLine(stale, { cost: { total_cost_usd: 999 } });
+      expect((await state.load()).runs[0]).toEqual(before);
+      expect(await hook("Stop")).toMatchObject({ phase: "gate" });
+    } finally {
+      mocked.mockRestore();
+    }
+  });
+
+  it("does not publish an in-flight or failed state write to readers", async () => {
+    await engine.start(repo, "DEMO-1");
+    const before = structuredClone(await state.load());
+    let entered!: () => void;
+    let fail!: () => void;
+    const writing = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      fail = resolve;
+    });
+    const write = vi.spyOn(state as unknown as { write(value: unknown): Promise<void> }, "write").mockImplementationOnce(async () => {
+      entered();
+      await blocked;
+      throw new Error("disk unavailable");
+    });
+    try {
+      const update = state.update((draft) => {
+        draft.sessions[0].generation = 999;
+      });
+      const failed = expect(update).rejects.toThrow("disk unavailable");
+      await writing;
+      expect(await state.load()).toEqual(before);
+      fail();
+      await failed;
+      expect(await state.load()).toEqual(before);
+      expect(await new StateStore(state.dir).load()).toEqual(JSON.parse(JSON.stringify(before)));
+    } finally {
+      fail();
+      write.mockRestore();
+    }
+  });
+
+  it("ignores an old no-hook timer when a replacement prompt shares the same timestamp", async () => {
+    engine = new WorkflowEngine(
+      state,
+      fake,
+      async (r) => {
+        const def = await loadWorkflow(r);
+        def.steps.forEach((step) => {
+          step.agent = "copilot";
+        });
+        return def;
+      },
+      undefined,
+      50,
+    );
+    const started = await engine.start(repo, "DEMO-1");
+    vi.useFakeTimers();
+    try {
+      await hook("SessionStart");
+      const replacement = await fake.create(repo, "DEMO-1", { agent: "claude" });
+      await state.update((draft) => {
+        const run = draft.runs[0];
+        run.sessionId = replacement.id;
+        run.promptId = "replacement-prompt";
+        // Keep sentPrompt.at identical to exercise the old timer's millisecond collision.
+      });
+      await vi.advanceTimersByTimeAsync(50);
+      expect((await state.load()).runs[0].noHook).toBeUndefined();
+      expect((await state.load()).runs[0].sessionId).not.toBe(started.sessionId);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("marks active runs interrupted after a restart", async () => {
     await engine.start(repo, "DEMO-1");
     await hook("SessionStart");
@@ -512,6 +663,14 @@ describe("workflow engine", () => {
     expect(view.workflow.mode).toMatchObject({ id: "leader", override: false });
     expect(view.workflow.outdated).toBe(false);
     expect(await readFile(path.join(taskDir(), HISTORY_FILE), "utf8")).toContain("Quy trình: Leader, 3 bước.");
+    for (const phase of ["done", "cancelled"] as const) {
+      await state.update((s) => {
+        s.runs[0].phase = phase;
+      });
+      const finished = await engine.view(repo, "DEMO-1");
+      expect(finished.workflow.mode?.id).toBe("default");
+      expect(finished.runMode?.id).toBe("leader");
+    }
 
     await engine.restart(repo, "DEMO-1", "default");
     expect((await engine.view(repo, "DEMO-1")).workflow.mode?.id).toBe("default");
@@ -828,6 +987,37 @@ describe("workflow engine: dispatch", () => {
     await write("02-plan.md", "# Plan\n\n" + table("| 1 | A | claude | - | a | - |"));
     await hookOn(leader, "Stop");
     await expect(engine.approve(repo, "DEMO-1")).rejects.toMatchObject({ status: 400, message: expect.stringContaining("File is required") });
+  });
+
+  it("fences old-process member metrics and statusline after retrying the same session", async () => {
+    await dispatch();
+    const source = (await run()).subtasks![0].sessionId!;
+    await hookOn(source, "SessionStart");
+    await hookOn(source, "Stop");
+    const old = structuredClone(fake.meta(source));
+    fake.exit(source);
+    const resume = fake.resume.bind(fake);
+    const resumed = vi.spyOn(fake, "resume").mockImplementation(async (id) => {
+      const view = await resume(id);
+      view.generation = 1;
+      return view;
+    });
+    try {
+      await engine.retrySubtask(repo, "DEMO-1", 1);
+      await hookOn(source, "SessionStart");
+      const before = structuredClone(await run());
+      await engine.onMetrics(old, { inputTokens: 999, outputTokens: 999, model: "old-model" });
+      await engine.onStatusLine(old, { cost: { total_cost_usd: 999 }, model: { id: "old-model" } });
+      await engine.onExit(old);
+      await engine.onHook(old, "Stop", { last_assistant_message: "old message" });
+      expect(await run()).toEqual(before);
+      const current = fake.meta(source);
+      await engine.onMetrics(current, { inputTokens: 100, outputTokens: 20 });
+      await engine.onStatusLine(current, { cost: { total_cost_usd: 1.25 }, model: { id: "current-model" } });
+      expect((await run()).subtasks![0].metrics).toEqual({ inputTokens: 100, outputTokens: 20, costUsd: 1.25, model: "current-model" });
+    } finally {
+      resumed.mockRestore();
+    }
   });
 
   it("answers a waiting subtask and retries an interrupted one, each on its own", async () => {

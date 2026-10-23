@@ -106,3 +106,36 @@ it.each(["RPC_FAIL", "FAIL_TURN", "SLOW"])("keeps a failed or interrupted %s tur
   }
   await vi.waitFor(async () => expect((await state.load()).runs[0].phase).toBe("waiting"));
 });
+
+it("preserves legacy Codex model switches when the run has no execution or attempt fields", async () => {
+  const repo = await makeRepo();
+  const state = new StateStore(await tempDir("codex-legacy-switch-"));
+  const sessions = new SessionManager(state, { launchers: { codex: () => ({ file: process.execPath, args: [FAKE] }) } });
+  managers.push(sessions);
+  const def = parseWorkflowFiles(
+    new Map([
+      [
+        "workflow.yml",
+        "version: 2\nagent: codex\nsteps:\n  - id: plan\n    model: gpt-6.1-sol\n    prompt: plan.md\n    gate: approve\n  - id: review\n    prompt: review.md\n    gate: approve\n",
+      ],
+      ["plan.md", "Plan {{agent}}"],
+      ["review.md", "Review {{agent}}"],
+    ]),
+    { dir: repo, origin: "repo" },
+  ).def!;
+  const engine = new WorkflowEngine(state, sessions, async () => def);
+  const failures: unknown[] = [];
+  sessions.on("hook", (meta, event, payload) => void engine.onHook(meta, event, payload).catch((error) => failures.push(error)));
+  const first = (await engine.start(repo, "DEMO-1")).sessionId;
+  await vi.waitFor(async () => expect((await state.load()).runs[0].phase).toBe("gate"));
+  await state.update((s) => {
+    delete s.runs[0].execution;
+    delete s.runs[0].executionSnapshot;
+    delete s.runs[0].attempts;
+  });
+  await engine.approve(repo, "DEMO-1");
+  await vi.waitFor(async () => expect((await state.load()).runs[0]).toMatchObject({ phase: "gate", stepIndex: 1 }));
+  expect((await state.load()).runs[0].sessionId).not.toBe(first);
+  expect((await state.load()).sessions).toHaveLength(2);
+  expect(failures).toEqual([]);
+});

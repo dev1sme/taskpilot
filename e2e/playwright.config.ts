@@ -6,6 +6,8 @@ const serve = (target: string) => `node_modules/.bin/tsx e2e/serve.ts ${target}`
 export default defineConfig({
   testDir: "tests",
   fullyParallel: true,
+  // All browser contexts share the server's current repo and state, including repo-switch tests.
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: [["list"], ["html", { open: "never" }]],

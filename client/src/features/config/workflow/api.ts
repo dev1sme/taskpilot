@@ -1,6 +1,7 @@
 import { call } from "../../../shared/api/http";
 import type { Preview, SaveResult } from "../shared/types";
-import type { MigrationPreview, WorkflowConfig, WorkflowRawFile } from "./types";
+import type { MigrationPreview, RenderedPrompt, WorkflowConfig, WorkflowRawFile } from "./types";
+import type { ExecutionSelection } from "../../workflow";
 
 const q = encodeURIComponent;
 
@@ -16,6 +17,13 @@ export const workflowConfigApi = {
   save: (name: string, content: string, baseHash: string) => call<SaveResult>("PUT", "/api/config/workflow/file", { name, content, baseHash }),
   remove: (name: string, baseHash: string) => call<SaveResult>("DELETE", `/api/config/workflow/file?name=${q(name)}&baseHash=${q(baseHash)}`),
   defaultDiff: (name: string) => call<{ diff: string; same: boolean }>("GET", `/api/config/workflow/default-diff?name=${q(name)}`),
-  render: (body: { stepId: string; kind: "prompt" | "onReject" | "subtask"; feedback: string; restart: boolean; drafts: Record<string, string>; mode?: string }) =>
-    call<{ task: { key: string; title: string }; text: string }>("POST", "/api/config/workflow/render", body),
+  render: (body: {
+    stepId: string;
+    kind: "prompt" | "onReject" | "subtask";
+    feedback: string;
+    restart: boolean;
+    drafts: Record<string, string>;
+    mode?: string;
+    execution?: ExecutionSelection;
+  }) => call<RenderedPrompt>("POST", "/api/config/workflow/render", body),
 };

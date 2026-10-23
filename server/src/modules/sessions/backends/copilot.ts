@@ -4,6 +4,7 @@ import path from "node:path";
 import { copilotLauncher } from "../../../core/copilot/launch.js";
 import { HOOK_EVENTS, copilotHookCommand, type HookEvent } from "../hooks.js";
 import type { AgentBackend, HookState } from "./types.js";
+import { probePty } from "./probe.js";
 
 /**
  * Repo-local Copilot settings: where TaskPilot put its hooks before TPL-017. They are removed from
@@ -56,6 +57,9 @@ const CLAUDE_TOOL: Record<string, string> = {
  */
 export const copilotBackend: AgentBackend = {
   id: "copilot",
+  permissionModes: ["default", "acceptEdits", "plan", "auto"],
+  supportsSubagents: true,
+  probe: (context) => probePty(copilotBackend, context),
   launcher: copilotLauncher,
   prepare: ensureCopilotHooks,
   // Copilot fires SessionStart only together with the first prompt, so the engine cannot wait for it.

@@ -24,6 +24,8 @@ export class PtyTransport implements SessionTransport {
   private scrollbackSize = 0;
   private readonly clients = new Set<WebSocket>();
   private exitCode: number | null = null;
+  private stopping = false;
+  private submitTimer: NodeJS.Timeout | null = null;
 
   constructor(private readonly scrollbackLimit: number) {}
 
@@ -31,7 +33,7 @@ export class PtyTransport implements SessionTransport {
     return this.proc !== null;
   }
 
-  start({ meta, resume, backend, launcher, extraEnv, hookEnv }: TransportLaunch, events: TransportEvents): void {
+  async start({ meta, resume, backend, launcher, extraEnv, hookEnv }: TransportLaunch, events: TransportEvents): Promise<void> {
     const {
       file,
       args,
@@ -51,6 +53,7 @@ export class PtyTransport implements SessionTransport {
     });
     // On resume, keep the previous run's scrollback and attached clients.
     this.proc = proc;
+    this.stopping = false;
     this.exitCode = null;
     this.pendingOutput = backend.readyMarker ? "" : null;
 
@@ -66,26 +69,50 @@ export class PtyTransport implements SessionTransport {
         if (this.pendingOutput.includes(backend.readyMarker)) {
           this.pendingOutput = null;
           // Stands in for the SessionStart hook the agent sends only with its first prompt.
+          events.ready?.();
           events.hook("SessionStart", { session_id: meta.id, source: resume ? "resume" : "startup" });
         }
       }
     });
     proc.onExit(({ exitCode }) => {
+      if (this.proc !== proc) return;
+      clearTimeout(this.submitTimer ?? undefined);
       this.proc = null;
       this.exitCode = exitCode;
       for (const ws of this.clients) send(ws, { t: "x", code: exitCode });
       events.exit(exitCode);
     });
+    try {
+      await events.process?.(proc.pid, process.platform === "win32" ? undefined : proc.pid);
+    } catch (error) {
+      this.stop();
+      throw error;
+    }
   }
 
   /** Types a prompt into the session as one bracketed paste, then submits it. */
   paste(text: string): void {
-    this.proc?.write(`\x1b[200~${text}\x1b[201~`);
-    setTimeout(() => this.proc?.write("\r"), SUBMIT_DELAY_MS);
+    const proc = this.proc;
+    if (!proc || this.stopping) return;
+    proc.write(`\x1b[200~${text}\x1b[201~`);
+    clearTimeout(this.submitTimer ?? undefined);
+    this.submitTimer = setTimeout(() => {
+      if (this.proc === proc && !this.stopping) proc.write("\r");
+    }, SUBMIT_DELAY_MS);
   }
 
   stop(): void {
-    this.proc?.kill();
+    this.stopping = true;
+    clearTimeout(this.submitTimer ?? undefined);
+    if (!this.proc) return;
+    if (process.platform === "win32") this.proc.kill();
+    else {
+      try {
+        process.kill(-this.proc.pid, "SIGTERM");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+      }
+    }
   }
 
   closeClients(code: number, reason: string): void {
@@ -93,7 +120,7 @@ export class PtyTransport implements SessionTransport {
   }
 
   write(data: string): void {
-    this.proc?.write(data);
+    if (!this.stopping) this.proc?.write(data);
   }
 
   resize(cols: number, rows: number): void {
@@ -118,7 +145,7 @@ export class PtyTransport implements SessionTransport {
  * frame, so it is rendered at the client's terminal size. `terminal(true)` returns the session's
  * transport and creates it when missing; `terminal(false)` only returns an existing one.
  */
-export function attachPty(ws: WebSocket, terminal: (create: boolean) => PtyTransport | undefined): void {
+export function attachPty(ws: WebSocket, terminal: (create: boolean) => PtyTransport | undefined, canInput: () => boolean = () => true): void {
   // Listeners first: the client sends its resize frame right after the socket opens.
   let attached = false;
   ws.on("message", (raw) => {
@@ -130,7 +157,7 @@ export function attachPty(ws: WebSocket, terminal: (create: boolean) => PtyTrans
     }
     if (ws.readyState !== ws.OPEN) return;
     if (frame.t === "i" && typeof frame.d === "string") {
-      terminal(false)?.write(frame.d);
+      if (canInput()) terminal(false)?.write(frame.d);
     } else if (frame.t === "r" && validSize(frame.cols, frame.rows)) {
       terminal(false)?.resize(frame.cols, frame.rows);
       if (!attached) {

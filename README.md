@@ -4,6 +4,8 @@ Chạy quy trình lập kế hoạch và triển khai bằng Claude Code, GitHub
 
 TaskPilot đọc yêu cầu từ `.claude/tasks/<key>/spec/`, gửi prompt vào phiên CLI tương tác và hiển thị tài liệu, tiến độ, terminal trong trình duyệt. Bạn có thể nhập trực tiếp vào terminal; cấu hình và quyền của CLI vẫn được áp dụng.
 
+Chọn workflow, agent và model độc lập cho mỗi lần chạy, hoặc lưu agent/model làm mặc định repo. Khi đang làm dở, **Tiếp tục bằng…** bàn giao đúng bước hoặc việc con sang phiên mới, giữ tài liệu và lịch sử. Xem [chọn agent và bàn giao](docs/GUIDE.md#chọn-agent-và-model).
+
 ```mermaid
 flowchart LR
     spec["Yêu cầu"] --> plan["Điều tra & lập kế hoạch"]
@@ -19,9 +21,9 @@ flowchart LR
 
 - Node.js 22+; đã thử trên Node.js 24.
 - Bộ công cụ biên dịch cho `node-pty`: `g++`, `make`, `python3`.
-- Claude Code (`claude`) và `curl` có trong `PATH`; Claude đã đăng nhập.
+- CLI của agent được chọn đã cài và đăng nhập; Claude/Copilot dùng `curl` để gửi hooks.
 - Codex CLI (`codex`) đã đăng nhập qua `codex login` nếu dùng agent **Codex**. Đã kiểm với `codex-cli 0.163.0`; phiên Codex dùng hội thoại và nút duyệt quyền trên web.
-- GitHub Copilot CLI (`copilot`) đã đăng nhập nếu dùng **workflow mặc định**, vì bước triển khai chạy bằng Copilot. Nếu chỉ dùng Claude, xem [cấu hình agent](docs/CONFIGURATION.md#agent-và-model).
+- Khi chọn **Theo cấu hình workflow**, `default` dùng Claude điều tra và Copilot triển khai, còn `leader` dùng Claude làm leader. Chọn agent cụ thể, chẳng hạn **Codex**, để dùng agent đó cho cả quy trình mà không tạo override YAML; xem [thứ tự ưu tiên](docs/CONFIGURATION.md#lựa-chọn-execution-và-mặc-định-repo).
 
 ## Cài và chạy
 
@@ -50,7 +52,7 @@ taskpilot --repo /duong/dan/repo --open
 
 ## Tài liệu
 
-- [Sử dụng](docs/GUIDE.md): tạo task đầu tiên, duyệt, góp ý và tiếp tục khi gián đoạn.
+- [Sử dụng](docs/GUIDE.md): chọn agent/model, duyệt, bàn giao và tiếp tục khi gián đoạn.
 - [Cấu hình](docs/CONFIGURATION.md): biến môi trường, Claude, agent và workflow tùy chỉnh.
 - [Triển khai](docs/DEPLOY.md): systemd, reverse proxy và xác thực.
 - [Phát triển](docs/DEVELOP.md): môi trường dev, kiểm thử và quy tắc mã nguồn.

@@ -1,30 +1,41 @@
 import { EventEmitter } from "node:events";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { AGENT_LABELS, DEFAULT_AGENT } from "../../core/agents.js";
 import { HttpError } from "../../core/errors.js";
 import { getTask, TASKS_DIR, writeTaskStatus } from "../tasks/index.js";
-import type { HookEvent, SessionMetrics } from "../sessions/index.js";
+import { requirePreflight, type HookEvent, type SessionMetrics, type PreflightResult } from "../sessions/index.js";
 import type { SessionMeta, StateStore } from "../../core/state.js";
 import { overlaps } from "./assignments.js";
 import { loadWorkflow, modeOf, OVERRIDE_DIR, reportOf } from "./definition.js";
 import { CUSTOM_MODE } from "./modes.js";
 import { launchModel } from "./models.js";
 import { archiveOutputs } from "./archive.js";
-import { HISTORY_TEXT } from "./history.js";
-import { ACTIVE, agentLabel, dispatching, laneOf, sessionLabel, statusLineMetrics, syncDispatch, taskDirOf, writtenSince, type Lane } from "./lane.js";
+import { HISTORY_TEXT, measuredMetrics, mergeCumulative, summarizeMetrics } from "./history.js";
+import { PROMPT_TEXT } from "./prompt-text.js";
+import { ACTIVE, agentLabel, dispatching, laneBlocked, laneOf, outputBaseline, sessionLabel, statusLineMetrics, syncDispatch, taskDirOf, writtenSince, type Lane } from "./lane.js";
 import type { LoadDef, SessionPort, SubagentsOf } from "./ports.js";
-import { assignmentsFor } from "./run-checks.js";
+import { assignmentsFor, assignmentProblems } from "./run-checks.js";
+import { ExecutionValidationError, resolveExecution, selectExecution, snapshotExecution } from "./execution.js";
+import { readRepoSettings } from "./settings.js";
 import { RunStore } from "./run-store.js";
 import { buildRunView, type RunView } from "./run-view.js";
-import type { Assignment, RunState, SubtaskPhase, SubtaskRun, WorkflowDef } from "./types.js";
+import type { Assignment, EffectiveExecution, ExecutionSelection, LaneScope, MetricsSource, RunState, SubtaskMetrics, SubtaskPhase, SubtaskRun, WorkflowDef } from "./types.js";
 import { promptVars, renderPrompt } from "./vars.js";
 import { t } from "../../core/i18n.js";
+import { createSafeText } from "../../core/safe-text.js";
+import { HandoffCoordinator, type HandoffCommitRequest, type HandoffRequest, type HandoffSanitizer } from "./handoff.js";
 
 export type { LoadDef, SubagentsOf, SessionPort } from "./ports.js";
 export type { RunView } from "./run-view.js";
 
 /** How long a Copilot session may stay without any hook after its prompt before the run says so. */
 const NO_HOOK_WARN_MS = 60_000;
+
+export interface RunOptions {
+  mode?: string;
+  execution?: ExecutionSelection;
+}
 
 /**
  * Drives one workflow run per task: sends each step's prompt into the run's Claude session,
@@ -34,6 +45,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   private queue: Promise<unknown> = Promise.resolve();
 
   private readonly store: RunStore;
+  private readonly handoff: HandoffCoordinator;
 
   constructor(
     private readonly state: StateStore,
@@ -42,6 +54,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     /** Without it the table's subagents are not checked and {{subagents}} lists none. */
     private readonly subagents?: SubagentsOf,
     private readonly noHookWarnMs: number = NO_HOOK_WARN_MS,
+    sanitizer: HandoffSanitizer = async () => createSafeText([]),
   ) {
     super();
     this.store = new RunStore(
@@ -50,19 +63,114 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       (run) => this.emit("change", run),
       (e) => this.emit("warning", e),
     );
+    this.handoff = new HandoffCoordinator(this.store, sessions, sanitizer);
+  }
+
+  previewHandoff(repo: string, taskKey: string, request: HandoffRequest) {
+    return this.serial(async () => {
+      const result = await this.handoff.preview(repo, taskKey, request);
+      // Capture an old flat object after successful validation, before a later durable swap
+      // clears it. This does not change the lane fingerprint or claim backend provenance.
+      const run = (await this.store.find(repo, taskKey))!;
+      const legacy = run.subtasks?.find((s) => s.sessionId === result.preview.sourceSessionId);
+      if (legacy?.metrics && !run.sessionMetrics?.some((m) => m.sessionId === legacy.sessionId)) {
+        (run.sessionMetrics ??= []).push({ sessionId: legacy.sessionId!, agent: legacy.agent, source: "legacy", basis: "unknown", metrics: measuredMetrics(legacy.metrics) });
+        await this.store.checkpoint(run);
+      }
+      return result;
+    });
+  }
+
+  commitHandoff(repo: string, taskKey: string, request: HandoffCommitRequest) {
+    return this.serial(async () => {
+      const duplicate = (await this.store.find(repo, taskKey))?.handoffs?.some((entry) => entry.operationId === request.operationId);
+      const result = await this.handoff.commit(repo, taskKey, request);
+      const committed = await this.store.find(repo, taskKey);
+      if (committed) {
+        const source = committed.attempts?.findLast((a) => a.sessionId === result.operation.sourceSessionId);
+        if (source && source.finishedAt === undefined) {
+          source.finishedAt = result.operation.updatedAt;
+          await this.store.checkpoint(committed);
+        }
+      }
+      if (!duplicate && result.operation.promptState === "sent") {
+        const run = (await this.store.find(repo, taskKey))!;
+        const lane = laneOf(run, result.operation.targetSessionId!);
+        if (lane?.sentPrompt) this.watchForHooks(run, lane, lane.sentPrompt.at, await this.store.defOf(run));
+      }
+      return result;
+    });
   }
 
   /** The active run's workflow snapshot, else the workflow a new run would get. */
   async view(repo: string, taskKey: string): Promise<RunView> {
-    return buildRunView(repo, await this.store.find(repo, taskKey), this.loadDef, (run, def, index) => assignmentsFor(run, def, index, this.subagents));
+    return buildRunView(repo, await this.store.find(repo, taskKey), this.loadDef, (run, def, index) =>
+      assignmentsFor(run, def, index, this.subagents, this.sessions.preflight?.bind(this.sessions)),
+    );
+  }
+
+  /** Read-only; the same selection, renderer and preflight used by start/restart. */
+  async preview(repo: string, taskKey: string, options?: string | RunOptions) {
+    const prepared = await this.prepare(repo, options);
+    const { def, selected, snapshot, checks } = prepared;
+    const task = await getTask(repo, taskKey);
+    const subagents = def.steps.some((s) => s.prompt.includes("{{subagents}}") || s.prompt.includes("{{leaderTools}}")) && this.subagents ? await this.subagents(repo) : undefined;
+    return {
+      workflow: { source: def.source, mode: modeOf(def) },
+      execution: selected.execution,
+      source: selected.source,
+      steps: def.steps.map((step, index) => {
+        const configured = resolveExecution({ workflow: def, scope: { kind: "step", stepId: step.id } });
+        const effective = snapshot.steps[step.id];
+        const vars = promptVars(def, index, task, { run: { execution: selected.execution }, subagents, feedback: PROMPT_TEXT.sampleFeedback });
+        return {
+          id: step.id,
+          configured,
+          effective,
+          changes: (["agent", "model", "permissionMode", "subagent"] as const).filter((field) => configured[field] !== effective[field]),
+          preflight: checks[index],
+          // Dispatch prompts need a real assignment; the table is checked at its gate.
+          prompt: step.dispatch ? null : renderPrompt(step.prompt, vars),
+          onReject: step.onReject === undefined ? null : renderPrompt(step.onReject, vars),
+        };
+      }),
+      errors: checks.flatMap((check, index) => check.errors.map((error) => ({ stepId: def.steps[index].id, ...error }))),
+      warnings: checks.flatMap((check, index) =>
+        (["login", "models"] as const)
+          .filter((field) => check.capability[field].status === "unknown")
+          .map((field) => ({ stepId: def.steps[index].id, field, status: "unknown" as const, source: check.capability[field].source })),
+      ),
+    };
+  }
+
+  private async prepare(repo: string, options?: string | RunOptions) {
+    const opts = typeof options === "string" ? { mode: options } : (options ?? {});
+    const settings = await readRepoSettings(repo, { diagnostics: true });
+    if (settings.errors?.length) throw new ExecutionValidationError(settings.errors);
+    const selected = selectExecution(opts.execution, settings.execution);
+    const def = await this.loadDef(repo, opts.mode);
+    const snapshot = snapshotExecution(def, selected);
+    const checks: PreflightResult[] = [];
+    const seen = new Map<string, PreflightResult>();
+    for (const step of def.steps) {
+      const effective = snapshot.steps[step.id];
+      const key = JSON.stringify(this.launchConfig(effective));
+      const check = seen.get(key) ?? (await this.preflight(repo, effective));
+      seen.set(key, check);
+      checks.push(check);
+    }
+    return { def, selected, snapshot, checks };
   }
 
   /** Starts a run in `mode` (a workflows/ directory, or "custom"); the repo's own mode when absent. */
-  start(repo: string, taskKey: string, mode?: string): Promise<RunState> {
+  start(repo: string, taskKey: string, options?: string | RunOptions): Promise<RunState> {
     return this.serial(async () => {
       const existing = await this.store.find(repo, taskKey);
+      if (existing) this.assertRecovered(existing);
       if (existing && ACTIVE.includes(existing.phase)) throw new HttpError(409, "A workflow run is already active");
-      return this.begin(repo, taskKey, await this.loadDef(repo, mode));
+      const prepared = await this.prepare(repo, options);
+      prepared.checks.forEach(requirePreflight);
+      return this.begin(repo, taskKey, prepared);
     });
   }
 
@@ -71,12 +179,14 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
    * is stopped (it stays listed) and the task's documents are copied to archive/ first: Claude then
    * rewrites them in place, so the step names and done-when files do not change.
    */
-  restart(repo: string, taskKey: string, mode?: string): Promise<RunState> {
+  restart(repo: string, taskKey: string, options?: string | RunOptions): Promise<RunState> {
     return this.serial(async () => {
       const existing = await this.store.find(repo, taskKey);
       if (!existing) throw new HttpError(409, "No workflow run to restart; start one first");
+      this.assertRecovered(existing);
       // Loaded before anything is stopped or archived: a bad mode or a broken workflow changes nothing.
-      const next = await this.loadDef(repo, mode);
+      const next = await this.prepare(repo, options);
+      next.checks.forEach(requirePreflight);
       const old = await this.sessions.get(existing.sessionId).catch(() => null);
       if (old?.status === "running") await this.sessions.stop(existing.sessionId);
       for (const sub of existing.subtasks ?? []) {
@@ -95,8 +205,9 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
    * A new run on a new session at step 1, pinned to the workflow as it is now; callers hold the
    * queue. `previous` is what a restart archived, for {{previousRun}}.
    */
-  private async begin(repo: string, taskKey: string, def: WorkflowDef, previous?: RunState["previous"]): Promise<RunState> {
-    const session = await this.sessions.create(repo, taskKey, { permissionMode: def.permissionMode, agent: def.steps[0].agent ?? DEFAULT_AGENT, model: def.steps[0].model });
+  private async begin(repo: string, taskKey: string, prepared: Awaited<ReturnType<WorkflowEngine["prepare"]>>, previous?: RunState["previous"]): Promise<RunState> {
+    const { def, selected, snapshot } = prepared;
+    const session = await this.sessions.create(repo, taskKey, this.launchConfig(snapshot.steps[def.steps[0].id]));
     const now = Date.now();
     const run: RunState = {
       repo,
@@ -107,10 +218,13 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       stepStartedAt: now,
       message: "",
       workflow: def,
+      execution: selected.execution,
+      executionSnapshot: snapshot,
       ...(previous ? { previous } : {}),
       startedAt: now,
       updatedAt: now,
     };
+    this.recordExecution(run, session, { kind: "step", stepId: def.steps[0].id }, snapshot.steps[def.steps[0].id]);
     const mode = modeOf(def);
     // A "custom" workflow is the override itself; for the others the override is added to the built-in one.
     const override = mode.override && mode.id !== CUSTOM_MODE ? `${OVERRIDE_DIR.split(path.sep).join("/")}/` : null;
@@ -128,9 +242,10 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   approve(repo: string, taskKey: string, note = ""): Promise<RunState> {
     return this.serial(async () => {
       const run = await this.store.require(repo, taskKey, ["gate"]);
+      this.assertRecovered(run);
       const def = await this.store.defOf(run);
       const last = run.stepIndex + 1 >= def.steps.length;
-      const table = !last && def.steps[run.stepIndex + 1].dispatch ? await assignmentsFor(run, def, run.stepIndex + 1, this.subagents) : null;
+      const table = !last && def.steps[run.stepIndex + 1].dispatch ? await assignmentsFor(run, def, run.stepIndex + 1, this.subagents, this.sessions.preflight?.bind(this.sessions)) : null;
       if (table && table.errors.length > 0) throw new HttpError(400, t("run.assignmentsInvalid", { errors: table.errors.join("; ") }));
       await this.store.log(run, HISTORY_TEXT.approve, { ...(note.trim() ? { quote: note.trim() } : {}), ...(last ? { body: HISTORY_TEXT.done } : {}) });
       if (last) {
@@ -146,6 +261,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     return this.serial(async () => {
       if (!text.trim()) throw new HttpError(400, "Feedback is empty");
       const run = await this.store.require(repo, taskKey, ["gate"]);
+      this.assertRecovered(run);
       const step = (await this.store.defOf(run)).steps[run.stepIndex];
       const template = step.onReject ?? "{{feedback}}";
       await this.store.log(run, HISTORY_TEXT.feedback, { quote: text.trim() });
@@ -174,6 +290,15 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   retry(repo: string, taskKey: string): Promise<RunState> {
     return this.serial(async () => {
       const run = await this.store.require(repo, taskKey, ["starting", "running", "waiting", "interrupted"]);
+      this.assertRecovered(run);
+      const def = await this.store.defOf(run);
+      // A pending launch may have failed after earlier members completed. Retry only launches
+      // pending work (or review); it must never replay a completed member's prompt.
+      if (dispatching(run, def) && (run.subtasks ?? []).every((sub) => sub.phase === "done" || sub.phase === "pending")) {
+        if (run.subtasks!.every((sub) => sub.phase === "done")) await this.enterStep(run, def, run.stepIndex + 1);
+        else await this.launchReady(run, def);
+        return run;
+      }
       await this.notWhileDispatching(run);
       const session = await this.sessions.get(run.sessionId);
       if (session.status === "running" && session.activity === "busy") {
@@ -202,6 +327,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   cancel(repo: string, taskKey: string): Promise<RunState> {
     return this.serial(async () => {
       const run = await this.store.require(repo, taskKey, ACTIVE);
+      this.assertRecovered(run);
       await this.store.log(run, HISTORY_TEXT.cancel);
       return this.store.save(run, { phase: "cancelled", message: t("run.cancelled"), pendingPrompt: undefined });
     });
@@ -236,7 +362,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   completeSubtask(repo: string, taskKey: string, n: number): Promise<RunState> {
     return this.serial(async () => {
       const { run, sub } = await this.requireSubtask(repo, taskKey, n, ["running", "waiting"]);
-      if (!(await writtenSince(run, sub.report, sub.stepStartedAt))) throw new HttpError(409, `${sub.report} was not written since the prompt was sent`);
+      if (!(await writtenSince(run, sub.report, sub.stepStartedAt, sub))) throw new HttpError(409, `${sub.report} was not written since the prompt was sent`);
       await this.store.log(run, HISTORY_TEXT.subtaskMarkedDone(n), { body: HISTORY_TEXT.markedDoneBody(sub.report) });
       await this.onSubtaskStop(run, sub);
       return run;
@@ -251,6 +377,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       await this.notWhileDispatching(run);
       const file = def.steps[run.stepIndex].doneWhen?.file;
       if (!file) throw new HttpError(409, "This step has no done-when file to check");
+      if (laneBlocked(run, run)) throw new HttpError(409, t("handoff.blocked"));
       if (!(await writtenSince(run, file))) throw new HttpError(409, `${file} was not written since the prompt was sent`);
       await this.store.log(run, HISTORY_TEXT.markedDone, { body: HISTORY_TEXT.markedDoneBody(file) });
       await this.onStop(run);
@@ -263,25 +390,69 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     return (await this.store.bySession(sessionId)) !== undefined;
   }
 
-  /** After a server restart no session is running; active runs cannot continue on their own. */
+  /** A restarted server proves process exit before allowing any deliberate continuation. */
   recover(): Promise<void> {
     return this.serial(async () => {
-      for (const run of (await this.state.load()).runs) {
-        if (["starting", "running", "waiting"].includes(run.phase)) {
-          await this.store.log(run, HISTORY_TEXT.interrupted, { body: HISTORY_TEXT.serverRestarted });
-          for (const sub of run.subtasks ?? []) {
-            if (["starting", "running", "waiting"].includes(sub.phase)) sub.phase = "interrupted";
+      for (const saved of (await this.state.load()).runs) {
+        let run = structuredClone(saved);
+        await this.handoff.recover(run, (await this.state.load()).sessions);
+        run = structuredClone((await this.store.find(run.repo, run.taskKey)) ?? run);
+        if (!ACTIVE.includes(run.phase)) continue;
+        const def = await this.store.defOf(run);
+        const lanes: Lane[] = [run, ...(run.subtasks ?? []).filter((sub) => sub.sessionId && !["pending", "done"].includes(sub.phase))];
+        let changed = false;
+        for (const lane of lanes) {
+          const blocked = lane.recoveryBlocked;
+          lane.recoveryBlocked = undefined;
+          const transferBlocked = laneBlocked(run, lane);
+          lane.recoveryBlocked = blocked;
+          if (!lane.sessionId || transferBlocked) continue;
+          const controlId = `recovery-${lane.sessionId}`;
+          try {
+            const session = await this.sessions.get(lane.sessionId);
+            if (session.retired) continue;
+            if (this.sessions.recoverProcess) {
+              if (!session.reservation) await this.sessions.reserve?.(session.id, controlId);
+              else if (session.reservation.operationId !== controlId) throw new HttpError(409, t("handoff.blocked"));
+              await this.sessions.recoverProcess(session.id);
+              const stopped = await this.sessions.get(session.id);
+              if (stopped.reservation?.operationId === controlId) await this.sessions.release?.(session.id, controlId);
+            } else {
+              // Legacy in-memory ports have no process ownership. Production must provide the barrier.
+              if (session.generation || session.processOwner || session.reservation) throw new HttpError(503, t("handoff.unavailable"));
+              if (session.status === "running") await this.sessions.stop(session.id);
+            }
+            lane.recoveryBlocked = undefined;
+          } catch {
+            lane.recoveryBlocked = true;
           }
-          await this.store.save(run, { phase: "interrupted", message: t("run.restarted") });
+          if (lane.phase !== "gate" || lane.recoveryBlocked) lane.phase = "interrupted";
+          lane.noHook = undefined;
+          lane.promptId = randomUUID();
+          changed = true;
+        }
+        if (changed) {
+          if (dispatching(run, def)) {
+            syncDispatch(run);
+            run.phase = "interrupted";
+          }
+          if ([run, ...(run.subtasks ?? [])].some((lane) => lane.recoveryBlocked)) {
+            run.phase = "interrupted";
+            run.message = t("handoff.blocked");
+          } else if (run.phase === "interrupted") run.message = t("run.restarted");
+          await this.store.checkpoint(run);
+          if (["starting", "running", "waiting"].includes(saved.phase)) await this.store.log(run, HISTORY_TEXT.interrupted, { body: HISTORY_TEXT.serverRestarted });
         }
       }
     });
   }
 
   onHook(meta: SessionMeta, event: HookEvent, payload: Record<string, unknown> = {}): Promise<void> {
+    meta = structuredClone(meta);
+    const fence = this.eventFence(meta.id);
     return this.serial(async () => {
       const run = await this.store.bySession(meta.id);
-      if (!run) return;
+      if (!run || !(await this.acceptEvent(run, meta, await fence, event === "SessionStart"))) return;
       const lane = laneOf(run, meta.id)!;
       // While subtasks run, the leader's session sits idle; nothing it reports concerns the run.
       if (lane === run && dispatching(run, await this.store.defOf(run))) return;
@@ -316,9 +487,11 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   }
 
   onExit(meta: SessionMeta): Promise<void> {
+    meta = structuredClone(meta);
+    const fence = this.eventFence(meta.id);
     return this.serial(async () => {
       const run = await this.store.bySession(meta.id);
-      if (!run) return;
+      if (!run || !(await this.acceptEvent(run, meta, await fence))) return;
       const lane = laneOf(run, meta.id)!;
       if (!["starting", "running", "waiting"].includes(lane.phase)) return;
       if (lane === run) {
@@ -333,31 +506,28 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     });
   }
 
-  /**
-   * Claude's status line of a subtask's session: the model it really runs and the session's cost so
-   * far, kept for the review. The leader's own session and finished subtasks are left alone, so the
-   * numbers stay those the decision log got.
-   */
+  /** Backend observations for both leader and members; generation/lane fences apply first. */
   onStatusLine(meta: SessionMeta, payload: Record<string, unknown>): Promise<void> {
+    meta = structuredClone(meta);
+    const fence = this.eventFence(meta.id);
     return this.serial(async () => {
       if ((meta.agent ?? DEFAULT_AGENT) !== "claude") return;
       const run = await this.store.bySession(meta.id);
-      const sub = run && laneOf(run, meta.id);
-      if (!run || !sub || sub === run || sub.phase === "done" || sub.phase === "pending") return;
-      const read = statusLineMetrics(payload);
-      const metrics = { ...(sub as SubtaskRun).metrics, ...read };
-      if (JSON.stringify(metrics) === JSON.stringify((sub as SubtaskRun).metrics ?? {})) return;
-      (sub as SubtaskRun).metrics = metrics;
+      if (run && !(await this.acceptEvent(run, meta, await fence))) return;
+      if (!run) return;
+      this.recordMetrics(run, meta, statusLineMetrics(payload), "claude-statusline");
       await this.store.save(run, {});
     });
   }
 
   onMetrics(meta: SessionMeta, data: SessionMetrics): Promise<void> {
+    meta = structuredClone(meta);
+    const fence = this.eventFence(meta.id);
     return this.serial(async () => {
       const run = await this.store.bySession(meta.id);
-      const sub = run?.subtasks?.find((s) => s.sessionId === meta.id);
-      if (!run || !sub || sub.phase === "done") return;
-      sub.metrics = { ...sub.metrics, ...data };
+      if (run && !(await this.acceptEvent(run, meta, await fence))) return;
+      if (!run) return;
+      this.recordMetrics(run, meta, { model: data.model, inputTokens: data.inputTokens, outputTokens: data.outputTokens }, meta.agent === "codex" ? "codex-thread" : "legacy");
       await this.store.save(run, {});
     });
   }
@@ -371,9 +541,11 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
         message: t("run.notWritten", { file: step.doneWhen.file, agent: agentLabel(run) }),
       });
     } else if (step.gate === "approve") {
+      this.finishExecution(run);
       const message = step.doneWhen ? t("run.gateFile", { step: step.title, file: step.doneWhen.file }) : t("run.gate", { step: step.title });
       await this.store.save(run, { phase: "gate", message });
     } else if (run.stepIndex + 1 >= def.steps.length) {
+      this.finishExecution(run);
       await this.store.markTask(run, "done");
       await this.store.save(run, { phase: "done", message: t("run.done") });
     } else {
@@ -384,13 +556,16 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   /** A subtask's turn ended: done when its report was written since the prompt, else it waits for an answer. */
   private async onSubtaskStop(run: RunState, sub: SubtaskRun): Promise<void> {
     const def = await this.store.defOf(run);
-    if (!(await writtenSince(run, sub.report, sub.stepStartedAt))) {
+    const effective = this.effective(run, def, sub);
+    if (!(await writtenSince(run, sub.report, sub.stepStartedAt, sub))) {
       await this.saveLane(run, sub, { phase: "waiting" }, "");
       return;
     }
     const now = Date.now();
+    const attempt = run.attempts?.findLast((a) => a.sessionId === sub.sessionId);
+    if (attempt) attempt.finishedAt = now;
     // Without a status line (Copilot) the model is the one the session was opened with, if any.
-    const model = sub.metrics?.model ?? launchModel(sub.model);
+    const model = sub.metrics?.model ?? run.attempts?.findLast((attempt) => attempt.sessionId === sub.sessionId)?.actualModel ?? effective.model;
     sub.metrics = {
       ...sub.metrics,
       ...(model ? { model } : {}),
@@ -398,11 +573,23 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     };
     sub.finishedAt = now;
     await this.saveLane(run, sub, { phase: "done", pendingPrompt: undefined }, "");
-    await this.store.log(run, HISTORY_TEXT.subtaskDone(sub.n, AGENT_LABELS[sub.agent], sub.subagent, sub.model), { body: HISTORY_TEXT.subtaskDoneBody(sub.report, sub.metrics) });
+    await this.store.log(run, HISTORY_TEXT.subtaskDone(sub.n, AGENT_LABELS[effective.agent], effective.subagent, effective.model), {
+      body: HISTORY_TEXT.subtaskDoneBody(
+        sub.report,
+        { ...sub.metrics, model: attempt?.actualModel },
+        summarizeMetrics(run, { kind: "subtask", stepId: def.steps[run.stepIndex].id, n: sub.n }),
+        run.attempts,
+      ),
+    });
     if ((await this.sessions.get(sub.sessionId!).catch(() => null))?.status === "running") await this.sessions.stop(sub.sessionId!);
     if ((run.subtasks ?? []).every((s) => s.phase === "done")) {
       await this.store.log(run, HISTORY_TEXT.backToLeader, { body: HISTORY_TEXT.backToLeaderBody(run.subtasks!.length) });
-      await this.enterStep(run, def, run.stepIndex + 1);
+      try {
+        await this.enterStep(run, def, run.stepIndex + 1);
+      } catch (error) {
+        await this.store.save(run, { phase: "interrupted", message: (error as Error).message });
+        throw error;
+      }
     } else await this.launchReady(run, def);
   }
 
@@ -413,19 +600,28 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
    * one session per subtask instead and leaves the leader's session as it is.
    */
   private async enterStep(run: RunState, def: WorkflowDef, index: number, items?: Assignment[]): Promise<void> {
-    run.stepIndex = index;
+    this.finishExecution(run);
     const step = def.steps[index];
-    if (step.dispatch) return this.startDispatch(run, def, step.dispatch.report, items ?? []);
-    const agent = step.agent ?? DEFAULT_AGENT;
+    if (step.dispatch) {
+      const table = items ? { items, errors: [] } : await assignmentsFor(run, def, index, this.subagents, this.sessions.preflight?.bind(this.sessions));
+      if (table.errors.length) throw new HttpError(400, t("run.assignmentsInvalid", { errors: table.errors.join("; ") }));
+      run.stepIndex = index;
+      return this.startDispatch(run, def, step.dispatch.report, table.items);
+    }
+    const effective = resolveExecution({ workflow: def, scope: { kind: "step", stepId: step.id }, run });
+    requirePreflight(await this.preflight(run.repo, effective));
+    const { agent, model } = effective;
+    run.stepIndex = index;
     const current = await this.sessions.get(run.sessionId).catch(() => null);
-    if (current && (current.agent !== agent || current.model !== step.model)) {
-      if (current.status === "running") await this.sessions.stop(run.sessionId);
-      const session = await this.sessions.create(run.repo, run.taskKey, { permissionMode: def.permissionMode, agent, model: step.model });
-      await this.store.log(run, current.agent === agent ? HISTORY_TEXT.switchModel : HISTORY_TEXT.switchAgent, {
-        body: HISTORY_TEXT.switchAgentBody(sessionLabel(current.agent, current.model), sessionLabel(agent, step.model)),
+    if (!current || !this.sessionMatches(run, current, effective)) {
+      if (current?.status === "running") await this.sessions.stop(run.sessionId);
+      const session = await this.sessions.create(run.repo, run.taskKey, this.launchConfig(effective));
+      this.recordExecution(run, session, { kind: "step", stepId: step.id }, effective);
+      await this.store.log(run, current?.agent === agent ? HISTORY_TEXT.switchModel : HISTORY_TEXT.switchAgent, {
+        body: HISTORY_TEXT.switchAgentBody(current ? sessionLabel(current.agent, current.model) : "?", sessionLabel(agent, model)),
       });
       await this.store.save(run, { sessionId: session.id });
-    }
+    } else this.recordExecution(run, current, { kind: "step", stepId: step.id }, effective);
     await this.deliver(run, await this.prompt(run, step.prompt));
   }
 
@@ -447,6 +643,15 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
    * and its files do not overlap those of a subtask in progress. Subtasks wait their turn in table order.
    */
   private async launchReady(run: RunState, def: WorkflowDef): Promise<void> {
+    try {
+      await this.launchPending(run, def);
+    } catch (error) {
+      await this.store.save(run, { phase: "interrupted", message: (error as Error).message });
+      throw error;
+    }
+  }
+
+  private async launchPending(run: RunState, def: WorkflowDef): Promise<void> {
     const dispatch = def.steps[run.stepIndex].dispatch!;
     const subs = run.subtasks ?? [];
     for (;;) {
@@ -456,14 +661,16 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
           s.phase === "pending" && s.deps.every((d) => subs.find((o) => o.n === d)?.phase === "done") && busy.length < dispatch.parallel && !busy.some((b) => overlaps(b.files, s.files)),
       );
       if (!next) break;
+      const problems = await assignmentProblems(run, def, run.stepIndex, [next], this.subagents);
+      if (problems.length) throw new HttpError(400, t("run.assignmentsInvalid", { errors: problems.join("; ") }));
+      const effective = this.effective(run, def, next);
+      requirePreflight(await this.preflight(run.repo, effective));
       const session = await this.sessions.create(run.repo, run.taskKey, {
-        permissionMode: def.permissionMode,
-        agent: next.agent,
+        ...this.launchConfig(effective),
         title: t("run.subtaskTitle", { n: next.n }),
-        model: launchModel(next.model),
-        subagent: next.subagent,
       });
       next.sessionId = session.id;
+      this.recordExecution(run, session, { kind: "subtask", stepId: def.steps[run.stepIndex].id, n: next.n }, effective);
       next.phase = "starting";
       await this.store.save(run, {});
       await this.deliver(run, await this.subtaskPrompt(run, next), { lane: next });
@@ -479,10 +686,36 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
    */
   private async deliver(run: RunState, text: string, opts: { force?: boolean; lane?: Lane } = {}): Promise<void> {
     const lane = opts.lane ?? run;
+    if (laneBlocked(run, lane)) throw new HttpError(409, t("handoff.blocked"));
+    const def = await this.store.defOf(run);
+    const sub = lane === run ? undefined : (lane as SubtaskRun);
+    if (sub) {
+      const errors = await assignmentProblems(run, def, run.stepIndex, [sub], this.subagents);
+      if (errors.length) throw new HttpError(400, t("run.assignmentsInvalid", { errors: errors.join("; ") }));
+    }
+    const effective = this.effective(run, def, sub);
     const session = await this.sessions.get(lane.sessionId!);
+    // Resuming a native session cannot change its CLI/model/restrictions.
+    if (!this.sessionMatches(run, session, effective, true)) throw new HttpError(409, "Session configuration does not match the lane execution policy");
+    if (opts.force || session.status !== "running") requirePreflight(await this.preflight(run.repo, effective));
+    if (session.status === "running" && run.attempts?.findLast((attempt) => attempt.sessionId === session.id)?.generation !== (session.generation ?? 0)) {
+      this.recordExecution(run, session, sub ? { kind: "subtask", stepId: def.steps[run.stepIndex].id, n: sub.n } : { kind: "step", stepId: def.steps[run.stepIndex].id }, effective);
+    }
     if (session.status !== "running") {
+      // SessionManager currently stores Codex's inferred actual model in meta.model. A default
+      // policy must still resume without an explicit model flag. Keep the actual model separately.
+      const attempt = run.attempts?.findLast((a) => a.sessionId === session.id);
+      if (session.agent === "codex" && effective.model === undefined && attempt && attempt.execution.model === undefined) {
+        if (session.model) attempt.actualModel = session.model;
+        await this.state.update((state) => {
+          const meta = state.sessions.find((s) => s.id === session.id);
+          if (meta) delete meta.model;
+        });
+      }
       await this.saveLane(run, lane, { phase: "starting", pendingPrompt: text }, t("run.resuming"));
-      await this.sessions.resume(lane.sessionId!);
+      const resumed = await this.sessions.resume(lane.sessionId!);
+      this.recordExecution(run, resumed, sub ? { kind: "subtask", stepId: def.steps[run.stepIndex].id, n: sub.n } : { kind: "step", stepId: def.steps[run.stepIndex].id }, effective);
+      await this.store.save(run, {});
     } else if (session.activity === "starting" && !opts.force) {
       await this.saveLane(run, lane, { phase: "starting", pendingPrompt: text }, t("run.starting", { agent: agentLabel(run) }));
     } else {
@@ -491,7 +724,12 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   }
 
   private async send(run: RunState, text: string, lane: Lane = run): Promise<void> {
-    const step = (await this.store.defOf(run)).steps[run.stepIndex];
+    const def = await this.store.defOf(run);
+    const step = def.steps[run.stepIndex];
+    const file = lane === run ? step.doneWhen?.file : (lane as SubtaskRun).report;
+    const baseline = file ? await outputBaseline(run, file) : undefined;
+    const now = Date.now();
+    await this.saveLane(run, lane, { promptId: randomUUID(), outputBaseline: baseline, stepStartedAt: now }, "");
     try {
       this.sessions.paste(lane.sessionId!, text);
     } catch (error) {
@@ -499,7 +737,6 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       await this.saveLane(run, lane, { phase: "waiting", pendingPrompt: undefined }, (error as Error).message);
       return;
     }
-    const now = Date.now();
     await this.saveLane(
       run,
       lane,
@@ -513,7 +750,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       },
       t("run.step", { step: step.title, agent: agentLabel(run) }),
     );
-    this.watchForHooks(run, lane, now);
+    this.watchForHooks(run, lane, now, def);
   }
 
   /**
@@ -521,16 +758,30 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
    * watch is the first fallback), so a prompt that gets no hook at all is reported, on the run for
    * a step and on the subtask for a subtask, instead of waiting silently.
    */
-  private watchForHooks(run: RunState, lane: Lane, sentAt: number): void {
+  private watchForHooks(run: RunState, lane: Lane, sentAt: number, def: WorkflowDef): void {
     const sub = lane === run ? undefined : (lane as SubtaskRun);
-    const agent = sub ? sub.agent : (run.workflow?.steps[run.stepIndex]?.agent ?? DEFAULT_AGENT);
+    const agent = this.effective(run, def, sub).agent;
     if (agent !== "copilot") return;
     const sessionId = lane.sessionId!;
+    const promptId = lane.promptId;
+    const generation = run.attempts?.findLast((attempt) => attempt.sessionId === sessionId)?.generation;
     const timer = setTimeout(() => {
       void this.serial(async () => {
         const current = await this.store.find(run.repo, run.taskKey);
         const target = current && (sub ? current.subtasks?.find((s) => s.n === sub.n) : current);
-        if (!current || !target || target.sentPrompt?.at !== sentAt || target.phase !== "running" || this.sessions.hookSeen(sessionId)) return;
+        if (
+          !current ||
+          !target ||
+          target.sessionId !== sessionId ||
+          target.promptId !== promptId ||
+          laneBlocked(current, target) ||
+          current.attempts?.findLast((a) => a.sessionId === sessionId)?.generation !== generation ||
+          !ACTIVE.includes(current.phase) ||
+          target.sentPrompt?.at !== sentAt ||
+          target.phase !== "running" ||
+          this.sessions.hookSeen(sessionId)
+        )
+          return;
         if (target === current) await this.store.save(current, { noHook: true, message: t("run.noHook", { agent: AGENT_LABELS.copilot }) });
         else {
           (target as SubtaskRun).noHook = true;
@@ -555,18 +806,93 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   private async prompt(run: RunState, template: string, extra: { feedback?: string } = {}): Promise<string> {
     const task = await getTask(run.repo, run.taskKey);
     // Read only for a prompt that lists them: the agent folders are read on every call.
-    const subagents = template.includes("{{subagents}}") && this.subagents ? await this.subagents(run.repo) : undefined;
-    return renderPrompt(template, promptVars(await this.store.defOf(run), run.stepIndex, task, { previous: run.previous, subtasks: run.subtasks, subagents, ...extra }));
+    const subagents = (template.includes("{{subagents}}") || template.includes("{{leaderTools}}")) && this.subagents ? await this.subagents(run.repo) : undefined;
+    return renderPrompt(template, promptVars(await this.store.defOf(run), run.stepIndex, task, { run, previous: run.previous, subtasks: run.subtasks, subagents, ...extra }));
   }
 
   private async subtaskPrompt(run: RunState, sub: SubtaskRun): Promise<string> {
     const def = await this.store.defOf(run);
     const task = await getTask(run.repo, run.taskKey);
-    return renderPrompt(def.steps[run.stepIndex].dispatch!.prompt, promptVars(def, run.stepIndex, task, { previous: run.previous, subtask: sub, subtasks: run.subtasks }));
+    return renderPrompt(def.steps[run.stepIndex].dispatch!.prompt, promptVars(def, run.stepIndex, task, { run, previous: run.previous, subtask: sub, subtasks: run.subtasks }));
+  }
+
+  private effective(run: RunState, def: WorkflowDef, sub?: SubtaskRun): EffectiveExecution {
+    const stepId = def.steps[run.stepIndex].id;
+    return resolveExecution({ workflow: def, run, scope: sub ? { kind: "subtask", stepId, n: sub.n } : { kind: "step", stepId }, assignment: sub });
+  }
+
+  private launchConfig(effective: EffectiveExecution) {
+    const { agent, model, subagent, permissionMode } = effective;
+    return { agent, model, subagent, permissionMode };
+  }
+
+  private recordExecution(run: RunState, session: Awaited<ReturnType<SessionPort["get"]>>, scope: LaneScope, execution: EffectiveExecution): void {
+    const previous = run.attempts?.findLast((a) => a.sessionId === session.id);
+    if (previous && previous.finishedAt === undefined) previous.finishedAt = Date.now();
+    (run.attempts ??= []).push({
+      id: randomUUID(),
+      scope,
+      sessionId: session.id,
+      generation: session.generation ?? 0,
+      execution: { ...execution },
+      ...(session.nativeId ? { nativeId: session.nativeId } : {}),
+      ...(session.nativeId && session.model ? { actualModel: session.model } : {}),
+      startedAt: Date.now(),
+    });
+  }
+
+  private finishExecution(run: RunState): void {
+    const attempt = run.attempts?.findLast((a) => a.sessionId === run.sessionId);
+    if (attempt && attempt.finishedAt === undefined) attempt.finishedAt = Date.now();
+  }
+
+  private recordMetrics(run: RunState, meta: SessionMeta, incoming: SubtaskMetrics, source: MetricsSource): void {
+    const read = measuredMetrics(incoming);
+    if (!Object.keys(read).length) return;
+    const all = (run.sessionMetrics ??= []);
+    let snapshot = all.find((m) => m.sessionId === meta.id && m.source === source);
+    if (!snapshot) {
+      snapshot = {
+        sessionId: meta.id,
+        agent: meta.agent ?? DEFAULT_AGENT,
+        source,
+        basis: source === "codex-thread" ? "thread" : source === "claude-statusline" ? "session" : "unknown",
+        metrics: {},
+      };
+      all.push(snapshot);
+    }
+    snapshot.metrics = mergeCumulative(snapshot.metrics, read);
+    snapshot.observedAt = Date.now();
+    snapshot.generation = meta.generation ?? 0;
+    if (meta.nativeId) snapshot.nativeId = meta.nativeId;
+    const attempt = run.attempts?.findLast((a) => a.sessionId === meta.id);
+    if (attempt) {
+      attempt.metrics = mergeCumulative(attempt.metrics, read);
+      attempt.metricsSource = source;
+      attempt.metricsObservedAt = snapshot.observedAt;
+      if (source !== "legacy" && read.model) attempt.actualModel = read.model;
+      if (meta.nativeId) attempt.nativeId = meta.nativeId;
+    }
+    const sub = run.subtasks?.find((s) => s.sessionId === meta.id);
+    if (sub) sub.metrics = mergeCumulative(sub.metrics, read);
+  }
+
+  private sessionMatches(run: RunState, session: Awaited<ReturnType<SessionPort["get"]>>, effective: EffectiveExecution, sameLane = false): boolean {
+    const requested = run.attempts?.findLast((a) => a.sessionId === session.id)?.execution;
+    // Old runs have no record separating Codex's requested and actual model. Preserve their
+    // step-switch behavior, while allowing retry of the same default-configured native thread.
+    const model = requested ? requested.model : sameLane && session.agent === "codex" && session.nativeId && effective.model === undefined ? undefined : launchModel(session.model);
+    return session.agent === effective.agent && model === effective.model && session.subagent === effective.subagent && session.permissionMode === effective.permissionMode;
+  }
+
+  private async preflight(repo: string, effective: EffectiveExecution): Promise<PreflightResult> {
+    if (!this.sessions.preflight) throw new HttpError(503, t("preflight.probe_failed", { agent: effective.agent }));
+    return this.sessions.preflight(repo, this.launchConfig(effective));
   }
 
   /** The run-level reply and retry talk to the leader's session, which has nothing to answer while subtasks work. */
   private async notWhileDispatching(run: RunState): Promise<void> {
+    this.assertRecovered(run);
     if (dispatching(run, await this.store.defOf(run))) throw new HttpError(409, "Subtasks are running; answer or retry them one by one");
   }
 
@@ -575,6 +901,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     if (!dispatching(run, await this.store.defOf(run))) throw new HttpError(409, "The run is not handing out subtasks");
     const sub = run.subtasks?.find((s) => s.n === n);
     if (!sub) throw new HttpError(404, `No subtask ${n}`);
+    if (laneBlocked(run, sub)) throw new HttpError(409, t("handoff.blocked"));
     if (!phases.includes(sub.phase)) throw new HttpError(409, `Not allowed while subtask ${n} is ${sub.phase}`);
     return { run, sub };
   }
@@ -584,6 +911,34 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     if (session.status === "running" && session.activity === "busy") {
       throw new HttpError(409, "The agent is still working; wait for it or stop it in the terminal");
     }
+  }
+
+  private assertRecovered(run: RunState): void {
+    const unresolved = run.handoffs?.some((operation) => operation.cleanup === "blocked" || !["committed", "failed"].includes(operation.stage));
+    if (unresolved || [run, ...(run.subtasks ?? [])].some((lane) => laneBlocked(run, lane))) throw new HttpError(409, t("handoff.blocked"));
+  }
+
+  /** Capture at ingress: a callback queued behind retry must not borrow the new prompt's identity. */
+  private eventFence(sessionId: string): Promise<string | undefined> {
+    return this.state.load().then((state) => {
+      const run = state.runs.find((entry) => laneOf(entry, sessionId));
+      const lane = run && laneOf(run, sessionId);
+      return lane ? JSON.stringify([run!.startedAt, run!.stepIndex, lane.promptId]) : undefined;
+    });
+  }
+
+  private async acceptEvent(run: RunState, meta: SessionMeta, fence: string | undefined, sessionStart = false): Promise<boolean> {
+    const lane = laneOf(run, meta.id);
+    if (!lane || !["starting", "running", "waiting"].includes(lane.phase) || laneBlocked(run, lane)) return false;
+    // A newly created transport can report ready before the engine durably binds its id.
+    const initialStart = sessionStart && fence === undefined && lane.phase === "starting" && !!lane.pendingPrompt;
+    if (!initialStart && fence !== (await this.eventFence(meta.id))) return false;
+    const session = await this.sessions.get(meta.id).catch(() => undefined);
+    if (!session || session.retired || session.reservation) return false;
+    const generation = meta.generation ?? 0;
+    if (generation !== (session.generation ?? 0)) return false;
+    const attempt = run.attempts?.findLast((entry) => entry.sessionId === meta.id);
+    return !attempt || attempt.generation === generation;
   }
 
   /** Engine operations and hook handling run one at a time, so a Stop hook cannot race a click. */

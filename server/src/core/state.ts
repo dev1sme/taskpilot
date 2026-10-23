@@ -22,6 +22,23 @@ export interface SessionMeta {
   model?: string;
   /** Passed as --agent on spawn and resume; absent = the agent's own main session. */
   subagent?: string;
+  /** A transfer locks both sessions until commit or an explicit recovery action. */
+  reservation?: { operationId: string; role: "source" | "target"; at: number };
+  /** Retired sessions stay visible in history but must not accept input or resume. */
+  retired?: { operationId: string; replacedBy: string; at: number };
+  /** Identifies the transport attempt owning callbacks and any surviving process. */
+  generation?: number;
+  /** A completed transport/group barrier, never inferred from a closed RPC stream. */
+  exitedGeneration?: number;
+  processOwner?: {
+    pid: number;
+    startedAt: number;
+    generation: number;
+    /** Isolated POSIX group containing the CLI and its tool children. */
+    groupId?: number;
+    /** Linux boot id + /proc start ticks; never infer ownership from PID alone. */
+    identity?: string;
+  };
 }
 
 export interface AppState {
@@ -43,6 +60,7 @@ export class StateStore {
   readonly dir: string;
   readonly file: string;
   private cache: AppState | null = null;
+  private loading: Promise<AppState> | null = null;
   private queue: Promise<unknown> = Promise.resolve();
 
   constructor(dir = process.env.TASKPILOT_HOME ?? path.join(os.homedir(), ".taskpilot")) {
@@ -50,7 +68,12 @@ export class StateStore {
     this.file = path.join(dir, "state.json");
   }
 
-  async load(): Promise<AppState> {
+  load(): Promise<AppState> {
+    if (this.cache) return Promise.resolve(this.cache);
+    return (this.loading ??= this.read());
+  }
+
+  private async read(): Promise<AppState> {
     if (!this.cache) {
       let raw: Partial<AppState> = {};
       try {
@@ -67,9 +90,11 @@ export class StateStore {
 
   update(change: (state: AppState) => void): Promise<void> {
     const next = this.queue.then(async () => {
-      const state = await this.load();
-      change(state);
-      await this.write(state);
+      const nextState = structuredClone(await this.load());
+      change(nextState);
+      await this.write(nextState);
+      // Readers and queued callbacks only observe committed generations/reservations/journals.
+      this.cache = nextState;
     });
     this.queue = next.catch(() => undefined);
     return next;

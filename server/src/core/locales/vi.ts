@@ -3,6 +3,27 @@
  * CLAUDE.md checks and backup reasons. A second language is a sibling module with the same keys.
  */
 export default {
+  failure: {
+    quota: "Backend báo lượt chạy đã hết hạn mức sử dụng.",
+    auth: "Backend báo chưa đăng nhập hoặc xác thực không hợp lệ.",
+    model: "Model đã chọn không có trong inventory backend trả về.",
+    cli: "Không tìm thấy CLI trong môi trường chạy.",
+    network: "Backend báo kết nối bị gián đoạn.",
+    unknown: "Chưa xác định được nguyên nhân; vẫn có thể bàn giao thủ công.",
+  },
+  preflight: {
+    missing_cli: "Không tìm thấy CLI {{agent}} trong môi trường chạy của repo.",
+    not_logged_in: "{{agent}} chưa đăng nhập. Đăng nhập CLI rồi thử lại.",
+    model_unavailable: "Model đã chọn không có trong inventory {{agent}} trả về. Chọn model khác hoặc Mặc định.",
+    inventory_unavailable: "Chưa đọc được inventory model của {{agent}}; chưa thể xác minh model đã chọn.",
+    unsupported_permission: "{{agent}} không hỗ trợ permission mode đã chọn trong TaskPilot. Chọn cấu hình quyền phù hợp.",
+    unsupported_subagent: "{{agent}} không hỗ trợ subagent đã chọn trong TaskPilot.",
+    invalid_model: "Tên model không hợp lệ. Chọn Mặc định hoặc một tên model hợp lệ.",
+    timeout: "Kiểm tra {{agent}} quá thời gian. Thử lại trước khi tiếp tục.",
+    protocol: "Không xác minh được giao thức hoặc phiên bản CLI {{agent}}.",
+    network: "Không kết nối được khi kiểm tra {{agent}}. Kiểm tra mạng rồi thử lại.",
+    probe_failed: "Chưa kiểm tra được {{agent}}. Kiểm tra CLI và thử lại.",
+  },
   codex: {
     missing: "Không tìm thấy Codex CLI. Cài Codex hoặc kiểm tra TASKPILOT_CODEX.",
     notLoggedIn: "Codex chưa đăng nhập. Chạy codex login rồi thử lại.",
@@ -197,6 +218,19 @@ export default {
     beforeRestoreAt: "Trước khi khôi phục bản lúc {{time}}",
     mcpEdit: "Sửa MCP server {{name}}",
     mcpDelete: "Xoá MCP server {{name}}",
+  },
+  handoff: {
+    invalid: "Yêu cầu bàn giao không hợp lệ.",
+    unavailable: "Lifecycle bàn giao chưa sẵn sàng.",
+    stale: "Lane hoặc bản xem trước đã thay đổi. Xem trước lại trước khi bàn giao.",
+    incompatible: "Cấu hình bàn giao không tương thích. Kiểm tra model, subagent và permissionMode; chọn agent giữ được các giới hạn quyền hiện tại.",
+    conflict: "Lane đang có bàn giao chưa hoàn tất hoặc operation id đã được dùng cho yêu cầu khác.",
+    confirmation: "Cần xác nhận dừng session nguồn và hủy yêu cầu quyền đang chờ.",
+    failed: "Bàn giao gián đoạn: {{error}}",
+    blocked: "Chưa xác nhận cleanup hoàn tất; giữ khóa session để tránh hai agent cùng sửa lane.",
+    recovered: "TaskPilot khởi động lại khi bàn giao. Đã xác nhận các process dừng; không tự gửi lại prompt. Chọn retry có chủ đích để tiếp tục.",
+    recoveryBlocked: "Chưa xác minh được process sau khi TaskPilot khởi động lại: {{error}}. Giữ khóa lane; cần dừng process và khôi phục lại trước khi tiếp tục.",
+    interrupted: "Bàn giao gián đoạn. Chọn retry có chủ đích hoặc xem trước để bàn giao lại.",
   },
   diff: {
     before: "hiện tại",

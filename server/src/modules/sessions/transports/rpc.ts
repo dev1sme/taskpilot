@@ -1,13 +1,16 @@
+import { spawn } from "node:child_process";
+import { childEnv, type LaunchSpec } from "../../../core/claude/launch.js";
 import { randomUUID } from "node:crypto";
 import type { WebSocket } from "ws";
 import { CodexError } from "../../../core/codex/errors.js";
 import { codexResumeOptions, codexThreadOptions } from "../../../core/codex/launch.js";
 import { listCodexModels } from "../../../core/codex/models.js";
-import { codexLoggedIn, initializeCodex, spawnCodex, type CodexProcess, type ServerRequest } from "../../../core/codex/rpc.js";
+import { codexLoggedIn, initializeCodex, CodexRpc, type CodexProcess, type ServerRequest } from "../../../core/codex/rpc.js";
 import { HttpError } from "../../../core/errors.js";
 import { t } from "../../../core/i18n.js";
 import type { HookEvent } from "../hooks.js";
 import { codexHttpError } from "./codex-errors.js";
+import { codexStartupFailure, codexTurnFailure, unknownFailure } from "../failure.js";
 import type { ConversationItem, SessionTransport, TransportEvents, TransportLaunch } from "./types.js";
 
 type Obj = Record<string, unknown>;
@@ -25,7 +28,10 @@ export class RpcTransport implements SessionTransport {
   private ready = false;
   private submitting = false;
   private starting = false;
+  private stopping = false;
   private submittedText = "";
+  /** Native request ids restart at zero in each process; browser answers must identify the spawn. */
+  private approvalPrefix = "";
   private readonly items = new Map<string, ConversationItem>();
   private readonly tools = new Map<string, Obj>();
   private readonly approvals = new Map<string, ServerRequest>();
@@ -34,7 +40,7 @@ export class RpcTransport implements SessionTransport {
   constructor(private readonly limit = 2_000_000) {}
 
   get running(): boolean {
-    return this.starting || (!!this.proc && !this.proc.rpc.isClosed);
+    return this.starting || (!!this.proc && this.proc.child.exitCode === null && this.proc.child.signalCode === null);
   }
   get awaitingApproval(): boolean {
     return this.approvals.size > 0;
@@ -47,24 +53,40 @@ export class RpcTransport implements SessionTransport {
     const params = resume ? codexResumeOptions({ ...opts, threadId: meta.nativeId }) : codexThreadOptions(opts);
     this.events = events;
     this.sessionId = meta.id;
+    this.approvalPrefix = randomUUID();
     this.ready = false;
     this.starting = true;
+    this.stopping = false;
+    this.submitting = false;
     this.turnId = undefined;
     this.threadId = undefined;
     this.lastMessage = "";
     let proc: CodexProcess | undefined;
     try {
-      proc = await spawnCodex(launch.extraEnv, meta.repo, launch.launcher(meta.id, { resume, model: meta.model, permissionMode: meta.permissionMode }));
+      proc = await spawnOwnedCodex(launch.extraEnv, meta.repo, launch.launcher(meta.id, { resume, model: meta.model, permissionMode: meta.permissionMode }), launch.hookEnv);
       this.proc = proc;
-      proc.rpc.on("notification", (method, params) => this.notification(method, obj(params)));
-      proc.rpc.on("request", (request) => this.request(request));
-      proc.rpc.once("close", (code) => {
+      const current = proc;
+      proc.rpc.on("notification", (method, params) => {
+        if (this.proc === current && !this.stopping) this.notification(method, obj(params));
+      });
+      proc.rpc.on("request", (request) => {
+        if (this.proc === current && !this.stopping) this.request(request);
+        else current.rpc.respond(request.id, { decision: "cancel" });
+      });
+      proc.rpc.once("close", () => {
+        if (this.proc === current) this.stop();
+      });
+      // RPC stdout can close while the process (or a writer child) still runs.
+      proc.child.once("exit", (code) => {
+        if (this.proc !== current) return;
         this.ready = false;
         this.starting = false;
         this.cancelOpen();
         this.broadcast({ t: "x", code });
         events.exit(code);
       });
+      await events.process?.(proc.child.pid!, process.platform === "win32" ? undefined : proc.child.pid);
+      if (this.stopping) throw new HttpError(409, "Session startup was stopped");
       await initializeCodex(proc.rpc);
       if (!(await codexLoggedIn(proc.rpc))) throw new CodexError("notLoggedIn", "account/read returned null");
       if (meta.model && !(await listCodexModels(proc.rpc)).some((m) => m.id === meta.model || m.model === meta.model)) {
@@ -75,13 +97,17 @@ export class RpcTransport implements SessionTransport {
       if (!id || (resume && id !== meta.nativeId)) throw new CodexError("protocol", "thread/start or resume returned an invalid thread id");
       this.threadId = id;
       await events.nativeId?.(id, str(result.model) || undefined);
-      if (proc.rpc.isClosed) throw new CodexError("closed", "Codex app-server exited during startup");
+      if (this.stopping || proc.rpc.isClosed) throw new CodexError("closed", "Codex app-server exited during startup");
       events.metrics?.({ ...(str(result.model) ? { model: str(result.model) } : {}) });
       this.ready = true;
       this.starting = false;
+      events.ready?.();
       this.hook("SessionStart", { source: resume ? "resume" : "startup" });
     } catch (error) {
+      events.failure?.(codexStartupFailure(error));
       this.starting = false;
+      this.ready = false;
+      this.stopping = true;
       proc?.kill();
       const mapped = codexHttpError(error);
       this.upsert({ id: randomUUID(), kind: "error", text: mapped.message, at: Date.now() });
@@ -95,15 +121,20 @@ export class RpcTransport implements SessionTransport {
     this.submitting = true;
     this.submittedText = text;
     // turn/start can steer a running turn; UserPromptSubmit comes only from turn/started.
-    void this.proc.rpc
+    const proc = this.proc;
+    void proc.rpc
       .request("turn/start", { threadId: this.threadId, input: [{ type: "text", text, text_elements: [] }] })
       .catch((error: unknown) => {
+        if (this.proc !== proc || this.stopping) return;
         const message = codexHttpError(error).message;
         this.upsert({ id: randomUUID(), kind: "error", text: message, at: Date.now() });
-        if (!this.turnId) this.hook("Stop", { last_assistant_message: message, failed: true });
+        if (!this.turnId) {
+          this.events?.failure?.(unknownFailure());
+          this.hook("Stop", { last_assistant_message: message, failed: true });
+        }
       })
       .finally(() => {
-        this.submitting = false;
+        if (this.proc === proc) this.submitting = false;
       });
   }
 
@@ -128,6 +159,7 @@ export class RpcTransport implements SessionTransport {
   }
 
   stop(): void {
+    this.stopping = true;
     this.ready = false;
     this.cancelOpen();
     this.proc?.kill();
@@ -149,7 +181,7 @@ export class RpcTransport implements SessionTransport {
       this.upsert({ id: randomUUID(), kind: "error", text: t("codex.unsupportedRequest", { method: request.method }), at: Date.now() });
       return;
     }
-    const key = String(request.id);
+    const key = `${this.approvalPrefix}:${String(request.id)}`;
     this.approvals.set(key, request);
     const tool = this.tools.get(str(p.itemId)) ?? { tool_name: request.method.includes("command") ? "Bash" : "Edit", tool_input: { command: p.command } };
     this.upsert({
@@ -186,13 +218,15 @@ export class RpcTransport implements SessionTransport {
         ...(typeof total.outputTokens === "number" ? { outputTokens: total.outputTokens } : {}),
       });
     } else if (method === "serverRequest/resolved") {
-      const key = String(p.requestId);
+      const key = `${this.approvalPrefix}:${String(p.requestId)}`;
       if (this.approvals.delete(key)) this.update(`approval:${key}`, { status: "cancelled" });
     } else if (method === "error") {
       this.upsert({ id: randomUUID(), kind: "error", text: str(obj(p.error).message), at: Date.now() });
       // willRetry errors are progress; turn/completed is the authoritative end of a turn.
     } else if (method === "turn/completed") {
       const turn = obj(p.turn);
+      // A completion from a previous turn must not overwrite evidence or stop the active lane.
+      if (!this.turnId || turn.id !== this.turnId || p.threadId !== this.threadId) return;
       if (Array.isArray(turn.items))
         for (const raw of turn.items) {
           const item = obj(raw);
@@ -200,6 +234,7 @@ export class RpcTransport implements SessionTransport {
         }
       this.cancelOpen();
       const error = str(obj(turn.error).message);
+      if (turn.status === "failed") this.events?.failure?.(codexTurnFailure(turn.error, this.threadId!, this.turnId));
       this.turnId = undefined;
       this.hook("Stop", {
         last_assistant_message: error || this.lastMessage,
@@ -300,4 +335,42 @@ function toolPayload(item: Obj): Obj {
     tool_name: name,
     tool_input: type === "commandExecution" ? { command: item.command } : type === "fileChange" ? { file_path: str(obj(changes[0]).path), changes } : (item.arguments ?? item.action ?? {}),
   };
+}
+
+/** Unlike a read-only probe, a session owns an isolated group including its tool children. */
+function spawnOwnedCodex(env: Record<string, string>, cwd: string, command: LaunchSpec, hookEnv: Record<string, string>): Promise<CodexProcess> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command.file, command.args, {
+      env: childEnv(process.env, { ...env, ...command.env, ...hookEnv }),
+      cwd,
+      detached: process.platform !== "win32",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => (stderr = (stderr + chunk).slice(-4000)));
+    const rpc = new CodexRpc({ input: child.stdin, output: child.stdout });
+    child.once("error", (error: NodeJS.ErrnoException) => {
+      rpc.shutdown(null);
+      reject(error.code === "ENOENT" ? new CodexError("missing", `${command.file} not found`) : error);
+    });
+    child.once("exit", (code) => rpc.shutdown(code));
+    child.once("spawn", () =>
+      resolve({
+        rpc,
+        child,
+        stderr: () => stderr,
+        kill: () => {
+          if (process.platform === "win32") child.kill();
+          else if (child.pid) {
+            try {
+              process.kill(-child.pid, "SIGTERM");
+            } catch (error) {
+              if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+            }
+          }
+        },
+      }),
+    );
+  });
 }

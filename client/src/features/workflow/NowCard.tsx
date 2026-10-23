@@ -9,15 +9,17 @@ import { CategoryIcon, type ActivityItem } from "../activity";
 import { workflowApi } from "./api";
 import type { SessionView } from "../sessions";
 import { PendingApprovals } from "../sessions";
+import { HandoffAction, isLaneBlocked, type HandoffTarget } from "./HandoffDialog";
 import { MarkDoneButton } from "./MarkDoneButton";
 import { ReplyForm } from "./ReplyForm";
-import { ModePicker } from "./ModePicker";
-import { SubtaskTree } from "./SubtaskTree";
-import type { Question, RunState, WorkflowStep } from "./types";
+import { RunOptions } from "./RunOptions";
+import { QuotaNotice, SubtaskTree } from "./SubtaskTree";
+import type { MetricsSummary, Question, RunState, WorkflowStep } from "./types";
 import "./now-card.css";
 
 interface Props {
   taskKey: string;
+  mode?: string;
   steps: WorkflowStep[];
   run: RunState | null;
   session: SessionView | null;
@@ -27,9 +29,11 @@ interface Props {
   subtaskQuestions: Record<number, Question[]>;
   /** Sessions asking for a permission. */
   asking: Set<string>;
+  subtaskUsage?: Record<number, MetricsSummary>;
   onOpenTerminal: (sessionId?: string) => void;
   onOpenDoc: (path: string) => void;
   onChanged: () => void;
+  onHandoff: (target: HandoffTarget) => void;
 }
 
 /** What is happening right now and what the user can do about it. Gates use GateCard instead. */
@@ -38,7 +42,7 @@ export function NowCard(props: Props) {
   const { run, session } = props;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<string | undefined>();
+  const initialOptions = { mode: run ? props.mode : undefined, execution: run ? (run.execution ?? { agent: "workflow" as const }) : undefined };
   const act = async (action: () => Promise<unknown>) => {
     setBusy(true);
     try {
@@ -52,25 +56,57 @@ export function NowCard(props: Props) {
     }
   };
 
+  const step = run ? props.steps[run.stepIndex] : undefined;
+  const scope = step ? { kind: "step" as const, stepId: step.id } : undefined;
+  const blocked = !!(run && scope && isLaneBlocked(run, scope));
+  const handoff = run && step && scope && !step.dispatch && (
+    <HandoffAction
+      taskKey={props.taskKey}
+      run={run}
+      scope={scope}
+      execution={step.effective ?? { agent: step.agent, model: step.model }}
+      onChanged={props.onChanged}
+      onRequest={props.onHandoff}
+    />
+  );
+
   const retry = (
-    <Button icon={ArrowClockwise} variant="attention" busy={busy} onClick={() => void act(() => workflowApi.retry(props.taskKey))}>
+    <Button icon={ArrowClockwise} variant="attention" busy={busy} disabled={blocked} onClick={() => void act(() => workflowApi.retry(props.taskKey))}>
       {t("now.retry")}
     </Button>
   );
   const restart = (
-    <Button icon={ArrowCounterClockwise} variant="quiet" busy={busy} onClick={() => void act(() => workflowApi.restartRun(props.taskKey))}>
-      {t("now.restart")}
-    </Button>
+    <RunOptions taskKey={props.taskKey} initial={initialOptions} disabled={busy}>
+      {(options, blocked) => (
+        <Button icon={ArrowCounterClockwise} variant="quiet" busy={busy} disabled={blocked} onClick={() => void act(() => workflowApi.restartRun(props.taskKey, options))}>
+          {t("now.restart")}
+        </Button>
+      )}
+    </RunOptions>
   );
   const openTerminal = (
     <Button icon={TerminalWindow} onClick={() => props.onOpenTerminal()}>
       {t("now.openTerminal")}
     </Button>
   );
-  const step = run ? props.steps[run.stepIndex] : undefined;
-  const markDone = run?.noHook && step?.doneFile && <MarkDoneButton complete={() => workflowApi.completeStep(props.taskKey)} onChanged={props.onChanged} onError={setError} />;
+  const markDone = !blocked && run?.noHook && step?.doneFile && <MarkDoneButton complete={() => workflowApi.completeStep(props.taskKey)} onChanged={props.onChanged} onError={setError} />;
   /** Run strings name the agent of the current step (of the first one before a run). */
   const agent = AGENT_LABELS[(step ?? props.steps[0])?.agent ?? "claude"];
+  const effectiveLine = run && (
+    <>
+      <p className="now-sub">{t("selection.effective", { agent, model: step?.effective?.model ?? step?.model ?? t("selection.defaultModel") })}</p>
+      {run.sessionId && scope && step && !step.dispatch && ["starting", "running", "waiting", "interrupted"].includes(run.phase) && (
+        <QuotaNotice
+          taskKey={props.taskKey}
+          sessionId={run.sessionId}
+          unknown={run.phase === "interrupted" || !!run.noHook}
+          disabled={blocked || busy}
+          onRetry={() => void act(() => workflowApi.retry(props.taskKey))}
+          onHandoff={(agent) => props.onHandoff({ scope, execution: agent ? { agent } : (step.effective ?? { agent: step.agent, model: step.model }) })}
+        />
+      )}
+    </>
+  );
   const errorLine = error && (
     <p className="error" role="alert">
       {error}
@@ -85,11 +121,7 @@ export function NowCard(props: Props) {
       <Card tone={done ? "done" : "idle"} icon={done ? <CheckCircle weight="fill" /> : <Play weight="fill" />}>
         <h3>{done ? t("now.doneTitle") : run ? t("now.cancelledTitle") : t("now.readyTitle")}</h3>
         <p className="now-text">
-          {done ? (
-            <Trans t={t} i18nKey="now.doneBody" values={{ duration: formatDuration(run.updatedAt - run.startedAt) }} components={{ strong: <strong /> }} />
-          ) : (
-            t("now.readyBody", { agent, count: props.steps.length })
-          )}
+          {done ? <Trans t={t} i18nKey="now.doneBody" values={{ duration: formatDuration(run.updatedAt - run.startedAt) }} components={{ strong: <strong /> }} /> : t("selection.readyBody")}
         </p>
         {errorLine}
         <div className="now-actions">
@@ -98,17 +130,21 @@ export function NowCard(props: Props) {
               {t("now.readDoc", { file: lastDoc })}
             </Button>
           )}
-          <ModePicker value={mode} onChange={setMode} disabled={busy} />
-          <Button
-            icon={Play}
-            variant={done ? "default" : "primary"}
-            size={done ? "md" : "lg"}
-            busy={busy}
-            onClick={() => void act(() => (run ? workflowApi.restartRun(props.taskKey, mode) : workflowApi.startRun(props.taskKey, mode)))}
-          >
-            {run ? t("now.restart") : t("now.start")}
-          </Button>
         </div>
+        <RunOptions taskKey={props.taskKey} initial={initialOptions} disabled={busy}>
+          {(options, blocked) => (
+            <Button
+              icon={Play}
+              variant={done ? "default" : "primary"}
+              size={done ? "md" : "lg"}
+              busy={busy}
+              disabled={blocked}
+              onClick={() => void act(() => (run ? workflowApi.restartRun(props.taskKey, options) : workflowApi.startRun(props.taskKey, options)))}
+            >
+              {run ? t("now.restart") : t("now.start")}
+            </Button>
+          )}
+        </RunOptions>
       </Card>
     );
   }
@@ -126,14 +162,19 @@ export function NowCard(props: Props) {
           </span>
         </div>
         <p className="now-text">{run.message}</p>
+        {effectiveLine}
         {run.subtasks
-          .filter((s) => s.agent === "codex" && s.sessionId && props.asking.has(s.sessionId))
+          .filter((s) => (run.attempts?.findLast((a) => a.sessionId === s.sessionId)?.execution.agent ?? s.agent) === "codex" && s.sessionId && props.asking.has(s.sessionId))
           .map((s) => (
             <PendingApprovals key={s.sessionId} sessionId={s.sessionId!} />
           ))}
         <SubtaskTree
           taskKey={props.taskKey}
           subtasks={run.subtasks}
+          run={run}
+          stepId={step.id}
+          usage={props.subtaskUsage}
+          onHandoff={props.onHandoff}
           questions={props.subtaskQuestions}
           asking={props.asking}
           onOpenTerminal={props.onOpenTerminal}
@@ -146,17 +187,33 @@ export function NowCard(props: Props) {
     );
   }
 
+  if (blocked) {
+    return (
+      <Card tone="attention" icon={<PlugsConnected weight="fill" />}>
+        <h3>{t("handoff.blocked")}</h3>
+        {effectiveLine}
+        <p className="now-text">{run.message}</p>
+        <div className="now-actions">
+          {openTerminal}
+          {handoff}
+        </div>
+      </Card>
+    );
+  }
+
   if (session?.activity === "permission") {
     const ask = [...props.activity].reverse().find((i) => i.kind === "permission");
     return (
       <Card tone="attention" icon={<HandPalm weight="fill" />}>
         <h3>{t("now.permissionTitle", { agent })}</h3>
+        {effectiveLine}
         <p className="now-text">{ask?.action ?? t("now.permissionFallback", { agent })}</p>
         {session.transport === "rpc" ? <PendingApprovals key={session.id} sessionId={session.id} /> : <p className="now-sub">{t("now.permissionHint")}</p>}
         <div className="now-actions">
           <Button icon={TerminalWindow} variant="attention" onClick={() => props.onOpenTerminal()}>
             {t("now.permissionAnswer")}
           </Button>
+          {handoff}
         </div>
       </Card>
     );
@@ -166,6 +223,7 @@ export function NowCard(props: Props) {
     return (
       <Card tone="attention" icon={<ChatCircleDots weight="fill" />}>
         <h3>{t("now.waitingTitle", { agent })}</h3>
+        {effectiveLine}
         <p className="now-text">{run.message}</p>
         {run.lastMessage && props.questions.length === 0 && <blockquote className="now-quote">{lastParagraph(run.lastMessage)}</blockquote>}
         <ReplyForm send={(text) => workflowApi.reply(props.taskKey, text)} questions={props.questions} agent={agent} onChanged={props.onChanged} />
@@ -174,6 +232,7 @@ export function NowCard(props: Props) {
           {openTerminal}
           {markDone}
           {retry}
+          {handoff}
         </div>
       </Card>
     );
@@ -183,11 +242,13 @@ export function NowCard(props: Props) {
     return (
       <Card tone="attention" icon={<PlugsConnected weight="fill" />}>
         <h3>{t("now.interruptedTitle", { step: step?.title })}</h3>
+        {effectiveLine}
         <p className="now-text">{run.message}</p>
         {errorLine}
         <div className="now-actions">
           {retry}
           {restart}
+          {handoff}
         </div>
       </Card>
     );
@@ -204,6 +265,7 @@ export function NowCard(props: Props) {
           <Elapsed since={run.phase === "starting" ? run.updatedAt : run.stepStartedAt} />
         </span>
       </div>
+      {effectiveLine}
       <div className="now-live" aria-live="polite">
         <AnimatePresence mode="wait" initial={false}>
           <motion.p
@@ -250,13 +312,15 @@ export function NowCard(props: Props) {
         <div className="now-actions">
           {openTerminal}
           {retry}
+          {handoff}
         </div>
       )}
-      {run.phase === "running" && markDone && (
+      {run.phase === "running" && (
         <div className="now-actions">
           {openTerminal}
           {markDone}
           {retry}
+          {handoff}
         </div>
       )}
     </Card>

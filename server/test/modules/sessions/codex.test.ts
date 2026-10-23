@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { EventEmitter } from "node:events";
 import path from "node:path";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
@@ -84,13 +85,13 @@ describe("Codex sessions", () => {
     expect((await manager.get(session.id)).activity).toBe("permission");
     expect(hooks.some((h) => h.event === "Stop")).toBe(false);
     const request = socket.items.find((i) => i.kind === "approval")!;
-    expect(request.requestId).toBe("0");
+    expect(request.requestId).toMatch(/:0$/);
     await manager.answer(session.id, request.requestId!, decision);
     await waitStop();
     expect(socket.items.find((i) => i.id === request.id)?.status).toBe(decision === "accept" ? "accepted" : "declined");
     expect(hooks.filter((h) => h.event === "PreToolUse")).toHaveLength(1);
     expect(hooks.at(-1)?.payload.last_assistant_message).toBe(decision === "accept" ? "APPROVED" : "DECLINED");
-    await expect(manager.answer(session.id, "0", "accept")).rejects.toMatchObject({ status: 409 });
+    await expect(manager.answer(session.id, request.requestId!, "accept")).rejects.toMatchObject({ status: 409 });
   });
 
   it("interrupts without item/completed, closes open tools, and allows steering without a second turn", async () => {
@@ -151,6 +152,73 @@ describe("Codex sessions", () => {
     await vi.waitFor(() => expect(socket.items.some((i) => i.status === "pending")).toBe(true));
     await manager.stop(session.id);
     expect(socket.items.find((i) => i.kind === "approval")?.status).toBe("cancelled");
+  });
+
+  it("cancels approval on transfer stop, ignores late completion and rejects the old answer after resume", async () => {
+    const log = path.join(await tempDir("approval-cancel-"), "rpc.log");
+    const { manager, session, socket, hooks } = await setup({ FAKE_CODEX_EXIT_DELAY_MS: "200", FAKE_CODEX_LOG: log });
+    manager.paste(session.id, "APPROVAL");
+    await vi.waitFor(() => expect(socket.items.some((i) => i.status === "pending")).toBe(true));
+    const oldRequest = socket.items.find((i) => i.status === "pending")!.requestId!;
+    await manager.reserve(session.id, "cancel-approval");
+    await expect(manager.answer(session.id, oldRequest, "accept")).rejects.toMatchObject({ status: 409 });
+    await manager.stop(session.id);
+    expect(socket.items.find((i) => i.kind === "approval")?.status).toBe("cancelled");
+    await vi.waitFor(async () => expect(await readFile(log, "utf8")).toContain('"decision":"cancel"'));
+    await manager.waitForExit(session.id);
+    expect(hooks.filter((h) => h.event === "Stop")).toHaveLength(0);
+    await manager.release(session.id, "cancel-approval");
+    const resumed = await manager.resume(session.id);
+    expect(resumed.nativeId).toBe(session.nativeId);
+    manager.paste(session.id, "APPROVAL");
+    await vi.waitFor(() => expect(socket.items.some((i) => i.status === "pending")).toBe(true));
+    const nextRequest = socket.items.find((i) => i.status === "pending")!.requestId!;
+    expect(nextRequest).not.toBe(oldRequest);
+    await expect(manager.answer(session.id, oldRequest, "accept")).rejects.toMatchObject({ status: 409 });
+    await manager.stopAndWait(session.id);
+  });
+
+  it("cannot become ready from a delayed thread response after stop during startup", async () => {
+    const state = new StateStore(await tempDir("codex-stop-startup-"));
+    const manager = new SessionManager(state, {
+      launchers: { codex: () => ({ file: process.execPath, args: [FAKE], env: { FAKE_CODEX_THREAD_DELAY_MS: "150", FAKE_CODEX_EXIT_DELAY_MS: "250" } }) },
+    });
+    managers.push(manager);
+    const hooks: string[] = [];
+    manager.on("hook", (_meta, event) => hooks.push(event));
+    const pending = manager.create(await makeRepo(), "DEMO-1", { agent: "codex" });
+    const failed = pending.catch((error: unknown) => error);
+    await vi.waitFor(async () => expect((await state.load()).sessions[0]?.processOwner).toBeTruthy());
+    const id = (await state.load()).sessions[0].id;
+    await manager.stopAndWait(id);
+    expect(await failed).toMatchObject({ status: 409 });
+    expect(hooks).not.toContain("SessionStart");
+    await expect(manager.waitForReady(id)).rejects.toMatchObject({ status: 409 });
+    expect((await manager.get(id)).status).toBe("exited");
+  });
+
+  it("rolls a failed target startup back only after its delayed process cleanup", async () => {
+    const { manager, session, repo, state } = await setup({ FAKE_CODEX_EXIT_DELAY_MS: "200" });
+    await manager.reserve(session.id, "failed-startup");
+    await manager.stopAndWait(session.id);
+    let targetId = "";
+    await expect(
+      manager.create(repo, "DEMO-1", {
+        agent: "codex",
+        model: "missing-model",
+        operationId: "failed-startup",
+        beforeSpawn: async (target) => {
+          targetId = target.id;
+        },
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(manager.rollback(session.id, targetId, "failed-startup", { timeoutMs: 20 })).rejects.toMatchObject({ status: 409 });
+    expect((await manager.get(session.id)).reservation).toBeTruthy();
+    await manager.rollback(session.id, targetId, "failed-startup");
+    expect((await manager.get(targetId)).retired?.replacedBy).toBe(session.id);
+    expect((await new StateStore(state.dir).load()).sessions.find((s) => s.id === session.id)?.reservation).toBeUndefined();
+    expect((await manager.resume(session.id)).nativeId).toBe(session.nativeId);
+    await manager.stopAndWait(session.id);
   });
 
   it("reports missing CLI, logged out accounts and incompatible protocol", async () => {

@@ -13,6 +13,47 @@ const COPILOT = { usedPercentage: 10, unlimited: false, unit: "ai_credits", used
 afterAll(cleanupTempDirs);
 
 describe("UsageStore", () => {
+  it("returns timestamped account evidence, never a lane failure, and expires old or reset observations", async () => {
+    const store = new UsageStore(new StateStore(await tempDir("taskpilot-evidence-")));
+    expect(await store.evidence("claude")).toBeNull();
+    await store.apply({ rate_limits: { five_hour: { used_percentage: 100 } } });
+    const observedAt = (await store.view())!.updatedAt!;
+    expect(await store.evidence("claude", observedAt)).toEqual({
+      scope: "account",
+      agent: "claude",
+      source: "claude-statusline",
+      observedAt,
+      validUntil: observedAt + 5 * 60_000,
+      freshness: "fresh",
+      exhausted: true,
+    });
+    expect(await store.evidence("claude", observedAt + 5 * 60_000 + 1)).toMatchObject({ freshness: "stale" });
+    expect(await store.evidence("claude", observedAt - 1)).toMatchObject({ freshness: "stale" });
+    expect(await store.evidence("codex")).toBeNull();
+    await store.apply({ rate_limits: { five_hour: { used_percentage: 100, resets_at: (observedAt + 1000) / 1000 } } });
+    expect(await store.evidence("claude", observedAt + 1001)).toMatchObject({ freshness: "stale", exhausted: false });
+  });
+
+  it("does not infer exhaustion from near-limit, unlimited, invalid or expired quota", async () => {
+    const store = new UsageStore(new StateStore(await tempDir("taskpilot-evidence-")));
+    await store.applyAgent("copilot", { ...COPILOT, usedPercentage: 99 });
+    const at = (await store.view())!.agents!.copilot!.updatedAt;
+    expect(await store.evidence("copilot", at)).toMatchObject({ scope: "account", source: "copilot-quota", freshness: "fresh", exhausted: false });
+    await store.applyAgent("copilot", { ...COPILOT, usedPercentage: 100, unlimited: true });
+    expect(await store.evidence("copilot")).toMatchObject({ exhausted: false });
+    await store.applyAgent("copilot", { ...COPILOT, usedPercentage: 100, resetsAt: at - 1 });
+    expect(await store.evidence("copilot")).toMatchObject({ freshness: "stale", exhausted: false });
+    await store.apply({ rate_limits: { five_hour: { used_percentage: 101 } } });
+    expect(await store.evidence("claude")).toBeNull();
+    await store.applyAgent("copilot", null);
+    expect(await store.evidence("copilot")).toBeNull();
+  });
+
+  it("keeps an expired window from making another active window exhausted", async () => {
+    const store = new UsageStore(new StateStore(await tempDir("taskpilot-evidence-")));
+    await store.apply({ rate_limits: { five_hour: { used_percentage: 100, resets_at: 1 }, seven_day: { used_percentage: 50 } } });
+    expect(await store.evidence("claude")).toMatchObject({ freshness: "fresh", exhausted: false });
+  });
   it("keeps the last numbers when input has no rate limits, and ignores bad values", async () => {
     const store = new UsageStore(new StateStore(await tempDir("taskpilot-state-")));
     await store.apply({ rate_limits: RATE_LIMITS });

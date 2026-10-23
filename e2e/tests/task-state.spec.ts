@@ -75,6 +75,35 @@ async function refetch(page: Page, state: { cancels: number }) {
 
 const drawer = (page: Page) => page.locator("section.drawer");
 
+test("asking wins when sessions arrive before the run", async ({ page }) => {
+  await fakeTask(page, { phase: "running", sessionId: SESSION_C, sessions: [session(SESSION_A, { activity: "permission" }), session(SESSION_C)] });
+  await page.route("**/api/tasks/PROJ-1/run", async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    await expect(drawer(page).locator(".drawer-session.is-active")).toContainText("Session a");
+    return route.fallback();
+  });
+  await page.goto("/#/tasks/PROJ-1");
+  await expect(page.locator(".now-card")).toBeVisible();
+  await expect(drawer(page).locator(".drawer-session.is-active")).toContainText("Session a");
+});
+
+test("a changed run session cannot hide asking; resolving asking and refetch preserve the manual tab", async ({ page }) => {
+  const state = await fakeTask(page, { phase: "running", sessionId: SESSION_A, sessions: [session(SESSION_A), session(SESSION_B, { activity: "permission" }), session(SESSION_C)] });
+  await page.goto("/#/tasks/PROJ-1");
+  await expect(drawer(page).locator(".drawer-session.is-active")).toContainText("Session b");
+  state.sessionId = SESSION_C;
+  await refetch(page, state);
+  await expect(drawer(page).locator(".drawer-session.is-active")).toContainText("Session b");
+  state.sessions = [session(SESSION_A), session(SESSION_B), session(SESSION_C)];
+  await refetch(page, state);
+  await expect(drawer(page).locator(".drawer-session.is-active")).toContainText("Session b");
+  await drawer(page)
+    .getByRole("button", { name: /Session a/ })
+    .click();
+  await refetch(page, state);
+  await expect(drawer(page).locator(".drawer-session.is-active")).toContainText("Session a");
+});
+
 test("a task session that asks for permission opens the terminal and is selected", async ({ page }) => {
   // The asking session is not the last one, so selecting it is not the drawer's default.
   const state = await fakeTask(page, { phase: "running", sessionId: SESSION_C, sessions: [session(SESSION_A, { activity: "permission" }), session(SESSION_B), session(SESSION_C)] });

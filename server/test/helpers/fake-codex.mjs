@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Deterministic app-server stand-in. Item/turn/approval shapes come from the 0.163.0 recordings.
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline";
 
@@ -19,9 +20,42 @@ const records = (scenario) =>
 const sample = records("turn");
 const approvalSample = records("approval-accept");
 const editSample = records("edit");
-const send = (m) => process.stdout.write(`${JSON.stringify(m)}\n`);
+const send = (m) => {
+  if (!process.stdout.writableEnded) process.stdout.write(`${JSON.stringify(m)}\n`);
+};
 const notify = (method, params) => send({ method, params: { threadId, ...params } });
 const reply = (id, result) => send({ id, result });
+let stopping = false;
+process.on("SIGTERM", () => {
+  if (stopping) return;
+  stopping = true;
+  if (process.env.FAKE_CODEX_EXIT_LOG) appendFileSync(process.env.FAKE_CODEX_EXIT_LOG, "stop\n");
+  if (process.env.FAKE_CODEX_CLOSE_STDOUT_ON_STOP) process.stdout.end();
+  setTimeout(
+    () => {
+      if (process.env.FAKE_CODEX_EXIT_LOG) appendFileSync(process.env.FAKE_CODEX_EXIT_LOG, "exit\n");
+      process.exit(0);
+    },
+    Number(process.env.FAKE_CODEX_EXIT_DELAY_MS ?? 0),
+  );
+});
+if (process.env.FAKE_CODEX_CHILD_DELAY_MS) {
+  const child = spawn(
+    process.execPath,
+    [
+      "-e",
+      `
+    const fs = require("node:fs");
+    let stopping = false;
+    process.on("SIGTERM", () => { if (!stopping) { stopping = true; setTimeout(() => process.exit(0), Number(process.env.FAKE_CODEX_CHILD_DELAY_MS)); } });
+    fs.writeFileSync(process.env.FAKE_CODEX_CHILD_FILE, String(process.pid));
+    setInterval(() => {}, 1000);
+  `,
+    ],
+    { stdio: "ignore", detached: !!process.env.FAKE_CODEX_CHILD_DETACHED },
+  );
+  child.unref();
+}
 const error = (id, message) => send({ id, error: { code: -32600, message } });
 let threadId,
   turnId,
@@ -30,14 +64,20 @@ let threadId,
   tool;
 let model = "gpt-6.1-sol";
 const writeReport = (text) => {
-  const output = /WRITE:([\w./-]+)/.exec(text)?.[1];
+  const member = /Việc (\d+):/.exec(text)?.[1];
+  const builtIn = !process.env.FAKE_CODEX_WORKFLOW ? undefined : member ? `03-viec-${member}.md` : /bước [23]\/[23]/.test(text) ? "04-summary.md" : "02-plan.md";
+  const output = /WRITE:([\w./-]+)/.exec(text)?.[1] ?? (builtIn && `.claude/tasks/DEMO-1/${builtIn}`);
   if (!output) return;
   const file = path.resolve(output);
   if (!file.startsWith(`${process.cwd()}/`)) throw new Error("Outside fake workspace");
   mkdirSync(path.dirname(file), { recursive: true });
-  const table =
-    "# Plan\n\n## 7. Phân công\n\n| # | Việc | Agent | Subagent | Model | File | Đầu ra | Phụ thuộc |\n|---|---|---|---|---|---|---|---|\n| 1 | Report | codex | - | - | server/ | Report | - |\n";
-  writeFileSync(file, text.includes("PLAN_TABLE") ? table : "# Report\n");
+  const table = [
+    "# Plan\n\n## 7. Phân công\n\n| # | Việc | Agent | Subagent | Model | File | Đầu ra | Phụ thuộc |\n|---|---|---|---|---|---|---|---|",
+    `| 1 | Report | codex | - | ${process.env.FAKE_CODEX_TABLE_MODEL ?? "-"} | server/ | Report | - |`,
+    ...(process.env.FAKE_CODEX_TWO_MEMBERS ? [`| 2 | Next | codex | - | ${process.env.FAKE_CODEX_TABLE_MODEL ?? "-"} | server/ | Report | 1 |`] : []),
+    "",
+  ].join("\n");
+  writeFileSync(file, text.includes("PLAN_TABLE") || builtIn === "02-plan.md" ? table : "# Report\n");
 };
 const threadFile = (id) => path.join(process.cwd(), ".fake-codex-threads", `${id}.json`);
 const save = () => {
@@ -61,6 +101,7 @@ const finish = (text = "DONE", status = "completed") => {
 createInterface({ input: process.stdin }).on("line", (line) => {
   const m = JSON.parse(line);
   if (!m.method) {
+    if (process.env.FAKE_CODEX_LOG) appendFileSync(process.env.FAKE_CODEX_LOG, `${JSON.stringify({ response: m })}\n`);
     if (pending && m.id === pending.id) {
       const decision = m.result?.decision;
       if (decision === "accept") writeReport(lastText);
@@ -71,8 +112,11 @@ createInterface({ input: process.stdin }).on("line", (line) => {
     return;
   }
   const p = m.params ?? {};
-  if (m.method === "initialize") reply(m.id, { userAgent: "codex-cli/0.163.0" });
-  else if (m.method === "initialized") return;
+  if (process.env.FAKE_CODEX_LOG) appendFileSync(process.env.FAKE_CODEX_LOG, `${JSON.stringify({ method: m.method, params: p })}\n`);
+  if (m.method === "initialize") {
+    if (process.env.FAKE_CODEX_INIT_DELAY_MS) setTimeout(() => reply(m.id, { userAgent: "codex-cli/0.163.0" }), Number(process.env.FAKE_CODEX_INIT_DELAY_MS));
+    else reply(m.id, { userAgent: "codex-cli/0.163.0" });
+  } else if (m.method === "initialized") return;
   else if (m.method === "account/read") reply(m.id, { account: process.env.FAKE_CODEX_LOGGED_OUT ? null : { type: "chatgpt" } });
   else if (m.method === "model/list") reply(m.id, { data: [{ id: "gpt-6.1-sol", model: "gpt-6.1-sol", isDefault: true }], nextCursor: null });
   else if (m.method === "thread/start" || m.method === "thread/resume") {
@@ -90,6 +134,7 @@ createInterface({ input: process.stdin }).on("line", (line) => {
       save();
     }
     if (process.env.FAKE_CODEX_PROTOCOL) reply(m.id, {});
+    else if (process.env.FAKE_CODEX_THREAD_DELAY_MS) setTimeout(() => reply(m.id, { thread: { id: threadId }, model }), Number(process.env.FAKE_CODEX_THREAD_DELAY_MS));
     else reply(m.id, { thread: { id: threadId }, model });
   } else if (m.method === "turn/start") {
     const text = p.input.map((i) => i.text).join("\n");
@@ -106,7 +151,33 @@ createInterface({ input: process.stdin }).on("line", (line) => {
     const remembered = lastText;
     lastText = text;
     save();
-    if (text.includes("APPROVAL")) {
+    const failureCase = /FAILURE:(quota|rate|http429|auth|network|unknown|retry|stale)/.exec(text)?.[1];
+    if (failureCase) {
+      // Synthetic failure fixtures, checked against generate-ts 0.163.0; not captured quota exhaustion.
+      const info = {
+        quota: "usageLimitExceeded",
+        rate: "rateLimitExceeded",
+        http429: { httpConnectionFailed: { httpStatusCode: 429 } },
+        auth: { httpConnectionFailed: { httpStatusCode: 401 } },
+        network: { responseStreamDisconnected: { httpStatusCode: null } },
+        unknown: "other",
+        retry: "usageLimitExceeded",
+        stale: "usageLimitExceeded",
+      }[failureCase];
+      const turnError = { message: "quota exhausted, token=fixture-secret", codexErrorInfo: info, additionalDetails: "fixture-secret" };
+      const emitFailure = (extra = {}) => notify("turn/completed", { turn: { id: turnId, status: "failed", error: turnError, items: [] }, ...extra });
+      notify("error", { turnId, error: turnError, willRetry: failureCase === "retry" });
+      if (failureCase === "retry" || failureCase === "stale") {
+        if (failureCase === "stale") {
+          emitFailure({ threadId: "stale-thread" });
+          notify("turn/completed", { turn: { id: "stale-turn", status: "failed", error: turnError, items: [] } });
+        }
+        setTimeout(() => finish(), 25);
+      } else {
+        emitFailure();
+        turnId = undefined;
+      }
+    } else if (text.includes("APPROVAL")) {
       tool = { ...approvalSample.find((m) => m.method === "item/started" && m.params.item.type === "commandExecution").params.item, id: randomUUID() };
       notify("item/started", { turnId, item: tool });
       pending = { ...approvalSample.find((m) => m.method === "item/commandExecution/requestApproval"), id: 0 };
@@ -124,7 +195,7 @@ createInterface({ input: process.stdin }).on("line", (line) => {
         notify("item/completed", { turnId, item: { ...item, id, status: "completed" } });
       }
       finish();
-    } else if (text.includes("SLOW")) {
+    } else if (text.includes("SLOW") || (process.env.FAKE_CODEX_HOLD_MEMBER && /Việc \d+:/.test(text))) {
       tool = { type: "commandExecution", id: randomUUID(), command: "sleep 60", status: "inProgress" };
       notify("item/started", { turnId, item: tool });
     } else if (text.includes("UNSUPPORTED")) {

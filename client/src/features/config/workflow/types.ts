@@ -1,4 +1,13 @@
 import type { Agent } from "../../../shared/agents";
+import type { EffectiveExecution, ExecutionSelection } from "../../workflow";
+
+export interface RenderedPrompt {
+  task: { key: string; title: string };
+  text: string;
+  execution: ExecutionSelection;
+  source: "request" | "repo" | "workflow";
+  effective: EffectiveExecution;
+}
 
 export interface WorkflowOutput {
   id: string;

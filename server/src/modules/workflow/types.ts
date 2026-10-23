@@ -1,5 +1,121 @@
 import type { Agent } from "../../core/agents.js";
 
+/** A complete choice: absent model means no model flag, never inheritance from the workflow. */
+export type AgentExecution = { agent: Agent; model?: string };
+export type ExecutionSelection = { agent: "workflow"; model?: never } | AgentExecution;
+export type ExecutionSelectionSource = "request" | "repo" | "workflow";
+export type ExecutionSource = "workflow" | "assignment" | "execution" | "lane-override";
+
+export interface SelectedExecution {
+  execution: ExecutionSelection;
+  source: ExecutionSelectionSource;
+}
+
+/** Requested launch configuration; this does not claim account/model availability. */
+export interface EffectiveExecution extends AgentExecution {
+  subagent?: string;
+  permissionMode?: string;
+  source: ExecutionSource;
+  modelSource: "explicit" | "default";
+}
+
+/** Step id scopes a member number to its dispatch, independent of the current step index. */
+export type LaneScope = { kind: "step"; stepId: string } | { kind: "subtask"; stepId: string; n: number };
+
+export interface LaneOverride {
+  scope: LaneScope;
+  execution: AgentExecution;
+  operationId: string;
+  at: number;
+}
+
+export interface ExecutionSnapshot extends SelectedExecution {
+  version: 1;
+  /** Initial requested configurations; the original WorkflowDef is kept separately. */
+  steps: Record<string, EffectiveExecution>;
+}
+
+export interface ExecutionProblem {
+  field: string;
+  message: string;
+  n?: number;
+}
+
+export interface ExecutionAttempt {
+  id: string;
+  scope: LaneScope;
+  sessionId: string;
+  generation: number;
+  execution: EffectiveExecution;
+  actualModel?: string;
+  startedAt: number;
+  finishedAt?: number;
+  /** Session/thread cumulative snapshot, not usage attributable to this attempt alone. */
+  metrics?: SubtaskMetrics;
+  metricsSource?: MetricsSource;
+  metricsObservedAt?: number;
+  nativeId?: string;
+}
+
+export type MetricsSource = "claude-statusline" | "codex-thread" | "legacy";
+export type UsageTotals = Pick<SubtaskMetrics, "inputTokens" | "outputTokens" | "costUsd">;
+
+/** One cumulative observation per session and source, never an event delta. */
+export interface SessionMetricSnapshot {
+  sessionId: string;
+  nativeId?: string;
+  agent?: Agent;
+  generation?: number;
+  source: MetricsSource;
+  basis: "session" | "thread" | "unknown";
+  observedAt?: number;
+  metrics: SubtaskMetrics;
+}
+
+export interface SessionUsage {
+  sessionId: string;
+  nativeId?: string;
+  agent?: Agent;
+  attemptIds: string[];
+  scopes: LaneScope[];
+  actualModels: string[];
+  measurements: SessionMetricSnapshot[];
+  metrics: UsageTotals;
+}
+
+export interface MetricsSummary {
+  sessions: SessionUsage[];
+  /** A total is present only when every session supplies that measurement. */
+  totals: UsageTotals;
+  /** Number of sessions with each measured counter; absent measurements are never zero-filled. */
+  coverage: Record<keyof UsageTotals, number>;
+}
+
+/** Persist each stage before its side effects; only sanitized text belongs in this journal. */
+export interface HandoffJournal {
+  operationId: string;
+  scope: LaneScope;
+  stage: "prepared" | "source-stopped" | "target-created" | "committed" | "failed";
+  sourceSessionId: string;
+  targetSessionId?: string;
+  expectedGeneration: number;
+  target: AgentExecution;
+  previewId: string;
+  fingerprint: string;
+  /** Hash of the complete commit request; an operation id cannot be reused for another request. */
+  requestHash?: string;
+  /** No automatic replay when delivery was started but not durably acknowledged. */
+  promptState?: "pending" | "sending" | "sent";
+  cleanup?: "complete" | "blocked";
+  /** Recovery never replays a possibly delivered prompt. */
+  recovery?: "interrupted" | "blocked";
+  text: string;
+  reason?: string;
+  error?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 /** A document a step writes into the task directory. */
 export interface OutputDef {
   id: string;
@@ -54,7 +170,7 @@ export type SubtaskPhase = "pending" | "starting" | "running" | "waiting" | "don
 export interface SubtaskMetrics {
   inputTokens?: number;
   outputTokens?: number;
-  /** Actual model from Claude's status line or Codex RPC; else the model passed at launch. */
+  /** Compatibility display value: backend model, or the requested model on older paths. See attempt.actualModel for evidence. */
   model?: string;
   /** Cost of the whole session in USD (Claude only). */
   costUsd?: number;
@@ -62,10 +178,19 @@ export interface SubtaskMetrics {
   durationMs?: number;
 }
 
+/** Metadata and content digest captured before input, after the previous writer exited on transfer. */
+export interface OutputBaseline {
+  file: string;
+  fingerprint: string | null;
+}
+
 export interface SubtaskRun extends Assignment {
   phase: SubtaskPhase;
   sessionId?: string;
   stepStartedAt?: number;
+  promptId?: string;
+  outputBaseline?: OutputBaseline;
+  recoveryBlocked?: boolean;
   /** When the subtask's first prompt was sent. */
   startedAt?: number;
   /** When the subtask was done (its report written). */
@@ -147,6 +272,9 @@ export interface RunState {
   phase: RunPhase;
   /** Start of the current prompt; done-when files must be written after it. */
   stepStartedAt: number;
+  promptId?: string;
+  outputBaseline?: OutputBaseline;
+  recoveryBlocked?: boolean;
   message: string;
   /** Claude's last message of the latest turn (Stop hook), shown at gates. */
   lastMessage?: string;
@@ -158,6 +286,17 @@ export interface RunState {
   noHook?: boolean;
   /** The workflow as it was when the run started; later edits apply to new runs only. */
   workflow?: WorkflowDef;
+  /** Absent on legacy runs: always follow the workflow, ignoring current repo defaults. */
+  execution?: ExecutionSelection;
+  executionSnapshot?: ExecutionSnapshot;
+  /** Keys are produced by laneKey(); an override affects only this step or member. */
+  laneOverrides?: Record<string, LaneOverride>;
+  attempts?: ExecutionAttempt[];
+  /** Session cumulative counters survive lane changes independently of compatibility metrics. */
+  sessionMetrics?: SessionMetricSnapshot[];
+  handoffs?: HandoffJournal[];
+  /** Sanitized snapshots only; excluded from the ordinary run view. */
+  handoffPreviews?: import("./handoff.js").HandoffPreview[];
   /** The subtasks of a dispatch step, once the run reached it. Absent for a static workflow. */
   subtasks?: SubtaskRun[];
   /** Documents archived by "Chạy lại từ đầu" right before this run; `dir` is relative to the task dir. */

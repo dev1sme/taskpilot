@@ -110,3 +110,28 @@ recv serverRequest/resolved             {threadId, requestId:0}
 - Item `mcpToolCall` và `webSearch`: `~/.codex/config.toml` không khai báo MCP server (chỉ có `codex_apps` dựng sẵn, thấy qua `mcpServer/startupStatus/updated`) và không bật web search; không prompt nào gọi các tool này.
 - `item/permissions/requestApproval`, `item/tool/requestUserInput`, `mcpServer/elicitation/request`.
 - Repo đã trust ở chế độ `default`: chỉ có kết quả `thread/start`, không giữ fixture vì `--repo` trỏ vào checkout thật.
+
+## Failure evidence — TPL-032, việc 12
+
+Ngày 2026-10-23 đã đối chiếu [OpenAI App Server — Errors](https://learn.chatgpt.com/docs/app-server#errors) và sinh schema trực tiếp từ **codex-cli 0.163.0** đang cài, không tạo thread hoặc tiêu quota:
+
+```bash
+codex --version
+codex app-server generate-ts --out /tmp/tpl032-codex-schema
+```
+
+Các file sinh dùng để xác minh: `v2/CodexErrorInfo.ts`, `v2/TurnError.ts`, `v2/ErrorNotification.ts`, `v2/Turn.ts`. Wire enum viết camelCase: `usageLimitExceeded`, `rateLimitExceeded`, `unauthorized`; lỗi kết nối là object như `{httpConnectionFailed:{httpStatusCode:401}}`. Không dùng tên PascalCase trong phần diễn giải docs làm giá trị wire.
+
+| Tín hiệu                                                                                 | Phân loại                              | Mức kiểm chứng                                                               |
+| ---------------------------------------------------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------------- |
+| `turn/completed` failed, đúng thread/turn, `error.codexErrorInfo = "usageLimitExceeded"` | quota                                  | Schema 0.163.0 + fake tổng hợp; **chưa có bản ghi tài khoản thật hết quota** |
+| `rateLimitExceeded`, HTTP 429, `sessionBudgetExceeded`                                   | unknown, không suy hết quota tài khoản | Schema 0.163.0 + fake tổng hợp cho rate/429                                  |
+| HTTP 401 trong object lỗi kết nối                                                        | auth                                   | Bản ghi thật `not-logged-in.jsonl` + test                                    |
+| `unauthorized`                                                                           | auth                                   | Schema 0.163.0 + test tổng hợp                                               |
+| `responseStreamConnectionFailed` / `responseStreamDisconnected` với HTTP status null     | network                                | Schema 0.163.0 + fake tổng hợp                                               |
+| `bad-model.jsonl` có `codexErrorInfo: "other"`                                           | unknown                                | Bản ghi thật; không parse message để đoán model/quota                        |
+| startup `missing`, `notLoggedIn`, `modelUnknown`                                         | cli/auth/model                         | Kiểu lỗi nội bộ từ spawn/account/read/model/list; không gán quota            |
+
+`fake-codex.mjs` nhận `FAILURE:quota|rate|http429|auth|network|unknown|retry|stale`. Đây là fixture tổng hợp dựa trên schema đã kiểm, không phải recording thật. `retry` gửi lỗi có `willRetry:true` rồi hoàn thành thành công; `stale` gửi completion quota khác thread/turn rồi hoàn thành lượt hiện tại. Backend chỉ công bố failure sau completion failed đúng lượt. Text, additionalDetails và stderr không đi vào DTO evidence; chỉ allowlist code/source, timestamp, generation và thread/turn id.
+
+Claude/Copilot chưa có fixture chứng minh lỗi quota theo turn: capability giữ `unknown`, vẫn bàn giao thủ công được. Claude status line và Copilot quota chỉ là quan sát **toàn tài khoản**, có nguồn/thời điểm riêng, tối đa 5 phút và hết hiệu lực sớm khi qua mốc reset; không dùng chúng làm nguyên nhân lỗi của lane. Codex quota detection được khai báo hỗ trợ adapter theo schema, không phải cam kết model/tài khoản thật hoạt động hoặc hết quota. Evidence theo lượt giữ trong live session, xóa khi có prompt/spawn mới; server restart không tái dựng nguyên nhân từ transcript hoặc account usage cũ.

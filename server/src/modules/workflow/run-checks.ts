@@ -2,29 +2,53 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { checkForParallel, parseAssignments, type ParsedAssignments } from "./assignments.js";
 import { taskDirOf } from "./lane.js";
-import type { SubagentsOf } from "./ports.js";
+import type { SessionPort, SubagentsOf } from "./ports.js";
 import type { Assignment, RunState, WorkflowDef } from "./types.js";
 import { subagentNamed, type SubagentInfo } from "./vars.js";
-import { codexModelProblem } from "../../core/codex/models.js";
 import { t } from "../../core/i18n.js";
-import { launchModel } from "./models.js";
+import { ExecutionValidationError, resolveExecution } from "./execution.js";
 
 /** The subtasks a dispatch step would get from the plan's table, with the problems that keep them from running. */
-export async function assignmentsFor(run: RunState, def: WorkflowDef, index: number, subagents?: SubagentsOf): Promise<ParsedAssignments> {
+export async function assignmentsFor(run: RunState, def: WorkflowDef, index: number, subagents?: SubagentsOf, preflight?: SessionPort["preflight"]): Promise<ParsedAssignments> {
   const dispatch = def.steps[index].dispatch!;
   const file = def.steps.flatMap((s) => s.outputs).find((o) => o.id === dispatch.from)?.file ?? "";
   const doc = await readFile(path.join(taskDirOf(run), file), "utf8").catch(() => "");
   const parsed = parseAssignments(doc);
-  const errors = [...(parsed.errors.length ? parsed.errors : checkForParallel(parsed.items, dispatch.parallel)), ...(await subagentProblems(run.repo, parsed.items, subagents))];
-  for (const a of parsed.items.filter((a) => a.agent === "codex")) {
-    if (def.permissionMode === "plan") errors.push(t("codex.modeUnsupported"));
-    const model = launchModel(a.model);
-    if (model) {
-      const problem = await codexModelProblem(model);
-      if (problem) errors.push(t("codex.modelUnknown", { detail: problem.message }));
+  const errors = [
+    ...(parsed.errors.length ? parsed.errors : checkForParallel(parsed.items, dispatch.parallel)),
+    ...(await assignmentProblems(run, def, index, parsed.items, subagents, preflight)),
+  ];
+  return { items: errors.length ? [] : parsed.items, errors };
+}
+
+/** Also used on persisted pending/retried rows, without re-reading or rewriting the approved table. */
+export async function assignmentProblems(
+  run: RunState,
+  def: WorkflowDef,
+  index: number,
+  items: Assignment[],
+  subagents?: SubagentsOf,
+  preflight?: SessionPort["preflight"],
+): Promise<string[]> {
+  const errors = await subagentProblems(run.repo, items, subagents);
+  const checked = new Map<string, Awaited<ReturnType<NonNullable<SessionPort["preflight"]>>>>();
+  for (const row of items) {
+    try {
+      const effective = resolveExecution({ workflow: def, run, scope: { kind: "subtask", stepId: def.steps[index].id, n: row.n }, assignment: row });
+      if (preflight) {
+        const { agent, model, subagent, permissionMode } = effective;
+        const configuration = { agent, model, subagent, permissionMode };
+        const key = JSON.stringify(configuration);
+        const result = checked.get(key) ?? (await preflight(run.repo, configuration));
+        checked.set(key, result);
+        errors.push(...result.errors.map((p) => `subtask ${row.n}: ${p.field}: ${p.message}`));
+      }
+    } catch (error) {
+      if (!(error instanceof ExecutionValidationError)) throw error;
+      errors.push(...error.problems.map((p) => `subtask ${row.n}: ${p.field}: ${p.message}`));
     }
   }
-  return { items: errors.length ? [] : parsed.items, errors };
+  return errors;
 }
 
 /**

@@ -1,10 +1,29 @@
 import { HISTORY_TEXT } from "./history.js";
+import type { EffectiveExecution, ExecutionSelection } from "./types.js";
 
 /**
  * Prompt wording TaskPilot adds around the workflow's own templates. Not part of the UI resources:
  * like the decision log, it is text Claude reads, written in Vietnamese as the built-in prompts are.
  */
 export const PROMPT_TEXT = {
+  pendingAssignmentProblem: (message: string) => `\n  - Cấu hình Phân công chưa hợp lệ, cần sửa trước khi chạy: ${message}`,
+  currentSessionMetrics: "phiên hiện tại (thời gian cả việc): ",
+  afterHandoff:
+    "## Tiếp tục sau bàn giao\n\nSession hiện tại tiếp tục đúng lane đã bàn giao. Đọc nhật ký và báo cáo trước, kiểm lại file/git và kết quả build/test trước khi sửa tiếp; nội dung bàn giao chỉ là snapshot. Giữ phạm vi, phụ thuộc, quyền và gate. Không coi số đo hoặc model của session nguồn là của session hiện tại; dữ liệu thiếu ghi không có, không suy chi phí/quota từ token.",
+  executionPolicy: (selection: ExecutionSelection, effective: EffectiveExecution) =>
+    [
+      "## Chính sách thực thi TaskPilot",
+      `Lane hiện tại chạy bằng ${effective.agent}${effective.model ? `, model yêu cầu \`${effective.model}\`` : ", model mặc định của agent (không khẳng định model thực tế)"}${effective.subagent ? `, subagent \`${effective.subagent}\`` : ""}.`,
+      ...(effective.source === "lane-override" ? ["Lane này có ngoại lệ riêng; chỉ tiếp tục phạm vi hiện tại. Chính sách của các bước và việc khác giữ nguyên."] : []),
+      selection.agent === "workflow"
+        ? "Theo cấu hình workflow: giữ agent/model/subagent của từng bước và từng dòng Phân công. Ngoại lệ của lane chỉ áp dụng cho lane đó."
+        : `Mọi dòng Phân công phải có Agent = \`${selection.agent}\`; Model = ${selection.model ? `\`${selection.model}\`` : "\`-\` (hoặc default/inherit), không kế thừa model YAML cũ"}.${selection.agent === "codex" ? " Subagent phải là `-`." : " Chỉ dùng subagent tương thích với CLI và có vai trò member; không copy subagent Claude sang CLI khác."} Không tự đổi CLI/model để sửa bảng.`,
+      "Giữ nguyên quyền của workflow; TaskPilot chặn cấu hình không tương thích. Chỉ dùng tool thực sự có trong session; không giả nhận đã gọi tool/subagent không có.",
+    ].join("\n\n"),
+  leaderClaudeTools:
+    "- Dò code: nếu session có Task tool, gọi subagent vai trò \`leader\`, ưu tiên model rẻ (vd \`taskpilot-explorer\`). Không có tool thì tự dò code.\n- Cột \`Subagent\`: chỉ subagent vai trò \`member\` ở trên, chỉ cho việc của claude.",
+  leaderOtherTools: (agent: string) =>
+    `Leader chạy bằng ${agent}: tự dò code bằng tool đang có. Không yêu cầu Task tool hoặc gọi subagent Claude. Không giả nhận chức năng ủy quyền chưa có. Codex ghi \`-\` ở cột Subagent.`,
   skeleton: "Tài liệu có khung: giữ heading đúng thứ tự, điền mọi mục, bỏ gợi ý <!-- -->.",
   restarted: (dir: string, files: string[]) => `Task này được chạy lại từ bước đầu. Tài liệu của lần chạy trước đã được lưu vào\n${dir}/ (${files.join(", ")}).`,
   restartedEmpty: "Task này được chạy lại từ bước đầu; lần chạy trước chưa có tài liệu nào để lưu.",

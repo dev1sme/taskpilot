@@ -1,10 +1,11 @@
 import { HttpError } from "../../core/errors.js";
 import { writeTaskStatus, type TaskStatus } from "../tasks/index.js";
 import type { StateStore } from "../../core/state.js";
-import { appendHistory } from "./history.js";
+import { appendHandoffHistory, appendHistory } from "./history.js";
+import type { SafeText } from "../../core/safe-text.js";
 import { ACTIVE, laneOf, taskDirOf } from "./lane.js";
 import type { LoadDef } from "./ports.js";
-import type { RunState, WorkflowDef } from "./types.js";
+import type { HandoffJournal, RunState, WorkflowDef } from "./types.js";
 
 /** The runs kept in the state file and the task's decision log; what the engine reads and writes of them. */
 export class RunStore {
@@ -41,21 +42,44 @@ export class RunStore {
   }
 
   async save(run: RunState, patch: Partial<RunState>): Promise<RunState> {
-    Object.assign(run, patch, { updatedAt: Date.now() });
+    const next = structuredClone({ ...run, ...patch, updatedAt: Date.now() });
     await this.state.update((s) => {
-      s.runs = s.runs.filter((r) => !(r.repo === run.repo && r.taskKey === run.taskKey));
-      s.runs.push(run);
+      s.runs = s.runs.filter((r) => !(r.repo === next.repo && r.taskKey === next.taskKey));
+      s.runs.push(next);
     });
-    this.onChange(run);
+    Object.assign(run, patch, { updatedAt: next.updatedAt });
+    this.onChange(structuredClone(next));
     return run;
   }
 
+  /** Transaction callers hold detached state: publish only after the durable write succeeds. */
+  async checkpoint(run: RunState): Promise<void> {
+    const next = structuredClone({ ...run, updatedAt: Date.now() });
+    await this.state.update((s) => {
+      s.runs = s.runs.filter((r) => !(r.repo === next.repo && r.taskKey === next.taskKey));
+      s.runs.push(next);
+    });
+    run.updatedAt = next.updatedAt;
+    this.onChange(structuredClone(next));
+  }
+
+  async logHandoff(run: RunState, operation: HandoffJournal, sanitize: SafeText): Promise<void> {
+    try {
+      const def = await this.defOf(run);
+      await appendHandoffHistory(taskDirOf(run), def.history.file, run.taskKey, sanitize(def.steps[run.stepIndex]?.title ?? "", 500), operation, sanitize);
+    } catch (error) {
+      this.onWarning(new Error(sanitize(error instanceof Error ? error.message : "Handoff history write failed")));
+    }
+  }
+
   async find(repo: string, taskKey: string): Promise<RunState | undefined> {
-    return (await this.state.load()).runs.find((r) => r.repo === repo && r.taskKey === taskKey);
+    const run = (await this.state.load()).runs.find((r) => r.repo === repo && r.taskKey === taskKey);
+    return run ? structuredClone(run) : undefined;
   }
 
   async bySession(sessionId: string): Promise<RunState | undefined> {
-    return (await this.state.load()).runs.find((r) => laneOf(r, sessionId) && ACTIVE.includes(r.phase));
+    const run = (await this.state.load()).runs.find((r) => laneOf(r, sessionId) && ACTIVE.includes(r.phase));
+    return run ? structuredClone(run) : undefined;
   }
 
   async require(repo: string, taskKey: string, phases: ReadonlyArray<RunState["phase"]>): Promise<RunState> {

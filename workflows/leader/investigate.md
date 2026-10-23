@@ -18,14 +18,15 @@ Kế hoạch phải có mục "7. Phân công": chia việc thành các việc c
 
 ## Subagent và model
 
-Subagent Claude dùng được:
+{{executionPolicy}}
+
+{{leaderTools}}
 
 {{subagents}}
 
-- Dò code: gọi subagent vai trò `leader` qua Task tool, ưu tiên model rẻ (vd `taskpilot-explorer`).
-- Cột `Subagent`: chỉ subagent vai trò `member` ở trên, chỉ cho việc của claude; session của việc chạy bằng nó. Subagent khác thì TaskPilot không cho duyệt.
-- Cột `Model` theo độ khó: việc máy móc `haiku`, logic nhiều file `sonnet`, cần cân nhắc thiết kế `opus`. Claude: alias hoặc id `claude-…`; copilot: tên model của copilot; codex: model khả dụng từ tài khoản Codex, không dùng subagent.
-- `-`: không đặt (session thường, model của subagent hoặc mặc định).
+- Theo workflow: chọn CLI/model theo độ khó; Claude dùng alias hoặc id `claude-…`, Copilot dùng model của Copilot, Codex dùng model đã xác minh từ tài khoản.
+- Khi TaskPilot đặt policy CLI/model cụ thể, mọi dòng phải tuân theo policy ở đầu prompt; không lấy model của CLI khác.
+- `-`: không đặt subagent/model. Không đoán model thực tế trước launch.
 
 ## Tài liệu cần viết
 

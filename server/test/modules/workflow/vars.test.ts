@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_WORKFLOW_DIR, loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
 import { stageOf } from "../../../src/modules/workflow/stage.js";
-import type { WorkflowDef } from "../../../src/modules/workflow/types.js";
+import type { ExecutionAttempt, HandoffJournal, WorkflowDef } from "../../../src/modules/workflow/types.js";
 import { promptVars, render, renderPrompt } from "../../../src/modules/workflow/vars.js";
+import { laneKey } from "../../../src/modules/workflow/execution.js";
 import { modeDir } from "../../../src/modules/workflow/modes.js";
 
 const LEADER_WORKFLOW_DIR = modeDir("leader");
@@ -305,5 +306,123 @@ describe("task stage", () => {
     expect(stageOf(def, ["plan.md"])).toEqual({ done: 1, total: 2, step: "Plan" });
     // Without done-when, every output of the step must exist.
     expect(stageOf(def, ["done.md"])).toEqual({ done: 2, total: 2, step: "Code" });
+  });
+});
+
+describe("execution policy prompts", () => {
+  it("prefixes custom prompts without a policy variable and resolves history/rules with the effective agent", async () => {
+    const def = await loadWorkflow(DEFAULT_WORKFLOW_DIR);
+    const task = { key: "TPL-032", title: "Selection" };
+    const run = { execution: { agent: "codex" as const } };
+    const vars = promptVars(def, 0, task, { run, feedback: "Fix table" });
+    const text = renderPrompt("Custom {{agent}}\n{{historyFormat}}\n{{rules}}\n{{feedback}}", vars);
+    expect(text).toMatch(/^## Chính sách thực thi TaskPilot/);
+    expect(text).toContain("Agent = `codex`");
+    expect(text).toContain("Model = `-`");
+    expect(text).toContain("Subagent phải là `-`");
+    expect(text).toContain("Custom Codex");
+    expect(text).toContain("· Codex");
+    expect(text).toContain("Fix table");
+    expect(text).not.toContain("· Claude");
+    const explicit = renderPrompt("{{executionPolicy}}\nCustom", vars);
+    expect(explicit.split("## Chính sách thực thi TaskPilot")).toHaveLength(2);
+    expect(def.steps[0].agent).toBe("claude");
+    expect(renderPrompt("Legacy {{agent}}", promptVars(def, 0, task))).toBe("Legacy Claude");
+  });
+
+  it.each(["codex", "copilot"] as const)("gives the %s Leader and feedback native tool guidance", async (agent) => {
+    const def = parseWorkflowFiles(await readWorkflowDir(LEADER_WORKFLOW_DIR), { dir: LEADER_WORKFLOW_DIR, origin: "default" }).def!;
+    const run = { execution: { agent, model: "gpt-6.1-sol" } };
+    const vars = promptVars(def, 0, { key: "TPL-032", title: "Selection" }, { run, feedback: "Fix table" });
+    for (const template of [def.steps[0].prompt, def.steps[0].onReject!]) {
+      const text = renderPrompt(template, vars);
+      expect(text).toMatch(/^## Chính sách thực thi TaskPilot/);
+      expect(text).toContain(`Agent = \`${agent}\``);
+      expect(text).toContain("Model = `gpt-6.1-sol`");
+      expect(text).toContain("tự dò code bằng tool đang có");
+      expect(text).not.toContain("gọi subagent vai trò `leader`");
+      expect(text).not.toContain("việc máy móc `haiku`");
+      expect(text).not.toMatch(/\{\{/);
+    }
+  });
+});
+
+describe("review provenance after handoff", () => {
+  it("renders the effective member and both source/target sessions without rewriting the assignment", async () => {
+    const leader = parseWorkflowFiles(await readWorkflowDir(LEADER_WORKFLOW_DIR), { dir: LEADER_WORKFLOW_DIR, origin: "default" }).def!;
+    const assignment = { n: 1, title: "Parser", agent: "claude" as const, model: "haiku", files: ["server/a.ts"], output: "parser", deps: [], report: "03-viec-1.md", sessionId: "target" };
+    const scope = { kind: "subtask" as const, stepId: leader.steps[1].id, n: 1 };
+    const attempts: ExecutionAttempt[] = [
+      {
+        id: "source-attempt",
+        sessionId: "source",
+        generation: 1,
+        scope,
+        execution: { agent: "claude", model: "haiku", modelSource: "explicit", source: "assignment" },
+        actualModel: "claude-actual",
+        startedAt: 1,
+        finishedAt: 2,
+      },
+      { id: "target-attempt", sessionId: "target", generation: 1, scope, execution: { agent: "codex", modelSource: "default", source: "lane-override" }, startedAt: 3 },
+    ];
+    const run = {
+      execution: { agent: "workflow" as const },
+      attempts,
+      laneOverrides: { [laneKey(scope)]: { scope, execution: { agent: "codex" as const }, operationId: "op", at: 3 } },
+      sessionMetrics: [
+        { sessionId: "source", agent: "claude" as const, source: "claude-statusline" as const, basis: "session" as const, metrics: { costUsd: 0.5 } },
+        { sessionId: "target", agent: "codex" as const, source: "codex-thread" as const, basis: "thread" as const, metrics: { inputTokens: 100 } },
+      ],
+    };
+    const before = structuredClone(assignment);
+    const vars = promptVars(leader, 2, task, { run, subtasks: [assignment] });
+    expect(vars.subtasks).toContain("- Việc 1 · Codex · Parser");
+    expect(vars.subtasks).not.toContain("- Việc 1 · Claude");
+    expect(vars.subtasks).toContain("Session `source`");
+    expect(vars.subtasks).toContain("Session `target`");
+    expect(vars.subtasks).toContain("model yêu cầu `haiku` · model thực tế `claude-actual`");
+    expect(vars.subtasks).toContain("model yêu cầu mặc định · model thực tế không rõ");
+    expect(vars.subtasks).toContain("Nguồn `claude-statusline`");
+    expect(vars.subtasks).toContain("Nguồn `codex-thread`");
+    expect(assignment).toEqual(before);
+    const text = renderPrompt(leader.steps[2].prompt, vars);
+    expect(text).toContain("không suy chi phí/quota");
+    expect(text).not.toMatch(/\{\{/);
+  });
+
+  it("shows an invalid pending sibling without blocking the valid member's prompt", async () => {
+    const leader = parseWorkflowFiles(await readWorkflowDir(LEADER_WORKFLOW_DIR), { dir: LEADER_WORKFLOW_DIR, origin: "default" }).def!;
+    const current = { n: 1, title: "Current", agent: "codex" as const, files: [], output: "", deps: [] };
+    const invalid = { ...current, n: 2, title: "Pending", agent: "claude" as const };
+    const vars = promptVars(leader, 1, task, { run: { execution: { agent: "codex" } }, subtask: current, subtasks: [current, invalid] });
+    expect(vars.agent).toBe("Codex");
+    expect(vars.subtasks).toContain("Việc 2 · Claude · Pending");
+    expect(vars.subtasks).toContain("Cấu hình Phân công chưa hợp lệ");
+    expect(vars.subtasks).toContain("must be codex");
+  });
+
+  it("keeps handoff context on retry/reply and custom prompts exactly once", async () => {
+    const leader = parseWorkflowFiles(await readWorkflowDir(LEADER_WORKFLOW_DIR), { dir: LEADER_WORKFLOW_DIR, origin: "default" }).def!;
+    const operation: HandoffJournal = {
+      operationId: "op",
+      scope: { kind: "step", stepId: leader.steps[2].id },
+      stage: "committed",
+      sourceSessionId: "source",
+      targetSessionId: "target",
+      expectedGeneration: 1,
+      target: { agent: "codex" },
+      previewId: "p",
+      fingerprint: "f",
+      text: "Snapshot",
+      createdAt: 1,
+      updatedAt: 2,
+    };
+    const vars = promptVars(leader, 2, task, { run: { handoffs: [operation] } });
+    const text = renderPrompt("Custom {{executionPolicy}} {{agent}}", vars);
+    expect(text.match(/## Tiếp tục sau bàn giao/g)).toHaveLength(1);
+    expect(text).toContain("kiểm lại file/git");
+    expect(text).toContain("Giữ phạm vi, phụ thuộc, quyền và gate");
+    expect(promptVars(leader, 0, task, { run: { handoffs: [operation] } }).executionPolicy).toBe("");
+    expect(promptVars(leader, 2, task, { run: { handoffs: [{ ...operation, stage: "failed" }] } }).executionPolicy).toBe("");
   });
 });

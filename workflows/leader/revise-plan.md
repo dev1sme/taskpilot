@@ -9,9 +9,15 @@ Góp ý của reviewer cho kế hoạch của task {{key}}: "{{title}}":
 - Góp ý đã được ghi vào {{historyFile}}; đọc các entry trước để nắm bối cảnh.
 - Tài liệu hiện tại: {{out.investigation}} và {{out.plan}}.
 
+{{executionPolicy}}
+
+{{leaderTools}}
+
+{{subagents}}
+
 ## Việc cần làm
 
-Xử lý từng điểm góp ý. Điều tra thêm nếu cần. Vẫn không sửa source code.
+Xử lý từng điểm góp ý. Điều tra thêm nếu cần. Vẫn không sửa source code. Kiểm lại mọi dòng Phân công theo chính sách thực thi trước khi viết xong.
 
 ## Tài liệu cần viết
 

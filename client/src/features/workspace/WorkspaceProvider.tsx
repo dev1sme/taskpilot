@@ -45,7 +45,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const openRepo = useCallback(async (path: string) => {
-    queryClient.setQueryData(["repo"], await workspaceApi.setRepo(path));
+    const next = await workspaceApi.setRepo(path);
+    // Drop responses and views of the old repo before mounting forms for the new one.
+    const scoped = ["workflow-modes", "execution-defaults", "agent-capabilities", "run", "run-preview", "workflow", "sessions", "activity", "doc"];
+    await Promise.all(scoped.map((key) => queryClient.cancelQueries({ queryKey: [key] })));
+    for (const key of scoped) queryClient.removeQueries({ queryKey: [key] });
+    queryClient.setQueryData(["repo"], next);
     await Promise.all([queryClient.invalidateQueries({ queryKey: ["tasks"] }), queryClient.invalidateQueries({ queryKey: ["inventory"] })]);
   }, []);
 

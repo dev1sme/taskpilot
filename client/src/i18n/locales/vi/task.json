@@ -7,7 +7,7 @@
     "interrupted": "Gián đoạn",
     "done": "Hoàn thành"
   },
-  "restartHint": "Session hiện tại sẽ dừng. Bản cũ của tài liệu được lưu vào archive/.",
+  "restartHint": "Session hiện tại sẽ dừng. Bản cũ của tài liệu được lưu vào archive/. Lần chạy mới dùng đầy đủ lựa chọn trong form bên dưới.",
   "restartTitle": "Chạy lại quy trình từ bước đầu trong session mới",
   "restart": "Chạy lại từ đầu",
   "restartConfirm": "Xác nhận chạy lại",

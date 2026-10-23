@@ -8,7 +8,8 @@ import { DocsPanel, DocViewer, TextViewer } from "../docs";
 import { TerminalDrawer, useSessions, sessionsApi } from "../sessions";
 import { PageHeader } from "../../shared/ui/PageHeader";
 import { Toolbar } from "../../shared/ui/Toolbar";
-import { GateCard, ModePicker, NowCard, Stepper, ACTIVE_PHASES, useRun, workflowApi } from "../workflow";
+import { GateCard, HandoffDialog, WorkflowHistory, type HandoffTarget, RunOptions, NowCard, Stepper, ACTIVE_PHASES, useRun, workflowApi } from "../workflow";
+import { useWorkspace } from "../workspace";
 import { useTaskDone } from "../tasks";
 import { SubagentNotice } from "./SubagentNotice";
 import "./task.css";
@@ -28,6 +29,11 @@ const PHASE_PILL: Record<PillPhase, { tone: string; icon: typeof CheckCircle }> 
 
 /** One task: progress, what is happening now (or the review), docs and activity; terminal on demand. */
 export function TaskScreen({ task }: { task: TaskSummary }) {
+  const { repo } = useWorkspace();
+  return <TaskScreenContent key={`${repo?.path}:${task.key}`} task={task} />;
+}
+
+function TaskScreenContent({ task }: { task: TaskSummary }) {
   const { t } = useTranslation(["task", "shell"]);
   const { view, error, reload } = useRun(task.key);
   const { sessions, reload: reloadSessions } = useSessions(task.key);
@@ -37,7 +43,8 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
   const [doc, setDoc] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [restart, setRestart] = useState<"idle" | "confirm" | "busy">("idle");
-  const [restartMode, setRestartMode] = useState<string | undefined>();
+  const [restartError, setRestartError] = useState<string | null>(null);
+  const [handoff, setHandoff] = useState<HandoffTarget | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const { busyKey, error: doneError, setDone } = useTaskDone();
 
@@ -53,7 +60,8 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
 
   // Reveal the session's terminal or conversation when it asks for permission.
   // The "seen" states start undefined so the first render counts as a change, like a mount effect.
-  const asking = sessions.find((s) => s.activity === "permission")?.id;
+  const replacedSources = new Set(run?.handoffs?.filter((op) => op.stage === "committed").map((op) => op.sourceSessionId));
+  const asking = sessions.find((s) => s.activity === "permission" && !s.retired && !s.reservation && !replacedSources.has(s.id))?.id;
   const [seenAsking, setSeenAsking] = useState<string | undefined | null>(null);
   if (seenAsking !== asking) {
     setSeenAsking(asking);
@@ -63,12 +71,26 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
     }
   }
 
-  // After the prompt above, so the run's session wins when both change together.
+  // Record every binding change, but permission always has priority over automatic selection.
   const runSessionId = run?.sessionId;
   const [seenRunSession, setSeenRunSession] = useState<string | undefined | null>(null);
   if (seenRunSession !== runSessionId) {
     setSeenRunSession(runSessionId);
-    if (runSessionId) setActiveSession(runSessionId);
+    if (runSessionId && !asking) {
+      setActiveSession(runSessionId);
+      if (run?.handoffs?.some((op) => op.stage === "committed" && op.targetSessionId === runSessionId)) setDrawerOpen(true);
+    }
+  }
+
+  const memberBindings = Object.fromEntries((run?.subtasks ?? []).filter((sub) => sub.sessionId).map((sub) => [`${steps[run!.stepIndex]?.id}:${sub.n}`, sub.sessionId!]));
+  const [seenMembers, setSeenMembers] = useState<Record<string, string> | null>(null);
+  if (JSON.stringify(seenMembers) !== JSON.stringify(memberBindings)) {
+    setSeenMembers(memberBindings);
+    const replaced = Object.entries(memberBindings).find(([n, id]) => seenMembers?.[n] && seenMembers[n] !== id);
+    if (replaced && !asking) {
+      setActiveSession(replaced[1]);
+      setDrawerOpen(true);
+    }
   }
 
   // A confirmation asked in one phase does not carry over to the next.
@@ -84,7 +106,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
     if (id) setActiveSession(id);
     setDrawerOpen(true);
   };
-  const askingIds = new Set(sessions.filter((s) => s.activity === "permission").map((s) => s.id));
+  const askingIds = new Set(sessions.filter((s) => s.activity === "permission" && !s.retired && !s.reservation && !replacedSources.has(s.id)).map((s) => s.id));
   const nextStep = run ? steps[run.stepIndex + 1] : undefined;
   const closeDoc = useCallback(() => setDoc(null), []);
   const closePrompt = useCallback(() => setShowPrompt(false), []);
@@ -142,21 +164,36 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                   </Button>
                 ) : (
                   <>
-                    <ModePicker value={restartMode} onChange={setRestartMode} disabled={restart === "busy"} />
-                    <Button
-                      icon={ArrowCounterClockwise}
-                      variant="attention"
-                      busy={restart === "busy"}
-                      onClick={() => {
-                        setRestart("busy");
-                        void workflowApi
-                          .restartRun(task.key, restartMode)
-                          .then(changed)
-                          .finally(() => setRestart("idle"));
-                      }}
+                    <RunOptions
+                      taskKey={task.key}
+                      initial={{ mode: view?.runMode?.id ?? view?.workflow.mode?.id, execution: run.execution ?? { agent: "workflow" } }}
+                      disabled={restart === "busy"}
                     >
-                      {t("restartConfirm")}
-                    </Button>
+                      {(options, blocked) => (
+                        <Button
+                          icon={ArrowCounterClockwise}
+                          variant="attention"
+                          busy={restart === "busy"}
+                          disabled={blocked}
+                          onClick={() => {
+                            setRestart("busy");
+                            setRestartError(null);
+                            void workflowApi
+                              .restartRun(task.key, options)
+                              .then(() => {
+                                changed();
+                                setRestart("idle");
+                              })
+                              .catch((error: Error) => {
+                                setRestartError(error.message);
+                                setRestart("confirm");
+                              });
+                          }}
+                        >
+                          {t("restartConfirm")}
+                        </Button>
+                      )}
+                    </RunOptions>
                   </>
                 ))}
               {view &&
@@ -191,9 +228,9 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
           }
         />
 
-        {(error || doneError) && (
+        {(error || doneError || restartError) && (
           <p className="error task-error" role="alert">
-            {error ?? doneError}
+            {error ?? doneError ?? restartError}
           </p>
         )}
 
@@ -219,18 +256,22 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
                 ) : (
                   <NowCard
                     taskKey={task.key}
+                    mode={view.runMode?.id ?? view.workflow.mode?.id}
                     steps={steps}
                     run={run}
                     session={runSession}
                     activity={activity}
                     questions={view.questions}
                     subtaskQuestions={view.subtaskQuestions}
+                    subtaskUsage={view.subtaskUsage}
+                    onHandoff={setHandoff}
                     asking={askingIds}
                     onOpenTerminal={openTerminal}
                     onOpenDoc={setDoc}
                     onChanged={changed}
                   />
                 )}
+                {run && <WorkflowHistory run={run} usage={view.usage} onOpenTerminal={openTerminal} />}
               </div>
               <div className="task-side">
                 <DocsPanel task={task} steps={steps} reports={run?.subtasks?.map((s) => s.report)} onOpen={setDoc} />
@@ -249,6 +290,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
         )}
       </div>
 
+      {handoff && run && <HandoffDialog taskKey={task.key} run={run} {...handoff} onChanged={changed} onClose={() => setHandoff(null)} />}
       <TerminalDrawer
         scopeLabel="task"
         emptyHint={t("terminalEmpty")}

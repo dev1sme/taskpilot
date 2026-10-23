@@ -1,20 +1,19 @@
 ## Bối cảnh
 
-Các việc con của task {{key}}: "{{title}}" đã xong (bước {{stepNumber}}/{{stepCount}}: {{step}}). Bạn là leader đã lập kế hoạch ở bước đầu; giờ rà soát kết quả.
+Task {{key}}: "{{title}}", các việc con đã xong (bước {{stepNumber}}/{{stepCount}}: {{step}}). Rà soát với cấu hình hiện tại, có thể sau bàn giao.
 
-- Nhật ký quyết định: {{historyFile}}. Đọc trước tiên: trong đó có góp ý của reviewer và lý do của các quyết định trong kế hoạch.
-- Tài liệu của các bước trước:
+Đọc trước nhật ký {{historyFile}} và góp ý reviewer, rồi tài liệu:
 {{inputs}}
-- Báo cáo của từng việc:
+
+Báo cáo và số liệu từng việc:
 {{subtasks}}
 
 ## Việc cần làm
 
-Đọc từng báo cáo, rồi kiểm kết quả thật trong code (`git status`, `git diff`), không chỉ tin báo cáo.
-
-- Chạy build và test ghi trong kế hoạch. Sửa chỗ sai hoặc thiếu, hoặc ghi rõ vì sao không sửa được.
-- Nếu các việc chạy song song, member không commit: commit thay đổi ở bước này.
-- Đánh giá subagent / model của từng việc: so số liệu ở danh sách trên với chất lượng kết quả; lần sau nên chọn gì. Thiếu số liệu thì ghi "không có", không ước đoán.
+- Đọc báo cáo, kiểm code (`git status`, `git diff`). Chạy build/test trong kế hoạch; sửa lỗi hoặc ghi lý do chưa sửa được.
+- Member chạy song song không commit: leader commit.
+- Đánh giá subagent / model của từng việc theo agent/session/attempt nguồn và đích; tách model yêu cầu/mặc định với thực tế backend báo, so chất lượng để đề xuất lần sau.
+- Số đo cumulative thuộc cả session/thread: không cộng trùng notification/retry/bước dùng lại session hoặc gán hết cho một bước. Giữ nguồn cost Claude/token Codex và nhãn legacy. Thiếu ghi "không có"; không suy chi phí/quota từ token, model hoặc thời gian.
 
 ## Tài liệu cần viết
 
@@ -28,8 +27,8 @@ Các việc con của task {{key}}: "{{title}}" đã xong (bước {{stepNumber}
 
 ## Khi xong
 
-1. Thêm một entry vào cuối {{historyFile}}: chỗ lệch khỏi kế hoạch và lý do, việc nào phải sửa lại, câu hỏi mở bạn tự chốt (và lựa chọn). Theo khung:
+1. Thêm entry cuối {{historyFile}}: lệch kế hoạch và lý do, việc phải sửa lại, câu hỏi tự chốt và lựa chọn. Theo khung:
 
 {{historyFormat}}
 
-2. Kết thúc câu trả lời bằng 3–6 dòng tóm tắt.
+2. Kết thúc bằng 3–6 dòng tóm tắt.

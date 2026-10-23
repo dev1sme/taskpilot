@@ -1,14 +1,19 @@
 import { ArrowClockwise, CheckCircle, Circle, FileText, HandPalm, PlugsConnected, TerminalWindow } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import { AGENT_LABELS } from "../../shared/agents";
 import { AgentBadge } from "../../shared/ui/AgentBadge";
 import { Button } from "../../shared/ui/Button";
 import { formatDuration } from "../../shared/ui/Elapsed";
+import { useSessions } from "../sessions";
+import { useWorkspace } from "../workspace";
+import { useInvalidateOnEvent } from "../../shared/api/useInvalidateOnEvent";
 import { workflowApi } from "./api";
+import { HandoffAction, isLaneBlocked, UsageSummary, type HandoffTarget } from "./HandoffDialog";
 import { MarkDoneButton } from "./MarkDoneButton";
 import { ReplyForm } from "./ReplyForm";
-import type { Assignment, ParsedAssignments, Question, SubtaskMetrics, SubtaskRun } from "./types";
+import type { Assignment, ParsedAssignments, Question, MetricsSummary, RunState, SubtaskMetrics, SubtaskRun } from "./types";
 import "./subtask-tree.css";
 
 const AFTER = (deps: number[]) => deps.join(", ");
@@ -96,6 +101,9 @@ function PreviewRow({ item }: { item: Assignment }) {
 
 interface TreeProps {
   taskKey: string;
+  run: RunState;
+  stepId: string;
+  usage?: Record<number, MetricsSummary>;
   subtasks: SubtaskRun[];
   questions: Record<number, Question[]>;
   /** Sessions currently asking for a permission, by session id. */
@@ -103,6 +111,7 @@ interface TreeProps {
   onOpenTerminal: (sessionId: string) => void;
   onOpenDoc: (path: string) => void;
   onChanged: () => void;
+  onHandoff: (target: HandoffTarget) => void;
 }
 
 /** The subtasks of a running dispatch step: each in its own session, answered and retried on its own. */
@@ -128,6 +137,10 @@ function SubtaskRow(props: TreeProps & { sub: SubtaskRun }) {
   const { sub } = props;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scope = { kind: "subtask" as const, stepId: props.stepId, n: sub.n };
+  const override = Object.values(props.run.laneOverrides ?? {}).find((item) => item.scope.kind === "subtask" && item.scope.stepId === props.stepId && item.scope.n === sub.n);
+  const effective = props.run.attempts?.findLast((a) => a.sessionId === sub.sessionId)?.execution ?? (override ? { ...override.execution, subagent: undefined } : sub);
+  const blocked = isLaneBlocked(props.run, scope, sub);
   const permission = sub.sessionId !== undefined && props.asking.has(sub.sessionId);
   const questions = props.questions[sub.n] ?? [];
 
@@ -151,31 +164,51 @@ function SubtaskRow(props: TreeProps & { sub: SubtaskRun }) {
       </span>
       <div className="subtask-main">
         <p className="subtask-title">
-          <span className="subtask-num">{sub.n}.</span> {sub.title} <AgentBadge agent={sub.agent} />
-          {sub.noHook && sub.phase !== "done" && <span className="subtask-nohook">{t("subtasks.noHook", { agent: AGENT_LABELS[sub.agent] })}</span>}
+          <span className="subtask-num">{sub.n}.</span> {sub.title} <AgentBadge agent={effective.agent} />
+          {!blocked && sub.noHook && sub.phase !== "done" && <span className="subtask-nohook">{t("subtasks.noHook", { agent: AGENT_LABELS[effective.agent] })}</span>}
           <span className={`subtask-phase phase-${sub.phase}`}>{permission ? t("subtasks.permission") : t(`subtasks.phase.${sub.phase}`)}</span>
         </p>
         <p className="subtask-meta">
-          <RunAs item={sub} />
+          <RunAs item={{ ...sub, agent: effective.agent, model: effective.model, subagent: effective.subagent }} />
           {sub.files.length > 0 && <code>{sub.files.join(", ")}</code>}
           {sub.deps.length > 0 && <span>{t("subtasks.after", { list: AFTER(sub.deps) })}</span>}
         </p>
-        {sub.metrics && <Metrics metrics={sub.metrics} />}
-        {sub.phase === "waiting" && (
-          <ReplyForm send={(text) => workflowApi.replySubtask(props.taskKey, sub.n, text)} questions={questions} agent={AGENT_LABELS[sub.agent]} onChanged={props.onChanged} />
+        {props.usage?.[sub.n] ? (
+          <UsageSummary usage={props.usage[sub.n]} />
+        ) : (
+          sub.metrics && (
+            <>
+              <p className="now-sub">{t("handoff.sources.legacy")}</p>
+              <Metrics metrics={sub.metrics} />
+            </>
+          )
+        )}
+        {!blocked && sub.phase === "waiting" && (
+          <ReplyForm send={(text) => workflowApi.replySubtask(props.taskKey, sub.n, text)} questions={questions} agent={AGENT_LABELS[effective.agent]} onChanged={props.onChanged} />
         )}
         {error && (
           <p className="error" role="alert">
             {error}
           </p>
         )}
+        {sub.sessionId && sub.phase !== "done" && sub.phase !== "pending" && (
+          <QuotaNotice
+            taskKey={props.taskKey}
+            sessionId={sub.sessionId}
+            unknown={sub.phase === "interrupted" || !!sub.noHook}
+            disabled={blocked || busy}
+            onRetry={() => void retry()}
+            onHandoff={(agent) => props.onHandoff({ scope, execution: agent ? { agent } : effective, sub })}
+          />
+        )}
         <div className="subtask-actions">
+          <HandoffAction taskKey={props.taskKey} run={props.run} scope={scope} execution={effective} sub={sub} onChanged={props.onChanged} onRequest={props.onHandoff} />
           {sub.phase === "done" && (
             <Button icon={FileText} variant="quiet" onClick={() => props.onOpenDoc(sub.report)}>
               {t("subtasks.readReport", { file: sub.report })}
             </Button>
           )}
-          {permission && (
+          {!blocked && permission && (
             <Button icon={HandPalm} variant="attention" onClick={() => props.onOpenTerminal(sub.sessionId!)}>
               {t("now.permissionAnswer")}
             </Button>
@@ -185,16 +218,77 @@ function SubtaskRow(props: TreeProps & { sub: SubtaskRun }) {
               {t("now.openTerminal")}
             </Button>
           )}
-          {sub.noHook && (sub.phase === "running" || sub.phase === "waiting") && (
+          {!blocked && sub.noHook && (sub.phase === "running" || sub.phase === "waiting") && (
             <MarkDoneButton complete={() => workflowApi.completeSubtask(props.taskKey, sub.n)} onChanged={props.onChanged} onError={setError} />
           )}
           {sub.phase === "interrupted" && (
-            <Button icon={ArrowClockwise} variant="attention" busy={busy} onClick={() => void retry()}>
+            <Button icon={ArrowClockwise} variant="attention" busy={busy} disabled={blocked} onClick={() => void retry()}>
               {t("subtasks.retry")}
             </Button>
           )}
         </div>
       </div>
     </>
+  );
+}
+
+/** Suggestions only open the existing preview dialog. Dismissal never mutates a run/session. */
+export function QuotaNotice(props: { taskKey: string; sessionId: string; unknown: boolean; disabled: boolean; onRetry: () => void; onHandoff: (agent?: "codex") => void }) {
+  const { t } = useTranslation("workflow");
+  const { repo } = useWorkspace();
+  const { sessions } = useSessions(props.taskKey);
+  useInvalidateOnEvent("usage", ["sessions", props.taskKey]);
+  const session = sessions.find((item) => item.id === props.sessionId);
+  const failure = session?.failure;
+  const account = session?.accountQuota;
+  const [now, setNow] = useState(Date.now);
+  const validUntil = account?.validUntil ?? (account ? account.observedAt + 5 * 60_000 : 0);
+  useEffect(() => {
+    const refresh = setTimeout(() => setNow(Date.now()), 0);
+    const expiry = validUntil > Date.now() ? setTimeout(() => setNow(Date.now()), validUntil - Date.now() + 1) : undefined;
+    return () => {
+      clearTimeout(refresh);
+      clearTimeout(expiry);
+    };
+  }, [validUntil, account?.observedAt]);
+  const accountFresh = account?.freshness === "fresh" && now >= account.observedAt && now <= validUntil;
+  const quota = failure?.reason === "quota" || (!!accountFresh && !!account?.exhausted);
+  const capabilities = useQuery({ queryKey: ["agent-capabilities", repo?.path], queryFn: workflowApi.capabilities, enabled: quota });
+  const codex = capabilities.data?.agents.find((item) => item.agent === "codex");
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  const identity = `${repo?.path}:${props.sessionId}:${failure?.observedAt ?? ""}:${account?.observedAt ?? ""}`;
+  if (!session || session.retired || session.reservation || dismissed === identity || (!failure && !props.unknown && !quota)) return null;
+  return (
+    <div role="status" aria-label={t("quota.label")}>
+      {(failure || props.unknown) && <p className="now-sub">{t(`quota.reasons.${failure?.reason ?? "unknown"}`)}</p>}
+      {failure && <p className="now-sub">{t("quota.turnTime", { time: new Date(failure.observedAt).toLocaleString() })}</p>}
+      {account && (
+        <p className="now-sub">
+          {t("quota.account", {
+            time: new Date(account.observedAt).toLocaleString(),
+            source: t(`quota.sources.${account.source}`),
+            freshness: t(accountFresh ? "quota.fresh" : "quota.stale"),
+          })}
+        </p>
+      )}
+      {quota && (
+        <div className="now-actions">
+          <Button disabled={props.disabled} onClick={props.onRetry}>
+            {t("quota.retry")}
+          </Button>
+          {session.agent !== "codex" && codex?.cli.status === "supported" && codex.login.status === "supported" && (
+            <Button disabled={props.disabled} onClick={() => props.onHandoff("codex")}>
+              {t("quota.codex")}
+            </Button>
+          )}
+          <Button disabled={props.disabled} onClick={() => props.onHandoff()}>
+            {t("quota.choose")}
+          </Button>
+          <Button variant="quiet" onClick={() => setDismissed(identity)}>
+            {t("quota.later")}
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }

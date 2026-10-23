@@ -35,9 +35,9 @@ TaskPilot cung cấp các mẫu subagent tại [`subagents/claude/`](../subagent
 
 ## Agent và model
 
-`agent` chọn CLI: `claude`, `copilot` hoặc `codex`. `model` chọn model của phiên; giá trị ở từng bước ghi đè giá trị chung. Khi bước sau đổi agent hoặc model, TaskPilot tạo phiên mới và chuyển bối cảnh qua tài liệu cùng nhật ký.
+`agent` chọn CLI: `claude`, `copilot` hoặc `codex`. Trong chế độ **Theo cấu hình workflow**, `model` từng bước ghi đè giá trị chung; khi bước sau đổi agent/model, TaskPilot tạo phiên mới và chuyển bối cảnh qua tài liệu cùng nhật ký. Lựa chọn agent cụ thể ở form áp dụng quy tắc execution dưới đây.
 
-Workflow `default` dùng Claude điều tra và Copilot triển khai. Để chỉ dùng Claude, tạo `.taskpilot/workflow.yml` trong repo cần xử lý:
+Workflow `default` dùng Claude điều tra và Copilot triển khai khi theo workflow. Để dùng một CLI cho mọi bước, chọn **Agent** tại task. Nếu muốn giữ phối hợp CLI và chỉ đổi bước implement sang Claude, tạo `.taskpilot/workflow.yml`:
 
 ```yaml
 extends: default
@@ -47,6 +47,52 @@ steps:
 ```
 
 Thêm `model: sonnet` vào một bước để chọn model Claude cho bước đó. Bỏ `model`, hoặc dùng `default` / `inherit`, để CLI dùng model mặc định. Model Copilot phụ thuộc tài khoản; không mặc định coi alias của Claude là model Copilot hợp lệ. Nếu đặt model chung rồi đổi CLI ở một bước, nên đặt model riêng cho bước ấy.
+
+### Lựa chọn execution và mặc định repo
+
+Workflow và execution là hai lựa chọn độc lập. Request bắt đầu/chạy lại có dạng:
+
+```json
+{ "mode": "leader", "execution": { "agent": "codex" } }
+```
+
+`execution` là `{agent: "workflow"}` hoặc `{agent: "claude" | "copilot" | "codex", model?: string}`. Chế độ workflow không nhận `model`. Với agent cụ thể, bỏ `model` nghĩa là không truyền model cho CLI, kể cả YAML có model; không mặc định thành `sonnet`. `default`/`inherit` được chuẩn hóa thành không truyền model. Model cụ thể phải hợp lệ với CLI và qua preflight trong khả năng backend.
+
+Mặc định repo lưu tại `.taskpilot/settings.yml`, có thể commit để chia sẻ:
+
+```yaml
+mode: leader
+executionVersion: 1
+execution:
+  agent: codex
+# Thêm model: <id từ inventory của tài khoản> nếu muốn cố định model.
+```
+
+| Phạm vi | Thứ tự ưu tiên / hành vi |
+|---|---|
+| Chọn execution cho run mới | Request có execution → execution của repo → `{agent: workflow}`. Lựa chọn request là đầy đủ, không ghép model từ repo. |
+| Chọn mode | Mode request → mode repo → mode mặc định theo cấu hình/override hiện có. Mode và execution không thay thế nhau. |
+| Agent/model của lane | Ngoại lệ bàn giao đúng lane → execution cụ thể đã lưu trong run → bước YAML hoặc dòng Phân công trong snapshot. |
+| Run cũ | Không có execution nghĩa là workflow; không đọc mặc định repo mới. Run rất cũ chưa có workflow snapshot giữ đường tải workflow tương thích cũ. |
+| Retry/reload/server restart | Giữ policy và ngoại lệ của run. **Chạy lại từ đầu** tạo run mới, form khởi tạo từ lựa chọn run trước; không mang ngoại lệ từng lane sang run mới. |
+
+API `GET/PUT /api/config/workflow/execution-defaults` đọc/lưu mặc định. PUT nhận `execution` và `baseHash`; `execution: null` xóa mặc định execution (khác với lựa chọn workflow có chủ đích). Lưu agent/model và lưu mode là hai thao tác riêng, đều có kiểm xung đột và backup. Writer vá YAML AST, giữ comments/unknown fields khi sửa field khác; settings chỉ có `mode` vẫn hợp lệ. Execution/version sai được báo lỗi để sửa, không âm thầm fallback. Chọn hoặc bàn giao không sửa workflow YAML hay cấu hình CLI người dùng.
+
+`run.workflow` giữ snapshot gốc; `executionSnapshot.version: 1` giữ lựa chọn/nguồn và cấu hình yêu cầu ban đầu. `laneOverrides` dùng khóa JSON tuple `["step", stepId]` hoặc `["subtask", dispatchStepId, n]`; mỗi giá trị lưu scope, execution cụ thể, operationId và thời điểm. Định dạng nội bộ phục vụ recovery, không chỉnh trực tiếp `state.json` khi server đang chạy.
+
+Preview, prompt, validation bảng, launch muộn và retry dùng chung resolver. Với execution cụ thể, mọi dòng Phân công phải khớp agent/model của run; model mặc định dùng `-`. Sai dòng nào báo số việc/field dòng đó; không tự chuẩn hóa bảng. Bàn giao chỉ tạo ngoại lệ đúng bước hoặc việc con, không đổi policy bước tương lai.
+
+### Khả năng kiểm chứng model
+
+`GET /api/sessions/capabilities` trả capability theo repo/env với trạng thái `supported`, `unsupported` hoặc `unknown` và nguồn kiểm chứng. Preflight không tạo thread/turn, không phải lượt LLM thử.
+
+| Backend | Picker / kiểm chứng trước khi chạy |
+|---|---|
+| Claude | Picker chỉ Mặc định; kiểm CLI, cú pháp model/quyền; chưa xác minh đầy đủ login và inventory tài khoản. Giữ model YAML/bảng khi theo workflow. |
+| Copilot | Picker chỉ Mặc định; kiểm CLI, cú pháp model/quyền; chưa có inventory/login đã xác minh. Tên hợp cú pháp không chứng minh tài khoản dùng được. |
+| Codex | `initialize` kiểm CLI/protocol, `account/read` kiểm đăng nhập riêng, `model/list` cấp inventory. Danh sách model có thể tồn tại khi logout, nên không dùng nó thay kiểm login. |
+
+Thiếu CLI, logout Codex, inventory không đọc được cho model Codex cụ thể, model không có trong inventory hoặc quyền không hỗ trợ đều chặn trước khi đổi lane. Trạng thái `unknown` được hiển thị rõ; runtime vẫn có thể thất bại và không tự chọn CLI/model khác. Cấu hình yêu cầu hiệu lực khác model thực tế: model thực tế chỉ được ghi khi backend báo.
 
 ### Quyền và cấu hình Codex
 
@@ -63,7 +109,7 @@ Codex dùng App Server qua stdio, cấu hình và đăng nhập Codex hiện có
 
 ## Subagent và model
 
-Subagent là file Markdown trong `.claude/agents/` (project) hoặc `~/.claude/agents/` (user); khi trùng tên, bản project được dùng. Trong chế độ `leader`, leader dùng subagent theo hai cách:
+Subagent Claude là file Markdown trong `.claude/agents/` (project) hoặc `~/.claude/agents/` (user); khi trùng tên, bản project được dùng. Leader Claude dùng subagent theo hai cách; leader CLI khác dùng công cụ của CLI đó:
 
 - **Dò code:** gọi subagent có vai trò `leader` bằng Task tool trong phiên của mình, nên chọn model rẻ.
 - **Làm việc con:** ghi tên subagent `member` vào cột `Subagent` của bảng Phân công. Phiên của việc con mở bằng `claude --agent <subagent>`; tools, prompt và model do subagent quyết định. Cờ này chỉ dùng cho dòng `claude`, dòng `copilot` chỉ nhận `--agent` nếu cột có giá trị và không được kiểm tên.
@@ -107,6 +153,10 @@ Cảnh báo khác: subagent khai `AskUserQuestion` (việc con không nên hỏi
 ### Số liệu từng việc
 
 Với việc con Codex, TaskPilot ghi model thực tế và tổng token vào/ra do App Server báo; chi phí và quota tài khoản chưa có. Với việc con chạy Claude, TaskPilot ghi model thật (từ status line), thời gian và chi phí. Số liệu hiện ở cây việc con, nhật ký và biến `{{subtasks}}`; chạy Copilot không có chi phí, thiếu số liệu ghi `model không rõ` / `chi phí không có`, không ước đoán. Bước rà soát của leader dùng chúng để đánh giá từng subagent/model trong mục **Đánh giá subagent / model** của tổng kết.
+
+Sau bàn giao, số liệu giữ provenance theo attempt/session: `claude-statusline`, `codex-thread` hoặc `legacy`. Token/cost cumulative của cùng session chỉ lấy snapshot mới nhất, không cộng lại theo bước hay notification; tổng một counter chỉ có khi mọi session có counter đó, kèm coverage. Không ghép cost Claude vào token Codex để giả chi phí đích, không suy quota từ token. Xem [kiến trúc metrics và quota](SPEC.md#9-metrics-và-bằng-chứng-quota).
+
+Khi bàn giao, `permission-mode` giữ nguyên. Nếu subagent nguồn giới hạn tools/quyền không có cấu hình tương đương ở CLI đích, preflight chặn thay vì bỏ hạn chế; Codex không nhận subagent hoặc `plan`. Người dùng phải chọn cấu hình tương thích, không có lựa chọn tự tăng quyền để vượt kiểm tra.
 
 `permission-mode` áp dụng cho các phiên workflow:
 
@@ -183,6 +233,10 @@ Biến dùng trong prompt và mẫu tài liệu:
 | `{{subagents}}` | Danh sách subagent có thể dùng để leader lập bảng phân công |
 | `{{subtask}}`, `{{subtaskReport}}` | Nội dung việc con và đường dẫn báo cáo trong prompt giao việc |
 | `{{subtasks}}` | Danh sách việc con, báo cáo và số liệu phiên nếu có cho bước sau giao việc |
+| `{{executionPolicy}}` | Chính sách hiệu lực và bối cảnh bàn giao; renderer ghép ở đầu prompt để các template cũ vẫn nhận policy |
+| `{{leaderTools}}` | Hướng dẫn công cụ leader theo CLI hiệu lực; không buộc Codex/Copilot gọi Claude Task tool |
+
+Chính sách execution và bối cảnh bàn giao được server ghép vào prompt qua resolver/builder; không cần thêm khóa execution vào workflow YAML hoặc tự khai biến prompt mới. Preview YAML thuần theo cấu hình workflow; preview run nhận lựa chọn execution và ghi rõ cấu hình yêu cầu cùng phần chưa kiểm chứng.
 
 TaskPilot chặn lưu khi workflow sai: thiếu file prompt, `done-when` không hợp lệ, tham chiếu đầu ra không tồn tại hoặc dùng `feedback` sai chỗ. Biến chưa biết, prompt không dùng và prompt đầu thiếu `previousRun` là cảnh báo. `bypassPermissions` không được chấp nhận trong workflow.
 

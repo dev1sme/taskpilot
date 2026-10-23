@@ -5,6 +5,7 @@ import { StateStore } from "../../../src/core/state.js";
 import { DEFAULT_WORKFLOW_DIR } from "../../../src/modules/workflow/definition.js";
 import { modeDir } from "../../../src/modules/workflow/modes.js";
 import { app, get, ok, repo, send, state, useConfigApp } from "../../helpers/configApp.js";
+import { makeRepo } from "../../helpers/fixtures.js";
 
 useConfigApp();
 
@@ -42,7 +43,153 @@ async function legacy(mode = "default") {
 const raw = (name: string) => get(`/api/config/workflow/file?name=${name}`);
 const put = async (name: string, content: string) => send("PUT", "/api/config/workflow/file", { name, content, baseHash: (await raw(name)).hash });
 
+const defaultsUrl = "/api/config/workflow/execution-defaults";
+const saveDefaults = async (execution: unknown) => send("PUT", defaultsUrl, { execution, baseHash: (await get(defaultsUrl)).hash });
+
+describe("repo execution defaults", () => {
+  it("reads absent/mode-only settings and saves, clears and restores defaults with backups", async () => {
+    expect(await get(defaultsUrl)).toEqual({ execution: null, executionVersion: null, errors: [], hash: "absent", settingsPath: ".taskpilot/settings.yml" });
+    expect((await app.inject({ url: defaultsUrl, headers: { host: ok.host } })).statusCode).toBe(401);
+    const created = await saveDefaults({ agent: "codex", model: "gpt-test" });
+    expect(created.statusCode).toBe(200);
+    expect(created.json()).toMatchObject({ execution: { agent: "codex", model: "gpt-test" }, executionVersion: 1, errors: [], backup: { existed: false } });
+    await send("PUT", "/api/config/workflow/mode", { mode: "leader" });
+    const before = await readFile(path.join(dir(), "settings.yml"), "utf8");
+    const cleared = await saveDefaults(null);
+    expect(cleared.json()).toMatchObject({ execution: null, executionVersion: null, errors: [], backup: { existed: true } });
+    expect((await get("/api/config/workflow/modes")).selected).toBe("leader");
+    expect(await readFile(path.join(dir(), "settings.yml"), "utf8")).not.toContain("execution");
+    expect((await send("POST", `/api/backups/${cleared.json().backup.id}/restore`)).statusCode).toBe(200);
+    expect(await readFile(path.join(dir(), "settings.yml"), "utf8")).toBe(before);
+    expect((await saveDefaults({ agent: "workflow" })).json()).toMatchObject({ execution: { agent: "workflow" }, errors: [] });
+  });
+
+  it("guards stale saves and no-ops, including mode changes from newer clients", async () => {
+    await send("PUT", "/api/config/workflow/mode", { mode: "leader" });
+    const before = await get(defaultsUrl);
+    const saved = (await saveDefaults({ agent: "codex" })).json();
+    const backups = await get("/api/backups");
+    expect((await send("PUT", defaultsUrl, { execution: { agent: "copilot" }, baseHash: before.hash })).statusCode).toBe(409);
+    expect((await send("PUT", defaultsUrl, { execution: { agent: "codex" }, baseHash: before.hash })).statusCode).toBe(409);
+    expect((await send("PUT", "/api/config/workflow/mode", { mode: "default", baseHash: before.hash })).statusCode).toBe(409);
+    const noop = await saveDefaults({ agent: "codex" });
+    expect(noop.statusCode).toBe(200);
+    expect(noop.json()).not.toHaveProperty("backup");
+    expect(noop.json().hash).toBe(saved.hash);
+    expect(await get("/api/backups")).toEqual(backups);
+    const modes = await get("/api/config/workflow/modes");
+    expect(modes.hash).toBe(saved.hash);
+    expect((await send("PUT", "/api/config/workflow/mode", { mode: "default", baseHash: modes.hash })).statusCode).toBe(200);
+  });
+
+  it.each([
+    {},
+    { execution: { agent: "codex" } },
+    { execution: null, baseHash: 1 },
+    { execution: { agent: "bad" }, baseHash: "absent" },
+    { execution: { agent: "workflow", model: "x" }, baseHash: "absent" },
+    { execution: { agent: "claude", model: "gpt-test" }, baseHash: "absent" },
+    { execution: [], baseHash: "absent" },
+    { execution: { agent: "codex", extra: true }, baseHash: "absent" },
+    { execution: null, baseHash: "absent", extra: true },
+  ])("rejects invalid requests without writes: %j", async (body) => {
+    expect((await send("PUT", defaultsUrl, body)).statusCode).toBe(400);
+    expect((await get(defaultsUrl)).hash).toBe("absent");
+    expect(await get("/api/backups")).toEqual([]);
+  });
+
+  it.each([
+    ["mode: [unclosed\n", "settings"],
+    ["mode: []\n", "mode"],
+    ["executionVersion: 2\nexecution: {agent: codex}\n", "executionVersion"],
+    ["execution: {agent: unknown}\n", "execution.agent"],
+    ["execution: {agent: codex, future: true}\n", "execution"],
+    ["execution: []\n", "execution"],
+  ])("reports invalid settings and refuses unsafe replacement: %s", async (text, field) => {
+    await mkdir(dir(), { recursive: true });
+    await writeFile(path.join(dir(), "settings.yml"), text);
+    const view = await get(defaultsUrl);
+    expect(view.errors).toEqual(expect.arrayContaining([expect.objectContaining({ field })]));
+    const result = await saveDefaults({ agent: "codex" });
+    // Known invalid values may be explicitly corrected; malformed YAML, unknown fields,
+    // unsupported versions and unrelated invalid mode must never be silently discarded.
+    if (field === "execution.agent") {
+      expect(result.statusCode).toBe(200);
+      expect(result.json().errors).toEqual([]);
+    } else {
+      expect(result.statusCode).toBe(400);
+      expect(result.json().problems.length).toBeGreaterThan(0);
+      expect(await readFile(path.join(dir(), "settings.yml"), "utf8")).toBe(text);
+      expect(await get("/api/backups")).toEqual([]);
+    }
+  });
+
+  it("isolates defaults from another repo, run state and workflow files", async () => {
+    const before = structuredClone(await state.load());
+    await saveDefaults({ agent: "codex" });
+    expect(await state.load()).toEqual(before);
+    expect(await readdir(dir())).toEqual(["settings.yml"]);
+    const other = await makeRepo();
+    expect((await send("PUT", "/api/repo", { path: other })).statusCode).toBe(200);
+    expect((await get(defaultsUrl)).execution).toBeNull();
+    await saveDefaults({ agent: "copilot" });
+    expect((await send("PUT", "/api/repo", { path: repo })).statusCode).toBe(200);
+    expect((await get(defaultsUrl)).execution).toEqual({ agent: "codex" });
+    await builtInUnchanged();
+  });
+});
+
 describe("workflow config", () => {
+  it("resolves explicit preview policy independently from repo defaults and keeps saved YAML intact", async () => {
+    await saveDefaults({ agent: "codex", model: "repo-model" });
+    await send("POST", "/api/config/workflow/override", { mode: "default" });
+    const original = await raw("workflow.yml");
+    const content = `${original.content}steps:\n  - id: implement\n    model: workflow-model\n`;
+    await put("workflow.yml", content);
+    await put("agent-preview.md", "{{agent}} / {{rules}} / {{historyEntry}}");
+    const drafts = { "workflow.yml": `${content}    prompt: agent-preview.md\n` };
+    const body = { stepId: "implement", kind: "prompt", mode: "default", drafts };
+    const yaml = (await send("POST", "/api/config/workflow/render", body)).json();
+    expect(yaml).toMatchObject({ execution: { agent: "workflow" }, source: "workflow", effective: { agent: "copilot", model: "workflow-model", source: "workflow" } });
+    expect(yaml.text).toContain("Copilot");
+    const codex = (await send("POST", "/api/config/workflow/render", { ...body, execution: { agent: "codex" } })).json();
+    expect(codex).toMatchObject({ execution: { agent: "codex" }, source: "request", effective: { agent: "codex", modelSource: "default", source: "execution" } });
+    expect(codex.effective).not.toHaveProperty("model");
+    expect(codex.text).toContain("Codex");
+    const model = (await send("POST", "/api/config/workflow/render", { ...body, execution: { agent: "codex", model: "chosen-model" } })).json();
+    expect(model.effective.model).toBe("chosen-model");
+    const explicitWorkflow = (await send("POST", "/api/config/workflow/render", { ...body, execution: { agent: "workflow" } })).json();
+    expect(explicitWorkflow.effective).toEqual(yaml.effective);
+    expect((await raw("workflow.yml")).content).toBe(content);
+    expect((await get(defaultsUrl)).execution).toEqual({ agent: "codex", model: "repo-model" });
+    expect((await state.load()).runs).toEqual([]);
+    expect((await state.load()).sessions).toEqual([]);
+  });
+
+  it("resolves sample dispatch/rejection previews and blocks invalid policy or permissions", async () => {
+    const sub = (await send("POST", "/api/config/workflow/render", { mode: "leader", stepId: "dispatch", kind: "subtask", execution: { agent: "codex", model: "member-model" } })).json();
+    expect(sub).toMatchObject({ effective: { agent: "codex", model: "member-model", source: "execution" } });
+    expect(sub.text).toContain("member-model");
+    const reject = (await send("POST", "/api/config/workflow/render", { stepId: "investigate", kind: "onReject", execution: { agent: "copilot" }, feedback: "Sửa lại" })).json();
+    expect(reject.effective.agent).toBe("copilot");
+    expect(reject.text).toContain("Sửa lại");
+    const invalid = await send("POST", "/api/config/workflow/render", { stepId: "investigate", kind: "prompt", execution: { agent: "wrong" } });
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.json().problems[0].field).toBe("execution.agent");
+    await send("POST", "/api/config/workflow/override", { mode: "default" });
+    const yml = (await raw("workflow.yml")).content;
+    const blocked = await send("POST", "/api/config/workflow/render", {
+      mode: "default",
+      stepId: "investigate",
+      kind: "prompt",
+      execution: { agent: "codex" },
+      drafts: { "workflow.yml": `${yml}permission-mode: plan\n` },
+    });
+    expect(blocked.statusCode).toBe(400);
+    expect(blocked.json().problems[0].field).toBe("permissionMode");
+    expect((await state.load()).sessions).toEqual([]);
+  });
+
   it("shows the built-in workflow read only until the repo adds an override", async () => {
     const view = await get("/api/config/workflow");
     expect(view).toMatchObject({ origin: "default", overrideDir: ".taskpilot", errors: [], warnings: [] });

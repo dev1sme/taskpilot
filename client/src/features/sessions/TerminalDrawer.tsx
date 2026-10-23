@@ -1,12 +1,13 @@
 import { ArrowClockwise, CaretDown, CaretUp, HandPalm, Plus, Stop, TerminalWindow, Trash } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
-import { lazy, Suspense, useId, useState } from "react";
+import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AGENT_LABELS, AGENTS, type Agent } from "../../shared/agents";
 import { AgentBadge } from "../../shared/ui/AgentBadge";
 import { Button, SrOnly } from "../../shared/ui/Button";
 import "./sessions.css";
 import { sessionsApi } from "./api";
+import { useConversation } from "./useConversation";
 import { Conversation } from "./Conversation";
 import type { SessionView } from "./types";
 
@@ -40,6 +41,7 @@ export function TerminalDrawer(props: Props) {
   const { t } = useTranslation("sessions");
   const { sessions } = props;
   const active = sessions.find((s) => s.id === props.activeId) ?? sessions[sessions.length - 1] ?? null;
+  const readOnly = !!(active?.retired || active?.reservation);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [choosing, setChoosing] = useState(false);
@@ -86,6 +88,8 @@ export function TerminalDrawer(props: Props) {
             >
               <span className={`session-dot ${s.status}`} aria-hidden="true" />
               {s.title}
+              {s.retired && <span className="drawer-flag">{t("retired")}</span>}
+              {s.reservation && <span className="drawer-flag">{t("reserved")}</span>}
               <AgentBadge agent={s.agent} />
               <SrOnly>{s.status === "running" ? t("running") : t("stopped")}</SrOnly>
               {s.activity === "permission" && (
@@ -133,10 +137,10 @@ export function TerminalDrawer(props: Props) {
           </div>
         </div>
 
-        {active && props.open && (
+        {active && props.open && !readOnly && (
           <div className="drawer-actions">
             {active.status === "running" ? (
-              <Button icon={Stop} variant="quiet" busy={busy === "stop"} onClick={() => void act("stop", () => sessionsApi.stopSession(active.id))}>
+              <Button icon={Stop} variant="quiet" disabled={busy !== null} busy={busy === "stop"} onClick={() => void act("stop", () => sessionsApi.stopSession(active.id))}>
                 {t("stop")}
               </Button>
             ) : (
@@ -145,6 +149,7 @@ export function TerminalDrawer(props: Props) {
                   icon={ArrowClockwise}
                   variant="primary"
                   busy={busy === "resume"}
+                  disabled={busy !== null}
                   onClick={() =>
                     void act("resume", async () => {
                       await sessionsApi.resumeSession(active.id);
@@ -160,13 +165,14 @@ export function TerminalDrawer(props: Props) {
                       icon={Trash}
                       variant="danger"
                       busy={busy === "remove"}
+                      disabled={busy !== null}
                       title={t("removeTitle", { scope: props.scopeLabel })}
                       onClick={() => void act("remove", () => sessionsApi.forgetSession(active.id))}
                     >
                       {t("removeConfirm")}
                     </Button>
                   ) : (
-                    <Button icon={Trash} variant="quiet" title={t("removeTitle", { scope: props.scopeLabel })} onClick={() => setConfirmRemove(true)}>
+                    <Button icon={Trash} variant="quiet" disabled={busy !== null} title={t("removeTitle", { scope: props.scopeLabel })} onClick={() => setConfirmRemove(true)}>
                       {t("remove")}
                     </Button>
                   ))}
@@ -176,6 +182,11 @@ export function TerminalDrawer(props: Props) {
         )}
       </div>
 
+      {readOnly && props.open && (
+        <p className="hint drawer-error" role="status">
+          {t(active?.retired ? "retiredHint" : "reservedHint")}
+        </p>
+      )}
       {error && (
         <p className="error drawer-error" role="alert">
           {error}
@@ -194,7 +205,13 @@ export function TerminalDrawer(props: Props) {
           >
             {active ? (
               <Suspense fallback={<p className="hint drawer-empty">{t("opening")}</p>}>
-                {active.transport === "rpc" ? (
+                {readOnly ? (
+                  active.transport === "rpc" ? (
+                    <SessionHistory key={active.id} session={active} />
+                  ) : (
+                    <TerminalHistory key={active.id} sessionId={active.id} />
+                  )
+                ) : active.transport === "rpc" ? (
                   <Conversation key={`${active.id}-${generation}`} session={active} />
                 ) : (
                   <Terminal key={`${active.id}-${generation}`} sessionId={active.id} onExit={props.onChanged} />
@@ -208,4 +225,76 @@ export function TerminalDrawer(props: Props) {
       </AnimatePresence>
     </section>
   );
+}
+
+/** Retired and reserved sessions expose replay only, with no input or approval controls. */
+function SessionHistory({ session }: { session: SessionView }) {
+  const { t } = useTranslation("sessions");
+  const { items } = useConversation(session.id);
+  return (
+    <div className="conversation">
+      <div className="conversation-items" role="log" aria-label={t("history")}>
+        {!items.length && <p className="hint">{t("historyEmpty")}</p>}
+        {items.map((item) => (
+          <article key={item.id} className={`conversation-item conversation-${item.kind}`}>
+            <strong>{item.kind === "approval" ? t("conversation.approval") : t(`conversation.kind.${item.kind}`)}</strong>
+            <p>{item.text}</p>
+            {item.status && <span>{t(`conversation.status.${item.status}`)}</span>}
+            {item.detail && (
+              <details>
+                <summary>{t("conversation.details")}</summary>
+                <pre>{item.detail}</pre>
+              </details>
+            )}
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TerminalHistory({ sessionId }: { sessionId: string }) {
+  const { t } = useTranslation("sessions");
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    void Promise.all([import("@xterm/xterm"), import("@xterm/addon-fit"), import("@xterm/xterm/css/xterm.css")]).then(([{ Terminal: XTerm }, { FitAddon }]) => {
+      if (disposed || !ref.current) return;
+      const term = new XTerm({ disableStdin: true, fontSize: 13, scrollback: 10000 });
+      const fit = new FitAddon();
+      term.loadAddon(fit);
+      term.open(ref.current);
+      fit.fit();
+      const ws = new WebSocket(sessionsApi.ptyUrl(sessionId));
+      const size = () => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: "r", cols: term.cols, rows: term.rows }));
+      };
+      ws.onopen = size;
+      let sawOutput = false;
+      ws.onmessage = (event) => {
+        const frame = JSON.parse(String(event.data));
+        if (frame.t === "o") {
+          sawOutput = true;
+          term.write(frame.d);
+        } else if (frame.t === "x" && !sawOutput) term.writeln(t("historyEmpty"));
+      };
+      const resized = term.onResize(size);
+      const observer = new ResizeObserver(() => {
+        if (ref.current?.clientWidth) fit.fit();
+      });
+      observer.observe(ref.current);
+      cleanup = () => {
+        observer.disconnect();
+        resized.dispose();
+        ws.close();
+        term.dispose();
+      };
+    });
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
+  }, [sessionId, t]);
+  return <div className="terminal" ref={ref} aria-label={t("history")} />;
 }

@@ -38,6 +38,19 @@ export interface UsageView extends Partial<ClaudeUsage> {
   agents?: Partial<Record<Exclude<Agent, "claude">, AgentQuota>>;
 }
 
+/** Account observation, never the cause of a particular session/turn failure. */
+export interface AccountQuotaEvidence {
+  scope: "account";
+  agent: Agent;
+  source: "claude-statusline" | "copilot-quota";
+  observedAt: number;
+  validUntil: number;
+  freshness: "fresh" | "stale";
+  exhausted: boolean;
+}
+
+const EVIDENCE_MAX_AGE_MS = 5 * 60_000;
+
 /** A status line fires after every message; persist and publish unchanged numbers at most this often. */
 const REFRESH_MS = 60_000;
 
@@ -55,6 +68,24 @@ export class UsageStore extends EventEmitter<{ change: [usage: UsageView] }> {
     const agents = state.agentUsage && Object.keys(state.agentUsage).length > 0 ? state.agentUsage : undefined;
     if (!state.usage && !agents) return null;
     return { ...state.usage, ...(agents ? { agents } : {}) };
+  }
+
+  async evidence(agent: Agent, now = Date.now()): Promise<AccountQuotaEvidence | null> {
+    const state = await this.state.load();
+    const usage = agent === "claude" ? state.usage : agent === "copilot" ? state.agentUsage?.copilot : undefined;
+    if (!usage) return null;
+    const windows = agent === "claude" ? [state.usage?.fiveHour, state.usage?.sevenDay, state.usage?.spend] : [state.agentUsage?.copilot];
+    const active = windows.filter((window) => window && (!("resetsAt" in window) || window.resetsAt === null || window.resetsAt > now));
+    const recent = Number.isFinite(usage.updatedAt) && now >= usage.updatedAt && now - usage.updatedAt <= EVIDENCE_MAX_AGE_MS;
+    return {
+      scope: "account",
+      agent,
+      source: agent === "claude" ? "claude-statusline" : "copilot-quota",
+      observedAt: usage.updatedAt,
+      validUntil: Math.min(usage.updatedAt + EVIDENCE_MAX_AGE_MS, ...active.map((window) => (window && "resetsAt" in window && window.resetsAt !== null ? window.resetsAt : Infinity))),
+      freshness: recent && active.length > 0 ? "fresh" : "stale",
+      exhausted: active.some((window) => window?.usedPercentage === 100 && (!("unlimited" in window) || !window.unlimited)),
+    };
   }
 
   /** Input without rate limits (API key sign-in, before the first response) keeps the last numbers. */

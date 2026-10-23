@@ -13,6 +13,29 @@ export interface SessionView {
   status: "running" | "exited";
   exitCode: number | null;
   activity: "starting" | "idle" | "busy" | "permission" | null;
+  reservation?: { operationId: string; role: "source" | "target"; at: number };
+  retired?: { operationId: string; replacedBy: string; at: number };
+  failure?: {
+    reason: "quota" | "auth" | "model" | "cli" | "network" | "unknown";
+    message: string;
+    observedAt: number;
+    generation?: number;
+    evidence: {
+      source: "codex-turn" | "codex-startup" | "unclassified";
+      code?: "usageLimitExceeded" | "unauthorized" | "http401" | "connection" | "missing" | "notLoggedIn" | "modelUnknown";
+      threadId?: string;
+      turnId?: string;
+    };
+  };
+  accountQuota?: {
+    scope: "account";
+    agent: Agent;
+    source: "claude-statusline" | "copilot-quota";
+    observedAt: number;
+    freshness: "fresh" | "stale";
+    validUntil?: number;
+    exhausted: boolean;
+  };
 }
 
 export interface ConversationItem {

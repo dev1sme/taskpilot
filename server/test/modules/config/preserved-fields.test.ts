@@ -1,11 +1,55 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 import { get, repo, send, useConfigApp } from "../../helpers/configApp.js";
 
 useConfigApp();
 
 describe("fields TaskPilot does not edit", () => {
+  it("keeps settings comments, model and future fields through mode/default edits", async () => {
+    const dir = path.join(repo, ".taskpilot");
+    const file = path.join(dir, "settings.yml");
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      file,
+      "# team settings\nmode: leader # selected mode\nexecutionVersion: 1\nexecution:\n  agent: codex # chosen agent\n  model: gpt-test # chosen model\nfuture:\n  graph: {enabled: true, nodes: [a, b]} # editor data\n",
+    );
+    const read = () => readFile(file, "utf8");
+    const before = parse(await read());
+    expect((await send("PUT", "/api/config/workflow/mode", { mode: "default" })).statusCode).toBe(200);
+    expect(parse(await read())).toEqual({ ...before, mode: "default" });
+    for (const comment of ["# team settings", "# selected mode", "# chosen agent", "# chosen model", "# editor data"]) expect(await read()).toContain(comment);
+
+    const url = "/api/config/workflow/execution-defaults";
+    const hash = (await get(url)).hash;
+    expect((await send("PUT", url, { execution: { agent: "copilot" }, baseHash: hash })).statusCode).toBe(200);
+    expect(parse(await read())).toEqual({ ...before, mode: "default", execution: { agent: "copilot" } });
+    expect(await read()).not.toContain("gpt-test");
+    expect(await read()).toContain("# chosen agent");
+    expect(await read()).toContain("# editor data");
+    expect((await send("PUT", url, { execution: null, baseHash: (await get(url)).hash })).statusCode).toBe(200);
+    expect(parse(await read())).toEqual({ mode: "default", future: before.future });
+    expect(await read()).toContain("# team settings");
+    expect(await read()).toContain("# editor data");
+  });
+
+  it("preserves an unknown execution schema on a mode-only save and refuses malformed YAML", async () => {
+    const dir = path.join(repo, ".taskpilot");
+    const file = path.join(dir, "settings.yml");
+    await mkdir(dir, { recursive: true });
+    const content = "mode: default\nexecutionVersion: 2\nexecution:\n  agent: codex\n  future: {tools: [Read]} # future restriction\n";
+    await writeFile(file, content);
+    expect((await send("PUT", "/api/config/workflow/mode", { mode: "leader" })).statusCode).toBe(200);
+    expect(parse(await readFile(file, "utf8"))).toEqual({ ...parse(content), mode: "leader" });
+    expect(await readFile(file, "utf8")).toContain("# future restriction");
+    await writeFile(file, "mode: [unclosed\n");
+    const before = await get("/api/backups");
+    expect((await send("PUT", "/api/config/workflow/mode", { mode: "default" })).statusCode).toBe(400);
+    expect(await readFile(file, "utf8")).toBe("mode: [unclosed\n");
+    expect(await get("/api/backups")).toEqual(before);
+  });
+
   it("keeps other hook handler fields and events it does not know yet", async () => {
     const file = path.join(repo, ".claude", "settings.json");
     const handler = { type: "command", command: "lint", if: "Bash(git *)", async: true, statusMessage: "Linting" };

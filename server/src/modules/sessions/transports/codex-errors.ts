@@ -3,6 +3,7 @@ import { HttpError } from "../../../core/errors.js";
 import { t } from "../../../core/i18n.js";
 
 export function codexHttpError(error: unknown): HttpError {
+  if (error instanceof HttpError) return error;
   const detail = error instanceof Error ? error.message : String(error);
   if (error instanceof CodexError) {
     switch (error.code) {

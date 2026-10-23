@@ -2,6 +2,7 @@ import type { Launcher } from "../../../core/claude/launch.js";
 import type { SessionMeta } from "../../../core/state.js";
 import type { AgentBackend } from "../backends/types.js";
 import type { HookEvent } from "../hooks.js";
+import type { SessionFailure } from "../failure.js";
 
 /** What a transport needs to start the agent's process for one spawn of a session. */
 export interface TransportLaunch {
@@ -18,7 +19,12 @@ export interface TransportLaunch {
 /** How a transport reports back to the SessionManager while its process runs. */
 export interface TransportEvents {
   nativeId?(id: string, model?: string): Promise<void>;
+  /** Persist ownership before readiness or any prompt; groupId is an isolated POSIX process group. */
+  process?(pid: number, groupId?: number): Promise<void>;
+  ready?(): void;
   metrics?(data: SessionMetrics): void;
+  /** Only final failures of this process/turn; retry notifications are not failures. */
+  failure?(data: SessionFailure): void;
   /** An event the transport saw itself, in Claude Code's hook names and payload fields. */
   hook(event: HookEvent, payload: Record<string, unknown>): void;
   /** The process ended; the transport no longer runs. */

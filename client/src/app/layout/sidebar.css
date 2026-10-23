@@ -416,6 +416,8 @@
   width: 44px;
   height: 40px;
   padding: 0;
+  /* Contain the active background while its shared layout animation shrinks from a full row. */
+  overflow: hidden;
 }
 
 .sidebar.is-rail .nav-icon {

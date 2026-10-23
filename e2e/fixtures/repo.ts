@@ -73,3 +73,20 @@ export async function openFixtureRepo(page: Page): Promise<void> {
   const res = await page.request.put("/api/repo", { data: { path: FIXTURE_REPO } });
   expect(res.ok()).toBe(true);
 }
+
+/** Isolated selection fixtures: same task keys in distinct repos, mode-only settings and optional override. */
+export function createSelectionRepo(name: string, options: { settings?: string; workflow?: string } = {}): string {
+  const repo = path.join(TMP, "repos", `selection-${name}`);
+  const files = {
+    ".claude/tasks/DEMO-1/spec/README.md": "# Selection fixture\n",
+    ".claude/tasks/DEMO-2/spec/README.md": "# Second selection task\n",
+    ".taskpilot/settings.yml": options.settings ?? "# mode-only legacy settings\nmode: default\nfuture: { keep: true }\n",
+    ...(options.workflow ? { ".taskpilot/workflow.yml": options.workflow, ".taskpilot/prompt.md": "WRITE:.claude/tasks/DEMO-1/02-plan.md {{outputs}}" } : {}),
+  };
+  for (const [name, content] of Object.entries(files)) {
+    const file = path.join(repo, name);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, content);
+  }
+  return repo;
+}

@@ -6,6 +6,7 @@ import { t } from "../../../core/i18n.js";
 import {
   CUSTOM_MODE,
   DEFAULT_MODE,
+  ExecutionValidationError,
   OVERRIDE_DIR,
   PROMPT_TEXT,
   WORKFLOW_FILE,
@@ -17,6 +18,9 @@ import {
   migrateLegacy,
   modeDir,
   overrideDir,
+  parseExecution,
+  parseRepoSettings,
+  patchRepoSettings,
   promptVars,
   readOverride,
   readRepoSettings,
@@ -24,6 +28,8 @@ import {
   reportOf,
   renderPrompt,
   resolveMode,
+  resolveExecution,
+  selectExecution,
   settingsText,
   templateVars,
   type Composed,
@@ -108,10 +114,14 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
   app.get("/api/config/workflow/modes", async () => {
     const repo = requireRepo();
     const info = await readOverride(repo);
+    const target = repoSettingsTarget(repo);
+    const current = await readCurrent(target.abs);
     return {
       modes: await modesOf(info),
-      selected: resolveMode(info, await selectedOf(repo)),
+      selected: resolveMode(info, current === null ? undefined : parseRepoSettings(current).mode),
       override: { kind: info.kind, extends: info.kind === "extends" ? info.extends : null },
+      hash: hashOf(current),
+      settingsPath: target.display,
     };
   });
 
@@ -121,9 +131,47 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     requireMode(await readOverride(repo), mode);
     const target = repoSettingsTarget(repo);
     const current = await readCurrent(target.abs);
-    const next = settingsText(mode);
-    if (current !== next) await writeWithBackup({ repo, target, next, baseHash: hashOf(current), reason: t("backup.modeChange"), backups });
-    return { selected: mode, settingsPath: target.display };
+    // Older clients send only mode; newer ones can also guard against edits since loading.
+    const baseHash = isObject(req.body) && req.body.baseHash !== undefined ? stringField(req.body, "baseHash") : hashOf(current);
+    if (baseHash !== hashOf(current)) throw new HttpError(409, t("errors.changedOutside", { file: target.display }));
+    const next = settingsText(mode, current);
+    if (current !== next) await writeWithBackup({ repo, target, next, baseHash, reason: t("backup.modeChange"), backups });
+    return { selected: mode, settingsPath: target.display, hash: hashOf(next) };
+  });
+
+  /** Absent defaults are distinct from an explicit workflow choice; invalid settings stay visible. */
+  const executionDefaults = (repo: string, current: string | null) => {
+    const settings = current === null ? {} : parseRepoSettings(current);
+    return {
+      execution: settings.execution ?? null,
+      executionVersion: settings.executionVersion ?? null,
+      errors: settings.errors ?? [],
+      hash: hashOf(current),
+      settingsPath: repoSettingsTarget(repo).display,
+    };
+  };
+
+  app.get("/api/config/workflow/execution-defaults", async () => {
+    const repo = requireRepo();
+    return executionDefaults(repo, await readCurrent(repoSettingsTarget(repo).abs));
+  });
+
+  app.put("/api/config/workflow/execution-defaults", async (req) => {
+    const repo = requireRepo();
+    const body = req.body;
+    if (!isObject(body) || !Object.hasOwn(body, "execution") || Object.keys(body).some((key) => key !== "execution" && key !== "baseHash")) {
+      throw new HttpError(400, t("errors.missing", { key: "execution, baseHash" }));
+    }
+    const baseHash = stringField(body, "baseHash");
+    const target = repoSettingsTarget(repo);
+    const current = await readCurrent(target.abs);
+    if (baseHash !== hashOf(current)) throw new HttpError(409, t("errors.changedOutside", { file: target.display }));
+    const execution = body.execution === null ? null : parseExecution(body.execution);
+    const next = patchRepoSettings(current, { execution });
+    const settings = parseRepoSettings(next);
+    if (settings.errors?.length) throw new ExecutionValidationError(settings.errors);
+    const written = current === next ? undefined : await writeWithBackup({ repo, target, next, baseHash, reason: t("backup.edit"), backups });
+    return { ...executionDefaults(repo, next), ...(written ? { backup: written.backup } : {}) };
   });
 
   app.get<{ Querystring: { mode?: string } }>("/api/config/workflow", async (req) => {
@@ -357,7 +405,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
    */
   app.post("/api/config/workflow/render", async (req) => {
     const repo = requireRepo();
-    const body = (req.body ?? {}) as { drafts?: unknown; feedback?: unknown; restart?: unknown; mode?: unknown };
+    const body = (req.body ?? {}) as { drafts?: unknown; feedback?: unknown; restart?: unknown; mode?: unknown; execution?: unknown };
     const stepId = stringField(req.body, "stepId");
     const kind = stringField(req.body, "kind");
     const drafts = isObject(body.drafts) ? (body.drafts as Record<string, string>) : {};
@@ -375,17 +423,31 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     if (template === undefined) throw new HttpError(404, t("errors.noOnReject", { step: step.title }));
     const feedback = kind === "onReject" ? (typeof body.feedback === "string" && body.feedback.trim() ? body.feedback : PROMPT_TEXT.sampleFeedback) : undefined;
     const previous = body.restart === true ? { dir: PROMPT_TEXT.sampleArchive, files: def.steps.flatMap((s) => s.outputs.map((o) => o.file)).sort() } : undefined;
+    // The config editor previews YAML alone unless the caller explicitly supplies run policy.
+    const selected = selectExecution(body.execution);
     const subtask = step.dispatch && {
       ...PROMPT_TEXT.sampleSubtask,
+      ...(selected.execution.agent === "workflow" ? {} : selected.execution),
       files: [...PROMPT_TEXT.sampleSubtask.files],
       phase: "pending" as const,
       report: reportOf(step.dispatch.report, PROMPT_TEXT.sampleSubtask.n),
     };
+    const effective = resolveExecution({
+      workflow: def,
+      scope: subtask ? { kind: "subtask", stepId, n: subtask.n } : { kind: "step", stepId },
+      run: { execution: selected.execution },
+      assignment: subtask || undefined,
+    });
+    // promptVars still consumes workflow settings; project only a copy for this preview.
+    const previewDef = { ...def, steps: def.steps.map((s, i) => (i === index ? { ...s, agent: effective.agent, model: effective.model } : s)) };
     // The repo's real subagents, as a run would list them to the leader.
     const subagents = template.includes("{{subagents}}") ? await subagentsOf(repo) : undefined;
     return {
       task: PROMPT_TEXT.sampleTask,
-      text: renderPrompt(template, promptVars(def, index, PROMPT_TEXT.sampleTask, { feedback, previous, subtask, subtasks: subtask && [subtask], subagents })),
+      execution: selected.execution,
+      source: selected.source,
+      effective,
+      text: renderPrompt(template, promptVars(previewDef, index, PROMPT_TEXT.sampleTask, { feedback, previous, subtask, subtasks: subtask && [subtask], subagents })),
     };
   });
 }

@@ -2,9 +2,12 @@ import { Play } from "@phosphor-icons/react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "../../../shared/ui/Button";
+import { AGENT_LABELS } from "../../../shared/agents";
+import { useWorkspace } from "../../workspace";
+import type { ExecutionSelection } from "../../workflow";
 import { getDraft, useDrafts } from "../shared/drafts";
 import { workflowConfigApi } from "./api";
-import type { WorkflowConfig, WorkflowDraft } from "./types";
+import type { RenderedPrompt, WorkflowConfig, WorkflowDraft } from "./types";
 import { draftKey, openDraftNames } from "./workflow-files";
 
 /**
@@ -12,32 +15,48 @@ import { draftKey, openDraftNames } from "./workflow-files";
  * drafts. A real task's prompts are on its own screen ("Prompt đã gửi"): a task that already ran
  * got the prompt of the workflow it started with, which this page cannot show.
  */
-export function PromptPreview({ config }: { config: WorkflowConfig }) {
+export function PromptPreview(props: { config: WorkflowConfig; execution?: ExecutionSelection }) {
+  const { repo } = useWorkspace();
+  return <PreviewForm key={`${repo?.path}:${props.config.mode.id}`} {...props} />;
+}
+
+function PreviewForm({ config, execution }: { config: WorkflowConfig; execution?: ExecutionSelection }) {
   const { t } = useTranslation("config");
   const steps = config.def?.steps ?? [];
   const [stepId, setStepId] = useState("");
   const [kind, setKind] = useState<"prompt" | "onReject">("prompt");
   const [restart, setRestart] = useState(false);
   const [feedback, setFeedback] = useState("");
-  const [result, setResult] = useState<{ task: { key: string; title: string }; text: string } | null>(null);
+  const [rendered, setResult] = useState<{ signature: string; value: RenderedPrompt } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const dirty = useDrafts();
 
   const step = steps.find((s) => s.id === stepId) ?? steps[0];
   const dispatch = !!step?.dispatch;
   const onReject = !dispatch && kind === "onReject" && !!step?.onRejectFile;
+  const drafts: Record<string, string> = {};
+  if (config.origin === "repo") {
+    for (const name of [...config.files.map((x) => x.name), ...openDraftNames(dirty, "")]) {
+      const draft = getDraft<WorkflowDraft>(draftKey(name));
+      if (draft) drafts[name] = draft.content;
+    }
+  }
+  const signature = JSON.stringify({ stepId, kind, restart, feedback, execution, resolved: config.resolved, drafts });
+  const result = rendered?.signature === signature ? rendered.value : null;
 
   const show = async () => {
     setError(null);
-    const drafts: Record<string, string> = {};
-    if (config.origin === "repo") {
-      for (const name of [...config.files.map((x) => x.name), ...openDraftNames(dirty, "")]) {
-        const d = getDraft<WorkflowDraft>(draftKey(name));
-        if (d) drafts[name] = d.content;
-      }
-    }
     try {
-      setResult(await workflowConfigApi.render({ stepId: step!.id, kind: dispatch ? "subtask" : onReject ? "onReject" : "prompt", feedback, restart, drafts, mode: config.mode.id }));
+      const value = await workflowConfigApi.render({
+        stepId: step!.id,
+        kind: dispatch ? "subtask" : onReject ? "onReject" : "prompt",
+        feedback,
+        restart,
+        drafts,
+        mode: config.mode.id,
+        execution: execution ?? { agent: "workflow" },
+      });
+      setResult({ signature, value });
     } catch (e) {
       setResult(null);
       setError((e as Error).message);
@@ -49,6 +68,7 @@ export function PromptPreview({ config }: { config: WorkflowConfig }) {
     <section className="card wf-preview" aria-label={t("workflow.preview.title")}>
       <h2 className="card-title">{t("workflow.preview.title")}</h2>
       <p className="field-help">{t("workflow.preview.help")}</p>
+      <p className="field-help">{t(execution ? "workflow.preview.runContext" : "workflow.preview.workflowContext")}</p>
       <div className="wf-preview-controls">
         <select aria-label={t("workflow.preview.step")} value={step.id} onChange={(e) => setStepId(e.target.value)}>
           {steps.map((s) => (
@@ -94,6 +114,9 @@ export function PromptPreview({ config }: { config: WorkflowConfig }) {
       {result && (
         <>
           <p className="field-help">{t("workflow.preview.sample", { key: result.task.key, title: result.task.title })}</p>
+          <p className="field-help">
+            {t("workflow.preview.effective", { agent: AGENT_LABELS[result.effective.agent], model: result.effective.model ?? t("workflow.preview.defaultModel") })}
+          </p>
           <pre className="wf-rendered">{result.text}</pre>
         </>
       )}

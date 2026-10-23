@@ -8,6 +8,8 @@ import type { Agent } from "./core/agents.js";
 import type { Launcher } from "./core/claude/launch.js";
 import type { CopilotQuotaResult } from "./core/copilot/quota.js";
 import { HttpError } from "./core/errors.js";
+import { t } from "./core/i18n.js";
+import { createSafeText } from "./core/safe-text.js";
 import { EventHub } from "./core/events.js";
 import type { StateStore } from "./core/state.js";
 import { registerActivityRoutes, ActivityStore } from "./modules/activity/index.js";
@@ -20,7 +22,7 @@ import { createRepoContext, registerRepoRoutes } from "./modules/repo/index.js";
 import { SessionManager, registerSessionsRoutes } from "./modules/sessions/index.js";
 import { registerTasksRoutes, TasksWatcher } from "./modules/tasks/index.js";
 import { CopilotQuotaPoller, registerUsageRoutes, UsageStore } from "./modules/usage/index.js";
-import { WorkflowEngine, loadWorkflow, readRepoSettings, type LoadDef, registerWorkflowRoutes, stageOf } from "./modules/workflow/index.js";
+import { ExecutionValidationError, WorkflowEngine, loadWorkflow, readRepoSettings, type LoadDef, registerWorkflowRoutes, stageOf } from "./modules/workflow/index.js";
 
 export interface AppOptions {
   /**
@@ -70,7 +72,9 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   const hub = new EventHub();
   const watcher = new TasksWatcher(() => hub.publish("tasks", { at: Date.now() }));
   const envStore = new EnvStore(opts.state.dir);
+  const usage = new UsageStore(opts.state);
   const sessions = new SessionManager(opts.state, {
+    accountQuota: (agent) => usage.evidence(agent),
     launcher: opts.launcher,
     launchers: opts.launchers,
     transcriptPollMs: opts.transcript?.pollMs,
@@ -88,7 +92,16 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   /** A mode's workflow; the repo's own choice (.taskpilot/settings.yml) when `mode` is absent. */
   const loadDef: LoadDef = opts.loadWorkflow ?? (async (r, mode) => loadWorkflow(r, mode, (await readRepoSettings(r)).mode));
   // The engine checks the plan's subagents and lists them to the leader; config reads them.
-  const engine = new WorkflowEngine(opts.state, sessions, loadDef, subagentsOf);
+  const engine = new WorkflowEngine(opts.state, sessions, loadDef, subagentsOf, undefined, async (repo) =>
+    createSafeText([
+      ...Object.values(await envStore.forRepo(repo)),
+      ...Object.entries(process.env)
+        .filter(([key]) => /secret|token|password|credential|cookie|auth|(?:^|_)key(?:$|_)/i.test(key))
+        .map(([, value]) => value ?? ""),
+      opts.token ?? "",
+      opts.login?.password ?? "",
+    ]),
+  );
   const logError = (e: unknown) => app.log.error(e);
   sessions.on("change", (meta) => hub.publish("sessions", { taskKey: meta.taskKey }));
   const activity = new ActivityStore(path.join(opts.state.dir, "activity"));
@@ -100,7 +113,6 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   sessions.on("exit", (meta) => void engine.onExit(meta).catch(logError));
   sessions.on("metrics", (meta, data) => void engine.onMetrics(meta, data).catch(logError));
   sessions.on("warning", logError);
-  const usage = new UsageStore(opts.state);
   // Claude's plan usage comes from its status line; copilot's status line input has no account
   // quota (TPL-009 spike), so copilot's is read from its runtime: when a session is ready, while
   // it works and when a turn ends. The poller limits reads to one a minute.
@@ -116,6 +128,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   usage.on("change", (view) => hub.publish("usage", view));
   engine.on("change", (run) => hub.publish("run", { taskKey: run.taskKey }));
   engine.on("warning", logError);
+  // Reconcile journals and prove old writers exited before exposing resume/input or workflow routes.
   await engine.recover();
   const repo = createRepoContext({ watcher, state: opts.state, hub });
 
@@ -134,6 +147,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   await app.register(fastifyWebsocket);
 
   app.setErrorHandler((err, _req, reply) => {
+    if (err instanceof ExecutionValidationError) return reply.code(400).send({ error: t("errors.workflowInvalid", { errors: err.message }), problems: err.problems });
     if (err instanceof HttpError) return reply.code(err.status).send({ error: err.message });
     app.log.error(err);
     return reply.code(500).send({ error: "Internal error" });

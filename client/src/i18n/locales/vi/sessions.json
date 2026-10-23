@@ -44,5 +44,11 @@
       "declined": "Đã từ chối",
       "cancelled": "Đã hủy"
     }
-  }
+  },
+  "retired": "đã được thay",
+  "reserved": "đang bàn giao",
+  "retiredHint": "Phiên đã được thay, chỉ xem lịch sử. Tiếp tục công việc ở phiên đích của lane; không thể Resume hoặc gửi input vào phiên này.",
+  "reservedHint": "Phiên đang được giữ cho bàn giao/khôi phục, chỉ xem lịch sử. Chờ kết quả bàn giao trước khi thao tác.",
+  "history": "Lịch sử session (chỉ đọc)",
+  "historyEmpty": "[Chưa có bản ghi của session trong tiến trình server này. Xem tài liệu và lịch sử hoạt động của task.]"
 }

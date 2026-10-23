@@ -23,5 +23,5 @@ test("a task is started in the mode picked, with no override", async ({ page }) 
   await expect(page.getByText("Cách chạy: Mặc định")).toBeVisible();
   await page.getByRole("combobox", { name: "Cách chạy" }).selectOption({ label: "Leader" });
   await page.getByRole("button", { name: "Bắt đầu quy trình" }).click();
-  await expect.poll(() => bodies).toEqual([{ mode: "leader" }]);
+  await expect.poll(() => bodies).toEqual([{ mode: "leader", execution: { agent: "workflow" } }]);
 });

@@ -463,7 +463,11 @@
       "feedback": "Góp ý mẫu",
       "feedbackPlaceholder": "Góp ý của reviewer (để trống: hiện chỗ góp ý sẽ chèn vào)",
       "sample": "Task mẫu: {{key}} · {{title}}",
-      "show": "Xem prompt"
+      "show": "Xem prompt",
+      "workflowContext": "Xem trước YAML và bản nháp theo cấu hình workflow; không áp dụng mặc định agent/model của repo.",
+      "runContext": "Xem trước với lựa chọn agent/model của run được cung cấp; cấu hình YAML gốc vẫn được giữ.",
+      "effective": "Cấu hình yêu cầu hiệu lực: {{agent}} · {{model}}",
+      "defaultModel": "Mặc định của agent"
     },
     "form": {
       "yamlError": "YAML lỗi, sửa ở tab YAML: {{error}}",

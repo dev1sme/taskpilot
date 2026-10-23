@@ -2,15 +2,21 @@ import type { FastifyInstance } from "fastify";
 import { HttpError } from "../../core/errors.js";
 import type { RepoContext } from "../repo/index.js";
 import { getTask } from "../tasks/index.js";
-import type { WorkflowEngine } from "./engine.js";
+import type { RunOptions, WorkflowEngine } from "./engine.js";
+import { parseExecution } from "./execution.js";
+import { parseHandoffRequest } from "./handoff.js";
 
 /** Workflow run of a task: view, start, cancel, approve a gate, send feedback, answer Claude, restart, retry, mark a step done; reply to, retry or mark done one subtask; mark the task done or open. */
-/** The optional `{mode}` of a run request: a workflows/ directory or "custom"; the engine rejects an unknown one. */
-function modeOf(body: unknown): string | undefined {
-  const mode = (body as { mode?: unknown } | null)?.mode;
-  if (mode === undefined || mode === null) return undefined;
+/** Independent mode/execution choices; old mode-only and empty requests still work. */
+function optionsOf(body: unknown): RunOptions {
+  if (body === undefined || body === null) return {};
+  if (typeof body !== "object" || Array.isArray(body) || Object.keys(body).some((key) => key !== "mode" && key !== "execution"))
+    throw new HttpError(400, "Body must contain mode/execution options");
+  const { mode, execution } = body as { mode?: unknown; execution?: unknown };
+  const options = execution === undefined ? {} : { execution: parseExecution(execution) };
+  if (mode === undefined || mode === null) return options;
   if (typeof mode !== "string") throw new HttpError(400, 'Body must be {"mode"?: string}');
-  return mode;
+  return { ...options, mode };
 }
 
 export function registerWorkflowRoutes(app: FastifyInstance, opts: { repo: RepoContext; engine: WorkflowEngine }) {
@@ -19,8 +25,18 @@ export function registerWorkflowRoutes(app: FastifyInstance, opts: { repo: RepoC
 
   app.get<{ Params: { key: string } }>("/api/tasks/:key/run", async (req) => engine.view(requireRepo(), (await getTask(requireRepo(), req.params.key)).key));
 
-  app.post<{ Params: { key: string }; Body: { mode?: unknown } | null }>("/api/tasks/:key/run", async (req) =>
-    engine.start(requireRepo(), (await getTask(requireRepo(), req.params.key)).key, modeOf(req.body)),
+  app.post<{ Params: { key: string }; Body: { mode?: unknown; execution?: unknown } | null }>("/api/tasks/:key/run", async (req) =>
+    engine.start(requireRepo(), (await getTask(requireRepo(), req.params.key)).key, optionsOf(req.body)),
+  );
+
+  app.post<{ Params: { key: string } }>("/api/tasks/:key/run/preview", async (req) => engine.preview(requireRepo(), (await getTask(requireRepo(), req.params.key)).key, optionsOf(req.body)));
+
+  app.post<{ Params: { key: string } }>("/api/tasks/:key/run/handoff/preview", async (req) =>
+    engine.previewHandoff(requireRepo(), (await getTask(requireRepo(), req.params.key)).key, parseHandoffRequest(req.body)),
+  );
+
+  app.post<{ Params: { key: string } }>("/api/tasks/:key/run/handoff", async (req) =>
+    engine.commitHandoff(requireRepo(), (await getTask(requireRepo(), req.params.key)).key, parseHandoffRequest(req.body, true)),
   );
 
   app.delete<{ Params: { key: string } }>("/api/tasks/:key/run", async (req) => engine.cancel(requireRepo(), req.params.key));
@@ -52,8 +68,8 @@ export function registerWorkflowRoutes(app: FastifyInstance, opts: { repo: RepoC
 
   app.post<{ Params: { key: string } }>("/api/tasks/:key/run/complete", async (req) => engine.completeStep(requireRepo(), req.params.key));
 
-  app.post<{ Params: { key: string }; Body: { mode?: unknown } | null }>("/api/tasks/:key/run/restart", async (req) =>
-    engine.restart(requireRepo(), (await getTask(requireRepo(), req.params.key)).key, modeOf(req.body)),
+  app.post<{ Params: { key: string }; Body: { mode?: unknown; execution?: unknown } | null }>("/api/tasks/:key/run/restart", async (req) =>
+    engine.restart(requireRepo(), (await getTask(requireRepo(), req.params.key)).key, optionsOf(req.body)),
   );
 
   app.post<{ Params: { key: string } }>("/api/tasks/:key/run/retry", async (req) => engine.retry(requireRepo(), req.params.key));

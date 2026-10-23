@@ -223,3 +223,142 @@
   font-size: 13px;
   color: var(--muted);
 }
+
+.run-options {
+  flex: 1 1 100%;
+  min-width: 0;
+  margin-top: 12px;
+  text-align: left;
+}
+
+.run-options-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+.run-options .mode-picker {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.run-options select {
+  max-width: 100%;
+}
+
+.run-options-preview {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--sunken);
+  overflow-wrap: anywhere;
+}
+
+.run-options-preview pre {
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.toolbar:has(.run-options) {
+  flex-wrap: wrap;
+}
+
+.toolbar:has(.run-options) .toolbar-actions {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.handoff-dialog {
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  color: var(--ink);
+}
+
+.handoff-dialog::backdrop {
+  background: rgba(5, 6, 8, 0.6);
+}
+
+.handoff-dialog .dialog-actions {
+  flex-wrap: wrap;
+}
+
+.handoff-reason {
+  display: grid;
+  gap: 6px;
+}
+
+.handoff-reason textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+  font: inherit;
+  color: inherit;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+
+.handoff-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.handoff-history,
+.handoff-usage {
+  min-width: 0;
+  margin-top: 12px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.handoff-history article,
+.handoff-usage-session {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+
+.handoff-usage dl > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.handoff-usage dd {
+  margin: 0;
+}
+
+.handoff-preview,
+.handoff-history details {
+  min-width: 0;
+}
+
+.handoff-preview pre,
+.handoff-history pre {
+  max-height: 42vh;
+  padding: 12px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--sunken);
+}
+
+@media (max-width: 600px) {
+  .handoff-dialog {
+    padding: 14px;
+    width: calc(100% - 24px);
+  }
+
+  .handoff-dialog select {
+    max-width: 100%;
+  }
+
+  .handoff-dialog .mode-picker {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+}

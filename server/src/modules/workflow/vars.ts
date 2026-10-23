@@ -1,8 +1,9 @@
 import path from "node:path";
-import { AGENT_LABELS, DEFAULT_AGENT } from "../../core/agents.js";
+import { AGENT_LABELS } from "../../core/agents.js";
 import { SPEC_DIR, TASKS_DIR } from "../tasks/index.js";
-import { HISTORY_TEXT } from "./history.js";
+import { HISTORY_TEXT, summarizeMetrics } from "./history.js";
 import { PROMPT_TEXT } from "./prompt-text.js";
+import { ExecutionValidationError, executionOfRun, resolveExecution } from "./execution.js";
 import type { Assignment, RunState, SubtaskMetrics, WorkflowDef } from "./types.js";
 
 /** Variables every template may use, besides {{out.<id>}}. Shown as chips on the Workflow page. */
@@ -29,6 +30,8 @@ export const templateVars = [
   "subtaskReport",
   "subtasks",
   "subagents",
+  "executionPolicy",
+  "leaderTools",
 ] as const;
 
 /**
@@ -58,7 +61,10 @@ export function render(template: string, vars: Record<string, string>): string {
 
 /** A prompt as sent: variables filled, and the blank-line runs that empty ones (e.g. {{previousRun}}) leave collapsed. */
 export function renderPrompt(template: string, vars: Record<string, string>): string {
-  return render(template, vars).replace(/\n{3,}/g, "\n\n");
+  // Engine-owned prefix survives custom templates that omit the variable, exactly once.
+  const policy = vars.executionPolicy;
+  const body = render(template, { ...vars, executionPolicy: "" });
+  return `${policy ? `${policy}\n\n` : ""}${body}`.replace(/\n{3,}/g, "\n\n");
 }
 
 /** The task directory as Claude sees it from the repo root, with forward slashes. */
@@ -72,18 +78,26 @@ export function promptVars(
   stepIndex: number,
   task: { key: string; title: string },
   opts: {
+    /** Existing run policy only; repo defaults must never enter a running prompt. */
+    run?: Pick<RunState, "execution" | "laneOverrides" | "attempts" | "sessionMetrics" | "handoffs">;
     previous?: RunState["previous"];
     feedback?: string;
     /** The subtask a dispatch step's prompt is for. */
     subtask?: Assignment & { report?: string };
     /** Every subtask of the run, for the step that reviews them; with the numbers of those done. */
-    subtasks?: Array<Assignment & { report?: string; metrics?: SubtaskMetrics }>;
+    subtasks?: Array<Assignment & { report?: string; metrics?: SubtaskMetrics; sessionId?: string }>;
     /** The subagents a leader may assign, for {{subagents}}. */
     subagents?: SubagentInfo[];
   } = {},
 ): Record<string, string> {
   const taskDir = taskDirOf(task.key);
   const step = def.steps[stepIndex];
+  const effective = resolveExecution({
+    workflow: def,
+    run: opts.run,
+    scope: opts.subtask ? { kind: "subtask", stepId: step.id, n: opts.subtask.n } : { kind: "step", stepId: step.id },
+    assignment: opts.subtask,
+  });
   const historyFile = `${taskDir}/${def.history.file}`;
   const list = (outs: WorkflowDef["steps"][number]["outputs"]) => outs.map((o) => `- \`${taskDir}/${o.file}\`${o.content ? `: ${o.content}` : ""}`).join("\n");
   /** Each document of the step, with its skeleton when the workflow gives one; the skeleton rule is said once. */
@@ -99,7 +113,18 @@ export function promptVars(
     key: task.key,
     title: task.title,
     step: step?.title ?? "",
-    agent: AGENT_LABELS[step?.agent ?? DEFAULT_AGENT],
+    agent: AGENT_LABELS[effective.agent],
+    executionPolicy: [
+      opts.run && (executionOfRun(opts.run).agent !== "workflow" || effective.source === "lane-override") ? PROMPT_TEXT.executionPolicy(executionOfRun(opts.run), effective) : "",
+      opts.run?.handoffs?.some(
+        (h) => h.stage === "committed" && h.scope.stepId === step.id && (opts.subtask ? h.scope.kind === "subtask" && h.scope.n === opts.subtask.n : h.scope.kind === "step"),
+      )
+        ? PROMPT_TEXT.afterHandoff
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    leaderTools: effective.agent === "claude" ? PROMPT_TEXT.leaderClaudeTools : PROMPT_TEXT.leaderOtherTools(AGENT_LABELS[effective.agent]),
     stepNumber: String(stepIndex + 1),
     stepCount: String(def.steps.length),
     taskDir,
@@ -109,12 +134,11 @@ export function promptVars(
     archiveDir: opts.previous ? `${taskDir}/${opts.previous.dir}` : "",
     ...(opts.feedback !== undefined ? { feedback: opts.feedback } : {}),
   };
-  if (opts.subtask) base.agent = AGENT_LABELS[opts.subtask.agent];
   for (const s of def.steps) for (const o of s.outputs) base[`out.${o.id}`] = `${taskDir}/${o.file}`;
 
   const dispatch = step?.dispatch;
   const reportOf = (a: { n: number; report?: string }) => `${taskDir}/${a.report ?? dispatch?.report.replaceAll("{{n}}", String(a.n)) ?? ""}`;
-  const sub = opts.subtask;
+  const sub = opts.subtask && { ...opts.subtask, agent: effective.agent, model: effective.model, subagent: effective.subagent };
   const subtaskVars: Record<string, string> = {};
   if (sub && dispatch) {
     Object.assign(subtaskVars, {
@@ -124,16 +148,36 @@ export function promptVars(
     });
   }
   const all = opts.subtasks ?? [];
-  const lastDispatch = def.steps.find((s) => s.dispatch)?.dispatch;
-  const listed = all.map(
-    (a) =>
+  const dispatchStep = def.steps.slice(0, stepIndex + 1).findLast((s) => s.dispatch);
+  const lastDispatch = dispatchStep?.dispatch;
+  const listed = all.map((a) => {
+    const scope = { kind: "subtask" as const, stepId: dispatchStep?.id ?? step.id, n: a.n };
+    let worker: Pick<Assignment, "agent" | "subagent" | "model"> = a;
+    let problem = "";
+    try {
+      worker = resolveExecution({ workflow: def, run: opts.run, scope, assignment: a });
+    } catch (error) {
+      // A malformed pending sibling must not prevent a valid member from continuing. Its
+      // assignment stays visible and launch validation still blocks that sibling itself.
+      if (!(error instanceof ExecutionValidationError)) throw error;
+      problem = PROMPT_TEXT.pendingAssignmentProblem(error.message);
+    }
+    const summary = opts.run ? summarizeMetrics({ ...opts.run, subtasks: [a] }, scope) : undefined;
+    const attempts = opts.run?.attempts?.filter((attempt) => attempt.scope.kind === "subtask" && attempt.scope.stepId === scope.stepId && attempt.scope.n === a.n);
+    const provenance = summary?.sessions.length ? HISTORY_TEXT.usage(summary, attempts) : "";
+    const displayMetrics = a.metrics && opts.run ? { ...a.metrics, model: attempts?.findLast((attempt) => attempt.sessionId === a.sessionId)?.actualModel } : a.metrics;
+    return (
       PROMPT_TEXT.subtaskLine(
         a.n,
-        HISTORY_TEXT.worker(AGENT_LABELS[a.agent], a.subagent, a.model),
+        HISTORY_TEXT.worker(AGENT_LABELS[worker.agent], worker.subagent, worker.model),
         a.title,
         `${taskDir}/${a.report ?? lastDispatch?.report.replaceAll("{{n}}", String(a.n)) ?? ""}`,
-      ) + (a.metrics ? ` · ${HISTORY_TEXT.metrics(a.metrics)}` : ""),
-  );
+      ) +
+      (displayMetrics ? ` · ${summary && summary.sessions.length > 1 ? PROMPT_TEXT.currentSessionMetrics : ""}${HISTORY_TEXT.metrics(displayMetrics)}` : "") +
+      problem +
+      (provenance ? `\n${provenance}` : "")
+    );
+  });
 
   return {
     ...base,

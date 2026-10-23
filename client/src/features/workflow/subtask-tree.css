@@ -125,3 +125,20 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+
+.subtask-main {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .subtask-row {
+    gap: 8px;
+    padding: 10px 8px;
+  }
+
+  .subtask-actions .btn {
+    max-width: 100%;
+    white-space: normal;
+  }
+}

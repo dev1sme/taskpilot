@@ -46,10 +46,21 @@ export function TerminalDrawer(props: Props) {
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const menuId = useId();
+  const addRef = useRef<HTMLDivElement>(null);
   const [generation, setGeneration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const bodyId = useId();
   const label = props.label ?? t("terminal");
+
+  // Browsers that do not focus buttons on click blur with a null relatedTarget, so outside clicks are detected here.
+  useEffect(() => {
+    if (!choosing) return;
+    const close = (e: PointerEvent) => {
+      if (!addRef.current?.contains(e.target as Node)) setChoosing(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [choosing]);
 
   const act = async (name: string, action: () => Promise<unknown>) => {
     setBusy(name);
@@ -101,9 +112,10 @@ export function TerminalDrawer(props: Props) {
             </button>
           ))}
           <div
+            ref={addRef}
             className="drawer-add-wrap"
             onBlur={(e) => {
-              if (!e.currentTarget.contains(e.relatedTarget)) setChoosing(false);
+              if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) setChoosing(false);
             }}
             onKeyDown={(e) => {
               if (e.key === "Escape") setChoosing(false);

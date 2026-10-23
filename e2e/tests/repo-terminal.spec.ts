@@ -46,3 +46,33 @@ test("the footer opens a repo terminal that stays open across pages", async ({ p
   await toggle.click();
   await expect(page.locator(".repo-terminal")).toHaveCount(0);
 });
+
+// Safari and macOS Firefox do not focus a button on click: the menu's blur handler saw a null
+// relatedTarget, closed the menu on mousedown and the click never reached the item.
+test("the new-session menu survives clicks that do not move focus to the button", async ({ page }) => {
+  await page.goto("/#/");
+  await page
+    .locator("footer.status-bar")
+    .getByRole("button", { name: /^Terminal/ })
+    .click();
+  const drawer = page.getByRole("region", { name: "Terminal repo" });
+  await page.evaluate(() =>
+    document.addEventListener(
+      "mousedown",
+      (e) => {
+        if (!(e.target as Element).closest("button")) return;
+        e.preventDefault();
+        (document.activeElement as HTMLElement | null)?.blur();
+      },
+      true,
+    ),
+  );
+  await drawer.getByRole("button", { name: "Session mới" }).click();
+  await drawer.getByRole("button", { name: "Session Claude" }).click();
+  await expect(drawer.locator(".xterm")).toContainText("fake claude");
+
+  await drawer.getByRole("button", { name: "Dừng" }).click();
+  await drawer.getByRole("button", { name: "Xóa", exact: true }).click();
+  await drawer.getByRole("button", { name: "Xác nhận xóa" }).click();
+  await expect(drawer.locator(".drawer-session")).toHaveCount(0);
+});

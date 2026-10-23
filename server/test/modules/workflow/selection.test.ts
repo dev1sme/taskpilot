@@ -128,7 +128,6 @@ it("uses repo defaults only for new runs, lets an explicit workflow choice win, 
 it.each([
   ["claude", "taskpilot-implementer", "opus", ["agent", "model", "subagent"]],
   ["codex", "-", "gpt-6.1-sol", ["model"]],
-  ["codex", "explorer", "-", ["subagent"]],
 ])("blocks an incompatible assignment %s/%s/%s in preview and approve without rewriting it", async (agent, subagent, model, fields) => {
   const h = await setup();
   await h.engine.start(h.repo, "DEMO-1", { mode: "leader", execution: { agent: "codex" } });

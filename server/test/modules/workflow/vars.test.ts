@@ -319,7 +319,8 @@ describe("execution policy prompts", () => {
     expect(text).toMatch(/^## Chính sách thực thi TaskPilot/);
     expect(text).toContain("Agent = `codex`");
     expect(text).toContain("Model = `-`");
-    expect(text).toContain("Subagent phải là `-`");
+    expect(text).toContain("tên file trong `.codex/agents/`");
+    expect(renderPrompt("{{leaderTools}}", vars)).toContain("yêu cầu trực tiếp Codex dùng subagent");
     expect(text).toContain("Custom Codex");
     expect(text).toContain("· Codex");
     expect(text).toContain("Fix table");

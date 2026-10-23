@@ -142,6 +142,7 @@ export function Conversation({ session }: { session: SessionView }) {
             }
           }}
         />
+        <p className="hint">{t("conversation.commands")}</p>
         <div className="conversation-actions">
           <Button type="submit" variant="primary" disabled={busy || !connected || !running || !text.trim() || session.activity === "starting"}>
             {t("conversation.send")}

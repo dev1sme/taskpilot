@@ -22,6 +22,7 @@
     "messages": "Tin nhắn",
     "empty": "Gửi yêu cầu để bắt đầu. Hội thoại trước khi TaskPilot khởi động lại nằm trong lịch sử hoạt động.",
     "prompt": "Yêu cầu cho Codex",
+    "commands": "Lệnh: /compact, /review [branch <tên> | commit <sha> | nội dung], /model [id], /skills, $skill. Lệnh / khác chỉ có trong TUI Codex và sẽ báo không hỗ trợ.",
     "send": "Gửi (Ctrl/⌘+Enter)",
     "interrupt": "Ngắt lượt",
     "approval": "Codex xin quyền",

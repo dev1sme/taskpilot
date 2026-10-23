@@ -23,6 +23,8 @@ export interface SessionMeta {
   model?: string;
   /** Passed as --agent on spawn and resume; absent = the agent's own main session. */
   subagent?: string;
+  /** Codex only: approval reviewer and sandbox network, from `codex:` in workflow.yml; absent = Codex's own configuration. */
+  codex?: { approvalsReviewer?: "user" | "auto_review"; networkAccess?: boolean };
   /** A transfer locks both sessions until commit or an explicit recovery action. */
   reservation?: { operationId: string; role: "source" | "target"; at: number };
   /** Retired sessions stay visible in history but must not accept input or resume. */

@@ -73,7 +73,7 @@ steps:
   expect(failures).toEqual([]);
 });
 
-it("rejects Codex plan mode in definitions and Codex subagents in assignment checks", async () => {
+it("rejects Codex plan mode in definitions and accepts Codex subagents in assignment checks", async () => {
   const parsed = parseWorkflowFiles(
     new Map([
       ["workflow.yml", "version: 2\nagent: codex\npermission-mode: plan\nsteps:\n  - id: a\n    prompt: p.md\n"],
@@ -83,7 +83,7 @@ it("rejects Codex plan mode in definitions and Codex subagents in assignment che
   );
   expect(parsed.def).toBeNull();
   expect(parsed.errors.join(" ")).toContain("Plan mode");
-  expect(await subagentProblems("/repo", [{ n: 1, title: "Task", agent: "codex", subagent: "reviewer", files: ["server/"], output: "report", deps: [] }])).toHaveLength(1);
+  expect(await subagentProblems("/repo", [{ n: 1, title: "Task", agent: "codex", subagent: "reviewer", files: ["server/"], output: "report", deps: [] }])).toEqual([]);
 });
 
 it.each(["RPC_FAIL", "FAIL_TURN", "SLOW"])("keeps a failed or interrupted %s turn waiting even without done-when", async (prompt) => {

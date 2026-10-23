@@ -105,7 +105,6 @@ export function resolveExecution({ workflow, scope, run = {}, assignment }: Reso
     modelSource: model === undefined ? "default" : "explicit",
   };
   if (effective.agent === "codex" && effective.permissionMode === "plan") return invalid("permissionMode", "Codex does not support plan; choose a compatible configuration");
-  if (effective.agent === "codex" && effective.subagent) return invalid("subagent", "Codex does not support subagents");
   return effective;
 }
 
@@ -117,8 +116,7 @@ export function assignmentExecutionProblems(items: readonly Assignment[], execut
     const problems: ExecutionProblem[] = [];
     if (row.agent !== policy.agent) problems.push({ n: row.n, field: "agent", message: `must be ${policy.agent}` });
     if (launchModel(row.model) !== policy.model) problems.push({ n: row.n, field: "model", message: `must be ${policy.model ?? "- (default or inherit)"}` });
-    if (row.subagent && (row.agent !== policy.agent || policy.agent === "codex"))
-      problems.push({ n: row.n, field: "subagent", message: `must be absent for ${policy.agent}; use a compatible assignment` });
+    if (row.subagent && row.agent !== policy.agent) problems.push({ n: row.n, field: "subagent", message: `must be absent for ${policy.agent}; use a compatible assignment` });
     return problems;
   });
 }

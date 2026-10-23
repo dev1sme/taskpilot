@@ -82,7 +82,7 @@ Sau khi duyệt, mỗi dòng trở thành một việc con với phiên riêng. 
 
 ### Subagent và model
 
-Leader Claude có thể dò code bằng subagent chỉ đọc của repo, rồi điền **Subagent** và **Model** cho từng việc. Leader Codex/Copilot dùng khả năng CLI tương ứng, không bị yêu cầu gọi Task tool của Claude. Kiểm tra các cột ở bảng xem trước khi duyệt; tên subagent Claude sai hoặc subagent chỉ đọc làm việc con sẽ chặn duyệt. Codex phải để Subagent `-`; với policy một agent và model mặc định, Model là `-`, với model cụ thể thì mọi dòng dùng đúng model đó.
+Leader Claude có thể dò code bằng subagent chỉ đọc của repo, rồi điền **Subagent** và **Model** cho từng việc. Leader Codex/Copilot dùng khả năng CLI tương ứng, không bị yêu cầu gọi Task tool của Claude. Kiểm tra các cột ở bảng xem trước khi duyệt; tên subagent Claude sai hoặc subagent chỉ đọc làm việc con sẽ chặn duyệt. Dòng Codex có thể điền tên file trong `.codex/agents/` (không kèm `.toml`) hoặc `-`; với policy một agent và model mặc định, Model là `-`, với model cụ thể thì mọi dòng dùng đúng model đó.
 
 Repo chưa có subagent thì màn hình task báo thiếu, kèm liên kết tới trang **Agents**. Ở đó bấm **Ghi subagent mẫu của TaskPilot**, xem diff rồi ghi; badge trên từng agent cho biết dùng được cho leader hay làm việc con ([chi tiết](CONFIGURATION.md#subagent-và-model)).
 
@@ -96,7 +96,7 @@ Một task có thể có nhiều tab phiên; **+ Session mới** mở phiên t�
 
 **Terminal** ở thanh trạng thái mở phiên chung cho repo, không thuộc task nào. Menu **+** của task và repo cho chọn Claude, Copilot hoặc Codex.
 
-Phiên Codex hiển thị hội thoại thay vì terminal. Nhập nhiều dòng, bấm **Gửi** hoặc Ctrl/⌘+Enter; **Ngắt lượt** dừng lượt đang chạy, còn **Dừng** đóng tiến trình. **Tiếp tục** resume đúng thread và model đã lưu. Quyền phải được duyệt bằng **Chấp nhận** / **Từ chối**; yêu cầu hết hạn không thể trả lời lại. Đóng trang không tự duyệt quyền; dừng phiên sẽ hủy quyền còn chờ. Sau khi TaskPilot khởi động lại, bộ đệm hội thoại bắt đầu từ lượt mới; nội dung cũ còn trong lịch sử hoạt động. Nút mức sử dụng hiển thị hạn mức tài khoản Claude/Copilot và thời điểm cập nhật; đây không phải mức sử dụng riêng của task. `Copilot ∞` nghĩa là tài khoản không có giới hạn riêng được báo về.
+Phiên Codex hiển thị hội thoại thay vì terminal. Nhập nhiều dòng, bấm **Gửi** hoặc Ctrl/⌘+Enter; **Ngắt lượt** dừng lượt đang chạy, còn **Dừng** đóng tiến trình. **Tiếp tục** resume đúng thread và model đã lưu. Quyền phải được duyệt bằng **Chấp nhận** / **Từ chối**; yêu cầu hết hạn không thể trả lời lại. Đóng trang không tự duyệt quyền; dừng phiên sẽ hủy quyền còn chờ. Sau khi TaskPilot khởi động lại, bộ đệm hội thoại bắt đầu từ lượt mới; nội dung cũ còn trong lịch sử hoạt động. Trong ô nhập có thể dùng `/compact`, `/review`, `/model`, `/skills` và `$skill`; lệnh khác chỉ có trong TUI Codex sẽ được báo rõ và không gửi cho model. Nút mức sử dụng hiển thị hạn mức tài khoản Claude/Copilot và Codex (5h/7d, giờ reset, thời điểm cập nhật; Codex chỉ có khi đang có phiên Codex); đây không phải mức sử dụng riêng của task. `Copilot ∞` nghĩa là tài khoản không có giới hạn riêng được báo về.
 
 Các trang cấu hình, **Thư viện**, **Workflow** và **Lịch sử thay đổi** dùng để chỉnh và khôi phục cấu hình; xem [Cấu hình](CONFIGURATION.md).
 

@@ -822,8 +822,8 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   }
 
   private launchConfig(effective: EffectiveExecution) {
-    const { agent, model, subagent, permissionMode } = effective;
-    return { agent, model, subagent, permissionMode };
+    const { agent, model, subagent, permissionMode, codex } = effective;
+    return { agent, model, subagent, permissionMode, ...(codex ? { codex } : {}) };
   }
 
   private recordExecution(run: RunState, session: Awaited<ReturnType<SessionPort["get"]>>, scope: LaneScope, execution: EffectiveExecution): void {
@@ -882,7 +882,13 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     // Old runs have no record separating Codex's requested and actual model. Preserve their
     // step-switch behavior, while allowing retry of the same default-configured native thread.
     const model = requested ? requested.model : sameLane && session.agent === "codex" && session.nativeId && effective.model === undefined ? undefined : launchModel(session.model);
-    return session.agent === effective.agent && model === effective.model && session.subagent === effective.subagent && session.permissionMode === effective.permissionMode;
+    return (
+      session.agent === effective.agent &&
+      model === effective.model &&
+      session.subagent === effective.subagent &&
+      session.permissionMode === effective.permissionMode &&
+      JSON.stringify(session.codex ?? null) === JSON.stringify(effective.codex ?? null)
+    );
   }
 
   private async preflight(repo: string, effective: EffectiveExecution): Promise<PreflightResult> {

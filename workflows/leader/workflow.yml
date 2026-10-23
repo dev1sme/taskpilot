@@ -6,6 +6,9 @@ name: Leader
 description: Leader lập kế hoạch và giao việc; mỗi việc con chạy trong session riêng, rồi leader rà soát.
 version: 2
 # permission-mode: acceptEdits        # default | acceptEdits | plan | auto
+# codex:                               # optional, Codex lanes only; needs permission-mode acceptEdits or auto. Also allowed per step.
+#   approvals-reviewer: auto_review    # user (default) | auto_review: a model reviews approvals instead of you
+#   network: true                      # let the sandbox reach the network; never grants full access
 # Agents: claude | copilot | codex. Codex does not support subagents.
 agent: claude
 

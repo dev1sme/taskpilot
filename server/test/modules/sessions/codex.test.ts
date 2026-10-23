@@ -137,6 +137,15 @@ describe("Codex sessions", () => {
     }
   });
 
+  it("keeps the Codex permission options on the session and starts with them", async () => {
+    const { manager, repo } = await setup();
+    const codex = { approvalsReviewer: "auto_review" as const, networkAccess: true };
+    const session = await manager.create(repo, "DEMO-1", { agent: "codex", permissionMode: "acceptEdits", codex });
+    expect(session.codex).toEqual(codex);
+    await vi.waitFor(async () => expect((await manager.get(session.id)).activity).toBe("idle"));
+    expect((await manager.create(repo, "DEMO-1", { agent: "claude", codex })).codex).toBeUndefined();
+  });
+
   it.each(["RETRY", "RPC_FAIL", "FAIL_TURN", "UNSUPPORTED"])("handles %s without hanging or duplicate Stop", async (prompt) => {
     const { manager, session, hooks, waitStop, socket } = await setup();
     manager.paste(session.id, prompt);

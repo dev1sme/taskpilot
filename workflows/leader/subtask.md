@@ -10,7 +10,7 @@ Leader đã chia task {{key}}: "{{title}}" thành các việc con và giao cho b
 
 {{subtask}}
 
-Chỉ làm đúng việc này; các việc khác do member khác đảm nhận. Chạy build và test liên quan. Sửa lỗi, hoặc ghi rõ vì sao không sửa được.
+Chỉ làm đúng việc này; các việc khác do member khác đảm nhận. Subagent của CLI (nếu có) chỉ dùng khi việc đủ lớn để chia; bạn vẫn chịu trách nhiệm kết quả và báo cáo. Chạy build và test liên quan. Sửa lỗi, hoặc ghi rõ vì sao không sửa được.
 
 ## Tài liệu cần viết
 

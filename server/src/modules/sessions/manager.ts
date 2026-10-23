@@ -38,6 +38,7 @@ export interface SessionCreateOptions {
   title?: string;
   model?: string;
   subagent?: string;
+  codex?: SessionMeta["codex"];
   /** Creates a locked target; only release after the workflow has committed the lane. */
   operationId?: string;
   /** Runs after the id is durable, before any process. Rejection prevents spawn. */
@@ -192,6 +193,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       ...(opts.agent && opts.agent !== DEFAULT_AGENT ? { agent: opts.agent } : {}),
       ...(opts.model ? { model: opts.model } : {}),
       ...(opts.subagent ? { subagent: opts.subagent } : {}),
+      ...(opts.codex && (opts.agent ?? DEFAULT_AGENT) === "codex" ? { codex: opts.codex } : {}),
     };
     this.launching.add(meta.id);
     const pending = signal();

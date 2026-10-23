@@ -53,7 +53,7 @@ export class RpcTransport implements SessionTransport {
 
   async start(launch: TransportLaunch, events: TransportEvents): Promise<void> {
     const { meta, resume } = launch;
-    const opts = { cwd: meta.repo, permissionMode: meta.permissionMode, model: meta.model, subagent: meta.subagent };
+    const opts = { cwd: meta.repo, permissionMode: meta.permissionMode, model: meta.model, subagent: meta.subagent, ...meta.codex };
     // Validate before touching a process or changing live state.
     const params = resume ? codexResumeOptions({ ...opts, threadId: meta.nativeId }) : codexThreadOptions(opts);
     this.events = events;

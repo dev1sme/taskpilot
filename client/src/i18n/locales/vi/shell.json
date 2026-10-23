@@ -37,6 +37,7 @@
     "claudeVersion": "claude {{version}}",
     "claudeMissing": "chưa có claude",
     "copilotVersion": "copilot {{version}}",
+    "codexVersion": "codex {{version}}",
     "logout": "Đăng xuất"
   },
   "header": {
@@ -72,6 +73,12 @@
     "copilotUsageUnlimited": "Không giới hạn ở mức tài khoản ({{unit}})",
     "copilotUsageUsed": "Đã dùng {{used}}/{{entitlement}} {{unit}}",
     "copilotUsageReset": "Reset lúc {{time}}",
+    "codexUsageTitle": "Giới hạn Codex đã dùng (toàn tài khoản)",
+    "codexPlan": "Gói {{plan}}",
+    "codexLimitReached": "Đã chạm giới hạn ({{type}})",
+    "codexCreditsUnlimited": "Credits không giới hạn",
+    "codexCredits": "Credits còn lại: {{balance}}",
+    "codexCreditsNone": "Hết credits",
     "copilotUnitAiCredits": "AI credits",
     "copilotUnitPremiumRequests": "premium requests"
   }

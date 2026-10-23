@@ -5,7 +5,6 @@ import { taskDirOf } from "./lane.js";
 import type { SessionPort, SubagentsOf } from "./ports.js";
 import type { Assignment, RunState, WorkflowDef } from "./types.js";
 import { subagentNamed, type SubagentInfo } from "./vars.js";
-import { t } from "../../core/i18n.js";
 import { ExecutionValidationError, resolveExecution } from "./execution.js";
 
 /** The subtasks a dispatch step would get from the plan's table, with the problems that keep them from running. */
@@ -56,9 +55,8 @@ export async function assignmentProblems(
  * member writes its report. Copilot's custom agents are not checked (TPL-019, question 2).
  */
 export async function subagentProblems(repo: string, items: Assignment[], subagents?: SubagentsOf): Promise<string[]> {
-  const unsupported = items.filter((a) => a.agent === "codex" && a.subagent).map((a) => `subtask ${a.n}: ${t("codex.subagentUnsupported")}`);
   const named = items.filter((a) => a.agent === "claude" && a.subagent);
-  if (!subagents || named.length === 0) return unsupported;
+  if (!subagents || named.length === 0) return [];
   let list: SubagentInfo[];
   try {
     list = await subagents(repo);
@@ -66,7 +64,6 @@ export async function subagentProblems(repo: string, items: Assignment[], subage
     return [`cannot read the subagents: ${(e as Error).message}`];
   }
   return [
-    ...unsupported,
     ...named.flatMap((a) => {
       const agent = subagentNamed(list, a.subagent!);
       if (!agent) return [`subtask ${a.n}: subagent "${a.subagent}" not found in .claude/agents/ or ~/.claude/agents/`];

@@ -1,5 +1,3 @@
-import type { Agent } from "../../shared/agents";
-
 export interface UsageWindow {
   usedPercentage: number;
   /** Epoch ms. */
@@ -19,6 +17,24 @@ export interface AgentQuota {
   updatedAt: number;
 }
 
+export interface CodexCredits {
+  hasCredits: boolean;
+  unlimited: boolean;
+  /** Decimal string as Codex reports it; null when not given. */
+  balance: string | null;
+}
+
+/** Account rate limits of Codex; mirrors server/src/core/codex/usage.ts. Every field but updatedAt may be missing. */
+export interface CodexUsage {
+  fiveHour?: UsageWindow;
+  sevenDay?: UsageWindow;
+  credits?: CodexCredits;
+  planType?: string;
+  rateLimitReachedType?: string | null;
+  /** Epoch ms. */
+  updatedAt: number;
+}
+
 /**
  * Claude's plan usage (absent until a Claude session's status line reports it) and the other agents'
  * account quotas; mirrors server/src/modules/usage/store.ts.
@@ -29,5 +45,5 @@ export interface UsageView {
   spend?: { usedPercentage: number };
   /** When Claude's numbers were reported. */
   updatedAt?: number;
-  agents?: Partial<Record<Exclude<Agent, "claude">, AgentQuota>>;
+  agents?: { copilot?: AgentQuota; codex?: CodexUsage };
 }

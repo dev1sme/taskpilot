@@ -7,7 +7,7 @@ import { href } from "../../shared/router";
 import { useWorkspace } from "../../features/workspace";
 import { locale } from "../../i18n";
 import { useRepoSessions } from "../../features/sessions";
-import { useUsage, type AgentQuota, type UsageView } from "../../features/usage";
+import { useUsage, type AgentQuota, type CodexUsage, type UsageView } from "../../features/usage";
 import "./status-bar.css";
 
 /** Live, repo-wide counters at the bottom of every page. Log out and agent versions live in the sidebar. */
@@ -52,7 +52,7 @@ export function StatusBar(props: { terminalOpen: boolean; onToggleTerminal: (ope
           {t("status.asking", { count: asking.length })}
         </a>
       )}
-      {usage && (usage.fiveHour || usage.sevenDay || usage.spend || usage.agents?.copilot) && <UsageButton usage={usage} />}
+      {usage && (usage.fiveHour || usage.sevenDay || usage.spend || usage.agents?.copilot || hasCodexNumbers(usage.agents?.codex)) && <UsageButton usage={usage} />}
     </footer>
   );
 }
@@ -65,6 +65,8 @@ interface Meter {
   label: string;
   percent: number | null;
   notes: string[];
+  /** Agent name shown before the first meter of a group in the summary ("Codex 5h 30% · 7d 10%"). */
+  group?: string;
 }
 
 /**
@@ -83,9 +85,11 @@ function UsageButton({ usage }: { usage: UsageView }) {
   const claude = claudeMeters(usage, t);
   const copilotQuota = usage.agents?.copilot;
   const copilot = copilotQuota ? copilotMeter(copilotQuota, t) : null;
-  const meters = copilot ? [...claude, copilot] : claude;
+  const codexUsage = usage.agents?.codex;
+  const codex = codexUsage ? codexMeters(codexUsage, t) : [];
+  const meters = [...claude, ...(copilot ? [copilot] : []), ...codex];
   const warn = meters.some((m) => m.percent !== null && m.percent >= WARN_PERCENT);
-  const summary = meters.map(short).join(" · ");
+  const summary = meters.map((m, i) => (m.group && meters[i - 1]?.group === m.group ? shortLabel(m) : short(m))).join(" · ");
   // Narrow screens show only the fullest meter.
   const peak = meters.reduce((a, b) => ((b.percent ?? -1) > (a.percent ?? -1) ? b : a), meters[0]);
 
@@ -106,6 +110,7 @@ function UsageButton({ usage }: { usage: UsageView }) {
 
   const claudeVersion = info?.claudeVersion ? t("account.claudeVersion", { version: info.claudeVersion }) : t("account.claudeMissing");
   const copilotVersion = info?.versions?.copilot ? t("account.copilotVersion", { version: info.versions.copilot }) : null;
+  const codexVersion = info?.versions?.codex ? t("account.codexVersion", { version: info.versions.codex }) : null;
 
   return (
     <div
@@ -161,6 +166,22 @@ function UsageButton({ usage }: { usage: UsageView }) {
               <p className="usage-updated">{t("status.usageUpdated", { time: formatTime(copilotQuota.updatedAt, true) })}</p>
             </section>
           )}
+          {codexUsage && codex.length > 0 && (
+            <section className="usage-agent">
+              <header className="usage-agent-head">
+                <h2>{AGENT_LABELS.codex}</h2>
+                {codexVersion && <span className="usage-version">{codexVersion}</span>}
+              </header>
+              <p className="usage-scope">{t("status.codexUsageTitle")}</p>
+              <MeterList meters={codex} />
+              {codexExtras(codexUsage, t).map((line) => (
+                <p key={line} className="usage-updated">
+                  {line}
+                </p>
+              ))}
+              <p className="usage-updated">{t("status.usageUpdated", { time: formatTime(codexUsage.updatedAt, true) })}</p>
+            </section>
+          )}
         </div>
       )}
     </div>
@@ -191,9 +212,50 @@ function MeterList({ meters }: { meters: Meter[] }) {
   );
 }
 
-/** "5h 42%", "Copilot ∞". */
+/** "5h 42%", "Copilot ∞", "Codex 5h 30%". */
 function short(m: Meter): string {
-  return `${m.id === "copilot" ? AGENT_LABELS.copilot : m.label} ${m.percent === null ? "∞" : `${Math.round(m.percent)}%`}`;
+  const label = m.id === "copilot" ? AGENT_LABELS.copilot : m.group ? `${m.group} ${m.label}` : m.label;
+  return `${label} ${m.percent === null ? "∞" : `${Math.round(m.percent)}%`}`;
+}
+
+/** Same without the group prefix: "7d 10%". */
+function shortLabel(m: Meter): string {
+  return `${m.label} ${m.percent === null ? "∞" : `${Math.round(m.percent)}%`}`;
+}
+
+function hasCodexNumbers(codex: CodexUsage | undefined): boolean {
+  return !!(codex && (codex.fiveHour || codex.sevenDay));
+}
+
+/** Codex's windows as it last reported them; a window it did not report is left out, not guessed. */
+function codexMeters(codex: CodexUsage, t: TFunction<"shell">): Meter[] {
+  const meters: Meter[] = [];
+  const add = (id: "5h" | "7d", w: CodexUsage["fiveHour"]) => {
+    if (!w) return;
+    meters.push({
+      id: `codex-${id}`,
+      label: id,
+      group: AGENT_LABELS.codex,
+      percent: w.usedPercentage,
+      notes: w.resetsAt ? [t("status.usageReset", { window: id, time: formatTime(w.resetsAt, id === "7d") })] : [],
+    });
+  };
+  add("5h", codex.fiveHour);
+  add("7d", codex.sevenDay);
+  return meters;
+}
+
+function codexExtras(codex: CodexUsage, t: TFunction<"shell">): string[] {
+  const lines: string[] = [];
+  if (codex.planType) lines.push(t("status.codexPlan", { plan: codex.planType }));
+  if (codex.rateLimitReachedType) lines.push(t("status.codexLimitReached", { type: codex.rateLimitReachedType }));
+  const credits = codex.credits;
+  if (credits) {
+    if (credits.unlimited) lines.push(t("status.codexCreditsUnlimited"));
+    else if (credits.hasCredits && credits.balance !== null) lines.push(t("status.codexCredits", { balance: credits.balance }));
+    else if (!credits.hasCredits) lines.push(t("status.codexCreditsNone"));
+  }
+  return lines;
 }
 
 function claudeMeters(usage: UsageView, t: TFunction<"shell">): Meter[] {

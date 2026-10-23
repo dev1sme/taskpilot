@@ -172,14 +172,14 @@ describe("effective execution", () => {
     expect(def.permissionMode).toBe("plan");
   });
 
-  it("rejects incorrect lane identities and Codex subagents", () => {
+  it("rejects incorrect lane identities", () => {
     expect(laneKey(main)).not.toBe(laneKey({ kind: "subtask", stepId: "investigate", n: 1 }));
     expect(laneKey(member)).not.toBe(laneKey({ ...member, stepId: "dispatch:1" }));
     expect(() => resolveExecution({ workflow: workflow(), scope: { ...main, stepId: "missing" } })).toThrow("unknown step");
     expect(() => resolveExecution({ workflow: workflow(), scope: member })).toThrow("matching assignment");
     expect(() => resolveExecution({ workflow: workflow(), scope: { ...member, n: 2 }, assignment: assignment() })).toThrow("matching assignment");
     expect(() => resolveExecution({ workflow: workflow(), scope: main, run: { laneOverrides: { [laneKey(main)]: override(member, { agent: "codex" }) } } })).toThrow("scope does not match");
-    expect(() => resolveExecution({ workflow: workflow(), scope: member, assignment: assignment({ agent: "codex", subagent: "limited" }) })).toThrow("Codex does not support subagents");
+    expect(resolveExecution({ workflow: workflow(), scope: member, assignment: assignment({ agent: "codex", subagent: "limited" }) })).toMatchObject({ agent: "codex", subagent: "limited" });
   });
 });
 

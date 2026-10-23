@@ -106,6 +106,46 @@ test("the footer shows an unlimited copilot account without claude's usage", asy
   await expect(dialog).toContainText("Chưa có số liệu");
 });
 
+test("the footer shows codex's 5h/7d account limits next to the others", async ({ page }) => {
+  const now = Date.now();
+  await page.route("**/api/usage", (route) =>
+    route.fulfill({
+      json: {
+        agents: {
+          codex: {
+            fiveHour: { usedPercentage: 30, resetsAt: now + 3_600_000 },
+            sevenDay: { usedPercentage: 85.4, resetsAt: now + 86_400_000 },
+            credits: { hasCredits: true, unlimited: false, balance: "12.5" },
+            planType: "plus",
+            updatedAt: now,
+          },
+        },
+      },
+    }),
+  );
+  await page.goto("/#/");
+  const button = usageButton(page);
+  await expect(button).toContainText("Codex 5h 30% · 7d 85%");
+  await expect(button).toHaveClass(/is-warn/);
+
+  await button.click();
+  const codex = usageDialog(page)
+    .locator(".usage-agent")
+    .filter({ has: page.getByRole("heading", { name: "Codex" }) });
+  await expect(codex).toContainText("5h reset lúc");
+  await expect(codex).toContainText("7d reset lúc");
+  await expect(codex).toContainText("Gói plus");
+  await expect(codex).toContainText("Credits còn lại: 12.5");
+  await expect(codex.locator("li.is-warn")).toHaveCount(1);
+});
+
+test("a codex update with no window numbers keeps the usage button hidden", async ({ page }) => {
+  await page.route("**/api/usage", (route) => route.fulfill({ json: { agents: { codex: { planType: "plus", updatedAt: Date.now() } } } }));
+  await page.goto("/#/");
+  await expect(page.locator("footer.status-bar")).toBeVisible();
+  await expect(page.locator("footer.status-bar .status-usage")).toHaveCount(0);
+});
+
 test("the footer hides usage until a session reports it", async ({ page }) => {
   await page.route("**/api/usage", (route) => route.fulfill({ json: null }));
   await page.goto("/#/");

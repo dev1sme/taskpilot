@@ -38,3 +38,69 @@
   line-height: 1.4;
   color: var(--faint);
 }
+
+.copilot-hooks-files h2 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+.copilot-hook-file,
+.copilot-hook-create {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 10px 0;
+}
+
+.copilot-hook-file + .copilot-hook-file {
+  border-top: 1px solid var(--line);
+}
+
+.copilot-hook-file > div {
+  flex: 1 1 250px;
+  min-width: 0;
+}
+
+.copilot-hook-file p {
+  margin: 4px 0 0;
+}
+
+.copilot-hook-create {
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
+}
+
+.copilot-hook-create input {
+  flex: 1 1 180px;
+}
+
+.copilot-hook-row textarea {
+  min-height: 72px;
+  min-width: 0;
+  padding: 8px 10px;
+  font: 13px var(--mono);
+  color: var(--ink);
+  background: var(--sunken);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  resize: vertical;
+}
+
+.copilot-hook-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.copilot-hook-row .hook-command-field {
+  grid-column: auto;
+}
+
+.copilot-hook-row .hook-remove {
+  justify-self: end;
+}
+
+@media (max-width: 640px) {
+  .copilot-hook-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

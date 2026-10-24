@@ -1,8 +1,9 @@
 import os from "node:os";
 import path from "node:path";
 import { markdownHeadings } from "../../../core/markdown.js";
-import { claudeHome, displayPath, fileInfo, readJsonFile, readText, isObject } from "../shared/fs.js";
-import { projectMemoryFiles } from "../shared/targets.js";
+import { displayPath, fileInfo, readJsonFile, readText, isObject } from "../shared/fs.js";
+import { CONFIG_CAPABILITIES, type ConfigCli } from "../shared/agent.js";
+import { memoryTarget, projectMemoryFiles } from "../shared/targets.js";
 import { t } from "../../../core/i18n.js";
 
 export type MemoryScope = "project" | "local" | "user";
@@ -46,17 +47,13 @@ const SECRET_PATTERNS: Array<[RegExp, "sk" | "github" | "aws" | "slack" | "priva
   [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, "privateKey"],
 ];
 
-/** CLAUDE.md files Claude loads for this repo, with their imports and a few sanity checks. */
-export async function readMemory(repo: string): Promise<MemoryFile[]> {
+/** Native instruction files for the selected CLI, with imports and sanity checks. */
+export async function readMemory(repo: string, cli: ConfigCli = "claude"): Promise<MemoryFile[]> {
   const scripts = await npmScripts(repo);
-  const project = projectMemoryFiles(repo);
-  const targets: Array<[MemoryScope, string]> = [
-    ["project", project.main],
-    ["local", path.join(repo, "CLAUDE.local.md")],
-    ["user", path.join(claudeHome(), "CLAUDE.md")],
-  ];
+  const targets = CONFIG_CAPABILITIES[cli].memory.scopes.map((scope) => [scope, memoryTarget(repo, scope, cli).abs] as const);
   const files = await Promise.all(targets.map(([scope, file]) => readOne(scope, file, repo, scripts)));
-  if (project.other) {
+  const project = cli === "claude" ? projectMemoryFiles(repo) : null;
+  if (project?.other) {
     files[0].checks.unshift({
       level: "warn",
       message: t("memory.alsoLoads", { other: displayPath(project.other, repo), main: displayPath(project.main, repo) }),

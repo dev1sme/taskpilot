@@ -91,5 +91,66 @@ test("mcp shows three scope tabs and marks the server a local one hides", async 
   await expect(page.locator(".library-detail .lib-path")).toHaveText(/claude\.json/);
 
   await tabs.getByRole("tab", { name: "~/.claude.json (0)", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Chưa có MCP server trong ~/.claude.json" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Chưa có MCP server trong .*claude\.json/ })).toBeVisible();
+});
+
+test("CLI selector keeps the selected agent in native configuration routes", async ({ page }) => {
+  await page.goto("/#/memory");
+  const selector = page.getByRole("navigation", { name: "CLI cấu hình" });
+  await selector.getByRole("link", { name: "Codex" }).click();
+  await expect(page).toHaveURL(/#\/memory\?cli=codex$/);
+  await expect(selector.getByRole("link", { name: "Codex" })).toHaveAttribute("aria-current", "page");
+  await page.goto("/#/settings?cli=copilot");
+  await expect(selector.getByRole("link", { name: "Copilot" })).toHaveAttribute("aria-current", "page");
+  await page.goto("/#/workflow");
+  await expect(selector).toHaveCount(0);
+});
+
+test("native configuration pages render the selected CLI files", async ({ page }) => {
+  await page.goto("/#/memory?cli=codex");
+  await expect(page.getByRole("tablist", { name: "File hướng dẫn" }).getByRole("tab", { name: "AGENTS.md", exact: true })).toBeVisible();
+  await expect(page.locator(".code-view")).toContainText("Codex fixture");
+
+  await page.goto("/#/settings?cli=copilot");
+  await expect(page.getByRole("tablist", { name: "File settings" }).getByRole("tab", { name: ".github/copilot/settings.json" })).toBeVisible();
+  await expect(page.locator(".scope-section")).toContainText(".github/copilot/settings.json");
+
+  await page.goto("/#/agents?cli=codex");
+  await expect(page.locator(".library-list")).toContainText("native-reviewer");
+
+  await page.goto("/#/mcp?cli=copilot");
+  await expect(page.locator(".mcp-list")).toContainText("copilot-docs");
+});
+
+test("native API reads separate instruction and settings files for all three CLIs", async ({ page }) => {
+  const cases = [
+    { cli: "claude", memory: "CLAUDE.md", settings: ".claude/settings.json", scopes: 3 },
+    { cli: "copilot", memory: ".github/copilot-instructions.md", settings: ".github/copilot/settings.json", scopes: 2 },
+    { cli: "codex", memory: "AGENTS.md", settings: ".codex/config.toml", scopes: 2 },
+  ] as const;
+  for (const { cli, memory, settings, scopes } of cases) {
+    const memoryResponse = await page.request.get(`/api/config/memory?cli=${cli}`);
+    expect(memoryResponse.ok()).toBe(true);
+    const files = (await memoryResponse.json()) as Array<{ scope: string; path: string; content: string }>;
+    expect(files).toHaveLength(scopes);
+    expect(files[0]).toMatchObject({ scope: "project", path: memory });
+    expect(files[0].content).toContain(cli === "claude" ? "Fixture repo" : `${cli === "codex" ? "Codex" : "Copilot"} fixture`);
+
+    const settingsResponse = await page.request.get(`/api/config/settings?cli=${cli}`);
+    expect(settingsResponse.ok()).toBe(true);
+    const settingsFiles = (await settingsResponse.json()) as Array<{ scope: string; path: string }>;
+    expect(settingsFiles[0]).toMatchObject({ scope: "project", path: settings });
+  }
+});
+
+test("Copilot hook files use their native schema while Codex hooks stay unsupported", async ({ page }) => {
+  const response = await page.request.get("/api/config/hooks?cli=copilot");
+  expect(response.ok()).toBe(true);
+  const files = (await response.json()) as Array<{ name: string; path: string; hooks: Array<{ event: string; command: string }> }>;
+  expect(files.find((file) => file.name === "fixture.json")).toMatchObject({
+    path: ".github/hooks/fixture.json",
+    hooks: [{ event: "preToolUse", command: "echo fixture" }],
+  });
+  const capabilities = (await (await page.request.get("/api/config/capabilities?cli=codex")).json()) as { sections: { hooks: { supported: boolean } } };
+  expect(capabilities.sections.hooks.supported).toBe(false);
 });

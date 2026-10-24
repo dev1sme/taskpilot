@@ -173,7 +173,7 @@ test.describe("sidebar", () => {
     await page.goto("/#/skills");
     await expect(item).toHaveAttribute("aria-current", "page");
     await expect(item.locator(".nav-badge")).toBeVisible();
-    const tabs = page.locator(".page-tabs");
+    const tabs = page.getByRole("navigation", { name: "Loại mục trong thư viện" });
     await expect(tabs.getByRole("link", { name: /Skills/ })).toHaveAttribute("aria-current", "page");
     // The tabs sit under the page title, not above it.
     const header = await page.locator("main .page-header").boundingBox();

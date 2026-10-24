@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { app, get, ok, repo, send, useConfigApp } from "../../helpers/configApp.js";
+import { app, codexHome, copilotHome, get, ok, repo, send, useConfigApp } from "../../helpers/configApp.js";
 
 useConfigApp();
 
@@ -87,5 +87,66 @@ describe("permission editing", () => {
   it("refuses to edit a settings file that is not valid JSON", async () => {
     await writeFile(settingsFile(), "{ broken");
     expect((await app.inject({ url: "/api/config/settings/project/permissions", headers: ok })).statusCode).toBe(409);
+  });
+});
+
+describe("native CLI settings", () => {
+  it("edits Codex permission keys without changing tables, comments, or secrets", async () => {
+    const file = path.join(codexHome, "config.toml");
+    const original = '# keep me\napproval_policy = "on-request"\n\n[mcp_servers.private]\nenv = { TOKEN = "codex-secret" }\n';
+    await writeFile(file, original);
+    const before = await get("/api/config/settings/user/native?cli=codex");
+    expect(before.fields).toEqual({ approval_policy: "on-request", sandbox_mode: null });
+    expect(JSON.stringify(before)).not.toContain("codex-secret");
+    const body = { fields: { sandbox_mode: "workspace-write" }, baseHash: before.hash };
+    const preview = (await send("POST", "/api/config/settings/user/native/preview?cli=codex", body)).json();
+    expect(preview.changed).toBe(true);
+    expect(preview.diff).not.toContain("codex-secret");
+    expect((await send("PUT", "/api/config/settings/user/native?cli=codex", body)).statusCode).toBe(200);
+    const written = await readFile(file, "utf8");
+    expect(written).toContain('# keep me\napproval_policy = "on-request"');
+    expect(written).toContain('sandbox_mode = "workspace-write"');
+    expect(written).toContain('TOKEN = "codex-secret"');
+    expect((await send("PUT", "/api/config/settings/user/native?cli=codex", body)).statusCode).toBe(409);
+    const after = await get("/api/config/settings/user/native?cli=codex");
+    expect((await send("PUT", "/api/config/settings/user/native?cli=codex", { fields: { sandbox_mode: null }, baseHash: after.hash })).statusCode).toBe(200);
+    expect(await readFile(file, "utf8")).not.toContain("sandbox_mode =");
+  });
+
+  it("edits Copilot JSONC with nested rights and preserves comments and unrelated secrets", async () => {
+    const file = path.join(copilotHome, "settings.json");
+    await writeFile(file, '{\n  // keep me\n  "proxyUrl": "https://copilot-secret.example",\n  "sandbox": { "enabled": false, },\n}\n');
+    const before = await get("/api/config/settings/user/native?cli=copilot");
+    expect(before.fields["sandbox.enabled"]).toBe(false);
+    expect(JSON.stringify(before)).not.toContain("copilot-secret");
+    const body = { fields: { "sandbox.enabled": true, "permissions.disableBypassPermissionsMode": "disable" }, baseHash: before.hash };
+    const preview = (await send("POST", "/api/config/settings/user/native/preview?cli=copilot", body)).json();
+    expect(preview.changed).toBe(true);
+    expect(preview.diff).not.toContain("copilot-secret");
+    expect((await send("PUT", "/api/config/settings/user/native?cli=copilot", body)).statusCode).toBe(200);
+    const written = await readFile(file, "utf8");
+    expect(written).toContain("// keep me");
+    expect(written).toContain("https://copilot-secret.example");
+    expect(written).toContain('"disableBypassPermissionsMode": "disable"');
+    expect((await get("/api/config/settings?cli=copilot"))[2].fields["sandbox.enabled"]).toBe(true);
+    const after = await get("/api/config/settings/user/native?cli=copilot");
+    expect((await send("PUT", "/api/config/settings/user/native?cli=copilot", { fields: { "permissions.disableBypassPermissionsMode": null }, baseHash: after.hash })).statusCode).toBe(200);
+    expect(await readFile(file, "utf8")).not.toContain("disableBypassPermissionsMode");
+  });
+
+  it("rejects wrong scopes, unknown keys and invalid native files", async () => {
+    expect((await app.inject({ url: "/api/config/settings/local/native?cli=codex", headers: ok })).statusCode).toBe(400);
+    expect((await app.inject({ url: "/api/config/settings/project/permissions?cli=copilot", headers: ok })).statusCode).toBe(400);
+    const before = await get("/api/config/settings/project/native?cli=copilot");
+    expect((await send("PUT", "/api/config/settings/project/native?cli=copilot", { fields: { "sandbox.enabled": true }, baseHash: before.hash })).statusCode).toBe(400);
+    expect((await send("PUT", "/api/config/settings/project/native?cli=copilot", { fields: { respectGitignore: false }, baseHash: before.hash })).statusCode).toBe(400);
+    expect((await send("PUT", "/api/config/settings/project/native?cli=copilot", { fields: { disableAllHooks: true }, baseHash: before.hash })).statusCode).toBe(200);
+    expect(await readFile(path.join(repo, ".github", "copilot", "settings.json"), "utf8")).toContain('"disableAllHooks": true');
+    await writeFile(path.join(codexHome, "config.toml"), "[broken\nsecret = 'do-not-show'");
+    const bad = await app.inject({ url: "/api/config/settings/user/native?cli=codex", headers: ok });
+    expect(bad.statusCode).toBe(409);
+    expect(bad.body).not.toContain("do-not-show");
+    await writeFile(path.join(codexHome, "config.toml"), 'approval_policy = "secret-sentinel"\n');
+    expect((await get("/api/config/settings/user/native?cli=codex")).fields.approval_policy).toBeNull();
   });
 });

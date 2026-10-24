@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { claudeHome, displayPath } from "./fs.js";
+import { claudeHome, codexHome, codexSkillsHome, copilotHome, displayPath } from "./fs.js";
+import { requireConfigScope, type ConfigCli, type ConfigScope } from "./agent.js";
 import { HttpError } from "../../../core/errors.js";
 import { overrideDir, PROMPT_FILE, SETTINGS_FILE, WORKFLOW_FILE } from "../../workflow/index.js";
 import type { LibraryKind, LibraryScope } from "../library/read.js";
@@ -27,21 +28,49 @@ export function projectMemoryFiles(repo: string): { main: string; other: string 
   return { main: existsSync(dotClaude) ? dotClaude : root, other: null };
 }
 
-export function memoryTarget(repo: string, scope: MemoryScope): FileTarget {
-  const abs = {
-    project: projectMemoryFiles(repo).main,
-    local: path.join(repo, "CLAUDE.local.md"),
-    user: path.join(claudeHome(), "CLAUDE.md"),
-  }[scope];
+export function memoryTarget(repo: string, scope: MemoryScope, cli: ConfigCli = "claude"): FileTarget {
+  requireConfigScope(cli, "memory", scope);
+  const abs =
+    cli === "claude"
+      ? {
+          project: projectMemoryFiles(repo).main,
+          local: path.join(repo, "CLAUDE.local.md"),
+          user: path.join(claudeHome(), "CLAUDE.md"),
+        }[scope]
+      : cli === "codex"
+        ? {
+            project: path.join(repo, "AGENTS.md"),
+            local: "",
+            user: path.join(codexHome(), "AGENTS.md"),
+          }[scope]
+        : {
+            project: path.join(repo, ".github", "copilot-instructions.md"),
+            local: "",
+            user: path.join(copilotHome(), "copilot-instructions.md"),
+          }[scope];
   return { abs, display: displayPath(abs, repo) };
 }
 
-export function settingsTarget(repo: string, scope: SettingsScope): FileTarget {
-  const abs = {
-    project: path.join(repo, ".claude", "settings.json"),
-    local: path.join(repo, ".claude", "settings.local.json"),
-    user: path.join(claudeHome(), "settings.json"),
-  }[scope];
+export function settingsTarget(repo: string, scope: SettingsScope, cli: ConfigCli = "claude"): FileTarget {
+  requireConfigScope(cli, "settings", scope);
+  const abs =
+    cli === "claude"
+      ? {
+          project: path.join(repo, ".claude", "settings.json"),
+          local: path.join(repo, ".claude", "settings.local.json"),
+          user: path.join(claudeHome(), "settings.json"),
+        }[scope]
+      : cli === "codex"
+        ? {
+            project: path.join(repo, ".codex", "config.toml"),
+            local: "",
+            user: path.join(codexHome(), "config.toml"),
+          }[scope]
+        : {
+            project: path.join(repo, ".github", "copilot", "settings.json"),
+            local: path.join(repo, ".github", "copilot", "settings.local.json"),
+            user: path.join(copilotHome(), "settings.json"),
+          }[scope];
   return { abs, display: displayPath(abs, repo) };
 }
 
@@ -62,7 +91,32 @@ const LIBRARY_REL: Record<LibraryKind, (rel: string) => boolean> = {
 };
 
 /** An agent, command or skill file; `rel` must match the kind's naming (no "..", no other files). */
-export function libraryTarget(repo: string, kind: LibraryKind, scope: LibraryScope, rel: string): FileTarget {
+export function libraryTarget(repo: string, kind: LibraryKind, scope: LibraryScope, rel: string, cli: ConfigCli = "claude"): FileTarget {
+  requireConfigScope(cli, kind, scope);
+  if (cli === "codex" && kind === "agents") {
+    if (scope !== "project") throw new HttpError(400, t("configMessages.shared_targets_01", { value0: scope }));
+    return codexAgentTarget(repo, rel);
+  }
+  if (cli === "copilot" && kind === "agents") {
+    const pattern = scope === "project" ? /^[A-Za-z0-9][\w.-]*\.(?:agent\.)?md$/ : /^[A-Za-z0-9][\w.-]*\.agent\.md$/;
+    if (!pattern.test(rel)) throw new HttpError(400, t("errors.invalidName", { name: rel }));
+    const root = scope === "project" ? path.join(repo, ".github", "agents") : path.join(copilotHome(), "agents");
+    const abs = path.join(root, rel);
+    return { abs, display: displayPath(abs, repo) };
+  }
+  if (cli !== "claude" && kind === "skills") {
+    if (!SKILL_REL.test(rel)) throw new HttpError(400, t("errors.invalidName", { name: rel }));
+    const root =
+      cli === "codex"
+        ? scope === "project"
+          ? path.join(repo, ".agents", "skills")
+          : codexSkillsHome()
+        : scope === "project"
+          ? path.join(repo, ".github", "skills")
+          : path.join(copilotHome(), "skills");
+    const abs = path.join(root, ...rel.split("/"));
+    return { abs, display: displayPath(abs, repo) };
+  }
   if (!LIBRARY_REL[kind](rel)) throw new HttpError(400, t("errors.invalidName", { name: rel }));
   const root = scope === "project" ? path.join(repo, ".claude", kind) : path.join(claudeHome(), kind);
   const abs = path.join(root, ...rel.split("/"));
@@ -73,6 +127,24 @@ export function libraryTarget(repo: string, kind: LibraryKind, scope: LibrarySco
 export function codexAgentTarget(repo: string, rel: string): FileTarget {
   if (!/^[A-Za-z0-9][\w.-]*\.toml$/.test(rel)) throw new HttpError(400, t("errors.invalidName", { name: rel }));
   const abs = path.join(repo, ".codex", "agents", rel);
+  return { abs, display: displayPath(abs, repo) };
+}
+
+/** Native hook JSON files; Claude hooks live inside settings.json and use settingsTarget. */
+export function hookTarget(repo: string, scope: ConfigScope, rel: string, cli: ConfigCli): FileTarget {
+  requireConfigScope(cli, "hooks", scope);
+  if (cli !== "copilot" || !/^[A-Za-z0-9][\w.-]*\.json$/.test(rel)) throw new HttpError(400, t("errors.invalidName", { name: rel }));
+  const root = scope === "project" ? path.join(repo, ".github", "hooks") : path.join(copilotHome(), "hooks");
+  const abs = path.join(root, rel);
+  return { abs, display: displayPath(abs, repo) };
+}
+
+/** Native MCP container. Codex stores its MCP table in config.toml. */
+export function mcpTarget(repo: string, scope: ConfigScope, cli: ConfigCli = "claude"): FileTarget {
+  requireConfigScope(cli, "mcp", scope);
+  if (cli === "codex") return settingsTarget(repo, scope as SettingsScope, cli);
+  if (cli === "claude" && scope !== "project") throw new HttpError(400, t("configMessages.shared_targets_02"));
+  const abs = cli === "claude" ? path.join(repo, ".mcp.json") : scope === "project" ? path.join(repo, ".github", "mcp.json") : path.join(copilotHome(), "mcp-config.json");
   return { abs, display: displayPath(abs, repo) };
 }
 
@@ -92,7 +164,7 @@ export function repoSettingsTarget(repo: string): FileTarget {
 const isWorkflowFileName = (name: string) => name === WORKFLOW_FILE || PROMPT_FILE.test(name);
 
 /**
- * The only files TaskPilot ever writes: Claude Code config of this repo and of the user.
+ * The only files TaskPilot ever writes: native CLI config of this repo and of the user.
  * Checked again on every write and restore, so a crafted request or backup cannot reach elsewhere.
  */
 export function isAllowedPath(abs: string, repo: string): boolean {
@@ -106,13 +178,32 @@ export function isAllowedPath(abs: string, repo: string): boolean {
     path.join(repo, ".mcp.json"),
     path.join(claudeHome(), "CLAUDE.md"),
     path.join(claudeHome(), "settings.json"),
+    path.join(repo, "AGENTS.md"),
+    path.join(codexHome(), "AGENTS.md"),
+    path.join(repo, ".codex", "config.toml"),
+    path.join(codexHome(), "config.toml"),
+    path.join(repo, ".github", "copilot-instructions.md"),
+    path.join(copilotHome(), "copilot-instructions.md"),
+    path.join(repo, ".github", "copilot", "settings.json"),
+    path.join(repo, ".github", "copilot", "settings.local.json"),
+    path.join(copilotHome(), "settings.json"),
+    path.join(repo, ".github", "mcp.json"),
+    path.join(copilotHome(), "mcp-config.json"),
     // ~/.claude.json is never written directly: Claude Code rewrites it constantly; MCP entries
     // there are changed through `claude mcp add-json/remove`.
   ].map((x) => path.resolve(x));
   if (exact.includes(p)) return true;
   // The workflow override and settings.yml: files directly in .taskpilot/, never TaskPilot's own workflows/default/.
   if (path.dirname(p) === path.resolve(overrideDir(repo)) && (isWorkflowFileName(path.basename(p)) || path.basename(p) === SETTINGS_FILE)) return true;
-  if (path.dirname(p) === path.resolve(repo, ".codex", "agents") && p.endsWith(".toml")) return true;
+  if (path.dirname(p) === path.resolve(repo, ".codex", "agents") && /^[A-Za-z0-9][\w.-]*\.toml$/.test(path.basename(p))) return true;
+  if ([path.join(repo, ".github", "hooks"), path.join(copilotHome(), "hooks")].some((root) => path.dirname(p) === path.resolve(root)) && /^[A-Za-z0-9][\w.-]*\.json$/.test(path.basename(p)))
+    return true;
+  if (path.dirname(p) === path.resolve(repo, ".github", "agents") && /^[A-Za-z0-9][\w.-]*\.(?:agent\.)?md$/.test(path.basename(p))) return true;
+  if (path.dirname(p) === path.resolve(copilotHome(), "agents") && /^[A-Za-z0-9][\w.-]*\.agent\.md$/.test(path.basename(p))) return true;
+  for (const root of [path.join(repo, ".agents", "skills"), codexSkillsHome(), path.join(repo, ".github", "skills"), path.join(copilotHome(), "skills")]) {
+    const rel = path.relative(path.resolve(root), p).split(path.sep).join("/");
+    if (SKILL_REL.test(rel)) return true;
+  }
   // Anything inside the agents/commands/skills folders (skills also hold scripts and templates).
   const roots = LIBRARY_DIRS.flatMap((d) => [path.join(repo, ".claude", d), path.join(claudeHome(), d)]);
   return roots.some((root) => {

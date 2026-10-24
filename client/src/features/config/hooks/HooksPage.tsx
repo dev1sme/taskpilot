@@ -7,7 +7,9 @@ import { toast } from "../../../shared/ui/Toast";
 import { getDraft, isDirty, setDraft, useDrafts } from "../shared/drafts";
 import { EMPTY_HOOK, HooksEditor, hooksKey, useHooksSave, type HooksDraft } from "./HooksEditor";
 import { ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs } from "../shared/parts";
+import { useConfigCli } from "../shared/parts";
 import { useConfig } from "../shared/useConfig";
+import { CopilotHooksPage } from "./CopilotHooksPage";
 import { hooksApi } from "./api";
 import type { HooksFile } from "./types";
 import type { Scope } from "../shared/types";
@@ -35,6 +37,25 @@ const EVENT_LINE = /^ {2}"([^"]+)": \[/;
 
 /** Hooks of one settings file at a time, shown as the JSON block written in the file; edited as rows. */
 export function HooksPage() {
+  const cli = useConfigCli();
+  if (cli === "copilot") return <CopilotHooksPage />;
+  if (cli === "codex") return <UnsupportedHooksPage />;
+  return <ClaudeHooksPage />;
+}
+
+function UnsupportedHooksPage() {
+  const { t } = useTranslation("config");
+  return (
+    <div className="page">
+      <ConfigHeader title={t("hooks.title")} subtitle={t("hooks.codex.subtitle")} />
+      <div className="page-body">
+        <EmptyCard title={t("hooks.codex.title")}>{t("hooks.codex.body")}</EmptyCard>
+      </div>
+    </div>
+  );
+}
+
+function ClaudeHooksPage() {
   const { t } = useTranslation("config");
   const tabLabel = (s: Scope) => t(`settings.tab.${s}`);
   const [scope, setScope] = useState<Scope>("project");

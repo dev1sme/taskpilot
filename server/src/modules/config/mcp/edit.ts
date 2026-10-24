@@ -1,7 +1,9 @@
 import { HttpError } from "../../../core/errors.js";
 import { isObject, maskValue } from "../shared/fs.js";
-import { hideUrlCredentials } from "./read.js";
+import { hideUrlCredentials, maskMcpArg, maskMcpCommand } from "./read.js";
 import { t } from "../../../core/i18n.js";
+import { stringify as stringifyToml } from "smol-toml";
+import { nativeMcpDocument, nativeMcpServers } from "./read.js";
 
 export interface ValueInput {
   key: string;
@@ -126,8 +128,8 @@ export function buildEntry(
   const dropped = new Set([...EDITED, ...(wasStdio === (input.type === "stdio") ? [] : wasStdio ? STDIO_ONLY : REMOTE_ONLY)]);
   const kept = Object.entries(existing ?? {}).filter(([k]) => !dropped.has(k));
   if (input.type === "stdio") {
-    entry.command = input.command;
-    if (input.args.length) entry.args = input.args.map((a) => restore(a, oldArgs));
+    entry.command = input.command === "••••" && typeof existing?.command === "string" ? existing.command : input.command;
+    if (input.args.length) entry.args = input.args.map((a, index) => (a === "••••" && oldArgs[index] ? oldArgs[index] : restore(a, oldArgs)));
     const env = resolve(input.env, existing?.env, (key) => `${prefix}_${key}`);
     if (Object.keys(env).length) entry.env = env;
   } else {
@@ -142,11 +144,56 @@ export function buildEntry(
 /** Entry with env/header values masked and URL credentials hidden, for diffs and the edit form. */
 export function maskEntry(entry: unknown): Record<string, unknown> | null {
   if (!isObject(entry)) return null;
-  const out: Record<string, unknown> = { ...entry };
-  for (const key of ["env", "headers"]) {
+  // Unknown fields may contain credentials (OAuth and provider extensions in particular).
+  const out: Record<string, unknown> = Object.fromEntries(
+    Object.entries(entry).filter(([key]) => ["type", "command", "args", "url", "env", "headers", "http_headers", "env_http_headers", "tools", "enabled"].includes(key)),
+  );
+  for (const key of ["env", "headers", "http_headers", "env_http_headers"]) {
     if (isObject(entry[key])) out[key] = Object.fromEntries(Object.entries(entry[key]).map(([k, v]) => [k, maskValue(v).value]));
   }
-  if (Array.isArray(entry.args)) out.args = entry.args.map((a) => (typeof a === "string" ? hideUrlCredentials(a) : a));
+  if (Array.isArray(entry.args)) out.args = entry.args.map((a) => (typeof a === "string" ? maskMcpArg(a) : "••••"));
+  if (typeof entry.command === "string") out.command = maskMcpCommand(entry.command);
   if (typeof entry.url === "string") out.url = hideUrlCredentials(entry.url);
   return out;
+}
+
+export function nativeEntry(input: McpEntryInput, existing: Record<string, unknown> | null, cli: "codex" | "copilot", scope: "project" | "user") {
+  if (cli === "codex" && !["stdio", "http"].includes(input.type)) throw new HttpError(400, t("configMessages.mcp_edit_01"));
+  if (cli === "copilot" && !["stdio", "http", "sse"].includes(input.type)) throw new HttpError(400, t("configMessages.mcp_edit_02"));
+  if (scope === "project" && [...input.env, ...input.headers].some((row) => row.secret && row.value !== null)) throw new HttpError(400, t("configMessages.mcp_edit_03"));
+  const { entry, secrets } = buildEntry(input, existing && (cli === "codex" ? { ...existing, type: existing.command ? "stdio" : "http", headers: existing.http_headers } : existing), "user");
+  if (cli === "copilot") {
+    if (input.type === "stdio") entry.type = existing?.type === "local" ? "local" : "stdio";
+    if (existing === null) entry.tools = ["*"];
+    return { entry, secrets };
+  }
+  delete entry.type;
+  delete entry.headers;
+  delete entry.http_headers;
+  if (input.type !== "stdio" && input.headers.length) entry.http_headers = buildEntry(input, existing ? { ...existing, headers: existing.http_headers } : null, scope).entry.headers;
+  return { entry, secrets };
+}
+
+/** Replace only MCP tables; unrelated Codex settings and their comments retain their text. */
+export function patchNativeMcp(text: string | null, cli: "codex" | "copilot", from: string, to: string | null, entry: Record<string, unknown> | null): string {
+  const doc = nativeMcpDocument(text, cli);
+  const servers = { ...nativeMcpServers(doc, cli) };
+  delete servers[from];
+  if (to !== null && entry) servers[to] = entry;
+  if (cli === "copilot") return `${JSON.stringify(doc.mcpServers === undefined && Object.keys(doc).length ? servers : { ...doc, mcpServers: servers }, null, 2)}\n`;
+  const source = text ?? "";
+  if (/^\s*mcp_servers\s*=/m.test(source)) throw new HttpError(409, t("configMessages.mcp_edit_04"));
+  const lines = source.split("\n");
+  let removing = false;
+  const kept: string[] = [];
+  for (const line of lines) {
+    const table = /^\s*\[\[?([^\]]+)\]\]?/.exec(line);
+    if (table) removing = table[1] === "mcp_servers" || table[1].startsWith("mcp_servers.");
+    if (!removing) kept.push(line);
+  }
+  const other = kept.join("\n").trimEnd();
+  const mcp = Object.keys(servers).length ? stringifyToml({ mcp_servers: servers }).trimEnd() : "";
+  const next = [other, mcp].filter(Boolean).join("\n\n") + "\n";
+  nativeMcpDocument(next, "codex");
+  return next;
 }

@@ -43,6 +43,8 @@ else if (sub === "get") {
 export let app: FastifyInstance;
 export let repo: string;
 export let home: string;
+export let codexHome: string;
+export let copilotHome: string;
 export let state: StateStore;
 
 /** A fresh app on a fresh repo for every test, with ~/.claude, ~/.claude.json and claude faked. */
@@ -50,7 +52,12 @@ export function useConfigApp(): void {
   beforeEach(async () => {
     repo = await makeRepo();
     home = await tempDir("taskpilot-home-");
+    codexHome = await tempDir("taskpilot-codex-home-");
+    copilotHome = await tempDir("taskpilot-copilot-home-");
     process.env.TASKPILOT_CLAUDE_HOME = home;
+    process.env.TASKPILOT_CODEX_HOME = codexHome;
+    process.env.TASKPILOT_CODEX_SKILLS_HOME = path.join(codexHome, "skills");
+    process.env.TASKPILOT_COPILOT_HOME = copilotHome;
     process.env.TASKPILOT_CLAUDE_JSON = path.join(home, "claude.json");
     const fake = path.join(home, "fake-claude.cjs");
     await writeFile(fake, FAKE_CLAUDE);

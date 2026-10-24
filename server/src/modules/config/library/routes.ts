@@ -4,6 +4,7 @@ import type { FastifyInstance } from "fastify";
 import { HttpError } from "../../../core/errors.js";
 import { t } from "../../../core/i18n.js";
 import { isObject } from "../shared/fs.js";
+import { configCli, markConfigAvailable, type ConfigCli } from "../shared/agent.js";
 import { stringField, type ConfigRouteOptions } from "../shared/http.js";
 import { codexAgentTarget, libraryTarget } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
@@ -15,9 +16,14 @@ import { readTemplates, tomlMeta, type AgentCli, type AgentTemplate } from "./te
 export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {
   const { requireRepo, backups } = opts;
 
-  app.get("/api/config/agents", async () => readLibrary(requireRepo(), "agents"));
-  app.get("/api/config/commands", async () => readLibrary(requireRepo(), "commands"));
-  app.get("/api/config/skills", async () => readLibrary(requireRepo(), "skills"));
+  markConfigAvailable("codex", "agents");
+  markConfigAvailable("codex", "skills");
+  markConfigAvailable("copilot", "agents");
+  markConfigAvailable("copilot", "skills");
+
+  app.get<{ Querystring: { cli?: string } }>("/api/config/agents", async (req) => readLibrary(requireRepo(), "agents", configCli(req.query.cli)));
+  app.get<{ Querystring: { cli?: string } }>("/api/config/commands", async (req) => readLibrary(requireRepo(), "commands", configCli(req.query.cli)));
+  app.get<{ Querystring: { cli?: string } }>("/api/config/skills", async (req) => readLibrary(requireRepo(), "skills", configCli(req.query.cli)));
 
   /**
    * TaskPilot's subagents and how each compares with the repo's .claude/agents/<name>.md, or with
@@ -75,41 +81,47 @@ export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOpt
     return { files: written, skipped: files.filter((f) => f.same).map((f) => f.path) };
   });
 
-  const libraryOf = (kind: string, scope: string, rel: string) => {
+  const libraryOf = (kind: string, scope: string, rel: string, cli: ConfigCli) => {
     if (kind !== "agents" && kind !== "commands" && kind !== "skills") throw new HttpError(400, t("errors.invalidKind", { kind }));
     if (scope !== "project" && scope !== "user") throw new HttpError(400, t("errors.invalidScope", { scope }));
-    return libraryTarget(requireRepo(), kind as LibraryKind, scope as LibraryScope, rel);
+    return libraryTarget(requireRepo(), kind as LibraryKind, scope as LibraryScope, rel, cli);
   };
 
-  app.get<{ Params: { kind: string; scope: string }; Querystring: { rel?: string } }>("/api/config/library/:kind/:scope/raw", async (req) => {
-    const target = libraryOf(req.params.kind, req.params.scope, req.query.rel ?? "");
+  app.get<{ Params: { kind: string; scope: string }; Querystring: { rel?: string; cli?: string } }>("/api/config/library/:kind/:scope/raw", async (req) => {
+    const target = libraryOf(req.params.kind, req.params.scope, req.query.rel ?? "", configCli(req.query.cli));
     const content = await readCurrent(target.abs);
     return { path: target.display, exists: content !== null, content: content ?? "", hash: hashOf(content) };
   });
 
-  app.post<{ Params: { kind: string; scope: string } }>("/api/config/library/:kind/:scope/preview", async (req) => {
-    const target = libraryOf(req.params.kind, req.params.scope, stringField(req.body, "rel"));
+  app.post<{ Params: { kind: string; scope: string }; Querystring: { cli?: string } }>("/api/config/library/:kind/:scope/preview", async (req) => {
+    const target = libraryOf(req.params.kind, req.params.scope, stringField(req.body, "rel"), configCli(req.query.cli));
     const next = stringField(req.body, "content");
     const current = await readCurrent(target.abs);
     return { diff: diffText(target.display, current, next), changed: current !== next, stale: hashOf(current) !== stringField(req.body, "baseHash") };
   });
 
-  app.put<{ Params: { kind: string; scope: string } }>("/api/config/library/:kind/:scope", async (req) => {
+  app.put<{ Params: { kind: string; scope: string }; Querystring: { cli?: string } }>("/api/config/library/:kind/:scope", async (req) => {
     const repo = requireRepo();
-    const target = libraryOf(req.params.kind, req.params.scope, stringField(req.body, "rel"));
+    const cli = configCli(req.query.cli);
+    const rel = stringField(req.body, "rel");
+    const target = libraryOf(req.params.kind, req.params.scope, rel, cli);
+    const next = stringField(req.body, "content");
+    if (cli === "codex" && req.params.kind === "agents" && checkCodexAgent(next).status === "error") {
+      throw new HttpError(400, t("configMessages.library_routes_01"));
+    }
     return writeWithBackup({
       repo,
       target,
-      next: stringField(req.body, "content"),
+      next,
       baseHash: stringField(req.body, "baseHash"),
       reason: t("backup.edit"),
       backups,
     });
   });
 
-  app.delete<{ Params: { kind: string; scope: string }; Querystring: { rel?: string; baseHash?: string } }>("/api/config/library/:kind/:scope", async (req) => {
+  app.delete<{ Params: { kind: string; scope: string }; Querystring: { rel?: string; baseHash?: string; cli?: string } }>("/api/config/library/:kind/:scope", async (req) => {
     const repo = requireRepo();
-    const target = libraryOf(req.params.kind, req.params.scope, req.query.rel ?? "");
+    const target = libraryOf(req.params.kind, req.params.scope, req.query.rel ?? "", configCli(req.query.cli));
     return writeWithBackup({ repo, target, next: null, baseHash: req.query.baseHash ?? "", reason: t("backup.delete"), backups });
   });
 }

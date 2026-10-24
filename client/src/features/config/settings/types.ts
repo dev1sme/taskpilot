@@ -1,4 +1,5 @@
 import type { Scope, MaskedValue } from "../shared/types";
+import type { ConfigCli } from "../../../shared/router";
 
 export interface SettingsFile {
   scope: Scope;
@@ -25,4 +26,24 @@ export interface PermissionsFile extends Permissions {
   path: string;
   exists: boolean;
   hash: string;
+}
+
+export type NativeCli = Exclude<ConfigCli, "claude">;
+export type NativeValue = string | boolean | null;
+export type NativeFields = Record<string, NativeValue>;
+
+export interface NativeSettingsFile {
+  scope: Scope;
+  path: string;
+  exists: boolean;
+  error?: string;
+  fields: NativeFields;
+  editableKeys: string[];
+}
+
+export interface NativeSettingsDetail {
+  path: string;
+  exists: boolean;
+  hash: string;
+  fields: NativeFields;
 }

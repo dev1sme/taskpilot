@@ -42,9 +42,11 @@ for (const width of WIDTHS) {
       for (const route of ["/agents", "/commands", "/skills", "/workflow", "/formats"]) {
         await openAt(page, width, route);
         const tabs = page.locator(".page-tabs");
-        await expect(tabs, route).toHaveCount(1);
-        const { scrollHeight, clientHeight } = await tabs.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
-        expect(scrollHeight, `${route} .page-tabs scrollHeight`).toBeLessThanOrEqual(clientHeight);
+        await expect(tabs, route).toHaveCount(["/agents", "/commands", "/skills"].includes(route) ? 2 : 1);
+        for (const tab of await tabs.all()) {
+          const { scrollHeight, clientHeight } = await tab.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
+          expect(scrollHeight, `${route} .page-tabs scrollHeight`).toBeLessThanOrEqual(clientHeight);
+        }
       }
     });
 

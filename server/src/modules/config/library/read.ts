@@ -1,9 +1,11 @@
 import { readdir, realpath, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import path from "node:path";
-import { claudeHome, displayPath, fileInfo, frontmatter, readText, strings } from "../shared/fs.js";
-import { checkAgent, checkNames, type AgentCheck } from "./check.js";
+import { claudeHome, codexSkillsHome, copilotHome, displayPath, fileInfo, frontmatter, readText, strings } from "../shared/fs.js";
+import type { ConfigCli } from "../shared/agent.js";
+import { checkAgent, checkCodexAgent, checkNames, type AgentCheck } from "./check.js";
 import { readTemplates } from "./templates.js";
+import { tomlMeta } from "./templates.js";
 
 export type LibraryKind = "agents" | "commands" | "skills";
 export type LibraryScope = "project" | "user";
@@ -26,25 +28,105 @@ export interface LibraryItem {
   files?: string[];
   /** agents: whether TaskPilot can use it, and as what. */
   check?: AgentCheck;
+  /** A Copilot agent in .claude/agents is visible to the CLI but cannot be edited as Copilot config. */
+  editable?: boolean;
 }
 
 const SHOWN_FIELDS = ["tools", "allowed-tools", "model", "argument-hint", "color", "disable-model-invocation"];
 
-/** Agents, slash commands or skills of the repo (.claude/) and of the user (~/.claude/). */
-export async function readLibrary(repo: string, kind: LibraryKind): Promise<LibraryItem[]> {
-  const roots: Array<[LibraryScope, string]> = [
-    ["project", path.join(repo, ".claude", kind)],
-    ["user", path.join(claudeHome(), kind)],
-  ];
+/** Native library files for the selected CLI; absent cli preserves the Claude API. */
+export async function readLibrary(repo: string, kind: LibraryKind, cli: ConfigCli = "claude"): Promise<LibraryItem[]> {
+  const roots: Array<[LibraryScope, string, boolean?]> =
+    cli === "claude"
+      ? [
+          ["project", path.join(repo, ".claude", kind)],
+          ["user", path.join(claudeHome(), kind)],
+        ]
+      : kind === "agents"
+        ? cli === "codex"
+          ? [["project", path.join(repo, ".codex", "agents")]]
+          : [
+              ["project", path.join(repo, ".github", "agents")],
+              ["project", path.join(repo, ".claude", "agents"), false],
+              ["user", path.join(copilotHome(), "agents")],
+            ]
+        : cli === "codex"
+          ? [
+              ["project", path.join(repo, ".agents", "skills")],
+              ["user", codexSkillsHome()],
+            ]
+          : [
+              ["project", path.join(repo, ".github", "skills")],
+              ["user", path.join(copilotHome(), "skills")],
+            ];
   // Agents are compared with TaskPilot's templates by name.
-  const templates = kind === "agents" ? new Map((await readTemplates()).map((tpl) => [tpl.name, tpl.content])) : undefined;
+  const templates = kind === "agents" && cli !== "copilot" ? new Map((await readTemplates(cli)).map((tpl) => [tpl.name, tpl.content])) : undefined;
   const out: LibraryItem[] = [];
-  for (const [scope, root] of roots) {
-    if (kind === "skills") out.push(...(await readSkills(root, scope, repo)));
+  for (const [scope, root, editable] of roots) {
+    if (kind === "skills") out.push(...(await readSkills(root, scope, repo, cli)));
+    else if (cli === "codex") out.push(...(await readCodexAgents(root, scope, repo, templates)));
+    else if (cli === "copilot") out.push(...(await readCopilotAgents(root, scope, repo, editable !== false)));
     else out.push(...(await readMarkdownItems(root, root, kind, scope, repo, templates)));
   }
-  if (kind === "agents") checkNames(out);
+  if (kind === "agents" && cli === "claude") checkNames(out);
   return out.sort((a, b) => (a.scope === b.scope ? a.name.localeCompare(b.name) : a.scope === "project" ? -1 : 1));
+}
+
+async function readCodexAgents(root: string, scope: LibraryScope, repo: string, templates?: Map<string, string>): Promise<LibraryItem[]> {
+  let entries: Dirent[];
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out: LibraryItem[] = [];
+  for (const entry of entries) {
+    if ((await entryType(root, entry)) !== "file" || !/^[A-Za-z0-9][\w.-]*\.toml$/.test(entry.name)) continue;
+    const file = path.join(root, entry.name);
+    const [content, info] = await Promise.all([readText(file), fileInfo(file)]);
+    if (content === null) continue;
+    const meta = tomlMeta(content);
+    const name = entry.name.slice(0, -".toml".length);
+    const check = checkCodexAgent(content);
+    const template = templates?.get(name);
+    if (template !== undefined) check.template = template === content ? "same" : "modified";
+    out.push({
+      kind: "agents",
+      scope,
+      name,
+      path: displayPath(file, repo),
+      rel: entry.name,
+      description: typeof meta.description === "string" ? meta.description : "",
+      fields: ["model", "sandbox_mode"].flatMap((key) => (typeof meta[key] === "string" ? [{ key, value: meta[key] as string }] : [])),
+      body: typeof meta.developer_instructions === "string" ? meta.developer_instructions : "",
+      mtime: info?.mtime ?? null,
+      check,
+    });
+  }
+  return out;
+}
+
+async function readCopilotAgents(root: string, scope: LibraryScope, repo: string, editable: boolean): Promise<LibraryItem[]> {
+  let entries: Dirent[];
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out: LibraryItem[] = [];
+  for (const entry of entries) {
+    const rel = entry.name;
+    const allowed = scope === "user" ? /^[A-Za-z0-9][\w.-]*\.agent\.md$/.test(rel) : /^[A-Za-z0-9][\w.-]*\.(?:agent\.)?md$/.test(rel);
+    if (!allowed || (await entryType(root, entry)) !== "file") continue;
+    const file = path.join(root, rel);
+    const name = rel.replace(/(?:\.agent)?\.md$/, "");
+    const item = await toItem(file, "agents", scope, repo, name, rel);
+    item.name = name; // Copilot resolves --agent by filename, regardless of YAML name.
+    item.editable = editable;
+    delete item.check; // Claude's model/tool validator does not apply to Copilot agents.
+    out.push(item);
+  }
+  return out;
 }
 
 /** The repo's and the user's Claude subagents, each with its TaskPilot check; for the workflow engine. */
@@ -86,7 +168,7 @@ async function readMarkdownItems(
   return out;
 }
 
-async function readSkills(root: string, scope: LibraryScope, repo: string): Promise<LibraryItem[]> {
+async function readSkills(root: string, scope: LibraryScope, repo: string, cli: ConfigCli): Promise<LibraryItem[]> {
   let entries;
   try {
     entries = await readdir(root, { withFileTypes: true });
@@ -95,6 +177,7 @@ async function readSkills(root: string, scope: LibraryScope, repo: string): Prom
   }
   const out: LibraryItem[] = [];
   for (const e of entries) {
+    if (cli !== "claude" && !/^[A-Za-z0-9][\w-]*$/.test(e.name)) continue;
     // A skill folder may be a symlink to a directory elsewhere.
     if ((await entryType(root, e)) !== "dir") continue;
     const dir = path.join(root, e.name);

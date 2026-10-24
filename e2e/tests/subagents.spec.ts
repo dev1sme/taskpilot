@@ -22,7 +22,10 @@ const template = (name: string, extra: Record<string, unknown> = {}) => ({
  */
 async function fakeTemplates(page: Page, templates: ReturnType<typeof template>[]) {
   const installs: unknown[] = [];
-  await page.route("**/api/config/agents/templates", (route) => route.fulfill({ json: templates }));
+  await page.route(
+    (url) => url.pathname === "/api/config/agents/templates",
+    (route) => route.fulfill({ json: templates }),
+  );
   await page.route("**/api/config/agents/templates/preview", (route) =>
     route.fulfill({
       json: {
@@ -55,7 +58,10 @@ test("each agent shows whether a TaskPilot workflow can use it", async ({ page }
 });
 
 test("a repo without subagents offers TaskPilot's templates, written after the diff", async ({ page }) => {
-  await page.route("**/api/config/agents", (route) => route.fulfill({ json: [] }));
+  await page.route(
+    (url) => url.pathname === "/api/config/agents",
+    (route) => route.fulfill({ json: [] }),
+  );
   const installs = await fakeTemplates(page, [template("taskpilot-explorer"), template("taskpilot-implementer")]);
   await page.goto("/#/agents");
   const banner = page.getByRole("region", { name: "Repo chưa có subagent" });
@@ -70,7 +76,7 @@ test("a repo without subagents offers TaskPilot's templates, written after the d
   const diff = page.getByRole("dialog", { name: "Ghi subagent mẫu vào .claude/agents" });
   await expect(diff).toContainText("+name: taskpilot-explorer");
   await diff.getByRole("button", { name: "Ghi 1 file" }).click();
-  await expect.poll(() => installs).toEqual([{ names: ["taskpilot-explorer"], overwrite: [], hashes: { "taskpilot-explorer": "", "taskpilot-implementer": "" } }]);
+  await expect.poll(() => installs).toEqual([{ cli: "claude", names: ["taskpilot-explorer"], overwrite: [], hashes: { "taskpilot-explorer": "", "taskpilot-implementer": "" } }]);
   await expect(page.getByText("Đã ghi 1 subagent mẫu vào .claude/agents.")).toBeVisible();
 });
 
@@ -93,5 +99,34 @@ test("a template the repo changed is overwritten only when ticked, with the hash
   await page.getByRole("dialog", { name: "Ghi subagent mẫu vào .claude/agents" }).getByRole("button", { name: "Ghi 1 file" }).click();
   await expect
     .poll(() => installs)
-    .toEqual([{ names: ["taskpilot-tester"], overwrite: ["taskpilot-tester"], hashes: { "taskpilot-explorer": "hash-taskpilot-explorer", "taskpilot-tester": "hash-taskpilot-tester" } }]);
+    .toEqual([
+      {
+        cli: "claude",
+        names: ["taskpilot-tester"],
+        overwrite: ["taskpilot-tester"],
+        hashes: { "taskpilot-explorer": "hash-taskpilot-explorer", "taskpilot-tester": "hash-taskpilot-tester" },
+      },
+    ]);
+});
+
+test("agent library and templates use native CLI formats", async ({ page }) => {
+  const cases = [
+    { cli: "claude", rel: "reviewer.md", path: ".claude/agents/reviewer.md" },
+    { cli: "copilot", rel: "native-reviewer.agent.md", path: ".github/agents/native-reviewer.agent.md" },
+    { cli: "codex", rel: "native-reviewer.toml", path: ".codex/agents/native-reviewer.toml" },
+  ] as const;
+  for (const { cli, rel, path } of cases) {
+    const response = await page.request.get(`/api/config/agents?cli=${cli}`);
+    expect(response.ok()).toBe(true);
+    const items = (await response.json()) as Array<{ rel: string; path: string; editable?: boolean }>;
+    expect(items.find((item) => item.rel === rel)?.path).toBe(path);
+    if (cli === "copilot") {
+      expect(items.find((item) => item.path === ".claude/agents/reviewer.md")?.editable).toBe(false);
+    }
+  }
+  const codexTemplates = await page.request.get("/api/config/agents/templates?cli=codex");
+  expect(codexTemplates.ok()).toBe(true);
+  const templates = (await codexTemplates.json()) as Array<{ path: string }>;
+  expect(templates.length).toBeGreaterThan(0);
+  expect(templates.every((item) => item.path.startsWith(".codex/agents/") && item.path.endsWith(".toml"))).toBe(true);
 });

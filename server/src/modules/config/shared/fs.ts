@@ -9,6 +9,21 @@ export function claudeHome(): string {
   return process.env.TASKPILOT_CLAUDE_HOME ?? path.join(os.homedir(), ".claude");
 }
 
+/** CODEX_HOME is the CLI's native override; TASKPILOT_CODEX_HOME isolates tests. */
+export function codexHome(): string {
+  return process.env.TASKPILOT_CODEX_HOME ?? process.env.CODEX_HOME ?? path.join(os.homedir(), ".codex");
+}
+
+/** Codex discovers personal skills under ~/.agents/skills, separate from CODEX_HOME. */
+export function codexSkillsHome(): string {
+  return process.env.TASKPILOT_CODEX_SKILLS_HOME ?? path.join(os.homedir(), ".agents", "skills");
+}
+
+/** COPILOT_HOME is the CLI's native override; TASKPILOT_COPILOT_HOME isolates tests. */
+export function copilotHome(): string {
+  return process.env.TASKPILOT_COPILOT_HOME ?? process.env.COPILOT_HOME ?? path.join(os.homedir(), ".copilot");
+}
+
 /** ~/.claude.json (user and local MCP servers live there). */
 export function claudeJson(): string {
   return process.env.TASKPILOT_CLAUDE_JSON ?? path.join(os.homedir(), ".claude.json");

@@ -1,7 +1,7 @@
 import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { get, home, repo, send, useConfigApp } from "../../helpers/configApp.js";
+import { codexHome, copilotHome, get, home, repo, send, useConfigApp } from "../../helpers/configApp.js";
 import { checkCodexAgent } from "../../../src/modules/config/library/check.js";
 import { SUBAGENTS_DIR } from "../../../src/modules/config/library/templates.js";
 
@@ -233,5 +233,86 @@ describe("Codex subagent templates", () => {
     expect(checkCodexAgent('name = "a"\ndescription = "b"').problems).toHaveLength(1);
     expect(checkCodexAgent('name = "a"\ndescription = "b"\ndeveloper_instructions = "c"\nsandbox_mode = "x"').status).toBe("error");
     expect(checkCodexAgent('name = "a"\ndescription = "b"\ndeveloper_instructions = "c"').roles).toEqual(["leader", "member"]);
+  });
+});
+
+describe("native CLI libraries", () => {
+  it("lists Codex TOML agents and supports preview, CRUD, backup and template comparison", async () => {
+    const url = "/api/config/library/agents/project?cli=codex";
+    const content = 'name = "taskpilot-reviewer"\ndescription = "Reviews"\ndeveloper_instructions = "Review changes"\n';
+    const preview = (await send("POST", "/api/config/library/agents/project/preview?cli=codex", { rel: "taskpilot-reviewer.toml", content, baseHash: "absent" })).json();
+    expect(preview).toMatchObject({ changed: true, stale: false });
+    expect(preview.diff).toContain(".codex/agents/taskpilot-reviewer.toml");
+    expect((await send("PUT", url, { rel: "taskpilot-reviewer.toml", content, baseHash: "absent" })).statusCode).toBe(200);
+    const list = await get("/api/config/agents?cli=codex");
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({
+      name: "taskpilot-reviewer",
+      rel: "taskpilot-reviewer.toml",
+      path: ".codex/agents/taskpilot-reviewer.toml",
+      body: "Review changes",
+      check: { status: "ok", template: "modified" },
+    });
+    expect(await get("/api/config/agents")).toEqual([]);
+    const raw = await get("/api/config/library/agents/project/raw?cli=codex&rel=taskpilot-reviewer.toml");
+    expect(raw.content).toBe(content);
+    expect((await send("PUT", url, { rel: "taskpilot-reviewer.toml", content: content + "# edited\n", baseHash: "absent" })).statusCode).toBe(409);
+    expect((await send("PUT", url, { rel: "taskpilot-reviewer.toml", content: content + "# edited\n", baseHash: raw.hash })).statusCode).toBe(200);
+    const edited = await get("/api/config/library/agents/project/raw?cli=codex&rel=taskpilot-reviewer.toml");
+    expect(edited.content).toContain("# edited");
+    expect((await send("DELETE", `${url}&rel=taskpilot-reviewer.toml&baseHash=${edited.hash}`)).statusCode).toBe(200);
+    expect(await get("/api/config/agents?cli=codex")).toEqual([]);
+    expect((await get("/api/backups"))[0]).toMatchObject({ display: ".codex/agents/taskpilot-reviewer.toml", existed: true });
+
+    const installed = await send("POST", "/api/config/agents/templates/install", { cli: "codex", names: ["taskpilot-reviewer"] });
+    expect(installed.statusCode).toBe(200);
+    expect((await get("/api/config/agents?cli=codex"))[0].check.template).toBe("same");
+    expect(await readFile(path.join(repo, ".codex", "agents", "taskpilot-reviewer.toml"), "utf8")).toContain('name = "taskpilot-reviewer"');
+  });
+
+  it("lists Copilot's native and Claude-compatible agents without treating the latter as editable", async () => {
+    await mkdir(path.join(repo, ".github", "agents"), { recursive: true });
+    await mkdir(path.join(repo, ".claude", "agents"), { recursive: true });
+    await mkdir(path.join(copilotHome, "agents"), { recursive: true });
+    await writeFile(path.join(repo, ".claude", "agents", "legacy.md"), agent("name: legacy\ndescription: Legacy"));
+    await writeFile(path.join(repo, ".github", "agents", "helper.agent.md"), agent("description: Native"));
+    await writeFile(path.join(copilotHome, "agents", "personal.agent.md"), agent("description: User"));
+    const list = await get("/api/config/agents?cli=copilot");
+    expect(list.map((a: { name: string; path: string; editable: boolean }) => ({ name: a.name, path: a.path, editable: a.editable }))).toEqual([
+      { name: "helper", path: ".github/agents/helper.agent.md", editable: true },
+      { name: "legacy", path: ".claude/agents/legacy.md", editable: false },
+      { name: "personal", path: path.join(copilotHome, "agents", "personal.agent.md"), editable: true },
+    ]);
+    expect((await send("PUT", "/api/config/library/agents/project?cli=copilot", { rel: "legacy.md", content: "new", baseHash: "absent" })).statusCode).toBe(200);
+    expect(await readFile(path.join(repo, ".claude", "agents", "legacy.md"), "utf8")).toContain("Legacy");
+    expect(await readFile(path.join(repo, ".github", "agents", "legacy.md"), "utf8")).toBe("new");
+    expect((await send("PUT", "/api/config/library/agents/user?cli=copilot", { rel: "wrong.md", content: "x", baseHash: "absent" })).statusCode).toBe(400);
+  });
+
+  it("uses native skill roots and rejects unsupported kinds, scopes and extensions", async () => {
+    const skill = "---\nname: deploy\ndescription: Deploy\n---\nSteps\n";
+    for (const [cli, scope, root] of [
+      ["codex", "project", path.join(repo, ".agents", "skills")],
+      ["codex", "user", path.join(codexHome, "skills")],
+      ["copilot", "project", path.join(repo, ".github", "skills")],
+      ["copilot", "user", path.join(copilotHome, "skills")],
+    ]) {
+      const url = `/api/config/library/skills/${scope}?cli=${cli}`;
+      expect((await send("PUT", url, { rel: "deploy/SKILL.md", content: skill, baseHash: "absent" })).statusCode).toBe(200);
+      expect(await readFile(path.join(root, "deploy", "SKILL.md"), "utf8")).toBe(skill);
+      expect(
+        (await get(`/api/config/skills?cli=${cli}`)).some(
+          (a: { path: string }) => a.path === path.relative(repo, path.join(root, "deploy", "SKILL.md")) || a.path === path.join(root, "deploy", "SKILL.md"),
+        ),
+      ).toBe(true);
+    }
+    expect((await send("PUT", "/api/config/library/agents/project?cli=codex", { rel: "wrong.md", content: "x", baseHash: "absent" })).statusCode).toBe(400);
+    expect((await send("PUT", "/api/config/library/agents/project?cli=codex", { rel: "broken.toml", content: "name = ", baseHash: "absent" })).statusCode).toBe(400);
+    expect((await send("PUT", "/api/config/library/agents/user?cli=codex", { rel: "right.toml", content: "x", baseHash: "absent" })).statusCode).toBe(400);
+    expect((await send("PUT", "/api/config/library/skills/project?cli=copilot", { rel: "deploy/readme.md", content: "x", baseHash: "absent" })).statusCode).toBe(400);
+    expect((await send("PUT", "/api/config/library/commands/project?cli=codex", { rel: "x.md", content: "x", baseHash: "absent" })).statusCode).toBe(501);
+    expect((await get("/api/config/commands?cli=copilot")).error).toBeDefined();
+    expect((await get("/api/config/capabilities?cli=codex")).sections.agents.available).toBe(true);
+    expect((await get("/api/config/capabilities?cli=copilot")).sections.skills.available).toBe(true);
   });
 });

@@ -19,7 +19,7 @@ import {
 import { motion } from "motion/react";
 import { useEffect, useState, type Ref } from "react";
 import { useTranslation } from "react-i18next";
-import { href, type Route } from "../../shared/router";
+import { href, isCliConfigSection, selectedConfigCli, type Route } from "../../shared/router";
 import { useWorkspace } from "../../features/workspace";
 import { useDrafts } from "../../features/config";
 import { statusOf } from "../../features/tasks";
@@ -41,7 +41,7 @@ interface NavItem {
 
 const COLLAPSED_KEY = "taskpilot.sidebar.collapsed";
 
-type GroupId = "workspace" | "claude" | "integrations";
+type GroupId = "workspace" | "config" | "integrations";
 
 /**
  * How the sidebar shows: the full 248px column, the 64px icon rail (desktop, folded by the user), or
@@ -97,10 +97,11 @@ export function Sidebar({
   const drafts = useDrafts();
   const authMode = useAuthMode();
   const [collapsed, setCollapsed] = useState(readCollapsed);
-  const dirty = (prefix: string) => drafts.some((k) => k.startsWith(prefix));
+  const cli = route.page === "config" && isCliConfigSection(route.section) ? (route.cli ?? "claude") : selectedConfigCli();
+  const dirty = (prefix: string) => drafts.some((k) => k.startsWith(`${cli}:${prefix}`));
   const waiting = tasks.filter((x) => statusOf(x).tone === "attention").length;
   const inTasks = route.page === "tasks" || route.page === "task";
-  const libraryCount = (inventory?.claudeDir.agents ?? 0) + (inventory?.claudeDir.commands ?? 0) + (inventory?.claudeDir.skills ?? 0);
+  const libraryCount = cli === "claude" ? (inventory?.claudeDir.agents ?? 0) + (inventory?.claudeDir.commands ?? 0) + (inventory?.claudeDir.skills ?? 0) : 0;
   const rail = mode === "rail";
   const repoName = repo?.path?.split(/[\\/]/).filter(Boolean).pop() ?? t("common:noRepo");
 
@@ -116,22 +117,34 @@ export function Sidebar({
       ],
     },
     {
-      id: "claude",
-      label: t("navGroup.claude"),
+      id: "config",
+      label: t("navGroup.config", { cli: t(`cli.${cli}`) }),
       foldable: true,
       items: [
-        { label: t("nav.memory"), icon: BookOpenText, route: { page: "config", section: "memory" }, dirty: dirty("memory:") },
-        { label: t("nav.settings"), icon: Gear, route: { page: "config", section: "settings" }, dirty: dirty("settings:") },
-        { label: t("nav.hooks"), icon: Lightning, route: { page: "config", section: "hooks" }, badge: inventory?.claudeDir.hooks || undefined, dirty: dirty("hooks") },
+        { label: t("nav.memory"), icon: BookOpenText, route: { page: "config", section: "memory", cli }, dirty: dirty("memory:") },
+        { label: t("nav.settings"), icon: Gear, route: { page: "config", section: "settings", cli }, dirty: dirty("settings:") },
+        {
+          label: t("nav.hooks"),
+          icon: Lightning,
+          route: { page: "config", section: "hooks", cli },
+          badge: cli === "claude" ? inventory?.claudeDir.hooks || undefined : undefined,
+          dirty: dirty("hooks:"),
+        },
         {
           label: t("nav.library"),
           icon: Robot,
-          route: { page: "config", section: "agents" },
+          route: { page: "config", section: "agents", cli },
           sections: ["agents", "commands", "skills"],
           badge: libraryCount || undefined,
           dirty: dirty("library:"),
         },
-        { label: t("nav.workflow"), icon: FlowArrow, route: { page: "config", section: "workflow" }, sections: ["workflow", "formats"], dirty: dirty("workflow:") },
+        {
+          label: t("nav.workflow"),
+          icon: FlowArrow,
+          route: { page: "config", section: "workflow" },
+          sections: ["workflow", "formats"],
+          dirty: drafts.some((k) => k.startsWith("workflow:")),
+        },
       ],
     },
     {
@@ -142,9 +155,9 @@ export function Sidebar({
         {
           label: t("nav.mcp"),
           icon: Plugs,
-          route: { page: "config", section: "mcp" },
-          badge: inventory?.mcp.servers.length || undefined,
-          warn: Boolean(inventory?.mcp.error),
+          route: { page: "config", section: "mcp", cli },
+          badge: cli === "claude" ? inventory?.mcp.servers.length || undefined : undefined,
+          warn: cli === "claude" && Boolean(inventory?.mcp.error),
         },
         { label: t("nav.codegraph"), icon: TreeStructure, route: { page: "config", section: "codegraph" } },
       ],

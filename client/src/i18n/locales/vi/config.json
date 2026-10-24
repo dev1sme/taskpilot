@@ -70,13 +70,35 @@
         "empty": "Mỗi skill là một thư mục có SKILL.md."
       }
     },
+    "cli": {
+      "codex": {
+        "agents": {
+          "subtitle": "Subagent Codex trong .codex/agents",
+          "empty": "Mỗi agent là một file .toml có name, description và developer_instructions."
+        },
+        "skills": {
+          "subtitle": "Skills Codex trong .agents/skills hoặc ~/.codex/skills",
+          "empty": "Mỗi skill là một thư mục có SKILL.md."
+        }
+      },
+      "copilot": {
+        "agents": {
+          "subtitle": "Agent Copilot trong .github/agents hoặc ~/.copilot/agents; agent ở .claude/agents chỉ xem",
+          "empty": "Mỗi agent là một file .agent.md."
+        },
+        "skills": {
+          "subtitle": "Skills Copilot trong .github/skills hoặc ~/.copilot/skills",
+          "empty": "Mỗi skill là một thư mục có SKILL.md."
+        }
+      }
+    },
     "template": {
       "agentDescription": "Khi nào nên giao việc cho agent này",
       "agentBody": "Bạn là {{name}}. Mô tả cách làm việc ở đây.",
       "commandDescription": "Lệnh này làm gì",
       "commandArgumentHint": "[tham số]",
       "commandBody": "Nội dung prompt. Dùng $ARGUMENTS để nhận tham số.",
-      "skillDescription": "Khi nào Claude nên dùng skill này",
+      "skillDescription": "Khi nào nên dùng skill này",
       "skillBody": "Các bước thực hiện."
     },
     "saveTitle": "Lưu {{path}}",
@@ -97,6 +119,7 @@
     "editTitle": "Sửa {{path}}",
     "deleteTitle": "Xóa {{path}}",
     "skillDeleteHint": "Chỉ xóa SKILL.md; {{count}} file khác trong thư mục giữ nguyên.",
+    "readOnlySource": "File nguồn .claude/agents; mở Claude để sửa hoặc xóa.",
     "files": "File đi kèm",
     "body": "Nội dung",
     "templates": {
@@ -117,10 +140,20 @@
       "write_one": "Ghi {{count}} file",
       "write_other": "Ghi {{count}} file",
       "installed_one": "Đã ghi {{count}} subagent mẫu vào .claude/agents.",
-      "installed_other": "Đã ghi {{count}} subagent mẫu vào .claude/agents."
+      "installed_other": "Đã ghi {{count}} subagent mẫu vào .claude/agents.",
+      "codex": {
+        "buttonTitle": "Ghi subagent mẫu của TaskPilot vào .codex/agents",
+        "bannerBody": "Ghi bộ subagent mẫu của TaskPilot vào .codex/agents của repo này để bắt đầu, rồi sửa theo repo.",
+        "subtitle": "Ghi vào .codex/agents của repo này. Xem diff trước khi ghi; bản cũ luôn nằm trong Lịch sử thay đổi.",
+        "diffTitle": "Ghi subagent mẫu vào .codex/agents",
+        "installed_one": "Đã ghi {{count}} subagent mẫu vào .codex/agents.",
+        "installed_other": "Đã ghi {{count}} subagent mẫu vào .codex/agents."
+      }
     },
     "check": {
       "title": "Kiểm tra cho TaskPilot",
+      "codexError": "Codex hoặc TaskPilot không dùng được agent này.",
+      "codexLeader": "leader (leader gọi subagent Codex)",
       "error": "lỗi",
       "unusable": "không dùng được",
       "member": "leader · member",
@@ -171,6 +204,21 @@
   "mcp": {
     "title": "MCP servers",
     "subtitle": "Server Claude dùng để gọi công cụ bên ngoài",
+    "cli": {
+      "codex": {
+        "subtitle": "Server MCP trong config.toml của Codex; mỗi phạm vi dùng file riêng.",
+        "tab": { "project": ".codex/config.toml", "local": "", "user": "~/.codex/config.toml" },
+        "empty": { "project": "Chưa có server trong .codex/config.toml.", "local": "", "user": "Chưa có server trong ~/.codex/config.toml." }
+      },
+      "copilot": {
+        "subtitle": "Server MCP từ .mcp.json, .github/mcp.json và ~/.copilot/mcp-config.json; thêm server dự án vào .github/mcp.json.",
+        "tab": { "project": ".github/mcp.json", "local": "", "user": "~/.copilot/mcp-config.json" },
+        "empty": { "project": "Chưa có server trong các file MCP của dự án.", "local": "", "user": "Chưa có server trong ~/.copilot/mcp-config.json." }
+      },
+      "shadowed": "Bản ở {{scope}} được ưu tiên sử dụng.",
+      "readOnlySource": "Nguồn này chỉ xem; thêm hoặc sửa server trong file MCP native có thể ghi của CLI.",
+      "checkUnavailable": "Kiểm tra kết nối từ trang này hiện chỉ hỗ trợ Claude."
+    },
     "tab": {
       "project": ".mcp.json",
       "local": "~/.claude.json · repo này",
@@ -232,6 +280,7 @@
     "headers": "Headers",
     "confirmAdd": "Thêm server",
     "secretHelp": "Giá trị đánh dấu \"bí mật\" không ghi vào .mcp.json (file được commit): TaskPilot ghi <code>${TÊN}</code> và giữ giá trị trong kho env riêng, đưa vào các session nó mở.",
+    "nativeProjectValues": "Giá trị nhập ở đây được ghi trực tiếp vào file MCP của dự án. Không nhập token hoặc mật khẩu nếu file sẽ được commit.",
     "keyLabel": "Tên",
     "valueLabel": "Giá trị {{key}}",
     "keep": "giữ nguyên ({{masked}})",
@@ -244,6 +293,63 @@
   "settings": {
     "title": "Settings & quyền",
     "subtitle": "Claude gộp cả 3 file settings; luật chặn luôn thắng luật cho phép",
+    "native": {
+      "codex": {
+        "title": "Settings Codex",
+        "subtitle": "Sửa các lựa chọn quyền native trong config.toml của Codex theo từng file"
+      },
+      "copilot": {
+        "title": "Settings Copilot",
+        "subtitle": "Sửa các trường đã được kiểm tra trong settings.json của Copilot theo từng file"
+      },
+      "missingFile": "Chưa có file này. Chọn Sửa để tạo bằng các trường được hỗ trợ.",
+      "fieldsHint": "TaskPilot chỉ gửi những trường ba thay đổi; các khóa khác trong file được giữ nguyên. Giá trị chưa nhận diện không được hiển thị.",
+      "editTitle": "Sửa settings trong {{path}}",
+      "saveTitle": "Lưu settings vào {{path}}",
+      "saved": "Đã lưu settings vào {{path}}. Bản cũ nằm trong Lịch sử thay đổi.",
+      "confirm": "Lưu settings",
+      "unset": "Không đặt trong file này",
+      "unsetOrUnknown": "Chưa đặt hoặc giá trị chưa hỗ trợ",
+      "field": {
+        "approval_policy": "Chính sách phê duyệt",
+        "sandbox_mode": "Chế độ sandbox",
+        "disableAllHooks": "Tắt mọi hook",
+        "respectGitignore": "Tôn trọng .gitignore",
+        "askUser": "Cho phép hỏi người dùng",
+        "permissions": {
+          "disableBypassPermissionsMode": "Giới hạn chế độ bỏ qua quyền"
+        },
+        "sandbox": {
+          "enabled": "Bật sandbox",
+          "allowBypass": "Cho phép bỏ qua sandbox"
+        }
+      },
+      "help": {
+        "approval_policy": "Codex quyết định khi nào cần xin phê duyệt.",
+        "sandbox_mode": "Phạm vi Codex được phép truy cập khi chạy lệnh.",
+        "disableAllHooks": "Áp dụng cho các hook của Copilot.",
+        "respectGitignore": "Giữ cách Copilot xử lý file bị .gitignore loại trừ.",
+        "askUser": "Cho phép Copilot dùng chức năng hỏi người dùng.",
+        "permissions": {
+          "disableBypassPermissionsMode": "Giới hạn tùy chọn bỏ qua kiểm tra quyền của Copilot."
+        },
+        "sandbox": {
+          "enabled": "Bật cơ chế sandbox của Copilot.",
+          "allowBypass": "Cho phép Copilot bỏ qua sandbox khi được cấu hình."
+        }
+      },
+      "value": {
+        "on-request": "on-request · hỏi khi cần",
+        "never": "never · không hỏi",
+        "read-only": "read-only · chỉ đọc",
+        "workspace-write": "workspace-write · ghi trong workspace",
+        "danger-full-access": "danger-full-access · toàn quyền",
+        "disable": "disable · tắt chế độ bỏ qua quyền",
+        "allow-auto-only": "allow-auto-only · chỉ cho phép tự động",
+        "true": "Bật",
+        "false": "Tắt"
+      }
+    },
     "tab": {
       "project": ".claude/settings.json",
       "local": ".claude/settings.local.json",
@@ -298,6 +404,35 @@
   "hooks": {
     "title": "Hooks",
     "subtitle": "Lệnh tự chạy theo sự kiện của Claude, khai báo trong mục \"hooks\" của các file settings",
+    "codex": {
+      "title": "Codex chưa hỗ trợ quản lý hooks",
+      "subtitle": "Trạng thái hooks native của Codex",
+      "body": "TaskPilot chưa có adapter hooks native đã xác minh cho Codex. Không thể xem hoặc sửa hooks Codex tại đây."
+    },
+    "copilot": {
+      "title": "Hooks Copilot",
+      "subtitle": "Hooks native trong .github/hooks/*.json và thư mục hooks của Copilot CLI",
+      "scopesLabel": "Phạm vi file hooks Copilot",
+      "projectionHint": "Chỉ các command hook có schema được hỗ trợ mới hiện trong form. Các hook và trường khác được giữ nguyên khi lưu.",
+      "filesLabel": "File hooks",
+      "emptyTitle": "Chưa có file hooks",
+      "emptyBody": "Tạo một file JSON mới để thêm command hook cho phạm vi này.",
+      "commandCount_one": "{{count}} command hook có thể sửa",
+      "commandCount_other": "{{count}} command hook có thể sửa",
+      "newFile": "Tên file mới",
+      "nameHint": "Dùng chữ, số, dấu gạch hoặc dấu chấm và kết thúc bằng .json; taskpilot.json do TaskPilot tự quản.",
+      "alreadyExists": "File này đã tồn tại. Chọn file trong danh sách để sửa.",
+      "editorHint": "Mỗi dòng là một command hook của Copilot. Matcher chỉ có ở các sự kiện cho phép và dùng biểu thức chính quy.",
+      "mode": "Kiểu lệnh",
+      "shell": "Lệnh shell",
+      "executable": "Chương trình và tham số",
+      "exec": "Chương trình (exec)",
+      "args": "Tham số (args)",
+      "cwd": "Thư mục chạy (cwd)",
+      "timeoutSec": "Giới hạn thời gian (giây)",
+      "matcherPlaceholder": "Biểu thức chính quy",
+      "argsHint": "Mỗi tham số một dòng; giữ khoảng trắng trong từng tham số"
+    },
     "event": {
       "PreToolUse": "Trước khi Claude dùng một công cụ; có thể chặn thao tác",
       "PostToolUse": "Sau khi một công cụ chạy xong",
@@ -336,6 +471,24 @@
   "memory": {
     "title": "CLAUDE.md",
     "subtitle": "Hướng dẫn Claude đọc ở đầu mỗi session trong repo này",
+    "cli": {
+      "copilot": {
+        "title": "Hướng dẫn Copilot",
+        "subtitle": "File hướng dẫn gốc của Copilot CLI trong repo và thư mục người dùng",
+        "missing": {
+          "project": "Repo chưa có file hướng dẫn Copilot tại .github/copilot-instructions.md.",
+          "user": "Chưa có file hướng dẫn chung của Copilot CLI trong thư mục người dùng."
+        }
+      },
+      "codex": {
+        "title": "AGENTS.md",
+        "subtitle": "File hướng dẫn gốc của Codex trong repo và thư mục người dùng",
+        "missing": {
+          "project": "Repo chưa có AGENTS.md để ghi quy ước cho Codex.",
+          "user": "Chưa có AGENTS.md trong thư mục người dùng của Codex."
+        }
+      }
+    },
     "tab": {
       "project": "CLAUDE.md",
       "local": "CLAUDE.local.md",
@@ -351,13 +504,14 @@
     "saved": "Đã lưu {{path}}. Bản cũ nằm trong Lịch sử thay đổi.",
     "editTitle": "Sửa {{path}}",
     "createTitle": "Tạo {{path}}",
-    "tabsLabel": "File memory",
+    "tabsLabel": "File hướng dẫn",
     "outline": "Mục lục",
     "noHeadings": "Không có tiêu đề.",
     "imports": "Import",
     "lines": "{{count}} dòng",
     "modified": " · sửa lúc {{time}}",
     "loads": "Claude sẽ nạp",
+    "loadsEstimate": "Ước tính kích thước",
     "checks": "Kiểm tra",
     "line": "dòng {{line}}",
     "tokenUnit": "token"

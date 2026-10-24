@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Button } from "../../../shared/ui/Button";
 import { DiffDialog } from "../../../shared/ui/DiffDialog";
 import { toast } from "../../../shared/ui/Toast";
+import type { ConfigCli } from "../../../shared/router";
 import { ScopeTag } from "../shared/parts";
 import { useSaveFlow } from "../shared/useSaveFlow";
 import { mcpApi } from "./api";
@@ -33,6 +34,7 @@ const toRows = (values: McpEntryForm["env"]): Row[] => values.map((v) => ({ key:
  * TaskPilot's env store and .mcp.json gets `${VAR}`.
  */
 export function McpForm(props: {
+  cli?: ConfigCli;
   scope: Scope;
   base: McpEntryForm | null;
   baseHash: string;
@@ -43,6 +45,7 @@ export function McpForm(props: {
   actionsSlot?: HTMLElement | null;
 }) {
   const { t } = useTranslation("config");
+  const cli = props.cli ?? "claude";
   const { scope, base } = props;
   const [name, setName] = useState(base?.name ?? props.initial?.name ?? "");
   const [type, setType] = useState<McpEntryInput["type"]>(base?.type ?? "stdio");
@@ -60,7 +63,7 @@ export function McpForm(props: {
         .filter((r) => r.key.trim())
         .map((r) => {
           if (!r.value && !r.existing) throw new Error(t("mcpForm.needsValue", { key: r.key }));
-          return { key: r.key.trim(), value: r.value || null, secret: r.secret };
+          return { key: r.key.trim(), value: r.value || null, secret: cli === "claude" && r.secret };
         });
     return {
       name: name.trim(),
@@ -84,11 +87,11 @@ export function McpForm(props: {
   const flow = useSaveFlow({
     title: t(base ? "mcpForm.saveTitle" : "mcpForm.addTitle", { name }),
     preview: async () => {
-      const p = await mcpApi.mcpPreview(scope, build(), props.baseHash);
+      const p = await mcpApi.mcpPreview(cli, scope, build(), props.baseHash);
       setSecrets(p.secrets);
       return p;
     },
-    save: () => mcpApi.mcpSave(scope, build(), props.baseHash),
+    save: () => mcpApi.mcpSave(cli, scope, build(), props.baseHash),
     onSaved: () => {
       toast(secrets.length ? t("mcpForm.savedWithSecrets", { name, secrets: secrets.join(", ") }) : t("mcpForm.saved", { name }));
       props.onDone(name.trim());
@@ -129,8 +132,8 @@ export function McpForm(props: {
         <select id={ids.type} value={type} onChange={(e) => setType(e.target.value as McpEntryInput["type"])}>
           <option value="stdio">{t("mcpForm.types.stdio")}</option>
           <option value="http">{t("mcpForm.types.http")}</option>
-          <option value="sse">{t("mcpForm.types.sse")}</option>
-          <option value="ws">{t("mcpForm.types.ws")}</option>
+          {cli !== "codex" && <option value="sse">{t("mcpForm.types.sse")}</option>}
+          {cli === "claude" && <option value="ws">{t("mcpForm.types.ws")}</option>}
           {type === "streamable-http" && <option value="streamable-http">{t("mcpForm.types.streamable-http")}</option>}
         </select>
         {type === "stdio" ? (
@@ -156,9 +159,9 @@ export function McpForm(props: {
       </div>
 
       {type === "stdio" ? (
-        <ValueRows title={t("mcpForm.env")} rows={env} onChange={setEnv} scope={scope} keyPlaceholder="API_TOKEN" />
+        <ValueRows title={t("mcpForm.env")} rows={env} onChange={setEnv} scope={scope} cli={cli} keyPlaceholder="API_TOKEN" />
       ) : (
-        <ValueRows title={t("mcpForm.headers")} rows={headers} onChange={setHeaders} scope={scope} keyPlaceholder="Authorization" />
+        <ValueRows title={t("mcpForm.headers")} rows={headers} onChange={setHeaders} scope={scope} cli={cli} keyPlaceholder="Authorization" />
       )}
 
       {formError && (
@@ -172,17 +175,18 @@ export function McpForm(props: {
   );
 }
 
-function ValueRows(props: { title: string; rows: Row[]; onChange: (rows: Row[]) => void; scope: Scope; keyPlaceholder: string }) {
+function ValueRows(props: { title: string; rows: Row[]; onChange: (rows: Row[]) => void; scope: Scope; cli: ConfigCli; keyPlaceholder: string }) {
   const { t } = useTranslation("config");
   const update = (i: number, patch: Partial<Row>) => props.onChange(props.rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   return (
     <fieldset className="value-rows">
       <legend>{props.title}</legend>
-      {props.scope === "project" && (
+      {props.scope === "project" && props.cli === "claude" && (
         <p className="field-help">
           <Trans t={t} i18nKey="mcpForm.secretHelp" components={{ code: <code /> }} />
         </p>
       )}
+      {props.scope === "project" && props.cli !== "claude" && <p className="field-help">{t("mcpForm.nativeProjectValues")}</p>}
       {props.rows.map((r, i) => (
         <div key={i} className="value-row">
           <input
@@ -202,7 +206,7 @@ function ValueRows(props: { title: string; rows: Row[]; onChange: (rows: Row[]) 
             autoComplete="off"
             spellCheck={false}
           />
-          {props.scope === "project" && (
+          {props.scope === "project" && props.cli === "claude" && (
             <label className="secret-toggle">
               <input type="checkbox" checked={r.secret} onChange={(e) => update(i, { secret: e.target.checked })} /> {t("mcpForm.secret")}
             </label>
@@ -217,7 +221,7 @@ function ValueRows(props: { title: string; rows: Row[]; onChange: (rows: Row[]) 
           </button>
         </div>
       ))}
-      <Button icon={Plus} variant="quiet" onClick={() => props.onChange([...props.rows, { key: "", value: "", existing: false, masked: "", secret: true }])}>
+      <Button icon={Plus} variant="quiet" onClick={() => props.onChange([...props.rows, { key: "", value: "", existing: false, masked: "", secret: props.cli === "claude" }])}>
         {t("mcpForm.addRow")}
       </Button>
     </fieldset>

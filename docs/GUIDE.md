@@ -58,13 +58,13 @@ Nếu preflight lỗi, sửa CLI/đăng nhập/model/quyền rồi xem trước 
 
 ## Gián đoạn và chạy lại
 
-| Tình huống | Cách xử lý |
-|---|---|
-| Agent đang chờ câu trả lời hoặc quyền | Trả lời trên thẻ hoặc trong terminal |
-| Phiên bị thoát, hoặc TaskPilot vừa khởi động lại | Chọn **Gửi lại bước** để tiếp tục phiên và gửi lại prompt |
-| Muốn đổi agent ở bước/việc đang dở | Dùng **Tiếp tục bằng…** trên đúng lane |
-| Muốn thực hiện lại toàn bộ quy trình | Chọn **Chạy lại từ đầu** và xác nhận |
-| Copilot báo không nhận được hook | Kiểm tra terminal; chỉ dùng **Đánh dấu xong** khi đã kiểm tra kết quả và file đầu ra đã được ghi |
+| Tình huống                                       | Cách xử lý                                                                                       |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Agent đang chờ câu trả lời hoặc quyền            | Trả lời trên thẻ hoặc trong terminal                                                             |
+| Phiên bị thoát, hoặc TaskPilot vừa khởi động lại | Chọn **Gửi lại bước** để tiếp tục phiên và gửi lại prompt                                        |
+| Muốn đổi agent ở bước/việc đang dở               | Dùng **Tiếp tục bằng…** trên đúng lane                                                           |
+| Muốn thực hiện lại toàn bộ quy trình             | Chọn **Chạy lại từ đầu** và xác nhận                                                             |
+| Copilot báo không nhận được hook                 | Kiểm tra terminal; chỉ dùng **Đánh dấu xong** khi đã kiểm tra kết quả và file đầu ra đã được ghi |
 
 Chạy lại từ đầu sẽ dừng phiên hiện tại, tạo phiên mới từ bước đầu và sao lưu các tài liệu `.md` ở cấp task vào `archive/<stamp>/`, trừ nhật ký. `spec/` và `task.yml` không bị đưa vào archive. Prompt mới hướng dẫn agent đọc tài liệu cũ để giữ bối cảnh. Bàn giao giữ nguyên bước và không tạo archive; phiên đã bị thay chỉ còn để xem lịch sử.
 
@@ -99,5 +99,7 @@ Một task có thể có nhiều tab phiên; **+ Session mới** mở phiên t�
 Phiên Codex hiển thị hội thoại thay vì terminal. Nhập nhiều dòng, bấm **Gửi** hoặc Ctrl/⌘+Enter; **Ngắt lượt** dừng lượt đang chạy, còn **Dừng** đóng tiến trình. **Tiếp tục** resume đúng thread và model đã lưu. Quyền phải được duyệt bằng **Chấp nhận** / **Từ chối**; yêu cầu hết hạn không thể trả lời lại. Đóng trang không tự duyệt quyền; dừng phiên sẽ hủy quyền còn chờ. Sau khi TaskPilot khởi động lại, bộ đệm hội thoại bắt đầu từ lượt mới; nội dung cũ còn trong lịch sử hoạt động. Trong ô nhập có thể dùng `/compact`, `/review`, `/model`, `/skills` và `$skill`; lệnh khác chỉ có trong TUI Codex sẽ được báo rõ và không gửi cho model. Nút mức sử dụng hiển thị hạn mức tài khoản Claude/Copilot và Codex (5h/7d, giờ reset, thời điểm cập nhật; Codex chỉ có khi đang có phiên Codex); đây không phải mức sử dụng riêng của task. `Copilot ∞` nghĩa là tài khoản không có giới hạn riêng được báo về.
 
 Các trang cấu hình, **Thư viện**, **Workflow** và **Lịch sử thay đổi** dùng để chỉnh và khôi phục cấu hình; xem [Cấu hình](CONFIGURATION.md).
+
+Trong các trang cấu hình gốc, chọn **Claude**, **Copilot** hoặc **Codex** ở đầu trang. Lựa chọn này chỉ đổi file cấu hình đang xem, không đổi CLI chạy task. URL cũ vẫn mở Claude. Hiện biểu mẫu chỉnh sửa trên web chỉ mở cho Claude; Copilot/Codex hiển thị trạng thái và phạm vi hỗ trợ cho đến khi route giao diện native được tích hợp. Nếu cần sửa file native ngay, xem [ma trận file và giới hạn API](CONFIGURATION.md#cấu-hình-cli-và-mcp), tạo bản sao riêng và kiểm diff trước khi ghi. Sau khi lưu, vào **Lịch sử thay đổi** để xem hoặc khôi phục backup; không giả định phiên CLI đang mở sẽ nạp lại file mới.
 
 Chỉ khi backend có bằng chứng quota đúng lượt, thẻ mới khẳng định hết hạn mức và gợi ý chuyển. **Tiếp tục bằng Codex**/**Chọn agent khác** vẫn mở preview/xác nhận; **Để sau** không chuyển agent. Claude/Copilot chưa nhận diện quota theo lượt; số hạn mức tài khoản kèm thời điểm chỉ là tham khảo. Timeout, không có hook, HTTP 429 và lỗi chưa rõ không chứng minh hết quota. Bạn vẫn có thể bàn giao thủ công khi lane đủ điều kiện; TaskPilot không tự fallback hoặc bật credits.

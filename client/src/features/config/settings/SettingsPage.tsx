@@ -8,7 +8,9 @@ import { getDraft, isDirty, setDraft, useDrafts } from "../shared/drafts";
 import { ConfigHeader, ConfigToolbar, DraftControls, LoadError, RuleChip, ScopeTabs, ScopeTag, scopeHint } from "../shared/parts";
 import { PermissionsEditor, permissionsKey, usePermissionsSave, type PermissionsDraft } from "./PermissionsEditor";
 import { useConfig } from "../shared/useConfig";
+import { useConfigCli } from "../shared/parts";
 import { settingsApi } from "./api";
+import { NativeSettingsPage } from "./NativeSettingsPage";
 import type { SettingsFile } from "./types";
 import type { Scope } from "../shared/types";
 import "./settings.css";
@@ -19,6 +21,11 @@ const knownMode = (m: string): m is (typeof MODES)[number] => (MODES as readonly
 
 /** Permission rules and env of each settings scope, one file at a time. Deny beats ask beats allow in Claude Code. */
 export function SettingsPage() {
+  const cli = useConfigCli();
+  return cli === "claude" ? <ClaudeSettingsPage /> : <NativeSettingsPage key={cli} cli={cli} />;
+}
+
+function ClaudeSettingsPage() {
   const { t } = useTranslation("config");
   const { data, error, loading, reload } = useConfig(["settings"], settingsApi.settings);
   const [scope, setScope] = useState<Scope>("project");

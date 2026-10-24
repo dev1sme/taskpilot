@@ -1,14 +1,15 @@
 import { useSyncExternalStore } from "react";
 import { queryClient } from "../../../shared/api/queryClient";
+import type { ConfigCli } from "../../../shared/router";
 import type { RepoInfo } from "../../workspace";
 
 /**
  * Unsaved edits, kept outside the pages so leaving a page and coming back keeps the draft.
- * Keys look like "memory:project" or "settings:local".
+ * Native keys include their CLI, for example "claude:memory:project" or "codex:memory:user".
  *
  * A draft belongs to the repo that was open when it was made: switching repo hides it, switching back
- * shows it again. Only drafts of a user-wide file (keys ending in ":user", e.g. "memory:user") are the
- * same in every repo. The maps hold the stored key, `<repo path>\0<key>` or the bare user-wide key.
+ * shows it again. Only drafts of the same CLI and user-wide file (keys ending in ":user") are
+ * shared between repos. The maps hold the stored key, `<repo path>\0<key>` or the bare user-wide key.
  */
 const drafts = new Map<string, unknown>();
 /** What each draft started as (serialized): a draft equal to it has no unsaved changes. */
@@ -16,6 +17,18 @@ const baselines = new Map<string, string>();
 const listeners = new Set<() => void>();
 let version = 0;
 const SEP = "\u0000";
+const NATIVE = /^(memory|settings|hooks|library|mcp):/;
+const PREFIXED = /^(claude|copilot|codex):/;
+
+/** Call from native config pages when constructing a key. Include the file identity before the final scope. */
+export function configDraftKey(cli: ConfigCli, key: string): string {
+  return `${cli}:${key}`;
+}
+
+/** Legacy Claude pages still pass unqualified keys until their CLI-aware editors are installed. */
+function normalized(key: string): string {
+  return NATIVE.test(key) && !PREFIXED.test(key) ? configDraftKey("claude", key) : key;
+}
 
 /** Read from the ["repo"] query, which the workspace keeps current, so no store of its own goes stale. */
 function repoPath(): string {
@@ -23,7 +36,8 @@ function repoPath(): string {
 }
 
 function stored(key: string): string {
-  return /:user$/.test(key) ? key : `${repoPath()}${SEP}${key}`;
+  const qualified = normalized(key);
+  return /:user$/.test(qualified) ? qualified : `${repoPath()}${SEP}${qualified}`;
 }
 
 function changed() {

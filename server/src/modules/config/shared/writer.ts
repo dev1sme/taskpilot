@@ -4,19 +4,27 @@ import path from "node:path";
 import { createTwoFilesPatch } from "diff";
 import { HttpError } from "../../../core/errors.js";
 import type { BackupEntry, BackupStore } from "../backups/store.js";
-import { claudeHome } from "./fs.js";
+import { claudeHome, codexHome, copilotHome } from "./fs.js";
 import { isAllowedPath, type FileTarget } from "./targets.js";
 import { t } from "../../../core/i18n.js";
 
 /**
- * A directory between the repo (or ~/.claude) and the file that is a symlink, e.g. a skill folder
- * linked from elsewhere: writing through it would land outside the allowed paths. The repo and
- * ~/.claude themselves may be symlinks.
+ * A symlink between an allowed root and the file could redirect a write outside the whitelist.
+ * Existing Claude and repo roots may themselves be symlinks for compatibility. New CLI home
+ * roots are checked too.
  */
 async function symlinkedDir(abs: string, repo: string): Promise<string | null> {
   const file = path.resolve(abs);
-  const root = [path.resolve(repo), path.resolve(claudeHome())].find((r) => file.startsWith(r + path.sep));
+  const roots = [path.resolve(repo), path.resolve(claudeHome()), path.resolve(codexHome()), path.resolve(copilotHome())];
+  const root = roots.filter((r) => file.startsWith(r + path.sep)).sort((a, b) => b.length - a.length)[0];
   if (!root) return null;
+  if (root === path.resolve(codexHome()) || root === path.resolve(copilotHome())) {
+    try {
+      if ((await lstat(root)).isSymbolicLink()) return root;
+    } catch {
+      // A missing home will be created after validation.
+    }
+  }
   for (let dir = path.dirname(file); dir !== root && dir.startsWith(root + path.sep); dir = path.dirname(dir)) {
     try {
       if ((await lstat(dir)).isSymbolicLink()) return path.relative(root, dir);

@@ -8,7 +8,7 @@
     "label": "Điều hướng",
     "overview": "Tổng quan",
     "tasks": "Task",
-    "memory": "CLAUDE.md",
+    "memory": "Hướng dẫn",
     "settings": "Settings & quyền",
     "hooks": "Hooks",
     "library": "Thư viện",
@@ -29,8 +29,20 @@
   },
   "navGroup": {
     "workspace": "Workspace",
-    "claude": "Cấu hình Claude",
+    "config": "Cấu hình {{cli}}",
     "integrations": "Tích hợp"
+  },
+  "cli": {
+    "claude": "Claude",
+    "copilot": "Copilot",
+    "codex": "Codex"
+  },
+  "configSelector": {
+    "label": "CLI cấu hình",
+    "loading": "Đang tải khả năng cấu hình…",
+    "pendingUi": "TaskPilot chưa có biểu mẫu chỉnh sửa cho CLI này.",
+    "unsupported": "Nhóm cấu hình này hiện chưa được hỗ trợ cho CLI đã chọn.",
+    "scopes": "Phạm vi cấu hình: {{scopes}}"
   },
   "repoSwitch": "Bấm để chọn",
   "account": {

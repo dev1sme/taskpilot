@@ -169,7 +169,7 @@ function Shell() {
       <main id="main" className="main" inert={drawerOpen}>
         {route.page === "overview" && <OverviewPage />}
         {route.page === "tasks" && <TasksPage />}
-        {route.page === "config" && <ConfigPage key={`${route.section}/${route.file ?? ""}`} section={route.section} file={route.file} />}
+        {route.page === "config" && <ConfigPage key={`${route.section}/${route.file ?? ""}/${route.cli ?? "shared"}`} section={route.section} file={route.file} cli={route.cli} />}
         {route.page === "backups" && <BackupsPage />}
         {route.page === "task" &&
           (task ? (

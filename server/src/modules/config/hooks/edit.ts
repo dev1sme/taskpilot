@@ -14,6 +14,77 @@ export interface HookInput {
   extra?: Record<string, unknown>;
 }
 
+/** Editable Copilot command hook fields. Other hook types and fields remain in the file. */
+export interface CopilotHookInput {
+  event: string;
+  matcher?: string;
+  command?: string;
+  bash?: string;
+  powershell?: string;
+  exec?: string;
+  args?: string[];
+  cwd?: string;
+  timeoutSec?: number;
+}
+
+const COPILOT_EVENTS = new Set([
+  "agentStop",
+  "errorOccurred",
+  "notification",
+  "permissionRequest",
+  "postToolUse",
+  "postToolUseFailure",
+  "preCompact",
+  "preToolUse",
+  "sessionEnd",
+  "sessionStart",
+  "subagentStart",
+  "subagentStop",
+  "userPromptSubmitted",
+  "userPromptTransformed",
+]);
+const COPILOT_EVENT_ALIASES = new Set(["Stop", "UserPromptSubmit"]);
+const COPILOT_MATCHER_EVENTS = new Set(["notification", "permissionRequest", "postToolUse", "preCompact", "preToolUse", "subagentStart"]);
+const COPILOT_FIELDS = new Set(["event", "matcher", "command", "bash", "powershell", "exec", "args", "cwd", "timeoutSec"]);
+
+export function isCopilotEvent(event: string): boolean {
+  const canonical = event[0]?.toLowerCase() + event.slice(1);
+  return COPILOT_EVENTS.has(canonical) || COPILOT_EVENT_ALIASES.has(event);
+}
+
+export function validateCopilotHooks(body: unknown): CopilotHookInput[] {
+  const list = isObject(body) ? body.hooks : undefined;
+  if (!Array.isArray(list)) throw new HttpError(400, t("configMessages.hooks_edit_01"));
+  return list.map((item, index) => {
+    if (!isObject(item) || Object.keys(item).some((key) => !COPILOT_FIELDS.has(key))) throw new HttpError(400, t("configMessages.hooks_edit_02", { value0: index + 1 }));
+    const event = item.event;
+    const canonical = typeof event === "string" ? event[0]?.toLowerCase() + event.slice(1) : "";
+    if (typeof event !== "string" || !isCopilotEvent(event)) throw new HttpError(400, t("configMessages.hooks_edit_03", { value0: index + 1 }));
+    const hasExec = typeof item.exec === "string" && item.exec.trim().length > 0;
+    const commands = [item.command, item.bash, item.powershell].filter((v) => typeof v === "string" && v.trim().length > 0);
+    if (hasExec === commands.length > 0) throw new HttpError(400, t("configMessages.hooks_edit_04", { value0: index + 1 }));
+    if (item.args !== undefined && (!hasExec || !Array.isArray(item.args) || item.args.some((v: unknown) => typeof v !== "string")))
+      throw new HttpError(400, t("configMessages.hooks_edit_05", { value0: index + 1 }));
+    for (const key of ["command", "bash", "powershell", "exec", "cwd"] as const) {
+      const value = item[key];
+      if (value !== undefined && (typeof value !== "string" || !value.trim() || /[\r\n\0]/.test(value)))
+        throw new HttpError(400, t("configMessages.hooks_edit_06", { value0: key, value1: index + 1 }));
+    }
+    if (item.matcher !== undefined) {
+      if (typeof item.matcher !== "string" || !COPILOT_MATCHER_EVENTS.has(canonical)) throw new HttpError(400, t("configMessages.hooks_edit_07", { value0: index + 1 }));
+      try {
+        new RegExp(item.matcher);
+      } catch {
+        throw new HttpError(400, t("configMessages.hooks_edit_08", { value0: index + 1 }));
+      }
+    }
+    if (item.timeoutSec !== undefined && (typeof item.timeoutSec !== "number" || !Number.isInteger(item.timeoutSec) || item.timeoutSec < 1 || item.timeoutSec > 3600)) {
+      throw new HttpError(400, t("configMessages.hooks_edit_09", { value0: index + 1 }));
+    }
+    return item as unknown as CopilotHookInput;
+  });
+}
+
 /** Hook events in the Claude Code hooks reference (code.claude.com/docs/en/hooks). */
 export const HOOK_EVENTS = [
   "SessionStart",

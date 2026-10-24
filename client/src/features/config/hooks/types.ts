@@ -27,3 +27,30 @@ export interface HooksFile {
   /** The file's "hooks" value as written (every hook type); null when absent. */
   raw: unknown;
 }
+
+export interface CopilotHookInput {
+  event: string;
+  matcher?: string;
+  command?: string;
+  bash?: string;
+  powershell?: string;
+  exec?: string;
+  args?: string[];
+  cwd?: string;
+  timeoutSec?: number;
+}
+
+export interface CopilotHookFile {
+  scope: "project" | "user";
+  name: string;
+  path: string;
+  hooks: CopilotHookInput[];
+  error?: string;
+}
+
+export interface CopilotHookDetail {
+  path: string;
+  exists: boolean;
+  hash: string;
+  hooks: CopilotHookInput[];
+}

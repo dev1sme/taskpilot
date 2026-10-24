@@ -2,7 +2,7 @@ import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { tempDir } from "../../helpers/fixtures.js";
-import { app, get, home, ok, repo, send, useConfigApp } from "../../helpers/configApp.js";
+import { app, codexHome, copilotHome, get, home, ok, repo, send, useConfigApp } from "../../helpers/configApp.js";
 
 useConfigApp();
 
@@ -49,6 +49,72 @@ describe("CLAUDE.md editing", () => {
   it("rejects unknown scopes", async () => {
     expect((await app.inject({ url: "/api/config/memory/etc/raw", headers: ok })).statusCode).toBe(400);
   });
+});
+
+describe.each([
+  { cli: "codex", project: "AGENTS.md", user: "AGENTS.md", home: () => codexHome },
+  { cli: "copilot", project: ".github/copilot-instructions.md", user: "copilot-instructions.md", home: () => copilotHome },
+])("$cli instructions", ({ cli, project, user, home: cliHome }) => {
+  it("reads only its native project and user files", async () => {
+    await mkdir(path.dirname(path.join(repo, project)), { recursive: true });
+    await writeFile(path.join(repo, project), `# ${cli} project\n`);
+    await writeFile(path.join(cliHome(), user), `# ${cli} user\n`);
+    await writeFile(path.join(repo, "CLAUDE.md"), "# Claude\n");
+
+    const files = await get(`/api/config/memory?cli=${cli}`);
+    expect(files).toHaveLength(2);
+    expect(files.map((file: { scope: string }) => file.scope)).toEqual(["project", "user"]);
+    expect(files[0]).toMatchObject({ path: project, content: `# ${cli} project\n`, exists: true });
+    expect(files[1]).toMatchObject({ path: path.join(cliHome(), user), content: `# ${cli} user\n`, exists: true });
+    expect((await get("/api/config/memory"))[0].content).toBe("# Claude\n");
+    expect((await get(`/api/config/capabilities?cli=${cli}`)).sections.memory).toMatchObject({ available: true, scopes: ["project", "user"] });
+  });
+
+  it("previews, saves, backs up, and refuses a stale project edit", async () => {
+    const url = `/api/config/memory/project?cli=${cli}`;
+    const raw = await get(`/api/config/memory/project/raw?cli=${cli}`);
+    expect(raw).toMatchObject({ path: project, exists: false, hash: "absent" });
+
+    const preview = (await send("POST", `/api/config/memory/project/preview?cli=${cli}`, { content: "# New\n", baseHash: raw.hash })).json();
+    expect(preview).toMatchObject({ changed: true, stale: false });
+    expect(preview.diff).toContain("+# New");
+
+    const created = await send("PUT", url, { content: "# New\n", baseHash: raw.hash });
+    expect(created.statusCode).toBe(200);
+    expect(created.json().backup).toMatchObject({ existed: false, display: project });
+    expect(await readFile(path.join(repo, project), "utf8")).toBe("# New\n");
+
+    const stale = await send("PUT", url, { content: "# Stale\n", baseHash: raw.hash });
+    expect(stale.statusCode).toBe(409);
+    expect(await readFile(path.join(repo, project), "utf8")).toBe("# New\n");
+
+    const fresh = await get(`/api/config/memory/project/raw?cli=${cli}`);
+    const updated = await send("PUT", url, { content: "# Updated\n", baseHash: fresh.hash });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json().backup).toMatchObject({ existed: true, bytes: "# New\n".length, display: project });
+    expect(await readFile(path.join(repo, project), "utf8")).toBe("# Updated\n");
+  });
+
+  it("writes the user file in the CLI home", async () => {
+    const raw = await get(`/api/config/memory/user/raw?cli=${cli}`);
+    const saved = await send("PUT", `/api/config/memory/user?cli=${cli}`, { content: "# User\n", baseHash: raw.hash });
+    expect(saved.statusCode).toBe(200);
+    expect(await readFile(path.join(cliHome(), user), "utf8")).toBe("# User\n");
+  });
+
+  it("rejects local scope on raw, preview, and save", async () => {
+    const raw = await app.inject({ url: `/api/config/memory/local/raw?cli=${cli}`, headers: ok });
+    const preview = await send("POST", `/api/config/memory/local/preview?cli=${cli}`, { content: "x", baseHash: "absent" });
+    const save = await send("PUT", `/api/config/memory/local?cli=${cli}`, { content: "x", baseHash: "absent" });
+    expect([raw.statusCode, preview.statusCode, save.statusCode]).toEqual([400, 400, 400]);
+  });
+});
+
+it("rejects an unknown CLI on every memory endpoint", async () => {
+  expect((await app.inject({ url: "/api/config/memory?cli=unknown", headers: ok })).statusCode).toBe(400);
+  expect((await app.inject({ url: "/api/config/memory/project/raw?cli=unknown", headers: ok })).statusCode).toBe(400);
+  expect((await send("POST", "/api/config/memory/project/preview?cli=unknown", { content: "x", baseHash: "absent" })).statusCode).toBe(400);
+  expect((await send("PUT", "/api/config/memory/project?cli=unknown", { content: "x", baseHash: "absent" })).statusCode).toBe(400);
 });
 
 describe("project memory and linked folders", () => {

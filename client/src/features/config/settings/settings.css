@@ -136,3 +136,37 @@
   padding: 2px 7px;
   overflow-wrap: anywhere;
 }
+
+.native-settings-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.native-settings-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.native-settings-field label {
+  font-weight: 600;
+}
+
+.native-settings-field select {
+  width: 100%;
+  min-width: 0;
+}
+
+.native-settings-field span {
+  overflow-wrap: anywhere;
+}
+
+.native-settings-field small {
+  color: var(--muted);
+}

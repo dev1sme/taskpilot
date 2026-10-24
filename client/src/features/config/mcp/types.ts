@@ -11,8 +11,11 @@ export interface McpServer {
   headers: MaskedValue[];
   missingEnv: string[];
   fromTaskPilot: string[];
-  /** Why Claude Code skips this entry. */
+  /** Why the selected CLI skips this entry. */
   error?: string;
+  source?: string;
+  editable?: boolean;
+  effective?: boolean;
 }
 
 export interface McpConfig {

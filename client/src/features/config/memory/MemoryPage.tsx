@@ -5,8 +5,9 @@ import { Button } from "../../../shared/ui/Button";
 import { DiffDialog } from "../../../shared/ui/DiffDialog";
 import { clockTime } from "../../../shared/ui/Elapsed";
 import { toast } from "../../../shared/ui/Toast";
-import { clearDraft, getDraft, isDirty, setDraft, useDrafts } from "../shared/drafts";
-import { backupToast, ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs } from "../shared/parts";
+import type { ConfigCli } from "../../../shared/router";
+import { clearDraft, configDraftKey, getDraft, isDirty, setDraft, useDrafts } from "../shared/drafts";
+import { backupToast, ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs, useConfigCli } from "../shared/parts";
 import { useConfig } from "../shared/useConfig";
 import { useSaveFlow } from "../shared/useSaveFlow";
 import { memoryApi } from "./api";
@@ -26,24 +27,29 @@ interface MemoryDraft {
   path: string;
 }
 
-const draftKey = (scope: Scope) => `memory:${scope}`;
+const draftKey = (cli: ConfigCli, scope: Scope) => configDraftKey(cli, `memory:${scope}`);
 
-/** CLAUDE.md files as Claude loads them; editable with diff review, backups and conflict checks. */
+/** Instruction files for the selected CLI, editable with diff review and backups. */
 export function MemoryPage() {
+  const cli = useConfigCli();
+  return <MemoryPageForCli key={cli} cli={cli} />;
+}
+
+function MemoryPageForCli({ cli }: { cli: ConfigCli }) {
   const { t } = useTranslation("config");
-  const tabLabel = (s: Scope) => t(`memory.tab.${s}`);
-  const { data, error, loading, reload } = useConfig(["memory"], memoryApi.memory);
+  const { data, error, loading, reload } = useConfig(["memory", cli], () => memoryApi.memory(cli));
   const [scope, setScope] = useState<Scope>("project");
   const [opening, setOpening] = useState(false);
   useDrafts();
-  const draft = getDraft<MemoryDraft>(draftKey(scope));
+  const tabLabel = (s: Scope) => data?.find((f) => f.scope === s)?.path ?? t(`memory.tab.${s}`);
+  const draft = getDraft<MemoryDraft>(draftKey(cli, scope));
   const file = data?.find((f) => f.scope === scope);
 
   const startEditing = async () => {
     setOpening(true);
     try {
-      const raw = await memoryApi.memoryRaw(scope);
-      setDraft(draftKey(scope), { content: raw.content, baseHash: raw.hash, path: raw.path } satisfies MemoryDraft);
+      const raw = await memoryApi.memoryRaw(cli, scope);
+      setDraft(draftKey(cli, scope), { content: raw.content, baseHash: raw.hash, path: raw.path } satisfies MemoryDraft);
     } catch (e) {
       toast((e as Error).message, { error: true });
     } finally {
@@ -53,18 +59,18 @@ export function MemoryPage() {
 
   const flow = useSaveFlow({
     title: t("memory.saveTitle", { path: draft?.path ?? tabLabel(scope) }),
-    preview: () => memoryApi.memoryPreview(scope, draft!.content, draft!.baseHash),
-    save: () => memoryApi.memorySave(scope, draft!.content, draft!.baseHash),
+    preview: () => memoryApi.memoryPreview(cli, scope, draft!.content, draft!.baseHash),
+    save: () => memoryApi.memorySave(cli, scope, draft!.content, draft!.baseHash),
     onSaved: () => {
       backupToast(t("memory.saved", { path: draft?.path }));
-      clearDraft(draftKey(scope));
+      clearDraft(draftKey(cli, scope));
       void reload();
     },
   });
 
   const actions = draft ? (
     <>
-      <DraftControls key={scope} draftKey={draftKey(scope)} />
+      <DraftControls key={scope} draftKey={draftKey(cli, scope)} />
       <Button icon={Eye} variant="primary" onClick={() => void flow.review()}>
         {t("action.review")}
       </Button>
@@ -85,16 +91,20 @@ export function MemoryPage() {
 
   return (
     <div className="page">
-      <ConfigHeader title={t("memory.title")} subtitle={t("memory.subtitle")} />
+      <ConfigHeader title={t(cli === "claude" ? "memory.title" : `memory.cli.${cli}.title`)} subtitle={t(cli === "claude" ? "memory.subtitle" : `memory.cli.${cli}.subtitle`)} />
       <ConfigToolbar
         start={
           <ScopeTabs
             value={scope}
-            onChange={setScope}
+            onChange={(next) => {
+              flow.dialog.onClose();
+              setScope(next);
+            }}
             label={t("memory.tabsLabel")}
             labels={{ project: tabLabel("project"), local: tabLabel("local"), user: tabLabel("user") }}
-            isMissing={(s) => data?.find((x) => x.scope === s)?.exists === false && !getDraft(draftKey(s))}
-            isDirty={(s) => isDirty(draftKey(s))}
+            scopes={data?.map((f) => f.scope) ?? []}
+            isMissing={(s) => data?.find((x) => x.scope === s)?.exists === false && !getDraft(draftKey(cli, s))}
+            isDirty={(s) => isDirty(draftKey(cli, s))}
           />
         }
         loading={loading}
@@ -109,17 +119,19 @@ export function MemoryPage() {
               key={scope}
               value={draft.content}
               label={t("library.contentLabel", { path: draft.path })}
-              onChange={(content) => setDraft(draftKey(scope), { ...draft, content })}
+              onChange={(content) => setDraft(draftKey(cli, scope), { ...draft, content })}
             />
           </Suspense>
         </div>
       ) : (
         file &&
         (file.exists ? (
-          <MemoryView file={file} />
+          <MemoryView file={file} cli={cli} />
         ) : (
           <div className="page-body">
-            <EmptyCard title={t("memory.missingTitle", { file: tabLabel(scope) })}>{t(`memory.missing.${scope}`)}</EmptyCard>
+            <EmptyCard title={t("memory.missingTitle", { file: tabLabel(scope) })}>
+              {t(cli === "claude" || scope === "local" ? `memory.missing.${scope}` : `memory.cli.${cli}.missing.${scope}`)}
+            </EmptyCard>
           </div>
         ))
       )}
@@ -128,7 +140,7 @@ export function MemoryPage() {
   );
 }
 
-function MemoryView({ file }: { file: MemoryFile }) {
+function MemoryView({ file, cli }: { file: MemoryFile; cli: ConfigCli }) {
   const { t } = useTranslation("config");
   const warnLines = new Set(file.checks.filter((c) => c.level === "warn" && c.line).map((c) => c.line));
   const importLines = new Set(file.imports.filter((i) => i.depth === 1).map((i) => i.line));
@@ -192,7 +204,7 @@ function MemoryView({ file }: { file: MemoryFile }) {
 
       <aside className="memory-side">
         <section className="card">
-          <h2 className="card-title">{t("memory.loads")}</h2>
+          <h2 className="card-title">{t(cli === "claude" ? "memory.loads" : "memory.loadsEstimate")}</h2>
           <div className="big-stat">
             ~{formatTokens(total / 4)} <span>{t("memory.tokenUnit")}</span>
           </div>

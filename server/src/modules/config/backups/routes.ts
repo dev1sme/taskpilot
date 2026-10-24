@@ -2,10 +2,11 @@ import type { FastifyInstance } from "fastify";
 import { HttpError } from "../../../core/errors.js";
 import { locale, t } from "../../../core/i18n.js";
 import { maskEntry } from "../mcp/edit.js";
-import { claudeJsonEntry } from "../mcp/read.js";
+import { claudeJsonEntry, nativeMcpDocument, nativeMcpServers } from "../mcp/read.js";
 import { restoreMcpEntry } from "../mcp/routes.js";
-import { maskSettingsText } from "../settings/permissions.js";
-import { isObject } from "../shared/fs.js";
+import { readNativeFields } from "../settings/native.js";
+import { claudeJson, isObject } from "../shared/fs.js";
+import { NAME } from "../mcp/edit.js";
 import type { ConfigRouteOptions } from "../shared/http.js";
 import { isAllowedPath } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
@@ -14,7 +15,8 @@ import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer
 export function registerBackupsRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {
   const { requireRepo, backups } = opts;
 
-  const restorable = (b: { path: string; mcp?: { scope: string; repo: string } }, repo: string) => (b.mcp ? b.mcp.scope === "user" || b.mcp.repo === repo : isAllowedPath(b.path, repo));
+  const restorable = (b: { path: string; mcp?: { scope: string; name: string; repo: string } }, repo: string) =>
+    b.mcp ? b.path === claudeJson() && NAME.test(b.mcp.name) && (b.mcp.scope === "user" || (b.mcp.scope === "local" && b.mcp.repo === repo)) : isAllowedPath(b.path, repo);
 
   app.get("/api/backups", async () => {
     const repo = requireRepo();
@@ -26,13 +28,12 @@ export function registerBackupsRoutes(app: FastifyInstance, opts: ConfigRouteOpt
     const { entry, content } = await backups.get(req.params.id);
     if (!restorable(entry, repo)) throw new HttpError(403, t("errors.otherRepoBackup"));
     if (entry.mcp) {
-      const show = (s: string | null) => (s === null ? null : `${JSON.stringify(maskEntry(JSON.parse(s)), null, 2)}\n`);
+      const show = (s: string | null) => safeEntry(s);
       const now = await currentMcpEntry(entry.mcp);
       return { diff: diffText(entry.display, show(now), show(content)), entry };
     }
     const current = await readCurrent(entry.path);
-    const mask = entry.path.endsWith(".mcp.json") ? maskMcpText : entry.path.endsWith(".json") ? maskSettingsText : (s: string | null) => s;
-    return { diff: diffText(entry.display, mask(current), mask(content)), entry };
+    return { diff: diffText(entry.display, safeFile(entry.path, current), safeFile(entry.path, content)), entry };
   });
 
   app.post<{ Params: { id: string } }>("/api/backups/:id/restore", async (req) => {
@@ -40,10 +41,12 @@ export function registerBackupsRoutes(app: FastifyInstance, opts: ConfigRouteOpt
     const { entry, content } = await backups.get(req.params.id);
     if (!restorable(entry, repo)) throw new HttpError(403, t("errors.otherRepoBackup"));
     if (entry.mcp) {
+      if (content !== null && safeEntry(content) === t("configMessages.backups_routes_01")) throw new HttpError(409, t("configMessages.backups_routes_02"));
       await restoreMcpEntry({ mcp: entry.mcp }, content, backups);
       return { ok: true };
     }
     const current = await readCurrent(entry.path);
+    validateRestore(entry.path, content);
     return writeWithBackup({
       repo,
       target: { abs: entry.path, display: entry.display },
@@ -53,6 +56,58 @@ export function registerBackupsRoutes(app: FastifyInstance, opts: ConfigRouteOpt
       backups,
     });
   });
+}
+
+function safeEntry(text: string | null): string | null {
+  if (text === null) return null;
+  try {
+    const masked = maskEntry(JSON.parse(text));
+    if (!masked) throw new Error("entry");
+    return `${JSON.stringify(masked, null, 2)}\n`;
+  } catch {
+    return t("configMessages.backups_routes_03");
+  }
+}
+
+/** A backup diff is a safe projection, never a dump of unknown config fields. */
+function safeFile(file: string, text: string | null): string | null {
+  if (text === null) return null;
+  if (file.endsWith("config.toml")) {
+    try {
+      const doc = nativeMcpDocument(text, "codex");
+      const mcp = nativeMcpServers(doc, "codex");
+      return `${JSON.stringify({ settings: readNativeFields("codex", "user", text), mcp_servers: Object.fromEntries(Object.entries(mcp).map(([name, value]) => [name, maskEntry(value)])) }, null, 2)}\n`;
+    } catch {
+      return t("configMessages.backups_routes_04");
+    }
+  }
+  if (file.endsWith(".mcp.json") || file.endsWith("/mcp.json") || file.endsWith("mcp-config.json")) return maskMcpText(text);
+  if (file.endsWith(".json")) {
+    try {
+      return `${JSON.stringify(redactJson(JSON.parse(text)), null, 2)}\n`;
+    } catch {
+      return t("configMessages.backups_routes_05");
+    }
+  }
+  return text;
+}
+
+function redactJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactJson);
+  if (isObject(value)) return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, redactJson(child)]));
+  return typeof value === "string" ? "••••" : value;
+}
+
+function validateRestore(file: string, content: string | null): void {
+  if (content === null) return;
+  if (file.endsWith("config.toml")) nativeMcpDocument(content, "codex");
+  else if (file.endsWith(".json")) {
+    try {
+      JSON.parse(content);
+    } catch {
+      throw new HttpError(409, t("configMessages.backups_routes_06"));
+    }
+  }
 }
 
 async function currentMcpEntry(m: { scope: "local" | "user"; name: string; repo: string }): Promise<string | null> {
@@ -65,8 +120,8 @@ function maskMcpText(text: string | null): string | null {
   if (text === null) return null;
   try {
     const doc = JSON.parse(text) as Record<string, unknown>;
-    const servers = isObject(doc.mcpServers) ? doc.mcpServers : {};
-    return `${JSON.stringify({ ...doc, mcpServers: Object.fromEntries(Object.entries(servers).map(([k, v]) => [k, maskEntry(v) ?? v])) }, null, 2)}\n`;
+    const servers = isObject(doc.mcpServers) ? doc.mcpServers : Object.values(doc).every(isObject) ? doc : {};
+    return `${JSON.stringify({ mcpServers: Object.fromEntries(Object.entries(servers).map(([k, v]) => [k, maskEntry(v)])) }, null, 2)}\n`;
   } catch {
     return t("errors.invalidJsonShort");
   }

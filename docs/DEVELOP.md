@@ -39,6 +39,17 @@ Các test Codex dùng `e2e/fake-codex.mjs` (tái sử dụng fake trong `server/
 
 Bộ E2E tự mở server và client trên cổng `8891` / `5273`, dùng dữ liệu tạm trong `e2e/.tmp/`. Claude, Copilot và Codex được thay bằng script giả; bài kiểm thử không xác nhận khả năng tương thích với CLI thật. Cấu hình mặc định `workers: 1` vì server có một current repo: đổi repo trong các bài selection/handoff có thể xung đột nếu dùng nhiều worker. `npm run e2e` chạy tuần tự cả suite; hai dấu `--` ở lệnh gốc truyền cờ qua hai lớp npm khi cần thêm cờ. Không chạy hai suite E2E đồng thời trên cùng cổng/state. Sau khi chạy, xem báo cáo bằng `npm --prefix e2e run report`.
 
+### Regression cấu hình ba CLI
+
+Fixture `e2e/fixtures/repo.ts` tạo file hướng dẫn, settings, agent và MCP riêng của Claude, Copilot, Codex trong repo tạm. Home Claude/Copilot của server E2E cũng nằm trong `e2e/.tmp/`; các ca Codex hiện kiểm file project. Chạy nhóm E2E mục tiêu:
+
+```bash
+npm test -- server/test/modules/config
+npm --prefix e2e test -- tests/config-tabs.spec.ts tests/config-state.spec.ts tests/mcp.spec.ts tests/subagents.spec.ts --project=chromium --workers=1
+```
+
+Các ca ba CLI kiểm API native và URL selector. Route giao diện hiện chỉ mở biểu mẫu Claude; khi tích hợp `ConfigPage.tsx`, bổ sung ca UI sửa file, đổi CLI khi có draft và backup/restore cho Copilot/Codex. Không ghi kết quả API là bằng chứng biểu mẫu web đã hoạt động.
+
 ### Regression execution và bàn giao
 
 Chạy từ gốc repo:
@@ -68,19 +79,19 @@ Ghi report với command/kết quả thật, version và đường dẫn artifac
 
 ## Bố cục mã nguồn
 
-| Đường dẫn | Vai trò |
-|---|---|
-| `server/src/index.ts`, `app.ts` | CLI, khởi tạo dịch vụ và đăng ký routes |
-| `server/src/core/` | Hạ tầng dùng chung, khởi chạy CLI, trạng thái và i18n |
-| `server/src/modules/<name>/` | Tính năng server; `index.ts` là điểm truy cập giữa các module |
-| `server/test/` | Kiểm thử theo cấu trúc server; tiện ích ở `helpers/` |
-| `client/src/app/` | Ghép ứng dụng và bố cục |
-| `client/src/features/<name>/` | Thành phần, hooks, API, kiểu dữ liệu và CSS theo tính năng |
-| `client/src/shared/` | API và UI dùng chung, router |
-| `client/src/styles/`, `client/src/i18n/` | CSS nền và tài nguyên ngôn ngữ |
-| `workflows/<id>/` | Workflow tích hợp, prompt và mẫu tài liệu |
-| `subagents/claude/` | Mẫu subagent để cài vào repo người dùng |
-| `e2e/` | Kiểm thử trình duyệt và môi trường giả lập |
+| Đường dẫn                                | Vai trò                                                       |
+| ---------------------------------------- | ------------------------------------------------------------- |
+| `server/src/index.ts`, `app.ts`          | CLI, khởi tạo dịch vụ và đăng ký routes                       |
+| `server/src/core/`                       | Hạ tầng dùng chung, khởi chạy CLI, trạng thái và i18n         |
+| `server/src/modules/<name>/`             | Tính năng server; `index.ts` là điểm truy cập giữa các module |
+| `server/test/`                           | Kiểm thử theo cấu trúc server; tiện ích ở `helpers/`          |
+| `client/src/app/`                        | Ghép ứng dụng và bố cục                                       |
+| `client/src/features/<name>/`            | Thành phần, hooks, API, kiểu dữ liệu và CSS theo tính năng    |
+| `client/src/shared/`                     | API và UI dùng chung, router                                  |
+| `client/src/styles/`, `client/src/i18n/` | CSS nền và tài nguyên ngôn ngữ                                |
+| `workflows/<id>/`                        | Workflow tích hợp, prompt và mẫu tài liệu                     |
+| `subagents/claude/`                      | Mẫu subagent để cài vào repo người dùng                       |
+| `e2e/`                                   | Kiểm thử trình duyệt và môi trường giả lập                    |
 
 Quy tắc import được kiểm tra trong [`architecture.test.ts`](../server/test/architecture.test.ts):
 

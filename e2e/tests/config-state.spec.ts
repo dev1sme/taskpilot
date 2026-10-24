@@ -35,10 +35,13 @@ test("the templates dialog loads the list again and ticks the new files again ea
     { name: "taskpilot-explorer", rel: "taskpilot-explorer.md", description: "Mô tả explorer", path: ".claude/agents/taskpilot-explorer.md", exists: false, same: false, hash: "" },
     { name: "taskpilot-tester", rel: "taskpilot-tester.md", description: "Mô tả tester", path: ".claude/agents/taskpilot-tester.md", exists: true, same: false, hash: "hash-tester" },
   ];
-  await page.route("**/api/config/agents/templates", (route) => {
-    loads++;
-    return route.fulfill({ json: templates });
-  });
+  await page.route(
+    (url) => url.pathname === "/api/config/agents/templates",
+    (route) => {
+      loads++;
+      return route.fulfill({ json: templates });
+    },
+  );
   await page.goto("/#/agents");
   await page.locator(".config-toolbar").getByRole("button", { name: "Subagent mẫu" }).click();
 
@@ -116,4 +119,24 @@ test("cancelling a new prompt goes back to workflow.yml", async ({ page }) => {
   await toolbar(page).getByRole("button", { name: "Bỏ thay đổi" }).click();
   await expect(nav(page).getByRole("button", { name: /review\.md/ })).toHaveCount(0);
   await expect(page.locator(".wf-file .code-head")).toContainText("workflow.yml");
+});
+
+test("instruction drafts use the selected CLI and never preview another CLI's file", async ({ page }) => {
+  const expected = { claude: "CLAUDE.md", copilot: ".github/copilot-instructions.md", codex: "AGENTS.md" } as const;
+  for (const [cli, path] of Object.entries(expected)) {
+    const rawResponse = await page.request.get(`/api/config/memory/project/raw?cli=${cli}`);
+    expect(rawResponse.ok()).toBe(true);
+    const raw = (await rawResponse.json()) as { hash: string; content: string; path: string };
+    expect(raw.path).toBe(path);
+    const previewResponse = await page.request.post(`/api/config/memory/project/preview?cli=${cli}`, {
+      data: { baseHash: raw.hash, content: `${raw.content}\n# Draft ${cli}\n` },
+    });
+    expect(previewResponse.ok()).toBe(true);
+    const preview = (await previewResponse.json()) as { diff: string; changed: boolean; stale: boolean };
+    expect(preview).toMatchObject({ changed: true, stale: false });
+    expect(preview.diff).toContain(path);
+    expect(preview.diff).toContain(`Draft ${cli}`);
+  }
+  const claude = (await (await page.request.get("/api/config/memory/project/raw")).json()) as { content: string };
+  expect(claude.content).not.toContain("Draft ");
 });

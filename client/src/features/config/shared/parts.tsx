@@ -1,7 +1,7 @@
 import { ArrowClockwise, LockSimple, X } from "@phosphor-icons/react";
-import { useState, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { href, type Route } from "../../../shared/router";
+import { href, type ConfigCli, type ConfigSection, type Route } from "../../../shared/router";
 import { Button } from "../../../shared/ui/Button";
 import i18n from "../../../i18n";
 import { PageHeader } from "../../../shared/ui/PageHeader";
@@ -13,6 +13,50 @@ import "./forms.css";
 import "./cards.css";
 import "./page-tabs.css";
 import type { Scope } from "./types";
+
+export const ConfigCliContext = createContext<ConfigCli>("claude");
+export const useConfigCli = (): ConfigCli => useContext(ConfigCliContext);
+
+export interface SectionCapability {
+  scopes: Scope[];
+  supported: boolean;
+  available: boolean;
+  reason?: string;
+}
+
+/** The CLI stays in the hash while moving among native configuration pages. */
+export function CliSelector({ cli, section }: { cli: ConfigCli; section: ConfigSection }) {
+  const { t } = useTranslation("shell");
+  const clis: ConfigCli[] = ["claude", "copilot", "codex"];
+  return (
+    <nav className="page-tabs" aria-label={t("configSelector.label")}>
+      {clis.map((candidate) => (
+        <a key={candidate} href={href({ page: "config", section, cli: candidate })} aria-current={candidate === cli ? "page" : undefined}>
+          {t(`cli.${candidate}`)}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
+export function CapabilityNotice({ cli, capability, loading, error }: { cli: ConfigCli; capability: SectionCapability | null; loading: boolean; error: string | null }) {
+  const { t } = useTranslation("shell");
+  return (
+    <div className="page-body">
+      {error ? (
+        <LoadError error={error} />
+      ) : loading ? (
+        <p className="hint">{t("configSelector.loading")}</p>
+      ) : (
+        <div className="empty-card">
+          <h2>{t(`cli.${cli}`)}</h2>
+          <p>{t(capability?.supported ? "configSelector.pendingUi" : "configSelector.unsupported")}</p>
+          {capability?.supported && <p>{t("configSelector.scopes", { scopes: capability.scopes.map(scopeLabel).join(", ") })}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export const scopeLabel = (scope: Scope) => i18n.t(`scope.label.${scope}`, { ns: "config" });
 export const scopeHint = (scope: Scope) => i18n.t(`scope.hint.${scope}`, { ns: "config" });

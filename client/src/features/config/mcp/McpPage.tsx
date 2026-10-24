@@ -2,10 +2,11 @@ import { CheckCircle, CircleNotch, HourglassMedium, Key, PencilSimple, Plugs, Pl
 import { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { useWorkspace } from "../../workspace";
+import type { ConfigCli } from "../../../shared/router";
 import { Button } from "../../../shared/ui/Button";
 import { toast } from "../../../shared/ui/Toast";
 import { McpForm } from "./McpForm";
-import { backupToast, ConfigHeader, ConfigToolbar, EmptyCard, LoadError, ScopeTabs, ScopeTag } from "../shared/parts";
+import { backupToast, ConfigHeader, ConfigToolbar, EmptyCard, LoadError, ScopeTabs, ScopeTag, useConfigCli } from "../shared/parts";
 import { shadowedBy } from "../shared/precedence";
 import { useConfig } from "../shared/useConfig";
 import { mcpApi } from "./api";
@@ -16,11 +17,16 @@ import "./mcp.css";
 
 type Editing = { scope: Scope; base: McpEntryForm | null; baseHash: string } | null;
 
-/** MCP servers Claude sees for this repo, one scope per tab; add, edit, delete and check them. */
+/** MCP servers for the selected CLI, with native sources and supported actions. */
 export function McpPage() {
+  const cli = useConfigCli();
+  return <McpPageForCli key={cli} cli={cli} />;
+}
+
+function McpPageForCli({ cli }: { cli: ConfigCli }) {
   const { t } = useTranslation("config");
-  const tabLabel = (s: Scope) => t(`mcp.tab.${s}`);
-  const { data, error, loading, reload } = useConfig(["mcp"], mcpApi.mcp);
+  const tabLabel = (s: Scope) => t(cli === "claude" ? `mcp.tab.${s}` : `mcp.cli.${cli}.tab.${s}`);
+  const { data, error, loading, reload } = useConfig(["mcp", cli], () => mcpApi.mcp(cli));
   const { reloadInventory } = useWorkspace();
   const [scope, setScope] = useState<Scope>("project");
   const [picked, setPicked] = useState<string | null>(null);
@@ -28,9 +34,11 @@ export function McpPage() {
   // The form renders its cancel / save buttons into the toolbar.
   const [actionsSlot, setActionsSlot] = useState<HTMLSpanElement | null>(null);
   const all = data?.servers ?? [];
+  const scopes: Scope[] = cli === "claude" ? ["project", "local", "user"] : ["project", "user"];
   const servers = all.filter((s) => s.scope === scope);
-  const keyOf = (s: McpServer) => `${s.scope}:${s.name}`;
+  const keyOf = (s: McpServer) => `${s.scope}:${s.source ?? ""}:${s.name}`;
   const current = servers.find((s) => keyOf(s) === picked) ?? servers[0];
+  const editableSource = data?.sources.find((s) => s.scope === scope && (cli !== "copilot" || s.path !== ".mcp.json"));
 
   const refresh = () => {
     void reload();
@@ -39,7 +47,7 @@ export function McpPage() {
 
   const startAdd = async (scope: Scope) => {
     try {
-      const { hash } = await mcpApi.mcpAddHash(scope);
+      const { hash } = await mcpApi.mcpAddHash(scope, cli);
       setEditing({ scope, base: null, baseHash: hash });
     } catch (e) {
       toast((e as Error).message, { error: true });
@@ -48,7 +56,7 @@ export function McpPage() {
 
   const startEdit = async (s: McpServer) => {
     try {
-      const form = await mcpApi.mcpEntry(s.scope, s.name);
+      const form = await mcpApi.mcpEntry(cli, s.scope, s.name);
       setEditing({ scope: s.scope, base: form, baseHash: form.hash });
     } catch (e) {
       toast((e as Error).message, { error: true });
@@ -57,7 +65,7 @@ export function McpPage() {
 
   return (
     <div className="page">
-      <ConfigHeader title={t("mcp.title")} subtitle={t("mcp.subtitle")} />
+      <ConfigHeader title={t("mcp.title")} subtitle={t(cli === "claude" ? "mcp.subtitle" : `mcp.cli.${cli}.subtitle`)} />
       <ConfigToolbar
         start={
           !editing && (
@@ -66,6 +74,7 @@ export function McpPage() {
               onChange={setScope}
               label={t("mcp.tabsLabel")}
               labels={{ project: tabLabel("project"), local: tabLabel("local"), user: tabLabel("user") }}
+              scopes={scopes}
               count={(s) => all.filter((x) => x.scope === s).length}
             />
           )
@@ -76,7 +85,7 @@ export function McpPage() {
           editing ? (
             <span ref={setActionsSlot} className="toolbar-slot" />
           ) : (
-            <Button icon={Plus} variant="primary" title={t("mcp.addTitle", { file: tabLabel(scope) })} onClick={() => void startAdd(scope)}>
+            <Button icon={Plus} variant="primary" title={t("mcp.addTitle", { file: editableSource?.path ?? tabLabel(scope) })} onClick={() => void startAdd(scope)}>
               {t("action.add")}
             </Button>
           )
@@ -87,12 +96,13 @@ export function McpPage() {
         {data?.sources
           .filter((s) => s.error && s.scope === scope)
           .map((s) => (
-            <p key={s.scope} className="error config-error" role="alert">
+            <p key={s.path} className="error config-error" role="alert">
               {s.path}: {s.error}
             </p>
           ))}
         {editing ? (
           <McpForm
+            cli={cli}
             scope={editing.scope}
             base={editing.base}
             baseHash={editing.baseHash}
@@ -100,19 +110,19 @@ export function McpPage() {
             onDone={(name) => {
               if (name) {
                 setScope(editing.scope);
-                setPicked(`${editing.scope}:${name}`);
+                setPicked(`${editing.scope}:${cli === "claude" ? "" : (editableSource?.path ?? "")}:${name}`);
               }
               setEditing(null);
               refresh();
             }}
           />
         ) : data && servers.length === 0 ? (
-          <EmptyCard title={t("mcp.emptyTitle", { file: tabLabel(scope) })}>{t(`mcp.empty.${scope}`)}</EmptyCard>
+          <EmptyCard title={t("mcp.emptyTitle", { file: editableSource?.path ?? tabLabel(scope) })}>{t(cli === "claude" ? `mcp.empty.${scope}` : `mcp.cli.${cli}.empty.${scope}`)}</EmptyCard>
         ) : (
           <div className="library">
             <ul className="mcp-list" aria-label={t("mcp.listLabel")}>
               {servers.map((s) => {
-                const hidden = shadowedBy("mcp", s, all);
+                const hidden = cli === "claude" ? shadowedBy("mcp", s, all) : s.effective === false ? (all.find((x) => x.name === s.name && x.effective)?.source ?? null) : null;
                 return (
                   <li key={keyOf(s)}>
                     <button type="button" className="mcp-item" aria-current={current && keyOf(current) === keyOf(s) ? "true" : undefined} onClick={() => setPicked(keyOf(s))}>
@@ -138,8 +148,9 @@ export function McpPage() {
               <McpDetail
                 key={keyOf(current)}
                 server={current}
-                hiddenBy={shadowedBy("mcp", current, all)}
-                source={data?.sources.find((x) => x.scope === current.scope)?.path ?? ""}
+                cli={cli}
+                hiddenBy={cli === "claude" ? shadowedBy("mcp", current, all) : current.effective === false ? (all.find((x) => x.name === current.name && x.effective)?.source ?? null) : null}
+                source={current.source ?? data?.sources.find((x) => x.scope === current.scope)?.path ?? ""}
                 onEdit={() => void startEdit(current)}
                 onChanged={refresh}
               />
@@ -163,7 +174,21 @@ const CHECK_ICON: Record<McpCheck["status"], typeof CheckCircle> = {
 const HINTED = ["pending", "auth", "failed"] as const;
 const hinted = (s: McpCheck["status"]): s is (typeof HINTED)[number] => (HINTED as readonly string[]).includes(s);
 
-function McpDetail({ server, hiddenBy, source, onEdit, onChanged }: { server: McpServer; hiddenBy: string | null; source: string; onEdit: () => void; onChanged: () => void }) {
+function McpDetail({
+  cli,
+  server,
+  hiddenBy,
+  source,
+  onEdit,
+  onChanged,
+}: {
+  cli: ConfigCli;
+  server: McpServer;
+  hiddenBy: string | null;
+  source: string;
+  onEdit: () => void;
+  onChanged: () => void;
+}) {
   const { t } = useTranslation("config");
   const [check, setCheck] = useState<McpCheck | null>(null);
   const [checking, setChecking] = useState(false);
@@ -173,7 +198,7 @@ function McpDetail({ server, hiddenBy, source, onEdit, onChanged }: { server: Mc
   const runCheck = async () => {
     setChecking(true);
     try {
-      setCheck(await mcpApi.mcpCheck(server.name));
+      setCheck(await mcpApi.mcpCheck(cli, server.name));
     } catch (e) {
       setCheck({ status: "unknown", label: (e as Error).message });
     } finally {
@@ -184,8 +209,8 @@ function McpDetail({ server, hiddenBy, source, onEdit, onChanged }: { server: Mc
   const remove = async () => {
     setDeleting(true);
     try {
-      const { hash } = await mcpApi.mcpEntry(server.scope, server.name);
-      await mcpApi.mcpDelete(server.scope, server.name, hash);
+      const { hash } = await mcpApi.mcpEntry(cli, server.scope, server.name);
+      await mcpApi.mcpDelete(cli, server.scope, server.name, hash);
       backupToast(t("deletedRestorable", { name: server.name }));
       onChanged();
     } catch (e) {
@@ -207,29 +232,35 @@ function McpDetail({ server, hiddenBy, source, onEdit, onChanged }: { server: Mc
         <ScopeTag scope={server.scope} />
         <span className="pill">{server.type}</span>
         <div className="lib-actions">
-          {!hiddenBy && (
+          {cli === "claude" && !hiddenBy && (
             <Button icon={Plugs} busy={checking} onClick={() => void runCheck()}>
               {t("mcp.check")}
             </Button>
           )}
-          <Button icon={PencilSimple} onClick={onEdit}>
-            {t("action.edit")}
-          </Button>
-          {confirmDelete ? (
-            <Button icon={Trash} variant="danger" busy={deleting} onClick={() => void remove()}>
-              {t("action.deleteConfirm")}
-            </Button>
-          ) : (
-            <Button icon={Trash} variant="quiet" onClick={() => setConfirmDelete(true)}>
-              {t("action.delete")}
-            </Button>
+          {server.editable !== false && (
+            <>
+              <Button icon={PencilSimple} onClick={onEdit}>
+                {t("action.edit")}
+              </Button>
+              {confirmDelete ? (
+                <Button icon={Trash} variant="danger" busy={deleting} onClick={() => void remove()}>
+                  {t("action.deleteConfirm")}
+                </Button>
+              ) : (
+                <Button icon={Trash} variant="quiet" onClick={() => setConfirmDelete(true)}>
+                  {t("action.delete")}
+                </Button>
+              )}
+            </>
           )}
         </div>
       </header>
       <p className="mono lib-path">{source}</p>
 
       {/* `claude mcp get` tests the winning copy, so a result here would describe another scope's server. */}
-      {hiddenBy && <p className="hint">{t("mcp.checkShadowed", { scope: hiddenBy })}</p>}
+      {hiddenBy && <p className="hint">{t(cli === "claude" ? "mcp.checkShadowed" : "mcp.cli.shadowed", { scope: hiddenBy })}</p>}
+      {server.editable === false && <p className="hint">{t("mcp.cli.readOnlySource")}</p>}
+      {cli !== "claude" && <p className="hint">{t("mcp.cli.checkUnavailable")}</p>}
 
       {checking && (
         <p className="check-result" role="status">
@@ -251,9 +282,7 @@ function McpDetail({ server, hiddenBy, source, onEdit, onChanged }: { server: Mc
           {server.error}
         </p>
       )}
-      {server.missingEnv.map((v) => (
-        <MissingVar key={v} name={v} onSaved={onChanged} />
-      ))}
+      {cli === "claude" && server.missingEnv.map((v) => <MissingVar key={v} name={v} onSaved={onChanged} />)}
       {server.fromTaskPilot.length > 0 && (
         <p className="hint">
           <Trans t={t} i18nKey="mcp.fromTaskPilot" values={{ vars: server.fromTaskPilot.join(", ") }} components={{ code: <code /> }} />

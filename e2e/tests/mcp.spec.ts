@@ -50,3 +50,24 @@ test("saving a server name with spaces around it opens that server", async ({ pa
 
   await expect(detail.getByRole("heading", { name: "zeta" })).toBeVisible();
 });
+
+test("MCP reads each CLI's native source and keeps Copilot's shared source read only", async ({ page }) => {
+  const cases = [
+    { cli: "claude", name: "docs", source: ".mcp.json" },
+    { cli: "copilot", name: "copilot-docs", source: ".github/mcp.json" },
+    { cli: "codex", name: "codex-docs", source: ".codex/config.toml" },
+  ] as const;
+  for (const { cli, name, source } of cases) {
+    const response = await page.request.get(`/api/config/mcp?cli=${cli}`);
+    expect(response.ok()).toBe(true);
+    expect(await response.text()).not.toContain("e2e-secret-copilot");
+    const config = (await response.json()) as { servers: Array<{ name: string; source?: string; editable?: boolean }>; sources: Array<{ path: string }> };
+    expect(config.sources.some((item) => item.path === source)).toBe(true);
+    expect(config.servers.find((item) => item.name === name)?.source ?? source).toBe(source);
+    if (cli === "copilot") {
+      expect(config.servers.find((item) => item.name === "docs")).toMatchObject({ source: ".mcp.json", editable: false });
+    }
+  }
+  const invalidScope = await page.request.get("/api/config/mcp/local/docs?cli=codex");
+  expect(invalidScope.status()).toBe(400);
+});

@@ -1,5 +1,10 @@
+import { t } from "../../../core/i18n.js";
 import path from "node:path";
 import { claudeHome, displayPath, isObject, maskValue, readJsonFile, strings } from "../shared/fs.js";
+import type { ConfigCli, ConfigScope } from "../shared/agent.js";
+import { settingsTarget } from "../shared/targets.js";
+import { readCurrent } from "../shared/writer.js";
+import { nativeKeys, readNativeFields, type NativeFields } from "./native.js";
 
 export type SettingsScope = "project" | "local" | "user";
 
@@ -16,6 +21,31 @@ export interface SettingsFile {
   env: Array<{ key: string; value: string; reference: boolean }>;
   /** Other top-level keys, so the page can say what else the file configures. */
   otherKeys: string[];
+}
+
+export interface NativeSettingsFile {
+  scope: ConfigScope;
+  path: string;
+  exists: boolean;
+  error?: string;
+  fields: NativeFields;
+  editableKeys: string[];
+}
+
+/** Only the validated native fields leave the server. Unknown fields and credentials stay on disk. */
+export async function readNativeSettings(repo: string, cli: Exclude<ConfigCli, "claude">): Promise<NativeSettingsFile[]> {
+  const scopes: ConfigScope[] = cli === "codex" ? ["project", "user"] : ["project", "local", "user"];
+  return Promise.all(
+    scopes.map(async (scope) => {
+      const target = settingsTarget(repo, scope, cli);
+      const content = await readCurrent(target.abs);
+      try {
+        return { scope, path: target.display, exists: content !== null, fields: readNativeFields(cli, scope, content), editableKeys: nativeKeys(cli, scope) };
+      } catch {
+        return { scope, path: target.display, exists: true, error: t("configMessages.settings_read_01"), fields: {}, editableKeys: nativeKeys(cli, scope) };
+      }
+    }),
+  );
 }
 
 export interface HookEntry {

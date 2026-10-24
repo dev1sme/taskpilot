@@ -1,8 +1,9 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { parse as parseToml } from "smol-toml";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { EnvStore } from "../../../src/modules/env/store.js";
-import { app, get, home, ok, repo, send, state, useConfigApp } from "../../helpers/configApp.js";
+import { app, codexHome, copilotHome, get, home, ok, repo, send, state, useConfigApp } from "../../helpers/configApp.js";
 
 useConfigApp();
 
@@ -191,5 +192,66 @@ describe("MCP servers, user scope via claude mcp", () => {
     await send("PUT", "/api/env/GOOD_TOKEN", { value: "yes" });
     await send("PUT", "/api/config/mcp/local", { name: "x", type: "stdio", command: "x", args: [], env: [], baseHash: "absent" });
     expect((await send("POST", "/api/config/mcp/check/x")).json()).toEqual({ status: "connected", label: "Connected" });
+  });
+});
+
+describe("native MCP adapters", () => {
+  it("reads and edits Codex TOML without changing unrelated settings or exposing secrets", async () => {
+    const file = path.join(codexHome, "config.toml");
+    await writeFile(file, 'approval_policy = "on-request"\n# keep\n[mcp_servers.old]\ncommand = "npx"\nargs = ["--token=hidden"]\n[mcp_servers.old.env]\nTOKEN = "top-secret"\n');
+    const list = await get("/api/config/mcp?cli=codex");
+    expect(list.servers).toMatchObject([{ name: "old", scope: "user", type: "stdio" }]);
+    expect(JSON.stringify(list)).not.toMatch(/top-secret|hidden/);
+    const form = await get("/api/config/mcp/user/old?cli=codex");
+    expect(form.env[0].value).toBe("••••");
+    const body = { name: "old", originalName: "old", type: "stdio", command: "npx", args: form.args, env: [{ key: "TOKEN", value: null }], headers: [], baseHash: form.hash };
+    const preview = await send("POST", "/api/config/mcp/user/preview?cli=codex", body);
+    expect(preview.statusCode).toBe(200);
+    expect(preview.body).not.toMatch(/top-secret|hidden/);
+    expect((await send("PUT", "/api/config/mcp/user?cli=codex", body)).statusCode).toBe(200);
+    const parsed = parseToml(await readFile(file, "utf8")) as Record<string, any>;
+    expect(parsed.approval_policy).toBe("on-request");
+    expect(parsed.mcp_servers.old.env.TOKEN).toBe("top-secret");
+    expect((await send("POST", "/api/config/mcp/check/old?cli=codex")).statusCode).toBe(501);
+    expect((await send("PUT", "/api/config/mcp/local?cli=codex", body)).statusCode).toBe(400);
+  });
+
+  it("removes Codex HTTP headers when the edited list is empty", async () => {
+    const file = path.join(codexHome, "config.toml");
+    await writeFile(file, '[mcp_servers.api]\nurl = "https://example.test/mcp"\n[mcp_servers.api.http_headers]\nAuthorization = "Bearer old-secret"\n');
+    const { hash } = await get("/api/config/mcp/user/api?cli=codex");
+    const body = { name: "api", originalName: "api", type: "http", url: "https://example.test/mcp", args: [], headers: [], baseHash: hash };
+    expect((await send("PUT", "/api/config/mcp/user?cli=codex", body)).statusCode).toBe(200);
+    const data = parseToml(await readFile(file, "utf8")) as { mcp_servers: { api: Record<string, unknown> } };
+    expect(data.mcp_servers.api.http_headers).toBeUndefined();
+  });
+
+  it("reads Copilot precedence sources and writes only its native target", async () => {
+    await mkdir(path.join(repo, ".github"), { recursive: true });
+    await writeFile(path.join(repo, ".mcp.json"), JSON.stringify({ mcpServers: { shared: { type: "stdio", command: "x" } } }));
+    await writeFile(path.join(repo, ".github", "mcp.json"), JSON.stringify({ mcpServers: { project: { type: "http", url: "https://example.test" } } }));
+    await writeFile(path.join(copilotHome, "mcp-config.json"), JSON.stringify({ mcpServers: { personal: { type: "local", command: "npx" } } }));
+    const list = await get("/api/config/mcp?cli=copilot");
+    expect(list.sources.map((s: { path: string }) => s.path)).toEqual([".mcp.json", ".github/mcp.json", path.join(copilotHome, "mcp-config.json")]);
+    expect(list.servers.map((s: { name: string }) => s.name)).toEqual(["shared", "project", "personal"]);
+    expect(list.servers[0].editable).toBe(false);
+    const { hash } = await get("/api/config/mcp/project?cli=copilot");
+    const body = { name: "added", type: "http", url: "https://example.test/mcp", args: [], headers: [{ key: "Authorization", value: "Bearer secret" }], baseHash: hash };
+    expect((await send("PUT", "/api/config/mcp/project?cli=copilot", body)).statusCode).toBe(200);
+    expect(JSON.parse(await readFile(path.join(repo, ".github", "mcp.json"), "utf8")).mcpServers.added.tools).toEqual(["*"]);
+    expect(JSON.parse(await readFile(path.join(repo, ".mcp.json"), "utf8")).mcpServers.added).toBeUndefined();
+    expect(
+      (await send("POST", "/api/config/mcp/project/preview?cli=copilot", { ...body, originalName: "added", baseHash: (await get("/api/config/mcp/project?cli=copilot")).hash })).body,
+    ).not.toContain("Bearer secret");
+  });
+
+  it("retains Copilot's bare project format while deleting one server", async () => {
+    await mkdir(path.join(repo, ".github"), { recursive: true });
+    const file = path.join(repo, ".github", "mcp.json");
+    await writeFile(file, JSON.stringify({ one: { type: "local", command: "one" }, two: { type: "http", url: "https://two.test" } }));
+    expect((await get("/api/config/mcp?cli=copilot")).servers.map((server: { name: string }) => server.name)).toEqual(["one", "two"]);
+    const { hash } = await get("/api/config/mcp/project/one?cli=copilot");
+    expect((await send("DELETE", `/api/config/mcp/project/one?cli=copilot&baseHash=${hash}`)).statusCode).toBe(200);
+    expect(JSON.parse(await readFile(file, "utf8"))).toEqual({ two: { type: "http", url: "https://two.test" } });
   });
 });

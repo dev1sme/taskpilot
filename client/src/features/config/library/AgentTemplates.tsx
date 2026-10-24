@@ -2,6 +2,7 @@ import { Eye, Robot, X } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { ConfigCli } from "../../../shared/router";
 import { Button } from "../../../shared/ui/Button";
 import { DiffDialog } from "../../../shared/ui/DiffDialog";
 import { backupToast } from "../shared/parts";
@@ -12,14 +13,14 @@ import "../../../shared/ui/icon-button.css";
 import "./agents.css";
 
 /** Shown on the agents page when the repo has no agent of its own: TaskPilot's templates are one click away. */
-export function NoAgentsBanner({ onInstall }: { onInstall: () => void }) {
+export function NoAgentsBanner({ cli, onInstall }: { cli: ConfigCli; onInstall: () => void }) {
   const { t } = useTranslation("config");
   return (
     <section className="agents-banner" aria-label={t("library.templates.bannerTitle")}>
       <Robot weight="duotone" aria-hidden="true" />
       <div>
         <h2>{t("library.templates.bannerTitle")}</h2>
-        <p>{t("library.templates.bannerBody")}</p>
+        <p>{t(cli === "codex" ? "library.templates.codex.bannerBody" : "library.templates.bannerBody")}</p>
       </div>
       <Button variant="primary" onClick={onInstall}>
         {t("library.templates.install")}
@@ -47,15 +48,19 @@ export function CheckPill({ check }: { check: AgentCheck }) {
 }
 
 /** What TaskPilot found in the agent: whether a workflow can use it, as what, and why not. */
-export function CheckSection({ check }: { check: AgentCheck }) {
+export function CheckSection({ cli, check }: { cli: ConfigCli; check: AgentCheck }) {
   const { t } = useTranslation("config");
   return (
     <section className={`agent-check is-${check.status}`} aria-label={t("library.check.title")}>
       <div className="pane-label">{t("library.check.title")}</div>
       <p className="agent-check-status">
-        <CheckPill check={check} /> {t(`library.check.status.${check.status}`)}
+        <CheckPill check={check} /> {t(cli === "codex" && check.status === "error" ? "library.check.codexError" : `library.check.status.${check.status}`)}
       </p>
-      <p>{check.roles.length > 0 ? t("library.check.roles", { roles: check.roles.map((r) => t(`library.check.role.${r}`)).join(", ") }) : t("library.check.noRoles")}</p>
+      <p>
+        {check.roles.length > 0
+          ? t("library.check.roles", { roles: check.roles.map((r) => t(cli === "codex" && r === "leader" ? "library.check.codexLeader" : `library.check.role.${r}`)).join(", ") })
+          : t("library.check.noRoles")}
+      </p>
       {check.problems.length > 0 && (
         <ul className="agent-check-problems">
           {check.problems.map((p) => (
@@ -69,10 +74,10 @@ export function CheckSection({ check }: { check: AgentCheck }) {
 }
 
 /**
- * Writes TaskPilot's subagents to .claude/agents/: pick the files, read the diff, write. A file the
+ * Writes TaskPilot's subagents to the selected CLI's project agent directory. A file the
  * repo already has is only overwritten when ticked; every write leaves a backup.
  */
-export function TemplatesDialog(props: { open: boolean; onClose: () => void; onInstalled: () => void }) {
+export function TemplatesDialog(props: { cli: ConfigCli; open: boolean; onClose: () => void; onInstalled: () => void }) {
   const { t } = useTranslation(["config", "common"]);
   const [templates, setTemplates] = useState<AgentTemplate[] | null>(null);
   const [chosen, setChosen] = useState<Set<string>>(new Set());
@@ -96,14 +101,14 @@ export function TemplatesDialog(props: { open: boolean; onClose: () => void; onI
   useEffect(() => {
     if (!props.open) return;
     libraryApi
-      .agentTemplates()
+      .agentTemplates(props.cli)
       .then((list) => {
         setTemplates(list);
         // New files are ticked; a file the repo changed is overwritten only when the user asks.
         setChosen(new Set(list.filter((x) => !x.exists).map((x) => x.name)));
       })
       .catch((e: unknown) => setError((e as Error).message));
-  }, [props.open]);
+  }, [props.cli, props.open]);
 
   const names = (templates ?? []).filter((x) => chosen.has(x.name)).map((x) => x.name);
   const toggle = (name: string, on: boolean) =>
@@ -119,7 +124,7 @@ export function TemplatesDialog(props: { open: boolean; onClose: () => void; onI
     setPreview(null);
     setError(null);
     try {
-      const res = await libraryApi.agentTemplatesPreview(names);
+      const res = await libraryApi.agentTemplatesPreview(props.cli, names);
       setPreview({ diff: res.diff, hashes: Object.fromEntries(res.files.map((f) => [f.name, f.hash])) });
     } catch (e) {
       setError((e as Error).message);
@@ -130,8 +135,8 @@ export function TemplatesDialog(props: { open: boolean; onClose: () => void; onI
     setBusy(true);
     try {
       const overwrite = (templates ?? []).filter((x) => chosen.has(x.name) && x.exists).map((x) => x.name);
-      const res = await libraryApi.agentTemplatesInstall(names, overwrite, preview?.hashes ?? {});
-      backupToast(t("library.templates.installed", { count: res.files.length }));
+      const res = await libraryApi.agentTemplatesInstall(props.cli, names, overwrite, preview?.hashes ?? {});
+      backupToast(t(props.cli === "codex" ? "library.templates.codex.installed" : "library.templates.installed", { count: res.files.length }));
       setReviewing(false);
       props.onInstalled();
       props.onClose();
@@ -159,7 +164,7 @@ export function TemplatesDialog(props: { open: boolean; onClose: () => void; onI
               <header className="dialog-head">
                 <div>
                   <h2 id="templates-title">{t("library.templates.title")}</h2>
-                  <p className="dialog-sub">{t("library.templates.subtitle")}</p>
+                  <p className="dialog-sub">{t(props.cli === "codex" ? "library.templates.codex.subtitle" : "library.templates.subtitle")}</p>
                 </div>
                 <button type="button" className="icon-btn" onClick={props.onClose} aria-label={t("common:close")}>
                   <X weight="bold" />
@@ -204,7 +209,7 @@ export function TemplatesDialog(props: { open: boolean; onClose: () => void; onI
       </AnimatePresence>
       <DiffDialog
         open={props.open && reviewing}
-        title={t("library.templates.diffTitle")}
+        title={t(props.cli === "codex" ? "library.templates.codex.diffTitle" : "library.templates.diffTitle")}
         diff={preview?.diff ?? (error ? "" : null)}
         busy={busy}
         error={error}

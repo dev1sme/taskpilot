@@ -26,6 +26,8 @@ export interface LibraryItem {
   files?: string[];
   /** Agents only. */
   check?: AgentCheck;
+  /** Copilot can read a Claude agent, but cannot edit it as Copilot configuration. */
+  editable?: boolean;
 }
 
 /** A subagent TaskPilot ships and how it compares with the repo's .claude/agents/<name>.md. */

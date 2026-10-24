@@ -4,7 +4,7 @@ import { expect, type Page } from "@playwright/test";
 import { TMP } from "../env";
 
 /**
- * A small repo with one task, CLAUDE.md, permissions (long user path included), a hook, a skill with
+ * A small repo with native configuration for Claude, Copilot and Codex. It includes permissions, a hook, a skill with
  * wide content, an agent and an MCP server that also exist in a higher-priority scope, plus an agent with a
  * very long name and an MCP server with many arguments (for the layout regression tests).
  */
@@ -14,6 +14,14 @@ export const FIXTURE_REPO = path.join(TMP, "repos", "fixture-repo");
 
 const FILES: Record<string, string> = {
   "CLAUDE.md": "# Fixture repo\n- Dùng TypeScript strict.\n",
+  "AGENTS.md": "# Codex fixture\n- Chỉ dẫn riêng cho Codex.\n",
+  ".github/copilot-instructions.md": "# Copilot fixture\n- Chỉ dẫn riêng cho Copilot.\n",
+  ".codex/config.toml": 'approval_policy = "on-request"\n[mcp_servers.codex-docs]\nurl = "https://codex.example/mcp"\n',
+  ".github/copilot/settings.json": JSON.stringify({ disableAllHooks: false, future: { keep: true } }),
+  ".github/hooks/fixture.json": JSON.stringify({ version: 1, hooks: { preToolUse: [{ type: "command", command: "echo fixture" }] } }),
+  ".codex/agents/native-reviewer.toml": 'name = "native-reviewer"\ndescription = "Review cho Codex"\ndeveloper_instructions = "Review code."\n',
+  ".github/agents/native-reviewer.agent.md": "---\nname: native-reviewer\ndescription: Review cho Copilot\n---\n\nReview code.\n",
+  ".github/mcp.json": JSON.stringify({ mcpServers: { "copilot-docs": { type: "http", url: "https://copilot.example/mcp", headers: { Authorization: "e2e-secret-copilot" } } } }),
   ".claude/tasks/PROJ-1/spec/README.md": "# Thêm trang đăng nhập bằng OAuth\n",
   ".claude/skills/long-skill/SKILL.md": [
     "---",

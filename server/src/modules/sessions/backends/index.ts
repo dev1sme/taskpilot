@@ -1,6 +1,6 @@
 import { DEFAULT_AGENT, type Agent } from "../../../core/agents.js";
 import { claudeBackend } from "./claude.js";
-import { copilotBackend } from "./copilot.js";
+import { copilotBackend } from "./copilot/index.js";
 import { codexBackend } from "./codex.js";
 import type { AgentBackend } from "./types.js";
 

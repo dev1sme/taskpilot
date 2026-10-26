@@ -15,7 +15,7 @@ import {
   stripComments,
   userHooksText,
   withoutTaskPilotHooks,
-} from "../../../src/modules/sessions/backends/copilot.js";
+} from "../../../src/modules/sessions/backends/copilot/index.js";
 import { cleanupTempDirs, tempDir } from "../../helpers/fixtures.js";
 
 afterAll(cleanupTempDirs);

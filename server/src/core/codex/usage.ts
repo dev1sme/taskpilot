@@ -1,5 +1,5 @@
 import type { UsageWindow } from "../../modules/usage/index.js";
-import type { CodexRpc } from "./rpc.js";
+import type { CodexRpc } from "./app-server.js";
 
 export interface CodexCredits {
   hasCredits: boolean;
@@ -30,7 +30,7 @@ const CODEX_LIMIT_ID = "codex";
  * Reads `account/rateLimits/read` over an open, initialized connection. Null when the answer
  * carries no usable number. Rejects when the request fails (not signed in, old Codex).
  */
-export async function codexRateLimits(rpc: CodexRpc): Promise<CodexUsageFields | null> {
+export async function fetchCodexRateLimits(rpc: CodexRpc): Promise<CodexUsageFields | null> {
   return parseCodexRateLimits(await rpc.request("account/rateLimits/read"));
 }
 

@@ -3,7 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import type { Agent } from "./agents.js";
 import type { CodexUsage } from "./codex/usage.js";
-import type { AgentQuota, ClaudeUsage } from "../modules/usage/index.js";
+import type { CopilotQuota } from "./copilot/quota.js";
+import type { ClaudeUsage } from "../modules/usage/index.js";
 import type { RunState } from "../modules/workflow/index.js";
 
 export interface SessionMeta {
@@ -52,7 +53,7 @@ export interface AppState {
   /** Claude plan usage last reported by a session's status line. */
   usage?: ClaudeUsage;
   /** Account quota of the other agents (Copilot quota, Codex rate limits). */
-  agentUsage?: { copilot?: AgentQuota; codex?: CodexUsage };
+  agentUsage?: { copilot?: CopilotQuota; codex?: CodexUsage };
 }
 
 /**

@@ -1,5 +1,5 @@
 import { CodexError } from "./errors.js";
-import type { CodexRpc } from "./rpc.js";
+import type { CodexRpc } from "./app-server.js";
 
 export interface CodexModel {
   id: string;
@@ -13,7 +13,7 @@ export interface CodexModel {
 const MAX_PAGES = 20;
 
 /** Reads `model/list` (visible models, all pages) over an open, initialized connection. */
-export async function listCodexModels(rpc: CodexRpc): Promise<CodexModel[]> {
+export async function fetchCodexModels(rpc: CodexRpc): Promise<CodexModel[]> {
   const models: CodexModel[] = [];
   let cursor: string | null = null;
   for (let page = 0; page < MAX_PAGES; page++) {

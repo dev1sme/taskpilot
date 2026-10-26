@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { codexRateLimits, parseCodexRateLimits } from "../../../src/core/codex/usage.js";
-import type { CodexRpc } from "../../../src/core/codex/rpc.js";
+import { fetchCodexRateLimits, parseCodexRateLimits } from "../../../src/core/codex/usage.js";
+import type { CodexRpc } from "../../../src/core/codex/app-server.js";
 
 const SNAPSHOT = {
   limitId: "codex",
@@ -53,11 +53,11 @@ describe("parseCodexRateLimits", () => {
   });
 });
 
-describe("codexRateLimits", () => {
+describe("fetchCodexRateLimits", () => {
   it("calls account/rateLimits/read and parses the answer", async () => {
     const calls: string[] = [];
     const rpc = { request: async (method: string) => (calls.push(method), { rateLimits: SNAPSHOT }) } as unknown as CodexRpc;
-    expect(await codexRateLimits(rpc)).toMatchObject({ planType: "plus" });
+    expect(await fetchCodexRateLimits(rpc)).toMatchObject({ planType: "plus" });
     expect(calls).toEqual(["account/rateLimits/read"]);
   });
 });

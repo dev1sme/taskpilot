@@ -3,8 +3,8 @@ import { readCodexAgent } from "./agents.js";
 import { CodexError } from "./errors.js";
 import { codexHookArgs, tomlValue } from "./hooks.js";
 
-/** `thread/start` / `thread/resume` fields TaskPilot sets. Absent fields keep the user's Codex config. */
-export interface CodexThreadParams {
+/** Settings TaskPilot puts on the Codex command line. Absent fields keep the user's Codex config. */
+export interface CodexLaunchSettings {
   cwd: string;
   model?: string;
   developerInstructions?: string;
@@ -17,7 +17,7 @@ export interface CodexThreadParams {
 export type CodexApprovalsReviewer = "user" | "auto_review";
 const REVIEWERS: readonly string[] = ["user", "auto_review"];
 
-export interface CodexThreadOptions {
+export interface CodexLaunchOptions {
   cwd: string;
   permissionMode?: string;
   /** Absent = the user's default model. */
@@ -36,7 +36,7 @@ export interface CodexThreadOptions {
  * and asks only to leave it. `plan` is refused: Codex's plan mode is experimental and cannot write the
  * step's document, and `read-only` cannot either. Never `danger-full-access`.
  */
-const PERMISSION: Record<string, Pick<CodexThreadParams, "sandbox" | "approvalPolicy">> = {
+const PERMISSION: Record<string, Pick<CodexLaunchSettings, "sandbox" | "approvalPolicy">> = {
   default: {},
   acceptEdits: { sandbox: "workspace-write", approvalPolicy: "on-request" },
   auto: { sandbox: "workspace-write", approvalPolicy: "never" },
@@ -64,7 +64,7 @@ const HOOK_AGENT_ENV = { TASKPILOT_HOOK_AGENT: "codex" };
 export const codexLauncher: Launcher = (sessionId, opts) => {
   if (sessionId === "preflight") return { ...codexAppServerCommand(), env: HOOK_AGENT_ENV };
   if (opts.resume && !opts.nativeId) throw new CodexError("noThread", "session has no Codex thread id to resume");
-  const params = codexThreadOptions({
+  const params = codexLaunchSettings({
     cwd: opts.repo ?? process.cwd(),
     permissionMode: opts.permissionMode,
     model: opts.model,
@@ -92,7 +92,7 @@ export const codexLauncher: Launcher = (sessionId, opts) => {
 };
 
 /** Launch settings of a Codex session. Throws CodexError for what Codex cannot do. */
-export function codexThreadOptions(opts: CodexThreadOptions): CodexThreadParams {
+export function codexLaunchSettings(opts: CodexLaunchOptions): CodexLaunchSettings {
   const agent = opts.subagent ? readCodexAgent(opts.cwd, opts.subagent) : undefined;
   const mode = opts.permissionMode;
   const permission = mode === undefined ? {} : PERMISSION[mode];

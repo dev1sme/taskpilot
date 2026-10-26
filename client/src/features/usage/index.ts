@@ -1,2 +1,2 @@
-export type { AgentQuota, CodexCredits, CodexUsage, UsageView } from "./types";
+export type { CopilotQuota, CodexCredits, CodexUsage, UsageView } from "./types";
 export { useUsage } from "./useUsage";

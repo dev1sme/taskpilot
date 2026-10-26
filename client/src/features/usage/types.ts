@@ -4,8 +4,8 @@ export interface UsageWindow {
   resetsAt: number | null;
 }
 
-/** Account quota of another agent (Copilot); mirrors server/src/modules/usage/store.ts. */
-export interface AgentQuota {
+/** Account quota of Copilot; mirrors server/src/core/copilot/quota.ts. */
+export interface CopilotQuota {
   /** Null when the entitlement is unlimited. */
   usedPercentage: number | null;
   unlimited: boolean;
@@ -45,5 +45,5 @@ export interface UsageView {
   spend?: { usedPercentage: number };
   /** When Claude's numbers were reported. */
   updatedAt?: number;
-  agents?: { copilot?: AgentQuota; codex?: CodexUsage };
+  agents?: { copilot?: CopilotQuota; codex?: CodexUsage };
 }

@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import type { Agent } from "../../core/agents.js";
 import type { CodexUsage, CodexUsageFields } from "../../core/codex/usage.js";
+import type { CopilotQuota } from "../../core/copilot/quota.js";
 import type { StateStore } from "../../core/state.js";
 
 export interface UsageWindow {
@@ -19,24 +20,9 @@ export interface ClaudeUsage {
   updatedAt: number;
 }
 
-/** Account quota of another agent (Copilot's `premium_interactions`). */
-export interface AgentQuota {
-  /** 0-100; null when the entitlement is unlimited. */
-  usedPercentage: number | null;
-  unlimited: boolean;
-  /** Unit of `used` and `entitlement`: AI credits (usage-based billing) or premium requests (legacy). */
-  unit: "ai_credits" | "premium_requests";
-  used: number | null;
-  /** Null when unlimited or not given. */
-  entitlement: number | null;
-  /** Epoch ms; null when not given. */
-  resetsAt: number | null;
-  updatedAt: number;
-}
-
 /** Claude's plan usage (top-level fields, absent until a Claude session reports it) and other agents' quotas. */
 export interface UsageView extends Partial<ClaudeUsage> {
-  agents?: { copilot?: AgentQuota; codex?: CodexUsage };
+  agents?: { copilot?: CopilotQuota; codex?: CodexUsage };
 }
 
 /** Account observation, never the cause of a particular session/turn failure. */
@@ -120,7 +106,7 @@ export class UsageStore extends EventEmitter<{ change: [usage: UsageView] }> {
   }
 
   /** Latest quota of an agent; null removes it (agent not installed or logged out). */
-  async applyAgent(agent: "copilot", quota: Omit<AgentQuota, "updatedAt"> | null): Promise<void> {
+  async applyAgent(agent: "copilot", quota: Omit<CopilotQuota, "updatedAt"> | null): Promise<void> {
     const prev = (await this.state.load()).agentUsage?.[agent];
     const now = Date.now();
     if (!quota && !prev) return;
@@ -178,8 +164,8 @@ function sameNumbers(a: Omit<ClaudeUsage, "updatedAt">, b: Omit<ClaudeUsage, "up
   return key(a) === key(b);
 }
 
-function sameQuota(a: Omit<AgentQuota, "updatedAt">, b: Omit<AgentQuota, "updatedAt">): boolean {
-  const key = (q: Omit<AgentQuota, "updatedAt">) => JSON.stringify([q.usedPercentage, q.unlimited, q.unit, q.used, q.entitlement, q.resetsAt]);
+function sameQuota(a: Omit<CopilotQuota, "updatedAt">, b: Omit<CopilotQuota, "updatedAt">): boolean {
+  const key = (q: Omit<CopilotQuota, "updatedAt">) => JSON.stringify([q.usedPercentage, q.unlimited, q.unit, q.used, q.entitlement, q.resetsAt]);
   return key(a) === key(b);
 }
 

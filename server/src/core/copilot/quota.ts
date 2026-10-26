@@ -4,6 +4,21 @@ import os from "node:os";
 import path from "node:path";
 import { childEnv } from "../launch.js";
 
+/** Account quota of Copilot (`premium_interactions` of `account.getQuota`). */
+export interface CopilotQuota {
+  /** 0-100; null when the entitlement is unlimited. */
+  usedPercentage: number | null;
+  unlimited: boolean;
+  /** Unit of `used` and `entitlement`: AI credits (usage-based billing) or premium requests (legacy). */
+  unit: "ai_credits" | "premium_requests";
+  used: number | null;
+  /** Null when unlimited or not given. */
+  entitlement: number | null;
+  /** Epoch ms; null when not given. */
+  resetsAt: number | null;
+  updatedAt: number;
+}
+
 export type CopilotQuotaResult =
   | { ok: true; snapshots: unknown }
   /** missing: no copilot binary; unauthenticated: not logged in; failed: anything else. */
@@ -27,6 +42,30 @@ export async function copilotQuota(opts: { file?: string; timeoutMs?: number } =
   } finally {
     await rm(logDir, { recursive: true, force: true });
   }
+}
+
+/**
+ * `premium_interactions` of `account.getQuota`: the account's main budget, in AI credits with
+ * usage-based billing (`tokenBasedBilling`) and in premium requests on the legacy plans. The map's
+ * keys and fields come from the runtime unchecked, so each one is guarded. Null when unusable.
+ */
+export function parseCopilotQuota(snapshots: unknown): Omit<CopilotQuota, "updatedAt"> | null {
+  if (!isObject(snapshots) || !isObject(snapshots.premium_interactions)) return null;
+  const raw = snapshots.premium_interactions;
+  const entitlement = finite(raw.entitlementRequests);
+  const unlimited = raw.isUnlimitedEntitlement === true || (entitlement !== null && entitlement < 0);
+  const remaining = finite(raw.remainingPercentage);
+  if (!unlimited && (remaining === null || remaining < 0 || remaining > 100)) return null;
+  // An unlimited account reports the time of the call as its reset date (copilot 1.0.101).
+  const resetsAt = unlimited || typeof raw.resetDate !== "string" ? null : Date.parse(raw.resetDate);
+  return {
+    usedPercentage: unlimited ? null : 100 - remaining!,
+    unlimited,
+    unit: raw.tokenBasedBilling === true ? "ai_credits" : "premium_requests",
+    used: finite(raw.usedRequests),
+    entitlement: unlimited || entitlement === null || entitlement <= 0 ? null : entitlement,
+    resetsAt: resetsAt !== null && Number.isFinite(resetsAt) ? resetsAt : null,
+  };
 }
 
 function request(file: string, logDir: string, timeoutMs: number): Promise<CopilotQuotaResult> {
@@ -102,6 +141,10 @@ function readMessages(stream: NodeJS.ReadableStream, onMessage: (msg: Record<str
       }
     }
   });
+}
+
+function finite(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {

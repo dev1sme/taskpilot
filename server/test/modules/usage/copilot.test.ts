@@ -1,26 +1,12 @@
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import type { CopilotQuotaResult } from "../../../src/core/copilot/quota.js";
-import { createCopilotPoller, parseCopilotQuota } from "../../../src/modules/usage/copilot.js";
+import { createCopilotPoller } from "../../../src/modules/usage/copilot.js";
 import { UsageStore } from "../../../src/modules/usage/store.js";
 import { StateStore } from "../../../src/core/state.js";
 import { cleanupTempDirs, tempDir } from "../../helpers/fixtures.js";
 
-/** As copilot 1.0.101 returned it for a Business account on usage-based billing. */
 const UNLIMITED = {
-  chat: { isUnlimitedEntitlement: true, entitlementRequests: 0, remainingPercentage: 100 },
-  premium_interactions: {
-    isUnlimitedEntitlement: true,
-    entitlementRequests: 0,
-    usedRequests: 0,
-    usageAllowedWithExhaustedQuota: true,
-    overage: 0,
-    overageAllowedWithExhaustedQuota: true,
-    remainingPercentage: 100,
-    resetDate: "2026-10-21T03:24:57.899Z",
-    hasQuota: true,
-    tokenBasedBilling: true,
-    overageEntitlement: 0,
-  },
+  premium_interactions: { isUnlimitedEntitlement: true, entitlementRequests: 0, usedRequests: 0, remainingPercentage: 100, resetDate: "2026-10-21T03:24:57.899Z", tokenBasedBilling: true },
 };
 
 const LIMITED = {
@@ -30,43 +16,6 @@ const LIMITED = {
 afterAll(cleanupTempDirs);
 afterEach(() => {
   vi.useRealTimers();
-});
-
-describe("parseCopilotQuota", () => {
-  it("reads an unlimited account without a percentage or reset", () => {
-    expect(parseCopilotQuota(UNLIMITED)).toEqual({ usedPercentage: null, unlimited: true, unit: "ai_credits", used: 0, entitlement: null, resetsAt: null });
-  });
-
-  it("reads a limited account on premium requests", () => {
-    expect(parseCopilotQuota(LIMITED)).toEqual({
-      usedPercentage: 10,
-      unlimited: false,
-      unit: "premium_requests",
-      used: 30,
-      entitlement: 300,
-      resetsAt: Date.parse("2026-11-01T00:00:00Z"),
-    });
-  });
-
-  it("treats a negative entitlement as unlimited", () => {
-    expect(parseCopilotQuota({ premium_interactions: { entitlementRequests: -1 } })).toMatchObject({ unlimited: true, usedPercentage: null });
-  });
-
-  it("guards keys and fields the runtime sets", () => {
-    expect(parseCopilotQuota(null)).toBeNull();
-    expect(parseCopilotQuota({ chat: LIMITED.premium_interactions })).toBeNull();
-    expect(parseCopilotQuota({ premium_interactions: [] })).toBeNull();
-    expect(parseCopilotQuota({ premium_interactions: { remainingPercentage: "90" } })).toBeNull();
-    expect(parseCopilotQuota({ premium_interactions: { remainingPercentage: 140 } })).toBeNull();
-    expect(parseCopilotQuota({ premium_interactions: { remainingPercentage: 50, usedRequests: "3", resetDate: "soon" } })).toEqual({
-      usedPercentage: 50,
-      unlimited: false,
-      unit: "premium_requests",
-      used: null,
-      entitlement: null,
-      resetsAt: null,
-    });
-  });
 });
 
 describe("createCopilotPoller", () => {

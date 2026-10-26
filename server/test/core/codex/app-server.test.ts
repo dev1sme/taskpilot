@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { CodexError, RpcError } from "../../../src/core/codex/errors.js";
-import { CodexRpc, codexLoggedIn, initializeCodex } from "../../../src/core/codex/rpc.js";
+import { CodexRpc, fetchCodexLoggedIn, initializeCodexAppServer } from "../../../src/core/codex/app-server.js";
 
 interface Line {
   dir: "send" | "recv" | "note";
@@ -131,10 +131,10 @@ describe("CodexRpc against recorded fixtures", () => {
 
   it("completes the handshake, account/read and model/list of handshake.jsonl", async () => {
     const { rpc, written, seen } = replay("handshake");
-    const init = await initializeCodex(rpc);
+    const init = await initializeCodexAppServer(rpc);
     expect(init.userAgent).toContain("/0.163.0");
     expect(written.at(-1)).toEqual({ method: "initialized" });
-    await expect(codexLoggedIn(rpc)).resolves.toBe(true);
+    await expect(fetchCodexLoggedIn(rpc)).resolves.toBe(true);
     const models = await rpc.request<{ data: { model: string }[] }>("model/list", { includeHidden: false });
     expect(models.data.map((m) => m.model)).toContain("gpt-6.1-sol");
     expect(seen.notifications).toEqual([]);
@@ -142,17 +142,17 @@ describe("CodexRpc against recorded fixtures", () => {
 
   it("reports the account of not-logged-in.jsonl as logged out", async () => {
     const { rpc } = replay("not-logged-in");
-    await initializeCodex(rpc);
-    await expect(codexLoggedIn(rpc)).resolves.toBe(false);
+    await initializeCodexAppServer(rpc);
+    await expect(fetchCodexLoggedIn(rpc)).resolves.toBe(false);
   });
 
   it("refuses an initialize answer without userAgent, and an account/read without the account field", async () => {
     const a = pair();
-    const init = initializeCodex(a.rpc);
+    const init = initializeCodexAppServer(a.rpc);
     a.serve({ id: 1, result: {} });
     await expect(init).rejects.toMatchObject({ code: "protocol" });
     const b = pair();
-    const login = codexLoggedIn(b.rpc);
+    const login = fetchCodexLoggedIn(b.rpc);
     b.serve({ id: 1, result: { requiresOpenaiAuth: true } });
     await expect(login).rejects.toMatchObject({ code: "protocol" });
   });

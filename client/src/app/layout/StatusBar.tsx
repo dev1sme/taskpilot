@@ -7,7 +7,7 @@ import { href } from "../../shared/router";
 import { useWorkspace } from "../../features/workspace";
 import { locale } from "../../i18n";
 import { useRepoSessions } from "../../features/sessions";
-import { useUsage, type AgentQuota, type CodexUsage, type UsageView } from "../../features/usage";
+import { useUsage, type CopilotQuota, type CodexUsage, type UsageView } from "../../features/usage";
 import "./status-bar.css";
 
 /** Live, repo-wide counters at the bottom of every page. Log out and agent versions live in the sidebar. */
@@ -236,12 +236,12 @@ function claudeMeters(usage: UsageView, t: TFunction<"shell">): Meter[] {
   return meters;
 }
 
-function copilotUnit(quota: AgentQuota, t: TFunction<"shell">): string {
+function copilotUnit(quota: CopilotQuota, t: TFunction<"shell">): string {
   return t(quota.unit === "ai_credits" ? "status.copilotUnitAiCredits" : "status.copilotUnitPremiumRequests");
 }
 
 /** Copilot's account quota as its runtime last reported it. */
-function copilotMeter(quota: AgentQuota, t: TFunction<"shell">): Meter {
+function copilotMeter(quota: CopilotQuota, t: TFunction<"shell">): Meter {
   const unit = copilotUnit(quota, t);
   const extra = quota.used !== null && quota.entitlement !== null ? [t("status.copilotUsageUsed", { used: quota.used, entitlement: quota.entitlement, unit })] : [];
   return buildMeter(t, "copilot", unit, quota.usedPercentage, quota.resetsAt, extra);

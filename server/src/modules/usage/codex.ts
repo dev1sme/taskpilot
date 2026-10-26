@@ -1,7 +1,7 @@
 import os from "node:os";
 import { CodexError } from "../../core/codex/errors.js";
-import { codexLoggedIn, initializeCodex, spawnCodex } from "../../core/codex/rpc.js";
-import { codexRateLimits, type CodexUsageFields } from "../../core/codex/usage.js";
+import { fetchCodexLoggedIn, initializeCodexAppServer, withCodexAppServer } from "../../core/codex/app-server.js";
+import { fetchCodexRateLimits, type CodexUsageFields } from "../../core/codex/usage.js";
 import { QuotaPoller } from "./poller.js";
 import type { UsageStore } from "./store.js";
 
@@ -13,25 +13,15 @@ const TIMEOUT_MS = 15_000;
  * Rejects on other failures.
  */
 export async function fetchCodexUsage(timeoutMs = TIMEOUT_MS): Promise<CodexUsageFields | null> {
-  let proc: Awaited<ReturnType<typeof spawnCodex>>;
   try {
-    proc = await spawnCodex({}, os.tmpdir());
+    return await withCodexAppServer({ cwd: os.tmpdir(), timeoutMs }, async ({ rpc }) => {
+      await initializeCodexAppServer(rpc, { timeoutMs });
+      if (!(await fetchCodexLoggedIn(rpc))) return null;
+      return await fetchCodexRateLimits(rpc);
+    });
   } catch (error) {
     if (error instanceof CodexError && error.code === "missing") return null;
     throw error;
-  }
-  const timer = setTimeout(() => {
-    proc.rpc.close();
-    proc.child.kill("SIGKILL");
-  }, timeoutMs);
-  try {
-    await initializeCodex(proc.rpc, { timeoutMs });
-    if (!(await codexLoggedIn(proc.rpc))) return null;
-    return await codexRateLimits(proc.rpc);
-  } finally {
-    clearTimeout(timer);
-    proc.rpc.close();
-    proc.child.kill("SIGKILL");
   }
 }
 

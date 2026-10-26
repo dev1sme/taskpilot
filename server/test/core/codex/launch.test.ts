@@ -4,7 +4,7 @@ import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { CodexError } from "../../../src/core/codex/errors.js";
 import { cleanupTempDirs, tempDir } from "../../helpers/fixtures.js";
 import { parse as parseToml } from "smol-toml";
-import { codexAppServerCommand, codexLauncher, codexThreadOptions } from "../../../src/core/codex/launch.js";
+import { codexAppServerCommand, codexLauncher, codexLaunchSettings } from "../../../src/core/codex/launch.js";
 
 afterAll(cleanupTempDirs);
 afterEach(() => {
@@ -20,26 +20,26 @@ describe("codexAppServerCommand", () => {
   });
 });
 
-describe("codexThreadOptions", () => {
+describe("codexLaunchSettings", () => {
   const cwd = "/repo";
 
   it("leaves sandbox and approval to the user's config for default and no mode", () => {
-    expect(codexThreadOptions({ cwd })).toEqual({ cwd });
-    expect(codexThreadOptions({ cwd, permissionMode: "default" })).toEqual({ cwd });
+    expect(codexLaunchSettings({ cwd })).toEqual({ cwd });
+    expect(codexLaunchSettings({ cwd, permissionMode: "default" })).toEqual({ cwd });
   });
 
   it("maps acceptEdits and auto to the workspace sandbox", () => {
-    expect(codexThreadOptions({ cwd, permissionMode: "acceptEdits" })).toEqual({ cwd, sandbox: "workspace-write", approvalPolicy: "on-request" });
-    expect(codexThreadOptions({ cwd, permissionMode: "auto" })).toEqual({ cwd, sandbox: "workspace-write", approvalPolicy: "never" });
+    expect(codexLaunchSettings({ cwd, permissionMode: "acceptEdits" })).toEqual({ cwd, sandbox: "workspace-write", approvalPolicy: "on-request" });
+    expect(codexLaunchSettings({ cwd, permissionMode: "auto" })).toEqual({ cwd, sandbox: "workspace-write", approvalPolicy: "never" });
   });
 
   it("passes the model", () => {
-    expect(codexThreadOptions({ cwd, model: "gpt-6.1-sol" })).toEqual({ cwd, model: "gpt-6.1-sol" });
+    expect(codexLaunchSettings({ cwd, model: "gpt-6.1-sol" })).toEqual({ cwd, model: "gpt-6.1-sol" });
   });
 
   it("refuses plan and unknown modes", () => {
     for (const permissionMode of ["plan", "bypassPermissions", "danger-full-access", ""]) {
-      expect(() => codexThreadOptions({ cwd, permissionMode }), permissionMode).toThrowError(expect.objectContaining({ code: "modeUnsupported" }));
+      expect(() => codexLaunchSettings({ cwd, permissionMode }), permissionMode).toThrowError(expect.objectContaining({ code: "modeUnsupported" }));
     }
   });
 
@@ -53,53 +53,53 @@ describe("codexThreadOptions", () => {
 
     it("applies the agent's instructions and model", async () => {
       const repo = await agentRepo('name = "worker"\nmodel = "agent-model"\ndeveloper_instructions = "Be careful."\n');
-      expect(codexThreadOptions({ cwd: repo, subagent: "worker" })).toEqual({ cwd: repo, model: "agent-model", developerInstructions: "Be careful." });
-      expect(codexThreadOptions({ cwd: repo, subagent: "worker", model: "row-model" }).model).toBe("row-model");
+      expect(codexLaunchSettings({ cwd: repo, subagent: "worker" })).toEqual({ cwd: repo, model: "agent-model", developerInstructions: "Be careful." });
+      expect(codexLaunchSettings({ cwd: repo, subagent: "worker", model: "row-model" }).model).toBe("row-model");
     });
 
     it("keeps the session model when the agent has none", async () => {
       const repo = await agentRepo('developer_instructions = "x"\n');
-      expect(codexThreadOptions({ cwd: repo, subagent: "worker" })).toEqual({ cwd: repo, developerInstructions: "x" });
+      expect(codexLaunchSettings({ cwd: repo, subagent: "worker" })).toEqual({ cwd: repo, developerInstructions: "x" });
     });
 
     it.each(["missing", "../worker", "bad name"])("refuses %s", async (subagent) => {
       const repo = await agentRepo('developer_instructions = "x"\n');
-      expect(() => codexThreadOptions({ cwd: repo, subagent })).toThrowError(expect.objectContaining({ code: "subagentUnsupported" }));
+      expect(() => codexLaunchSettings({ cwd: repo, subagent })).toThrowError(expect.objectContaining({ code: "subagentUnsupported" }));
     });
 
     it("refuses an agent without instructions or with broken TOML", async () => {
       for (const toml of ['name = "worker"\n', "= broken"]) {
         const repo = await agentRepo(toml);
-        expect(() => codexThreadOptions({ cwd: repo, subagent: "worker" })).toThrowError(expect.objectContaining({ code: "subagentUnsupported" }));
+        expect(() => codexLaunchSettings({ cwd: repo, subagent: "worker" })).toThrowError(expect.objectContaining({ code: "subagentUnsupported" }));
       }
     });
   });
 
   it("passes approvalsReviewer and networkAccess only inside the workspace sandbox", () => {
-    expect(codexThreadOptions({ cwd, permissionMode: "acceptEdits", approvalsReviewer: "auto_review", networkAccess: true })).toEqual({
+    expect(codexLaunchSettings({ cwd, permissionMode: "acceptEdits", approvalsReviewer: "auto_review", networkAccess: true })).toEqual({
       cwd,
       sandbox: "workspace-write",
       approvalPolicy: "on-request",
       approvalsReviewer: "auto_review",
       config: { sandbox_workspace_write: { network_access: true } },
     });
-    expect(codexThreadOptions({ cwd, permissionMode: "auto", networkAccess: false }).config).toEqual({ sandbox_workspace_write: { network_access: false } });
-    expect(codexThreadOptions({ cwd, approvalsReviewer: "auto_review", networkAccess: true })).toEqual({ cwd });
-    expect(codexThreadOptions({ cwd, permissionMode: "default", networkAccess: true })).toEqual({ cwd });
+    expect(codexLaunchSettings({ cwd, permissionMode: "auto", networkAccess: false }).config).toEqual({ sandbox_workspace_write: { network_access: false } });
+    expect(codexLaunchSettings({ cwd, approvalsReviewer: "auto_review", networkAccess: true })).toEqual({ cwd });
+    expect(codexLaunchSettings({ cwd, permissionMode: "default", networkAccess: true })).toEqual({ cwd });
   });
 
   it("refuses unknown reviewers and non-boolean network values", () => {
     for (const approvalsReviewer of ["guardian_subagent", "", "yes"]) {
-      expect(() => codexThreadOptions({ cwd, permissionMode: "acceptEdits", approvalsReviewer: approvalsReviewer as never }), approvalsReviewer).toThrowError(
+      expect(() => codexLaunchSettings({ cwd, permissionMode: "acceptEdits", approvalsReviewer: approvalsReviewer as never }), approvalsReviewer).toThrowError(
         expect.objectContaining({ code: "modeUnsupported" }),
       );
     }
-    expect(() => codexThreadOptions({ cwd, permissionMode: "acceptEdits", networkAccess: "true" as never })).toThrowError(expect.objectContaining({ code: "modeUnsupported" }));
+    expect(() => codexLaunchSettings({ cwd, permissionMode: "acceptEdits", networkAccess: "true" as never })).toThrowError(expect.objectContaining({ code: "modeUnsupported" }));
   });
 
   it("never asks for full access, whatever the mode", () => {
     for (const permissionMode of [undefined, "default", "acceptEdits", "auto"]) {
-      expect(JSON.stringify(codexThreadOptions({ cwd, permissionMode }))).not.toMatch(/danger|full-access|dangerously/);
+      expect(JSON.stringify(codexLaunchSettings({ cwd, permissionMode }))).not.toMatch(/danger|full-access|dangerously/);
     }
   });
 });

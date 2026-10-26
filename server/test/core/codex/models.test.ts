@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { listCodexModels } from "../../../src/core/codex/models.js";
-import { initializeCodex, spawnCodex } from "../../../src/core/codex/rpc.js";
+import { fetchCodexModels } from "../../../src/core/codex/models.js";
+import { initializeCodexAppServer, spawnCodexAppServer } from "../../../src/core/codex/app-server.js";
 
 const FAKE = resolve(import.meta.dirname, "fake-app-server.mjs");
 const ENV = ["TASKPILOT_CODEX", "FAKE_CODEX_MODELS", "FAKE_CODEX_PAGES"];
@@ -15,16 +15,16 @@ afterEach(() => {
 
 /** Reads the model list over a fresh fake app-server, the way the probe does. */
 async function list() {
-  const proc = await spawnCodex();
+  const proc = await spawnCodexAppServer();
   try {
-    await initializeCodex(proc.rpc);
-    return await listCodexModels(proc.rpc);
+    await initializeCodexAppServer(proc.rpc);
+    return await fetchCodexModels(proc.rpc);
   } finally {
     proc.kill();
   }
 }
 
-describe("listCodexModels", () => {
+describe("fetchCodexModels", () => {
   it("reads the model list of handshake.jsonl", async () => {
     const models = await list();
     expect(models.map((m) => m.model)).toEqual(["gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]);

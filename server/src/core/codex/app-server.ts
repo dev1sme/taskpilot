@@ -142,7 +142,7 @@ export class CodexRpc extends EventEmitter<RpcEvents> {
   }
 }
 
-export interface CodexProcess {
+export interface CodexAppServerProcess {
   rpc: CodexRpc;
   child: ChildProcess;
   /** Last stderr output, for the message when the handshake or the process fails. */
@@ -154,7 +154,7 @@ export interface CodexProcess {
  * Starts `codex app-server --listen stdio://`. A missing binary rejects with CodexError "missing".
  * One process per call: stdio does not share state with the user's app-server daemon (fixtures README).
  */
-export function spawnCodex(env: Record<string, string> = {}, cwd?: string, command: LaunchSpec = codexAppServerCommand()): Promise<CodexProcess> {
+export function spawnCodexAppServer(env: Record<string, string> = {}, cwd?: string, command: LaunchSpec = codexAppServerCommand()): Promise<CodexAppServerProcess> {
   const { file, args } = command;
   return new Promise((resolve, reject) => {
     const child = spawn(file, args, { env: childEnv(process.env, { ...env, ...command.env }), cwd, stdio: ["pipe", "pipe", "pipe"] });
@@ -180,7 +180,7 @@ export interface InitializeResult {
 }
 
 /** The handshake: `initialize`, then the `initialized` notification. */
-export async function initializeCodex(rpc: CodexRpc, opts: { timeoutMs?: number } = {}): Promise<InitializeResult> {
+export async function initializeCodexAppServer(rpc: CodexRpc, opts: { timeoutMs?: number } = {}): Promise<InitializeResult> {
   const result = await rpc.request<InitializeResult>("initialize", { clientInfo: CLIENT_INFO, capabilities: { experimentalApi: false, requestAttestation: false } }, opts.timeoutMs);
   if (typeof result !== "object" || result === null || typeof result.userAgent !== "string") {
     throw new CodexError("protocol", "initialize returned no userAgent");
@@ -190,8 +190,39 @@ export async function initializeCodex(rpc: CodexRpc, opts: { timeoutMs?: number 
 }
 
 /** `account/read`: false when nobody is logged in (`account` is null; model/list still answers then). */
-export async function codexLoggedIn(rpc: CodexRpc): Promise<boolean> {
+export async function fetchCodexLoggedIn(rpc: CodexRpc): Promise<boolean> {
   const result = await rpc.request<{ account?: unknown } | null>("account/read", { refreshToken: false });
   if (typeof result !== "object" || result === null || !("account" in result)) throw new CodexError("protocol", "account/read returned no account field");
   return result.account !== null && result.account !== undefined;
+}
+
+export interface WithCodexAppServerOptions {
+  env?: Record<string, string>;
+  cwd?: string;
+  command?: LaunchSpec;
+  /** One deadline for the whole callback (handshake + every request), not per request. */
+  timeoutMs: number;
+}
+
+/**
+ * Runs `run` on a short-lived app-server: spawn, deadline, then close and SIGKILL (no work to save,
+ * and no app-server may stay behind). A spawn failure rejects before `run` starts (CodexError
+ * "missing" when the binary is absent). When the deadline passes, the connection is closed and
+ * `timedOut()` turns true, so `run` can tell a deadline from a real failure.
+ */
+export async function withCodexAppServer<T>(opts: WithCodexAppServerOptions, run: (proc: CodexAppServerProcess, timedOut: () => boolean) => Promise<T>): Promise<T> {
+  const proc = await spawnCodexAppServer(opts.env, opts.cwd, opts.command);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    proc.rpc.close();
+    proc.child.kill("SIGKILL");
+  }, opts.timeoutMs);
+  try {
+    return await run(proc, () => timedOut);
+  } finally {
+    clearTimeout(timer);
+    proc.rpc.close();
+    proc.child.kill("SIGKILL");
+  }
 }

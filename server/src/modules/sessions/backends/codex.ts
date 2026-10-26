@@ -1,10 +1,14 @@
+import path from "node:path";
+import { readCodexAgent } from "../../../core/codex/agents.js";
 import { CodexError, RpcError } from "../../../core/codex/errors.js";
 import { codexLauncher } from "../../../core/codex/launch.js";
+import { rolloutTokens } from "../../../core/codex/rollout.js";
 import { fetchCodexModels } from "../../../core/codex/models.js";
 import { fetchCodexLoggedIn, initializeCodexAppServer, withCodexAppServer } from "../../../core/codex/app-server.js";
 import { codexHookSettings, type HookEvent } from "../hooks.js";
+import type { SessionMetrics } from "../transports/types.js";
 import { emptyCapability, probeError, problem } from "./probe.js";
-import type { AgentBackend, AgentCapability, BackendProbeContext, HookState, PreflightProblem } from "./types.js";
+import type { AgentBackend, AgentCapability, BackendProbeContext, HookState, PreflightProblem, SubagentCheck } from "./types.js";
 
 /** Maps the app-server errors to a preflight problem; everything else falls back to the generic errno mapping. */
 function codexProbeError(error: unknown, field: PreflightProblem["field"]): PreflightProblem {
@@ -33,12 +37,36 @@ export const codexBackend: AgentBackend = {
   launchSettings: codexHookSettings,
   permissionModes: ["default", "acceptEdits", "auto"],
   supportsSubagents: true,
+  // Codex answers `account/read` and `model/list` through the App Server, so both can block.
+  requiresLogin: true,
+  requiresModelInventory: true,
+  reportsStatusLine: false,
+  warnsWhenNoHook: false,
+  metricsSource: "codex-thread",
+  checkSubagent: checkCodexSubagent,
+  turnMetrics: codexTurnMetrics,
   probe: probeCodex,
   // Codex fires SessionStart only together with the first prompt, so the engine cannot wait for it.
   readyMarker: CODEX_READY_MARKER,
   nativeIdOf: (payload) => (typeof payload.session_id === "string" && payload.session_id ? payload.session_id : undefined),
   normalize: normalizeCodex,
 };
+
+function checkCodexSubagent(repo: string, name: string): SubagentCheck {
+  try {
+    readCodexAgent(repo, name);
+    return "found";
+  } catch {
+    return "unsupported";
+  }
+}
+
+/** Codex has no status line: its Stop hook carries the model and the rollout path, whose last `token_count` is the thread total. */
+export async function codexTurnMetrics(event: HookEvent, payload: Record<string, unknown>): Promise<SessionMetrics | null> {
+  if (event !== "Stop" || payload.interrupted === true) return null;
+  const rollout = typeof payload.transcript_path === "string" && path.isAbsolute(payload.transcript_path) ? await rolloutTokens(payload.transcript_path) : {};
+  return { source: "codex-thread", ...rollout, model: typeof payload.model === "string" ? payload.model : undefined };
+}
 
 /** Path of the first file an `apply_patch` patch adds, updates or deletes. */
 function patchedFile(patch: unknown): string | undefined {

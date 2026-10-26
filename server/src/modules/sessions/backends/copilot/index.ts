@@ -1,7 +1,8 @@
+import { CopilotAgentError, listCopilotAgents, readCopilotAgent } from "../../../../core/copilot/agents.js";
 import { copilotLauncher } from "../../../../core/copilot/launch.js";
 import { CopilotError } from "../../../../core/copilot/acp.js";
 import { copilotModels } from "../../../../core/copilot/models.js";
-import type { AgentBackend } from "../types.js";
+import type { AgentBackend, ProviderPromptInventory, SubagentCheck } from "../types.js";
 import { probeError, probePty, problem } from "../probe.js";
 import type { AgentCapability, BackendProbeContext } from "../types.js";
 import { ensureCopilotHooks } from "./hooks-file.js";
@@ -24,6 +25,13 @@ export const copilotBackend: AgentBackend = {
   id: "copilot",
   permissionModes: ["default", "acceptEdits", "plan", "auto"],
   supportsSubagents: true,
+  // Login and the model list are not verifiable here: the probe leaves them unknown and never blocks on them.
+  requiresLogin: false,
+  requiresModelInventory: false,
+  reportsStatusLine: false,
+  warnsWhenNoHook: true,
+  checkSubagent: checkCopilotSubagent,
+  promptInventory: copilotPromptInventory,
   probe: probeCopilot,
   launcher: copilotLauncher,
   prepare: ensureCopilotHooks,
@@ -34,6 +42,25 @@ export const copilotBackend: AgentBackend = {
   normalize: normalizeCopilot,
   finishedTurn: copilotFinishedTurn,
 };
+
+/** Copilot also has built-in and plugin agents that are not files: only a malformed name is blocked, a missing file is unknown. */
+function checkCopilotSubagent(repo: string, name: string): SubagentCheck {
+  try {
+    readCopilotAgent(repo, name);
+    return "found";
+  } catch (error) {
+    return error instanceof CopilotAgentError && error.code === "invalidName" ? "unsupported" : "unknown";
+  }
+}
+
+/** Custom agents of the repo and the account's model names; a model list that cannot be read is `null`, not an error. */
+async function copilotPromptInventory(repo: string): Promise<ProviderPromptInventory> {
+  const models = await copilotModels().then(
+    (list) => list.map((m) => m.model),
+    () => null,
+  );
+  return { agents: listCopilotAgents(repo), models };
+}
 
 /** `--version`, then the account's model list through `copilot --acp`. Login stays unknown; a list that cannot be read is unknown, never blocking. */
 async function probeCopilot(context: BackendProbeContext): Promise<AgentCapability> {

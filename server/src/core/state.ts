@@ -20,8 +20,10 @@ export interface SessionMeta {
   createdAt: number;
   /** Passed as --permission-mode on spawn and resume; absent = the user's own default. */
   permissionMode?: string;
-  /** Passed as --model on spawn and resume; absent = the subagent's or the user's default. */
+  /** The model requested: passed as --model on spawn and resume; absent = the subagent's or the user's default. */
   model?: string;
+  /** The model the agent reported itself (Codex hooks). Observed only, never passed to the CLI, so a default session stays default on resume. */
+  actualModel?: string;
   /** Passed as --agent on spawn and resume; absent = the agent's own main session. */
   subagent?: string;
   /** Codex only: approval reviewer and sandbox network, from `codex:` in workflow.yml; absent = Codex's own configuration. */

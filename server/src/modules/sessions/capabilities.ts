@@ -1,5 +1,3 @@
-import { readCodexAgent } from "../../core/codex/agents.js";
-import { CopilotAgentError, readCopilotAgent } from "../../core/copilot/agents.js";
 import { AGENTS, type Agent } from "../../core/agents.js";
 import { HttpError } from "../../core/errors.js";
 import { backendOf } from "./backends/index.js";
@@ -66,38 +64,28 @@ export async function preflightSession(request: PreflightRequest, contextOf: Con
   if (configuration.permissionMode !== undefined && !backend.permissionModes.includes(configuration.permissionMode))
     errors.push(problem(request.agent, "unsupported_permission", "permissionMode"));
   if (configuration.subagent && !backend.supportsSubagents) errors.push(problem(request.agent, "unsupported_subagent", "subagent"));
-  if (request.agent === "codex" && configuration.subagent && backend.supportsSubagents) {
-    try {
-      readCodexAgent((await contextOf(configuration)).repo, configuration.subagent);
-    } catch {
-      errors.push(problem(request.agent, "unsupported_subagent", "subagent"));
-    }
-  }
-  // Copilot also has built-in and plugin agents that are not files: only a malformed name is blocked, a missing file is a warning below.
-  let copilotAgentMissing = false;
-  if (request.agent === "copilot" && configuration.subagent && backend.supportsSubagents) {
-    try {
-      readCopilotAgent((await contextOf(configuration)).repo, configuration.subagent);
-    } catch (error) {
-      if (error instanceof CopilotAgentError && error.code === "invalidName") errors.push(problem(request.agent, "unsupported_subagent", "subagent"));
-      else copilotAgentMissing = true;
-    }
+  // `unknown`: the name is no file the provider can read (e.g. a built-in agent); only a warning below.
+  let subagentUnknown = false;
+  if (configuration.subagent && backend.supportsSubagents && backend.checkSubagent) {
+    const check = backend.checkSubagent((await contextOf(configuration)).repo, configuration.subagent);
+    if (check === "unsupported") errors.push(problem(request.agent, "unsupported_subagent", "subagent"));
+    else if (check === "unknown") subagentUnknown = true;
   }
   if (configuration.model !== undefined && !/^[A-Za-z0-9][\w.:/[\]-]*$/.test(configuration.model)) errors.push(problem(request.agent, "invalid_model", "model"));
   // Reject unsupported permissions before invoking even a read-only CLI.
   const capability = errors.length ? emptyCapability(backend) : await probe(configuration, contextOf);
-  if (copilotAgentMissing) capability.subagents = { status: "unknown", source: "adapter", error: problem(request.agent, "unsupported_subagent", "subagent") };
+  if (subagentUnknown) capability.subagents = { status: "unknown", source: "adapter", error: problem(request.agent, "unsupported_subagent", "subagent") };
   let model: CapabilityCheck = { status: "unknown", source: "unverified" };
   if (!errors.length) {
     if (capability.cli.status !== "supported") errors.push(capability.cli.error ?? problem(request.agent, "probe_failed", "cli"));
-    if (request.agent === "codex" && capability.cli.status === "supported" && capability.login.status !== "supported")
+    if (backend.requiresLogin && capability.cli.status === "supported" && capability.login.status !== "supported")
       errors.push(capability.login.error ?? problem(request.agent, "probe_failed", "login"));
     if (configuration.model) {
       if (capability.models.status === "supported") {
         const offered = capability.models.items.some((item) => item.id === configuration.model || item.model === configuration.model);
         model = { status: offered ? "supported" : "unsupported", source: "model/list", ...(!offered ? { error: problem(request.agent, "model_unavailable", "model") } : {}) };
         if (model.error) errors.push(model.error);
-      } else if (request.agent === "codex" && capability.cli.status === "supported") {
+      } else if (backend.requiresModelInventory && capability.cli.status === "supported") {
         const issue = problem(request.agent, "inventory_unavailable", "model");
         model.error = issue;
         errors.push(issue);

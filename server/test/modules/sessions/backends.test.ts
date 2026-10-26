@@ -5,7 +5,7 @@ import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { AGENTS } from "../../../src/core/agents.js";
 import { AGENTS as CLIENT_AGENTS } from "../../../../client/src/shared/agents.js";
 import { HOOK_EVENTS } from "../../../src/modules/sessions/hooks.js";
-import { BACKENDS, type HookState } from "../../../src/modules/sessions/backends/index.js";
+import { BACKENDS, providerTraits, type HookState } from "../../../src/modules/sessions/backends/index.js";
 import {
   COPILOT_SETTINGS,
   copilotHooksFile,
@@ -16,6 +16,7 @@ import {
   userHooksText,
   withoutTaskPilotHooks,
 } from "../../../src/modules/sessions/backends/copilot/index.js";
+import { codexTurnMetrics } from "../../../src/modules/sessions/backends/codex.js";
 import { cleanupTempDirs, tempDir } from "../../helpers/fixtures.js";
 
 afterAll(cleanupTempDirs);
@@ -28,6 +29,75 @@ describe("backends", () => {
     expect(CLIENT_AGENTS).toEqual(AGENTS);
     expect(Object.keys(BACKENDS).sort()).toEqual([...AGENTS].sort());
     for (const agent of AGENTS) expect(BACKENDS[agent].id).toBe(agent);
+  });
+
+  it("states what differs between providers as traits, not as names callers compare", () => {
+    expect(providerTraits("codex")).toMatchObject({ requiresLogin: true, requiresModelInventory: true, reportsStatusLine: false, warnsWhenNoHook: false, metricsSource: "codex-thread" });
+    expect(providerTraits("copilot")).toMatchObject({ requiresLogin: false, requiresModelInventory: false, reportsStatusLine: false, warnsWhenNoHook: true });
+    expect(providerTraits("claude")).toMatchObject({ requiresLogin: false, requiresModelInventory: false, reportsStatusLine: true, warnsWhenNoHook: false });
+    expect(providerTraits(undefined)).toBe(BACKENDS.claude);
+    expect(providerTraits("claude").metricsSource).toBeUndefined();
+  });
+
+  it("applies the Claude model rule only to Claude", () => {
+    const rule = providerTraits("claude").modelProblem!;
+    expect(rule("sonnet")).toBeNull();
+    expect(rule("claude-sonnet-5-5")).toBeNull();
+    expect(rule("gpt-6")).toMatch(/is not a .* model/);
+    expect(providerTraits("codex").modelProblem).toBeUndefined();
+    expect(providerTraits("copilot").modelProblem).toBeUndefined();
+  });
+
+  it("checks a subagent name per provider: Codex needs the file, Copilot only blocks a malformed name", async () => {
+    const repo = await tempDir("subagent-repo-");
+    expect(BACKENDS.claude.checkSubagent).toBeUndefined();
+    expect(BACKENDS.codex.checkSubagent!(repo, "reviewer")).toBe("unsupported");
+    await mkdir(path.join(repo, ".codex", "agents"), { recursive: true });
+    await writeFile(path.join(repo, ".codex", "agents", "reviewer.toml"), 'developer_instructions = "Review."\n');
+    expect(BACKENDS.codex.checkSubagent!(repo, "reviewer")).toBe("found");
+    expect(BACKENDS.copilot.checkSubagent!(repo, "../x")).toBe("unsupported");
+    expect(BACKENDS.copilot.checkSubagent!(repo, "explore")).toBe("unknown");
+    await mkdir(path.join(repo, ".github", "agents"), { recursive: true });
+    await writeFile(path.join(repo, ".github", "agents", "writer.agent.md"), "---\ndescription: Writes\n---\nWrite.\n");
+    expect(BACKENDS.copilot.checkSubagent!(repo, "writer")).toBe("found");
+  });
+
+  it("lists prompt inventory only for Copilot, and an unreadable model list is null", async () => {
+    const repo = await tempDir("inventory-repo-");
+    await mkdir(path.join(repo, ".github", "agents"), { recursive: true });
+    await writeFile(path.join(repo, ".github", "agents", "writer.agent.md"), "---\ndescription: Writes\n---\nWrite.\n");
+    expect(BACKENDS.claude.promptInventory).toBeUndefined();
+    expect(BACKENDS.codex.promptInventory).toBeUndefined();
+    const previous = process.env.TASKPILOT_COPILOT;
+    process.env.TASKPILOT_COPILOT = "/no/such/copilot";
+    try {
+      const inventory = await BACKENDS.copilot.promptInventory!(repo);
+      expect(inventory.models).toBeNull();
+      expect(inventory.agents.map((a) => a.name)).toEqual(["writer"]);
+    } finally {
+      if (previous === undefined) delete process.env.TASKPILOT_COPILOT;
+      else process.env.TASKPILOT_COPILOT = previous;
+    }
+  });
+});
+
+describe("codexTurnMetrics", () => {
+  async function rollout(input: number, output: number) {
+    const file = path.join(await tempDir("rollout-"), "rollout.jsonl");
+    await writeFile(file, `${JSON.stringify({ type: "event_msg", payload: { type: "token_count", info: { total_token_usage: { input_tokens: input, output_tokens: output } } } })}\n`);
+    return file;
+  }
+
+  it("reads the thread total from the rollout of a finished turn and the model of the payload", async () => {
+    const file = await rollout(300, 40);
+    expect(await codexTurnMetrics("Stop", { transcript_path: file, model: "gpt-6.1-sol" })).toEqual({ source: "codex-thread", inputTokens: 300, outputTokens: 40, model: "gpt-6.1-sol" });
+  });
+
+  it("measures nothing for other events, an interrupted turn, or a rollout path that is not absolute", async () => {
+    const file = await rollout(1, 1);
+    expect(await codexTurnMetrics("PostToolUse", { transcript_path: file })).toBeNull();
+    expect(await codexTurnMetrics("Stop", { transcript_path: file, interrupted: true })).toBeNull();
+    expect(await codexTurnMetrics("Stop", { transcript_path: "rollout.jsonl", model: "m" })).toEqual({ source: "codex-thread", model: "m" });
   });
 });
 

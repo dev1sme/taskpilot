@@ -92,7 +92,8 @@ describe("session handoff lifecycle", () => {
     manager.on("hook", (_meta, _event, payload) => seen.push(payload.session_id));
     expect(await manager.handleHook(token(manager, created.id), "UserPromptSubmit", { session_id: "thread-1", model: "gpt-6.1-sol" })).toBe(true);
     expect(seen).toEqual([recordedId]);
-    expect(await manager.get(created.id)).toMatchObject({ nativeId: "thread-1", model: "gpt-6.1-sol" });
+    expect(await manager.get(created.id)).toMatchObject({ nativeId: "thread-1", actualModel: "gpt-6.1-sol" });
+    expect((await manager.get(created.id)).model).toBeUndefined();
     expect((await new StateStore(state.dir).load()).sessions[0].nativeId).toBe("thread-1");
     expect(() => manager.paste(created.id, "not committed")).toThrow();
     await manager.release(created.id, "transfer-1");

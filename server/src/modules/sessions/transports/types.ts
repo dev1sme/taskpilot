@@ -44,7 +44,12 @@ export interface SessionTransport {
   closeClients(code: number, reason: string): void;
 }
 
+/** Where a cumulative measurement comes from; the workflow engine's `MetricsSource` has the same wire values. */
+export type SessionMetricsSource = "claude-statusline" | "codex-thread";
+
 export interface SessionMetrics {
+  /** Set when the backend knows what the numbers measure; absent = the engine decides. */
+  source?: SessionMetricsSource;
   model?: string;
   inputTokens?: number;
   outputTokens?: number;

@@ -121,10 +121,46 @@ describe("Codex session in a PTY", () => {
     const view = await manager.get(created.id);
     const threadId = (await records())[0].params.threadId;
     expect(view.nativeId).toBe(threadId);
-    expect(view.model).toBe("gpt-6.1-sol");
+    // The model the TUI reported is observed, not requested: `model` stays what was asked for (nothing here).
+    expect(view.actualModel).toBe("gpt-6.1-sol");
+    expect(view.model).toBeUndefined();
     // Listeners see TaskPilot's id, never the thread's.
     for (const { payload } of events("Stop")) expect(payload).toMatchObject({ session_id: created.id, last_assistant_message: "DONE" });
     expect(events("Stop")[0].payload.interrupted).toBeUndefined();
+  });
+
+  it("emits the thread's token total and model as metrics before the Stop hook of the turn", async () => {
+    const { manager, repo, events } = await setup();
+    const order: string[] = [];
+    const metrics: unknown[] = [];
+    manager.on("metrics", (_meta, data) => {
+      order.push("metrics");
+      metrics.push(data);
+    });
+    manager.on("hook", (_meta, event) => order.push(event));
+    const created = await manager.create(repo, "DEMO-1", { agent: "codex" });
+    await manager.waitForReady(created.id);
+    manager.paste(created.id, "count tokens");
+    await vi.waitFor(async () => expect(events("Stop")).toHaveLength(1));
+    expect(order.indexOf("metrics")).toBeGreaterThan(-1);
+    expect(order.indexOf("metrics")).toBeLessThan(order.indexOf("Stop"));
+    expect(metrics).toEqual([{ source: "codex-thread", inputTokens: 100, outputTokens: 20, model: "gpt-6.1-sol" }]);
+  });
+
+  it("resumes a default-model session without a model flag although the TUI reported its model", async () => {
+    const { manager, repo, records, events, state } = await setup();
+    const created = await manager.create(repo, "DEMO-1", { agent: "codex" });
+    await manager.waitForReady(created.id);
+    manager.paste(created.id, "first");
+    await vi.waitFor(async () => expect(events("Stop")).toHaveLength(1));
+    await manager.stopAndWait(created.id);
+    expect((await new StateStore(state.dir).load()).sessions[0]).toMatchObject({ actualModel: "gpt-6.1-sol" });
+    expect((await new StateStore(state.dir).load()).sessions[0].model).toBeUndefined();
+    await manager.resume(created.id);
+    await manager.waitForReady(created.id);
+    const resume = (await records()).find((r) => r.method === "thread/resume")!;
+    expect(resume.params.model).toBeUndefined();
+    expect(resume.params.args).not.toContain("-m");
   });
 
   it("stops the TUI and keeps the session resumable", async () => {

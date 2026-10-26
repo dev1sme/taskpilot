@@ -717,7 +717,9 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       // policy must still resume without an explicit model flag. Keep the actual model separately.
       const attempt = run.attempts?.findLast((a) => a.sessionId === session.id);
       if (session.agent === "codex" && effective.model === undefined && attempt && attempt.execution.model === undefined) {
-        if (session.model) attempt.actualModel = session.model;
+        // `actualModel` is the observed model; state from before it existed stored it in `model`.
+        const observed = session.actualModel ?? session.model;
+        if (observed) attempt.actualModel = observed;
         await this.state.update((state) => {
           const meta = state.sessions.find((s) => s.id === session.id);
           if (meta) delete meta.model;

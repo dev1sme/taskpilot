@@ -1,6 +1,7 @@
 import type { Agent } from "../../../core/agents.js";
 import type { Launcher, LaunchSpec } from "../../../core/launch.js";
 import type { HookEvent } from "../hooks.js";
+import type { SessionMetrics, SessionMetricsSource } from "../transports/types.js";
 
 export type CapabilityStatus = "supported" | "unsupported" | "unknown";
 export type PreflightErrorCode =
@@ -52,6 +53,15 @@ export interface BackendProbeContext {
   timeoutMs: number;
 }
 
+/** `unsupported` blocks the lane; `unknown` (a name that is no file, e.g. a built-in agent) only warns. */
+export type SubagentCheck = "found" | "unsupported" | "unknown";
+
+/** A provider's custom agents and the model names it accepts, for the leader's `{{subagents}}`; `models` null = list unreadable. */
+export interface ProviderPromptInventory {
+  agents: Array<{ name: string; scope: "project" | "user"; description?: string; model?: string }>;
+  models: string[] | null;
+}
+
 /** What a backend may remember about one running session between hook callbacks. */
 export interface HookState {
   /** Ids handed out to tool calls that have not finished yet, oldest first, by tool name. */
@@ -63,15 +73,31 @@ export interface HookState {
   heldPermissions: Map<string, NodeJS.Timeout>;
 }
 
+/** What the workflow may know about a provider without any I/O; the engine reads these instead of comparing agent names. */
+export interface ProviderTraits {
+  permissionModes: readonly string[];
+  /** Subagent flags supported by the adapter, not proof of a particular custom agent's tools. */
+  supportsSubagents: boolean;
+  /** Preflight blocks the lane when the account is not logged in (the probe can tell). */
+  requiresLogin: boolean;
+  /** Preflight blocks an explicit model when the model inventory could not be read. */
+  requiresModelInventory: boolean;
+  /** The CLI feeds a status line (plan usage, cost) to TaskPilot. */
+  reportsStatusLine: boolean;
+  /** A prompt that gets no hook at all is reported to the user: this provider's hooks may silently not fire. */
+  warnsWhenNoHook: boolean;
+  /** What `turnMetrics` measures; absent = the backend reports no metrics of its own. */
+  metricsSource?: SessionMetricsSource;
+  /** Why `value` (a one-word model name) cannot be this provider's model, or null; absent = any name goes. */
+  modelProblem?(value: string): string | null;
+}
+
 /**
  * How TaskPilot runs one coding agent in a session. Everything past this interface (engine,
  * activity feed, hook routes) works with Claude Code's hook names and payload fields.
  */
-export interface AgentBackend {
+export interface AgentBackend extends ProviderTraits {
   id: Agent;
-  permissionModes: readonly string[];
-  /** Subagent flags supported by the adapter, not proof of a particular custom agent's tools. */
-  supportsSubagents: boolean;
   probe(context: BackendProbeContext): Promise<AgentCapability>;
   launcher: Launcher;
   /** JSON for the agent's --settings flag, when it takes its hooks on the command line. */
@@ -97,6 +123,12 @@ export interface AgentBackend {
    * null while it has not. Only asked for sessions that have not sent a single hook of their own.
    */
   finishedTurn?(sessionId: string, since: number, idleMs: number): Promise<Record<string, unknown> | null>;
+  /** Whether `name` is a subagent of the repo this provider can run; absent = names are not checked. Never throws. */
+  checkSubagent?(repo: string, name: string): SubagentCheck;
+  /** What the leader's `{{subagents}}` lists for this provider; absent = nothing to list. Never rejects. */
+  promptInventory?(repo: string): Promise<ProviderPromptInventory>;
+  /** Cumulative measurements this turn's hook carries (Codex: the rollout's last `token_count`); null = none. Called with the normalized payload, before the hook is emitted. */
+  turnMetrics?(event: HookEvent, payload: Record<string, unknown>): Promise<SessionMetrics | null>;
   /** The payload as Claude Code would send it; null drops the event. */
   normalize?(event: HookEvent, payload: Record<string, unknown>, state: HookState): Promise<Record<string, unknown> | null>;
 }

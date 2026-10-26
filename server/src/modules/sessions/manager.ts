@@ -7,7 +7,7 @@ import type { SessionMeta, StateStore } from "../../core/state.js";
 import { nextActivity, type Activity, type HookEvent } from "./hooks.js";
 import type { Launcher } from "../../core/launch.js";
 import { DEFAULT_AGENT, type Agent } from "../../core/agents.js";
-import { backendOf, type HookState } from "./backends/index.js";
+import { backendOf, type HookState, type ProviderPromptInventory } from "./backends/index.js";
 import type { AgentBackend } from "./backends/types.js";
 import { PtyTransport, attachPty } from "./transports/pty.js";
 import type { SessionMetrics } from "./transports/types.js";
@@ -160,6 +160,12 @@ export class SessionManager extends EventEmitter<SessionEvents> {
         .sort((a, b) => a.createdAt - b.createdAt)
         .map((s) => this.evidenceView(s)),
     );
+  }
+
+  /** What a leader on `agent` may name in its `{{subagents}}`; undefined when the provider lists nothing. */
+  promptInventory(repo: string, agent: Agent): Promise<ProviderPromptInventory | undefined> {
+    const backend = backendOf(agent);
+    return backend.promptInventory ? backend.promptInventory(repo) : Promise.resolve(undefined);
   }
 
   async get(id: string): Promise<SessionView> {
@@ -493,21 +499,31 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     if (this.live.get(id) !== live || live.stopping || live.hookToken !== token) return false;
     const payload = nativeId && normalized ? { ...normalized, session_id: id } : normalized;
     if (!payload) return true;
+    // Measurements go out before the hook they belong to, so a consumer that reacts to Stop already has them.
+    if (backend.turnMetrics) {
+      const data = await backend.turnMetrics(event, payload).catch(() => null);
+      if (this.live.get(id) !== live || live.stopping || live.hookToken !== token) return false;
+      if (data) this.emit("metrics", meta, data);
+    }
     if (backend.permissionGraceMs) this.graced(meta, live, event, payload, backend.permissionGraceMs);
     else this.apply(meta, live, event, payload);
     return true;
   }
 
-  /** Stores the agent's own conversation id (and the model it reported) of the running process, for resume. */
+  /**
+   * Stores the agent's own conversation id of the running process, for resume, and the model it
+   * reported as `actualModel`. `model` (the request) is never filled in from it: a default session
+   * must resume without a model flag.
+   */
   private async saveNativeId(meta: SessionMeta, live: Live, nativeId: string, model?: string): Promise<void> {
     const saved = (await this.state.load()).sessions.find((s) => s.id === meta.id);
     if (!saved || saved.generation !== live.generation) return;
-    if (saved.nativeId === nativeId && (saved.model || !model)) return;
+    if (saved.nativeId === nativeId && (!model || saved.actualModel === model)) return;
     await this.state.update((s) => {
       const current = s.sessions.find((x) => x.id === meta.id);
       if (!current || current.generation !== live.generation) return;
       current.nativeId = nativeId;
-      if (!current.model && model) current.model = model;
+      if (model) current.actualModel = model;
     });
   }
 

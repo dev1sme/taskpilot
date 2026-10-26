@@ -28,8 +28,21 @@ describe("copilotModels", () => {
   it("reads the account models of acp-handshake.jsonl, auto once, marking the current one", async () => {
     const models = await copilotModels();
     expect(models.map((m) => m.model)).toEqual([
-      "auto", "claude-sonnet-5.5", "claude-sonnet-5", "claude-opus-5.5", "claude-opus-5", "gpt-6-sol", "gpt-6-luna", "gpt-6-astra",
-      "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.3-codex", "gemini-3.8-flash", "grok-4.7", "grok-4.6",
+      "auto",
+      "claude-sonnet-5.5",
+      "claude-sonnet-5",
+      "claude-opus-5.5",
+      "claude-opus-5",
+      "gpt-6-sol",
+      "gpt-6-luna",
+      "gpt-6-astra",
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+      "gpt-5.3-codex",
+      "gemini-3.8-flash",
+      "grok-4.7",
+      "grok-4.6",
     ]);
     expect(models.find((m) => m.model === "auto")?.usage).toBe("1x");
     expect(models.filter((m) => m.isDefault).map((m) => m.model)).toEqual(["claude-sonnet-5.5"]);

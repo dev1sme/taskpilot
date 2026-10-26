@@ -53,7 +53,9 @@ export class AcpClient {
     proc.stdout.setEncoding("utf8");
     proc.stdout.on("data", (chunk: string) => this.feed(chunk));
     proc.stdout.on("close", () => this.shutdown());
-    proc.on("error", (err: NodeJS.ErrnoException) => this.shutdown(err.code === "ENOENT" ? new CopilotError("missing", "copilot is not installed or not on PATH") : new CopilotError("closed", err.message)));
+    proc.on("error", (err: NodeJS.ErrnoException) =>
+      this.shutdown(err.code === "ENOENT" ? new CopilotError("missing", "copilot is not installed or not on PATH") : new CopilotError("closed", err.message)),
+    );
     proc.on("close", () => this.shutdown());
     proc.stdin.on("error", () => {});
     // Kept for the error message when the process dies before it answers.

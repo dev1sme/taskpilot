@@ -176,7 +176,7 @@ Trường `permission_mode` trong payload luôn là `"default"`, không phản �
 
 Subagent là custom agent `.codex/agents/<tên>.toml` (đọc bằng `smol-toml`); `developer_instructions` và `model` của nó truyền bằng `-c`/`-m` ở mỗi lần mở và resume. Tuỳ chọn YAML `codex:` (`approvals-reviewer`, `network`, chỉ với `acceptEdits`/`auto`) được lưu vào phiên và truyền bằng `-c`. MCP của Codex do chính Codex đọc từ `~/.codex/config.toml`; TaskPilot không hiển thị hay chuyển.
 
-Nghiệm thu qua UI ngày 22/10/2026 (prompt nhiều dòng, Stop, approval, ngắt/resume, workflow tới done, có token thật) chạy trên đường App Server cũ, không áp dụng cho TUI. Luồng TUI hiện được kiểm bằng CLI giả (`server/test/helpers/fake-codex-tui.mjs`) dựng theo fixture; chưa nghiệm thu qua UI với Codex thật.
+Nghiệm thu qua UI ngày 22/10/2026 (prompt nhiều dòng, Stop, approval, ngắt/resume, workflow tới done, có token thật) chạy trên đường App Server cũ, không áp dụng cho TUI. Luồng TUI được kiểm tự động bằng CLI giả (`server/test/helpers/fake-codex-tui.mjs`) dựng theo fixture. Nghiệm thu qua UI ngày 26/10/2026 với Codex `0.163.0` thật đạt 7/7 mục: tạo phiên qua Folder trust và `Hooks need review`, prompt nhiều dòng, approval `y`/Esc trong TUI, Esc ngắt tool, Stop có lời nhắn cuối, dừng rồi `codex resume <nativeId>` giữ thread, workflow tới `done` với model thực tế và token `codex-thread`, hook của người dùng trong `~/.codex/hooks.json` không đổi và vẫn chạy. Chưa nghiệm thu trên `0.164.0`.
 
 ## 8. Execution và bàn giao
 

@@ -6,6 +6,7 @@ import { buildApp } from "../../../src/app.js";
 import type { LaunchOptions, Launcher } from "../../../src/core/launch.js";
 import { StateStore } from "../../../src/core/state.js";
 import { loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
+import { codexTuiLauncher } from "../../helpers/codex-tui.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 import { modeDir } from "../../../src/modules/workflow/modes.js";
 import { SUBAGENTS_DIR } from "../../../src/modules/config/library/templates.js";
@@ -133,9 +134,11 @@ async function handoffApi() {
     state,
     repo,
     loadWorkflow: async () => def,
-    launchers: { codex: () => ({ file: process.execPath, args: [path.resolve(import.meta.dirname, "../../helpers/fake-codex.mjs")] }) },
+    launchers: { codex: codexTuiLauncher() },
     copilotQuota: async () => ({ ok: false, reason: "missing" }),
   });
+  // Hooks of the stand-in need a real port to call back to.
+  await app.listen({ host: "127.0.0.1", port: 0 });
   const post = (url: string, payload: unknown) => app!.inject({ method: "POST", url, headers: ok, payload: payload as object });
   const started = await post("/api/tasks/DEMO-1/run", { execution: { agent: "codex" } });
   expect(started.statusCode).toBe(200);

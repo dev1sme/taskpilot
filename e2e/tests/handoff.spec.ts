@@ -35,7 +35,6 @@ const makeSession = (id: string, extra: Partial<SessionView> = {}): SessionView 
   taskKey: "PROJ-1",
   title: `Session ${id.slice(-1)}`,
   agent: "claude",
-  transport: "pty",
   createdAt: 1,
   status: "running",
   exitCode: null,
@@ -136,12 +135,12 @@ const quotaFailure = (): NonNullable<SessionView["failure"]> => ({
   message: "Verified quota fixture",
   observedAt: Date.now(),
   generation: 2,
-  evidence: { source: "codex-turn", code: "usageLimitExceeded", threadId: "fixture-thread", turnId: "fixture-turn" },
+  evidence: { source: "unclassified" },
 });
 
 test("typed turn quota offers explicit actions; Later keeps manual handoff and sends nothing", async ({ page }) => {
   const state = await fake(page, { phase: "interrupted" });
-  state.sessions[0] = makeSession(A, { agent: "codex", transport: "rpc", failure: quotaFailure() });
+  state.sessions[0] = makeSession(A, { agent: "codex", failure: quotaFailure() });
   await page.reload();
   await expect(quotaNotice(page)).toContainText("Backend báo lượt chạy đã hết hạn mức");
   await expect(quotaNotice(page).getByRole("button", { name: "Thử lại", exact: true })).toBeVisible();
@@ -253,7 +252,7 @@ for (const permission of ["none", "sibling", "stale-source"]) {
         { id: "attempt-new", scope: request.scope, sessionId: D, generation: 1, execution: { ...request.target, source: "lane-override", modelSource: "default" }, startedAt: 2 },
       ];
       if (permission !== "stale-source") state.sessions[1] = makeSession(B, { status: "exited", retired: { operationId: request.operationId, replacedBy: D, at: 2 } });
-      state.sessions[3] = makeSession(D, { agent: "codex", transport: "rpc" });
+      state.sessions[3] = makeSession(D, { agent: "codex" });
       return route.fulfill({ json: { operation: op } });
     });
     await panel(page).getByRole("button", { name: "Xác nhận bàn giao", exact: true }).click();
@@ -353,10 +352,10 @@ test("blocked recovery disables handoff/retry, and pre-commit failure explains r
   await expect(page.locator(".handoff-history")).toContainText("Phiên nguồn vẫn là lane hiện hành");
 });
 
-test("retired and reserved RPC history has no resume/input/approval; metrics retain partial coverage and provenance on mobile", async ({ page }) => {
+test("retired and reserved Codex history has no resume/input/approval; metrics retain partial coverage and provenance on mobile", async ({ page }) => {
   const state = await fake(page);
-  state.sessions[0] = makeSession(A, { agent: "codex", transport: "rpc", status: "exited", retired: { operationId: "op", replacedBy: B, at: 2 } });
-  state.sessions[1] = makeSession(B, { agent: "codex", transport: "rpc", reservation: { operationId: "op2", role: "target", at: 3 } });
+  state.sessions[0] = makeSession(A, { agent: "codex", status: "exited", retired: { operationId: "op", replacedBy: B, at: 2 } });
+  state.sessions[1] = makeSession(B, { agent: "codex", reservation: { operationId: "op2", role: "target", at: 3 } });
   state.view.usage = {
     sessions: [
       {
@@ -381,24 +380,20 @@ test("retired and reserved RPC history has no resume/input/approval; metrics ret
     totals: {},
     coverage: { costUsd: 1, inputTokens: 1, outputTokens: 1 },
   };
-  await page.routeWebSocket("**/api/sessions/*/conversation", (ws) =>
-    ws.send(
-      JSON.stringify({
-        t: "items",
-        items: [
-          { id: "1", kind: "agent", text: "Saved source output", at: 1 },
-          { id: "2", kind: "approval", text: "Old approval", status: "pending", requestId: "q", at: 1 },
-        ],
-      }),
-    ),
-  );
+  // Retired and reserved Codex sessions are a PTY replay like any other: no conversation view.
+  await page.routeWebSocket("**/api/sessions/*/pty", (socket) => {
+    socket.onMessage((message) => {
+      if (JSON.parse(String(message)).t === "r") socket.send(JSON.stringify({ t: "o", d: "Saved source output\r\n" }));
+    });
+  });
   await page.reload();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator(".drawer-session").first().click();
   const drawer = page.locator(".drawer");
-  await expect(drawer.getByRole("log")).toContainText("Saved source output");
+  // xterm paints only while it is on screen, and on a phone the replay sits below the lane card.
+  await drawer.locator(".xterm").scrollIntoViewIfNeeded();
+  await expect(drawer.locator(".xterm")).toContainText("Saved source output");
   await expect(drawer.getByRole("button", { name: /Resume|Chấp nhận|Từ chối|Gửi \(/ })).toHaveCount(0);
-  await expect(drawer.getByRole("textbox")).toHaveCount(0);
   await expect(drawer).toContainText("Phiên đã được thay, chỉ xem lịch sử");
   await page.locator(".drawer-session").nth(1).click();
   await expect(drawer).toContainText("Phiên đang được giữ cho bàn giao/khôi phục");
@@ -529,52 +524,8 @@ steps:
   });
 }
 
-test("real typed quota waits for manual preview/consent and preserves the lane on handoff", async ({ page }) => {
-  const repo = createSelectionRepo(`quota-main-${Date.now()}`, {
-    settings: "mode: custom\n",
-    workflow: `version: 2
-agent: codex
-permission-mode: acceptEdits
-steps:
-  - id: work
-    prompt: prompt.md
-    outputs: [{id: report, file: report.md}]
-    done-when: report
-    gate: approve
-`,
-  });
-  writeFileSync(path.join(repo, ".taskpilot/prompt.md"), "FAILURE:quota {{outputs}}");
-  expect((await page.request.put("/api/repo", { data: { path: repo } })).ok()).toBe(true);
-  try {
-    expect((await page.request.post("/api/tasks/DEMO-1/run", { data: { mode: "custom" } })).ok()).toBe(true);
-    await page.goto("/#/tasks/DEMO-1");
-    await expect(quotaNotice(page)).toContainText("Backend báo lượt chạy đã hết hạn mức");
-    const before = await (await page.request.get("/api/tasks/DEMO-1/run")).json();
-    const sessions = await (await page.request.get("/api/tasks/DEMO-1/sessions")).json();
-    expect(sessions).toHaveLength(1);
-    expect(sessions[0].failure).toMatchObject({ reason: "quota", evidence: { source: "codex-turn", code: "usageLimitExceeded" } });
-    expect(JSON.stringify(sessions[0].failure)).not.toContain("fixture-secret");
-    await quotaNotice(page).getByRole("button", { name: "Để sau", exact: true }).click();
-    expect(await (await page.request.get("/api/tasks/DEMO-1/sessions")).json()).toHaveLength(1);
-    await expect(action(page)).toBeEnabled();
-    await page.reload();
-    await quotaNotice(page).getByRole("button", { name: "Chọn agent khác", exact: true }).click();
-    await choose(page, "copilot");
-    await expect(panel(page).getByRole("button", { name: "Xác nhận bàn giao", exact: true })).toBeDisabled();
-    expect(await (await page.request.get("/api/tasks/DEMO-1/sessions")).json()).toHaveLength(1);
-    await panel(page).getByRole("checkbox").check();
-    await panel(page).getByRole("button", { name: "Xác nhận bàn giao", exact: true }).click();
-    await expect(panel(page)).toHaveCount(0);
-    const after = await (await page.request.get("/api/tasks/DEMO-1/run")).json();
-    expect(after.run.stepIndex).toBe(before.run.stepIndex);
-    expect(after.run.sessionId).not.toBe(before.run.sessionId);
-    expect(after.run.handoffs).toHaveLength(1);
-    await expect(quotaNotice(page)).toHaveCount(0);
-  } finally {
-    await stopReal(page);
-    await openFixtureRepo(page);
-  }
-});
+// A real Codex run no longer reports a typed quota failure: its TUI has no turn error to classify (REFACTOR-001, quotaDetection = unknown).
+// The quota notice and its handoff actions stay covered by the faked-failure tests above.
 
 test("real main Copilot → Codex → Copilot uses new sessions/native thread and keeps source read-only/history after reload", async ({ page }) => {
   const repo = createSelectionRepo(`handoff-main-${Date.now()}`);

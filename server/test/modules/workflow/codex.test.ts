@@ -46,7 +46,7 @@ while IFS= read -r line; do
 done`;
 // The pre-flight probe still asks `codex app-server` (models, login); only that call goes to the app-server stand-in.
 const FAKE_APP_SERVER = path.resolve(import.meta.dirname, "../../helpers/fake-codex.mjs");
-const codexTui = (id: string) => (id === "preflight" ? { file: process.execPath, args: [FAKE_APP_SERVER] } : { file: "/bin/bash", args: ["-c", CODEX_TUI] });
+const codexTui = (id: string) => (id === "preflight" ? { file: process.execPath, args: [FAKE_APP_SERVER, "app-server"] } : { file: "/bin/bash", args: ["-c", CODEX_TUI] });
 const managers: SessionManager[] = [];
 const servers: http.Server[] = [];
 afterEach(async () => {

@@ -9,17 +9,20 @@ import type { HandoffJournal, RunState, SubtaskRun, WorkflowDef } from "../../..
 import { StateStore } from "../../../src/core/state.js";
 import { SessionManager } from "../../../src/modules/sessions/index.js";
 import { WorkflowEngine } from "../../../src/modules/workflow/engine.js";
+import { codexTuiLauncher, seedCodexThread, startHookServer, type HookServer } from "../../helpers/codex-tui.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
 const safe = createSafeText([]);
 
 const managers: Array<{ manager: SessionManager; state: StateStore }> = [];
+const hookServers: HookServer[] = [];
 afterEach(async () => {
   vi.restoreAllMocks();
   for (const { manager, state } of managers.splice(0)) {
     for (const meta of (await state.load()).sessions) await manager.stopAndWait(meta.id).catch(() => undefined);
     manager.closeAll();
   }
+  await Promise.all(hookServers.splice(0).map((server) => server.close()));
 });
 afterAll(cleanupTempDirs);
 
@@ -27,16 +30,20 @@ async function transactionFixture(kind: "step" | "subtask" = "step", prompt = "C
   const repo = await makeRepo();
   const state = new StateStore(await tempDir("handoff-transaction-"));
   const log = path.join(state.dir, "rpc.jsonl");
-  const fake = path.resolve(import.meta.dirname, "../../helpers/fake-codex.mjs");
-  const faults: Record<string, string> = {};
+  const faults: Record<string, string> = { FAKE_CODEX_LOG: log };
+  const hooks = await startHookServer();
+  hookServers.push(hooks);
   const managerOptions = {
+    hookUrl: hooks.url,
     launchers: {
       claude: () => ({ file: "/bin/bash", args: ["-c", "while IFS= read -r line; do :; done"] }),
-      codex: () => ({ file: process.execPath, args: [fake], env: { FAKE_CODEX_LOG: log, ...faults } }),
+      // `faults` is read at each launch, so a test can arm one between launches.
+      codex: codexTuiLauncher(faults),
       copilot: () => ({ file: "/bin/bash", args: ["-c", 'echo "/ commands"; while IFS= read -r line; do :; done'] }),
     },
   };
   const manager = new SessionManager(state, managerOptions);
+  hooks.attach(manager);
   managers.push({ manager, state });
   const ready = manager.waitForReady.bind(manager);
   vi.spyOn(manager, "waitForReady").mockImplementation(async (id, options) => {
@@ -104,7 +111,7 @@ async function transactionFixture(kind: "step" | "subtask" = "step", prompt = "C
     operationId,
     confirmStop: true,
   });
-  return { repo, state, log, faults, manager, managerOptions, engine, read, request, commitRequest };
+  return { repo, state, log, faults, hooks, manager, managerOptions, engine, read, request, commitRequest };
 }
 
 function fixture(kind: "step" | "subtask" = "subtask"): BuildHandoffInput {
@@ -279,7 +286,8 @@ describe("metrics provenance across handoff", () => {
   });
 
   it("ignores invalid counters and never accepts a cost from token notifications", async () => {
-    const f = await transactionFixture();
+    // The first turn waits for approval, so no Stop hook has brought token counts yet.
+    const f = await transactionFixture("step", "APPROVAL");
     const meta = await f.manager.get((await f.read()).sessionId);
     const invalid = { inputTokens: Number.NaN, outputTokens: -1, costUsd: 42 };
     await f.engine.onMetrics(meta, invalid);
@@ -309,7 +317,7 @@ describe("metrics provenance across handoff", () => {
   });
 
   it("preserves legacy flat source data before the member swap without borrowing its cost", async () => {
-    const f = await transactionFixture("subtask");
+    const f = await transactionFixture("subtask", "APPROVAL");
     const sourceId = (await f.read()).subtasks![1].sessionId!;
     await f.state.update((state) => {
       state.runs[0].attempts = undefined;
@@ -409,11 +417,14 @@ describe("handoff crash recovery and lane fences", () => {
           await f.manager.release(target.id, operation.operationId);
           // sending means input may already have reached the agent; recovery cannot infer otherwise.
           f.manager.paste(target.id, preview.prompt);
+          // The prompt reached the TUI, so its first hook gave the thread an id that a later resume needs.
+          await vi.waitFor(async () => expect((await f.manager.get(target.id)).nativeId).toBeTruthy());
         }
       }
     }
     const state = new StateStore(f.state.dir);
     const manager = new SessionManager(state, f.managerOptions);
+    f.hooks.attach(manager);
     const engine = new WorkflowEngine(
       state,
       manager,
@@ -617,7 +628,7 @@ describe("handoff crash recovery and lane fences", () => {
     );
   });
 
-  it.each(["step", "subtask"] as const)("rejects source hooks, exits, metrics, statusline and approval after %s handoff", async (kind) => {
+  it.each(["step", "subtask"] as const)("rejects source hooks, exits, metrics and statusline after %s handoff", async (kind) => {
     const f = await transactionFixture(kind, "APPROVAL");
     await vi.waitFor(async () => expect((await f.manager.get(kind === "step" ? (await f.read()).sessionId : (await f.read()).subtasks![1].sessionId!)).activity).toBe("permission"));
     const { preview } = await f.engine.previewHandoff(f.repo, "DEMO-1", f.request);
@@ -629,7 +640,6 @@ describe("handoff crash recovery and lane fences", () => {
     await f.engine.onExit(source);
     await f.engine.onMetrics(source, { inputTokens: 999999 });
     await f.engine.onStatusLine({ ...source, agent: "claude" }, { cost: { total_cost_usd: 999 } });
-    await expect(f.manager.answer(source.id, "old-approval", "accept")).rejects.toMatchObject({ status: 409 });
     expect(await f.read()).toEqual(before);
     expect((await f.manager.get(operation.targetSessionId!)).reservation).toBeUndefined();
   });
@@ -722,8 +732,9 @@ describe("handoff transactions with real session transports", () => {
     expect(first.operation).toMatchObject({ stage: "committed", promptState: "sent" });
     const target = await f.manager.get(first.operation.targetSessionId!);
     expect(target.id).not.toBe(source.id);
-    expect(target.nativeId).toBeTruthy();
-    expect(target.nativeId).not.toBe(source.nativeId);
+    // The TUI names its thread with the first hook, which the handoff prompt triggers.
+    await vi.waitFor(async () => expect((await f.manager.get(target.id)).nativeId).toBeTruthy());
+    expect((await f.manager.get(target.id)).nativeId).not.toBe(source.nativeId);
     expect(target.reservation).toBeUndefined();
     expect(paste.mock.calls).toEqual([[target.id, preview.prompt]]);
     expect((await f.manager.get(source.id)).retired?.replacedBy).toBe(target.id);
@@ -932,12 +943,12 @@ describe("handoff transactions with real session transports", () => {
     expect(JSON.stringify(operation)).not.toContain("opaque-private-value");
   });
 
-  it("rolls back an actual protocol failure thrown by target create after its id was journaled", async () => {
+  it("rolls back a launch failure thrown by target create after its id was journaled", async () => {
     const f = await transactionFixture();
     const { preview } = await f.engine.previewHandoff(f.repo, "DEMO-1", f.request);
     const create = f.manager.create.bind(f.manager);
     vi.spyOn(f.manager, "create").mockImplementation((repo, task, options) => {
-      f.faults.FAKE_CODEX_PROTOCOL = "1";
+      f.faults.FAKE_CODEX_LAUNCH_FAIL = "codex cannot start";
       return create(repo, task, options);
     });
     await expect(f.engine.commitHandoff(f.repo, "DEMO-1", f.commitRequest(preview))).rejects.toMatchObject({ status: 409 });
@@ -963,6 +974,11 @@ describe("handoff transactions with real session transports", () => {
     expect((await f.manager.get(preview.sourceSessionId)).retired?.replacedBy).toBe(operation.targetSessionId);
     expect((await f.engine.commitHandoff(f.repo, "DEMO-1", request)).operation).toEqual(operation);
     expect(paste).toHaveBeenCalledTimes(1);
+    // Codex resumes by thread id and only its first hook names the thread; no prompt reached this target, so give it the id that hook would have.
+    await seedCodexThread(f.repo, "target-thread");
+    await f.state.update((draft) => {
+      draft.sessions.find((s) => s.id === operation.targetSessionId)!.nativeId = "target-thread";
+    });
     await f.engine.retry(f.repo, "DEMO-1");
     await vi.waitFor(() => expect(paste).toHaveBeenCalledTimes(2));
     expect(paste.mock.calls[1]).toEqual([operation.targetSessionId, preview.prompt]);

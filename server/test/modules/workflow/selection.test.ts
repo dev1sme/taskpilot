@@ -9,9 +9,12 @@ import { loadWorkflow } from "../../../src/modules/workflow/definition.js";
 import { laneKey } from "../../../src/modules/workflow/execution.js";
 import { readRepoSettings } from "../../../src/modules/workflow/settings.js";
 import type { ExecutionSelection } from "../../../src/modules/workflow/types.js";
+import { codexTuiLauncher, startHookServer } from "../../helpers/codex-tui.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
-const FAKE = path.resolve(import.meta.dirname, "../../helpers/fake-codex.mjs");
+// A Codex lane is several hook round-trips through the stand-in's shell and curl: slow on a busy machine.
+vi.setConfig({ testTimeout: 30_000 });
+const waitFor: typeof vi.waitFor = (callback, options) => vi.waitFor(callback, { timeout: 15_000, interval: 50, ...(typeof options === "object" ? options : {}) });
 const close: Array<() => void | Promise<unknown>> = [];
 afterEach(async () => {
   for (const stop of close.splice(0)) await stop();
@@ -24,20 +27,25 @@ async function setup(env: Record<string, string> = {}) {
   const log = path.join(repo, "rpc.jsonl");
   const context = { FAKE_CODEX_LOG: log, FAKE_CODEX_WORKFLOW: "1", ...env };
   const launchers = {
-    codex: () => ({ file: process.execPath, args: [FAKE], env: context }),
+    codex: codexTuiLauncher(context),
     // These are only probed. A mistaken launch must fail without touching a real CLI.
     claude: () => ({ file: "/bin/bash", args: ["-c", "exit 99"] }),
     copilot: () => ({ file: "/bin/bash", args: ["-c", "exit 99"] }),
   };
-  const sessions = new SessionManager(state, { launchers });
-  close.push(() => sessions.closeAll());
+  const hooks = await startHookServer();
+  const sessions = new SessionManager(state, { launchers, hookUrl: hooks.url });
+  hooks.attach(sessions);
+  close.push(
+    () => sessions.closeAll(),
+    () => hooks.close(),
+  );
   const load = async (r: string, mode?: string) => loadWorkflow(r, mode, (await readRepoSettings(r)).mode);
   let engine = new WorkflowEngine(state, sessions, load);
   const failures: unknown[] = [];
   sessions.on("hook", (meta, event, payload) => void engine.onHook(meta, event, payload).catch((e) => failures.push(e)));
   sessions.on("exit", (meta) => void engine.onExit(meta).catch((e) => failures.push(e)));
   const run = async () => (await state.load()).runs[0];
-  const gate = async (index: number) => vi.waitFor(async () => expect(await run()).toMatchObject({ phase: "gate", stepIndex: index }));
+  const gate = async (index: number) => waitFor(async () => expect(await run()).toMatchObject({ phase: "gate", stepIndex: index }));
   const records = async (): Promise<Array<{ method: string; params: { model?: string; input?: Array<{ text: string }> } }>> =>
     (await readFile(log, "utf8"))
       .trim()
@@ -160,10 +168,10 @@ it("revalidates default Codex member retry after recovery and applies the pinned
   await h.engine.start(h.repo, "DEMO-1", { mode: "leader", execution: { agent: "codex" } });
   await h.gate(0);
   await h.engine.approve(h.repo, "DEMO-1");
-  await vi.waitFor(async () => expect((await h.sessions.get((await h.run()).subtasks![0].sessionId!)).activity).toBe("busy"));
+  await waitFor(async () => expect((await h.sessions.get((await h.run()).subtasks![0].sessionId!)).activity).toBe("busy"));
   const sub = (await h.run()).subtasks![0];
   await h.sessions.stop(sub.sessionId!);
-  await vi.waitFor(async () => expect((await h.run()).subtasks![0].phase).toBe("interrupted"));
+  await waitFor(async () => expect((await h.run()).subtasks![0].phase).toBe("interrupted"));
   await h.settings("executionVersion: 1\nexecution: { agent: copilot }\n");
   h.reload();
   await h.engine.recover();
@@ -302,10 +310,10 @@ it("does not launch a persisted pending row that violates policy after recovery"
   await h.engine.start(h.repo, "DEMO-1", { mode: "leader", execution: { agent: "codex" } });
   await h.gate(0);
   await h.engine.approve(h.repo, "DEMO-1");
-  await vi.waitFor(async () => expect((await h.sessions.get((await h.run()).subtasks![0].sessionId!)).activity).toBe("busy"));
+  await waitFor(async () => expect((await h.sessions.get((await h.run()).subtasks![0].sessionId!)).activity).toBe("busy"));
   const sub = (await h.run()).subtasks![0];
   await h.sessions.stop(sub.sessionId!);
-  await vi.waitFor(async () => expect((await h.run()).subtasks![0].phase).toBe("interrupted"));
+  await waitFor(async () => expect((await h.run()).subtasks![0].phase).toBe("interrupted"));
   await h.state.update((s) => {
     s.runs[0].subtasks![1].agent = "claude";
   });
@@ -313,7 +321,7 @@ it("does not launch a persisted pending row that violates policy after recovery"
   await h.engine.recover();
   delete h.context.FAKE_CODEX_HOLD_MEMBER;
   await h.engine.retrySubtask(h.repo, "DEMO-1", 1);
-  await vi.waitFor(() => expect(h.failures).toHaveLength(1));
+  await waitFor(() => expect(h.failures).toHaveLength(1));
   expect(h.failures[0]).toMatchObject({ status: 400, message: expect.stringContaining("subtask 2: agent: must be codex") });
   expect((await h.run()).subtasks![1]).toMatchObject({ agent: "claude", phase: "pending" });
   expect((await h.run()).subtasks![1].sessionId).toBeUndefined();
@@ -336,14 +344,14 @@ it("retries an interrupted main session with its default model after a reload an
   def.steps[0].prompt = "SLOW {{agent}}";
   const engine = new WorkflowEngine(h.state, h.sessions, async () => def);
   const first = await engine.start(h.repo, "DEMO-1", { execution: { agent: "codex" } });
-  await vi.waitFor(async () => expect((await h.sessions.get(first.sessionId)).activity).toBe("busy"));
+  await waitFor(async () => expect((await h.sessions.get(first.sessionId)).activity).toBe("busy"));
   await h.sessions.stop(first.sessionId);
-  await vi.waitFor(async () => expect((await h.run()).phase).toBe("interrupted"));
+  await waitFor(async () => expect((await h.run()).phase).toBe("interrupted"));
   await h.settings("executionVersion: 1\nexecution: { agent: copilot, model: gpt-other }\n");
   h.reload();
   await h.engine.recover();
   await h.engine.retry(h.repo, "DEMO-1");
-  await vi.waitFor(async () => expect((await h.sessions.get(first.sessionId)).activity).toBe("busy"));
+  await waitFor(async () => expect((await h.sessions.get(first.sessionId)).activity).toBe("busy"));
   expect((await h.records()).filter((r) => r.method === "thread/resume").map((r) => r.params.model)).toEqual([undefined]);
   const run = await h.run();
   expect(run.execution).toEqual({ agent: "codex" });

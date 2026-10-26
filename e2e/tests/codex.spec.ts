@@ -48,56 +48,92 @@ steps:
   await page.goto("/#/tasks/CODEX-1");
 });
 
+/** Opens a Codex session from the drawer; its TUI (the stand-in) shows the input-box footer when it is ready. */
 async function createSession(page: Page) {
   const drawer = page.locator("main .drawer");
   await drawer.getByRole("button", { name: "Session mới", exact: true }).click();
   await drawer.getByRole("button", { name: /Codex/ }).click();
-  await expect(drawer.getByRole("textbox", { name: "Yêu cầu cho Codex" })).toBeEnabled();
+  await expect(drawer.locator(".xterm")).toContainText("gpt-6.1-sol default");
   return drawer;
 }
 
-test("multiline conversation, replay, stop/resume and mobile layout", async ({ page }) => {
+/** Types into the session's terminal like a user: focus xterm, then keys. */
+async function typeLine(page: Page, text: string) {
+  await page.locator("main .drawer .xterm-helper-textarea").focus();
+  await page.keyboard.type(text);
+  await page.keyboard.press("Enter");
+}
+
+/** Pastes text into xterm as a browser paste event; the TUI asked for bracketed paste, so it arrives as one block. */
+async function pasteLines(page: Page, text: string) {
+  await page.locator("main .drawer .xterm-helper-textarea").focus();
+  await page.evaluate((value) => {
+    const data = new DataTransfer();
+    data.setData("text/plain", value);
+    document.activeElement!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  }, text);
+  await page.keyboard.press("Enter");
+}
+
+test("terminal session: multiline prompt, stop, resume the same thread and reload", async ({ page }) => {
   let drawer = await createSession(page);
-  const prompt = "PELICAN-42\nSecond line";
-  await drawer.getByRole("textbox", { name: "Yêu cầu cho Codex" }).fill(prompt);
-  await drawer.getByRole("textbox", { name: "Yêu cầu cho Codex" }).press("Control+Enter");
-  await expect(drawer.locator(".conversation-agent")).toContainText("DONE");
-  await expect(drawer.locator(".conversation-user")).toContainText(prompt);
+  await pasteLines(page, "PELICAN-42\nSecond line");
+  await expect(drawer.locator(".xterm")).toContainText("› PELICAN-42");
+  await expect(drawer.locator(".xterm")).toContainText("• DONE");
+  const sessions = async () =>
+    (await (await page.request.get("/api/tasks/CODEX-1/sessions")).json()) as Array<{ id: string; agent: string; status: string; generation?: number; activity?: string; nativeId?: string }>;
+  // The thread id arrives with the first hook, so the session can be resumed.
+  await expect.poll(async () => (await sessions())[0]?.nativeId).toBeTruthy();
+  const nativeId = (await sessions())[0].nativeId;
+
   await drawer.getByRole("button", { name: "Dừng", exact: true }).click();
   await expect(drawer.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
   await drawer.getByRole("button", { name: "Resume", exact: true }).click();
-  await drawer.getByRole("textbox", { name: "Yêu cầu cho Codex" }).fill("RECALL");
-  await drawer.getByRole("textbox", { name: "Yêu cầu cho Codex" }).press("Control+Enter");
-  await expect(drawer.locator(".conversation-agent").last()).toContainText(prompt);
+  // The terminal replays the first run's footer, so wait for the second process to reach its input box.
+  await expect.poll(async () => (await sessions())[0]).toMatchObject({ status: "running", generation: 2, activity: "idle" });
+  await typeLine(page, "RECALL");
+  // The resumed thread answers with the first prompt: same thread, not a new one.
+  await expect(drawer.locator(".xterm")).toContainText("• PELICAN-42");
+  expect((await sessions())[0]).toMatchObject({ agent: "codex", status: "running", nativeId });
+
   await page.reload();
   drawer = page.locator("main .drawer");
   await drawer.locator(".drawer-session").last().click();
-  await expect(drawer.locator(".conversation-agent").last()).toContainText(prompt);
+  await expect(drawer.locator(".xterm")).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(drawer.getByRole("textbox", { name: "Yêu cầu cho Codex" })).toBeVisible();
+  await expect(drawer.locator(".xterm")).toBeVisible();
   expect(await page.locator("main").evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
   await drawer.getByRole("button", { name: "Dừng", exact: true }).click();
+  await expect(drawer.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
 });
 
-test("explicit approvals, rejection and interrupt", async ({ page }) => {
+test("an approval is answered in the terminal, a refusal too, and Esc interrupts a running tool", async ({ page }) => {
   const drawer = await createSession(page);
-  const input = drawer.getByRole("textbox", { name: "Yêu cầu cho Codex" });
-  for (const decision of ["Chấp nhận", "Từ chối"]) {
-    await input.fill("APPROVAL");
-    await input.press("Control+Enter");
-    const approval = drawer.locator(".conversation-approval").last();
-    await expect(approval.getByRole("button", { name: decision, exact: true })).toBeEnabled();
-    await approval.getByRole("button", { name: decision, exact: true }).click();
-    await expect(drawer.locator(".conversation-agent").last()).toContainText(decision === "Chấp nhận" ? "APPROVED" : "DECLINED");
-  }
-  await input.fill("SLOW");
-  await input.press("Control+Enter");
-  await drawer.getByRole("button", { name: "Ngắt lượt", exact: true }).click();
-  await expect(drawer.locator(".conversation-tool").last()).toContainText("Đã hủy");
+  const activity = async () => (await (await page.request.get("/api/tasks/CODEX-1/sessions")).json())[0].activity;
+
+  await typeLine(page, "APPROVAL");
+  await expect.poll(activity).toBe("permission");
+  await expect(drawer.locator(".xterm")).toContainText("Would you like to run the following command?");
+  await page.keyboard.press("y");
+  await expect(drawer.locator(".xterm")).toContainText("• APPROVED");
+  await expect.poll(activity).toBe("idle");
+
+  await typeLine(page, "APPROVAL");
+  await expect.poll(activity).toBe("permission");
+  await page.keyboard.press("Escape");
+  await expect(drawer.locator(".xterm")).toContainText("• DECLINED");
+  await expect.poll(activity).toBe("idle");
+
+  await typeLine(page, "SLOW");
+  await expect.poll(activity).toBe("busy");
+  await page.keyboard.press("Escape");
+  await expect(drawer.locator(".xterm")).toContainText("Conversation interrupted");
+  await expect.poll(activity).toBe("idle");
   await drawer.getByRole("button", { name: "Dừng", exact: true }).click();
+  await expect(drawer.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
 });
 
-test("workflow gates, feedback, Codex member and approval from NowCard", async ({ page }) => {
+test("workflow gates, feedback, Codex member and its approval answered in the terminal", async ({ page }) => {
   await expect(page.getByText("Repo chưa có subagent nào làm được việc con", { exact: false })).toHaveCount(0);
   await page.locator(".now-card").getByRole("button", { name: "Bắt đầu quy trình", exact: true }).click();
   await expect(page.getByRole("button", { name: "Duyệt, sang bước tiếp", exact: true })).toBeVisible();
@@ -105,9 +141,14 @@ test("workflow gates, feedback, Codex member and approval from NowCard", async (
   await page.getByRole("button", { name: "Gửi góp ý", exact: true }).click();
   await expect(page.getByRole("button", { name: "Duyệt, sang bước tiếp", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Duyệt, sang bước tiếp", exact: true }).click();
+  // The member asks for approval in its TUI: the card has no buttons of its own, only a way to the terminal.
   const card = page.locator(".now-card");
-  await expect(card.getByRole("button", { name: "Chấp nhận", exact: true })).toBeEnabled();
-  await card.getByRole("button", { name: "Chấp nhận", exact: true }).click();
+  await expect(card.getByRole("button", { name: "Mở terminal để trả lời", exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Chấp nhận", exact: true })).toHaveCount(0);
+  await card.getByRole("button", { name: "Mở terminal để trả lời", exact: true }).click();
+  await expect(page.locator("main .drawer .xterm")).toContainText("Would you like to run the following command?");
+  await page.locator("main .drawer .xterm-helper-textarea").focus();
+  await page.keyboard.press("y");
   await expect(page.getByRole("button", { name: "Duyệt và hoàn tất", exact: true })).toBeVisible();
   const view = await (await page.request.get("/api/tasks/CODEX-1/run")).json();
   expect(view.run.subtasks[0]).toMatchObject({ agent: "codex", phase: "done", metrics: { inputTokens: 100, outputTokens: 20 } });
@@ -149,7 +190,10 @@ test("an exited Claude lane hands off to a fresh Codex thread and completes feed
   await page.getByRole("button", { name: "Gửi góp ý", exact: true }).click();
   await expect(page.getByRole("button", { name: "Duyệt, sang bước tiếp", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Duyệt, sang bước tiếp", exact: true }).click();
-  await page.locator(".now-card").getByRole("button", { name: "Chấp nhận", exact: true }).click();
+  await page.locator(".now-card").getByRole("button", { name: "Mở terminal để trả lời", exact: true }).click();
+  await expect(page.locator("main .drawer .xterm")).toContainText("Would you like to run the following command?");
+  await page.locator("main .drawer .xterm-helper-textarea").focus();
+  await page.keyboard.press("y");
   await page.getByRole("button", { name: "Duyệt và hoàn tất", exact: true }).click();
   await expect.poll(async () => (await (await page.request.get("/api/tasks/CODEX-1/run")).json()).run.phase).toBe("done");
   const final = (await (await page.request.get("/api/tasks/CODEX-1/run")).json()).run;

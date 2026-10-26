@@ -39,7 +39,7 @@ Engine lấy bản chụp workflow lúc bắt đầu. Nó tạo phiên, chờ s�
 
 Khi có tín hiệu kết thúc lượt và đầu ra hợp lệ, `gate: approve` chờ người dùng; `gate: none` đi tiếp. Góp ý được ghép vào `on-reject`; câu trả lời được gửi vào phiên. Đổi agent hoặc model giữa hai bước sẽ tạo phiên mới, chuyển bối cảnh bằng tài liệu và nhật ký.
 
-Mã chính: [`engine.ts`](../server/src/modules/workflow/engine.ts), [`definition.ts`](../server/src/modules/workflow/definition.ts), [`vars.ts`](../server/src/modules/workflow/vars.ts). HTTP routes nằm trong [`routes.ts`](../server/src/modules/workflow/routes.ts).
+Mã chính: [`engine.ts`](../server/src/modules/workflow/engine.ts), [`definition.ts`](../server/src/modules/workflow/definition.ts), [`prompt-vars.ts`](../server/src/modules/workflow/prompt-vars.ts). HTTP routes nằm trong [`routes.ts`](../server/src/modules/workflow/routes.ts).
 
 ## 3. Giao việc con
 
@@ -49,13 +49,13 @@ Việc con hoàn thành khi đã ghi báo cáo trong lượt hiện tại và nh
 
 Bảng có thể có thêm cột `Subagent` và `Model`. Khi duyệt gate, `assignments.ts` kiểm cú pháp và model theo agent của dòng (Claude chỉ nhận alias hoặc id `claude-…`), rồi engine kiểm subagent của dòng `claude` bằng `subagentsOf(repo)` (bản project trước bản user): phải tồn tại và có vai trò `member` theo [`library/check.ts`](../server/src/modules/config/library/check.ts). Lỗi nào cũng chặn duyệt. Việc con mở phiên với `--agent`/`--model` tương ứng; `default` và `inherit` không truyền `--model`.
 
-Khi chạy, engine ghi thời điểm, model/cost từ status line Claude hoặc model/token của thread Codex (model từ hook, token từ rollout). Requested model được giữ riêng với model thực tế backend báo; Copilot thiếu số đo thực tế và chi phí. Số liệu đi vào nhật ký, `{{subtasks}}` và cây việc con; sau bàn giao giữ provenance theo session/attempt như [mục 9](#9-metrics-và-bằng-chứng-quota). Run cũ thiếu các trường này vẫn đọc được.
+Khi chạy, engine ghi thời điểm, model/cost từ status line Claude hoặc model/token của thread Codex (model từ hook, token từ rollout). Requested model (`SessionMeta.model`, gửi qua `--model`) được giữ riêng với model thực tế backend báo (`SessionMeta.actualModel`, `RunAttempt.actualModel`); session Codex mặc định không bị ghim model khi resume, state cũ có `model` mang model quan sát vẫn resume được; Copilot thiếu số đo thực tế và chi phí. Số liệu đi vào nhật ký, `{{subtasks}}` và cây việc con; sau bàn giao giữ provenance theo session/attempt như [mục 9](#9-metrics-và-bằng-chứng-quota). Run cũ thiếu các trường này vẫn đọc được.
 
 Bảng phân công, trạng thái và câu hỏi việc con được trả về cùng dữ liệu lần chạy. Quy tắc phân tích nằm trong [`assignments.ts`](../server/src/modules/workflow/assignments.ts). Các phiên cùng dùng repo đang mở; kiểm tra phạm vi file không thay thế worktree hay sandbox.
 
 ## 4. Tích hợp CLI
 
-Mỗi CLI có một `AgentBackend` trong [`sessions/backends/`](../server/src/modules/sessions/backends), phụ trách khởi chạy, hooks, nhận biết sẵn sàng và chuẩn hóa sự kiện. Mọi phiên chạy TUI của CLI trong `PtyTransport`; người dùng nhập, duyệt quyền và dùng slash command ngay trong terminal. Engine và activity sử dụng tên sự kiện chung như `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`.
+Mỗi provider có một `ProviderBackend` trong [`sessions/backends/`](../server/src/modules/sessions/backends), phụ trách khởi chạy, hooks, nhận biết sẵn sàng và chuẩn hóa sự kiện. Mọi phiên chạy TUI của CLI trong `PtyTransport`; người dùng nhập, duyệt quyền và dùng slash command ngay trong terminal. Engine và activity sử dụng tên sự kiện chung như `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`. Chi tiết riêng của provider (cần đăng nhập, inventory model, kiểm subagent, inventory cho prompt, số đo lượt) đi qua trait và port trên backend; `modules/workflow` không import `core/<provider>` (xem [DEVELOP](DEVELOP.md#glossary-và-quy-ước-tên)).
 
 - **Claude:** truyền hooks bằng `--settings`, ghép cùng cấu hình người dùng. `statusLine` do TaskPilot chèn gửi mức sử dụng về server rồi gọi tiếp status line của người dùng. Tiếp tục phiên bằng `--resume`.
 - **Copilot:** cài hooks tại `$COPILOT_HOME/hooks/taskpilot.json`, mặc định dưới `~/.copilot`. Hooks chỉ chạy cho phiên có biến môi trường TaskPilot phù hợp. `--session-id` dùng cho cả tạo và tiếp tục phiên.
@@ -90,17 +90,19 @@ Giao diện dùng một model meter và một quy tắc giờ cho mọi agent: g
 
 ## 6. Thêm CLI mới
 
-Khai báo agent trong `core/agents.ts`, viết launcher và đọc phiên bản trong `core/<agent>/`, rồi thêm backend vào `modules/sessions/backends/`. Cập nhật danh sách agent phía client và thông tin phiên bản ở `/api/info`.
+Khai báo provider trong `core/providers.ts` (`PROVIDER_IDS`, `PROVIDER_LABELS`), viết launcher, đường dẫn home và đọc phiên bản trong `core/<provider>/`, rồi thêm backend vào `modules/sessions/backends/`. Cập nhật danh sách provider phía client (`client/src/shared/providers.ts`) và thông tin phiên bản ở `/api/info`.
 
-Kiểu và helper chung (`Launcher`, `LaunchOptions`, `childEnv`, `agentArgs`) nằm ở [`core/launch.ts`](../server/src/core/launch.ts); đọc `--version` dùng [`core/cli-version.ts`](../server/src/core/cli-version.ts). Thư mục `core/<agent>/` chỉ chứa phần riêng của CLI đó. CLI mới cũng chạy TUI trong PTY và gửi hooks về `/hook/:event`; không có transport riêng theo provider. Phần khác nhau giữa các CLI khai báo trong backend:
+Kiểu và helper chung (`Launcher`, `LaunchOptions`, `childEnv`, `agentArgs`) nằm ở [`core/launch.ts`](../server/src/core/launch.ts); đọc `--version` dùng [`core/cli-version.ts`](../server/src/core/cli-version.ts). Thư mục `core/<provider>/` chỉ chứa phần riêng của CLI đó. CLI mới cũng chạy TUI trong PTY và gửi hooks về `/hook/:event`; không có transport riêng theo provider. Phần khác nhau giữa các CLI khai báo trong backend:
 
-| Trường `AgentBackend` | Dùng khi |
+| Trường `ProviderBackend` | Dùng khi |
 |---|---|
 | `launcher`, `launchSettings` | Dựng lệnh, cờ quyền/model/subagent và cách truyền hooks |
 | `prepare` | Phải cài file trước khi mở (Copilot ghi hooks cấp user) |
 | `readyMarker` (`string` hoặc `RegExp`) | CLI chỉ phát `SessionStart` cùng prompt đầu; `PtyTransport` phát `SessionStart` tổng hợp khi thấy dấu |
 | `nativeIdOf` | CLI tự cấp id phiên; manager lưu `nativeId` từ hook rồi đổi `session_id` của payload về id TaskPilot |
 | `normalize`, `permissionGraceMs`, `finishedTurn` | Payload khác hợp đồng chung, `PermissionRequest` đến muộn, hoặc cần đọc transcript khi thiếu `Stop` |
+| `requiresLogin`, `requiresModelInventory`, `reportsStatusLine`, `warnsWhenNoHook`, `metricsSource`, `modelProblem` (`ProviderTraits`, không I/O) | Preflight, cảnh báo thiếu hook, nguồn số đo và luật model theo provider; engine và `capabilities.ts` đọc qua `providerTraits(id)` thay vì so tên provider |
+| `checkSubagent`, `promptInventory`, `turnMetrics` (port) | Kiểm subagent trước khi chạy, inventory cho `{{subagents}}`, và số đo lượt (Codex đọc rollout; manager phát `metrics` kèm `source` trước event `hook` cùng payload) |
 
 Trước khi nối vào engine, cần kiểm tra bằng CLI thật: tạo/tiếp tục phiên, nhận prompt nhiều dòng, xác nhận tin cậy thư mục và tin cậy hooks, quyền, thứ tự hook, kết thúc lượt và cách đọc transcript. Bài kiểm thử dùng CLI giả không thay thế bước này.
 
@@ -170,9 +172,9 @@ codex [resume <nativeId>] --no-daemon -c check_for_update_on_startup=false
 
 Trường `permission_mode` trong payload luôn là `"default"`, không phản ánh sandbox/approval thật. Slash command, `$skill` và approval là tính năng của TUI, người dùng gõ/trả lời trực tiếp trong terminal; TaskPilot không còn conversation WebSocket hay REST input/interrupt/approval.
 
-**Số đo và lỗi.** Khi `Stop` không bị ngắt, engine đọc tối đa 1 MiB cuối của `transcript_path` (`~/.codex/sessions/YYYY/MM/DD/rollout-*-<thread id>.jsonl`) và lấy `token_count.info.total_token_usage` cuối cùng (số cộng dồn của thread); model thực tế lấy từ trường `model` của hook. Nguồn số đo vẫn là `codex-thread`. Rollout có thể chưa ghi `token_count` của lượt vừa xong lúc `Stop` bắn [chưa xác minh trên CLI thật]; vì là số cộng dồn, lượt sau tự bù. Không suy ra chi phí USD. Hook không mang tín hiệu lỗi quota/auth có kiểu, nên `quotaDetection` của Codex là `unknown`; `Stop` có `failed` chỉ cho lỗi `unknown`.
+**Số đo và lỗi.** Khi `Stop` không bị ngắt, engine đọc tối đa 1 MiB cuối của `transcript_path` (`~/.codex/sessions/YYYY/MM/DD/rollout-*-<thread id>.jsonl`) và lấy `token_count.info.total_token_usage` cuối cùng (số cộng dồn của thread); model thực tế lấy từ trường `model` của hook và lưu vào `actualModel`. Manager gọi `backend.turnMetrics` rồi phát `metrics` với nguồn `codex-thread` trước event `hook`; engine chỉ nhận qua `onMetrics`. Rollout có thể chưa ghi `token_count` của lượt vừa xong lúc `Stop` bắn [chưa xác minh trên CLI thật]; vì là số cộng dồn, lượt sau tự bù. Không suy ra chi phí USD. Hook không mang tín hiệu lỗi quota/auth có kiểu, nên `quotaDetection` của Codex là `unknown`; `Stop` có `failed` chỉ cho lỗi `unknown`.
 
-**Probe và hạn mức.** TUI không có lệnh tương đương `model/list` hay `account/rateLimits/read`, nên probe/preflight và `QuotaPoller` vẫn mở `codex app-server --listen stdio://` ngắn hạn, chỉ đọc rồi tắt ([`backends/codex.ts`](../server/src/modules/sessions/backends/codex.ts), [`modules/usage/codex.ts`](../server/src/modules/usage/codex.ts)). Probe kiểm `initialize`, `account/read` (vì `model/list` vẫn trả danh sách khi chưa đăng nhập) và `model/list`; không tạo thread/turn. Hạn mức đọc bằng `account/rateLimits/read`; cửa sổ gán theo `windowDurationMins` (300 = 5h, 10080 = 7d), từng trường sai bị bỏ riêng, `UsageStore.applyCodex` merge thưa. Số này không dùng làm quota evidence. Fixture JSON-RPC của app-server ở [`server/test/fixtures/codex/`](../server/test/fixtures/codex/README.md).
+**Probe và hạn mức.** TUI không có lệnh tương đương `model/list` hay `account/rateLimits/read`, nên probe/preflight và `QuotaPoller` vẫn mở `codex app-server --listen stdio://` ngắn hạn qua `withCodexAppServer` ([`core/codex/app-server.ts`](../server/src/core/codex/app-server.ts): một deadline, đóng và `SIGKILL`), chỉ đọc rồi tắt ([`backends/codex.ts`](../server/src/modules/sessions/backends/codex.ts), [`modules/usage/codex.ts`](../server/src/modules/usage/codex.ts)). Probe kiểm `initialize`, `account/read` (vì `model/list` vẫn trả danh sách khi chưa đăng nhập) và `model/list`; không tạo thread/turn. Hạn mức đọc bằng `account/rateLimits/read`; cửa sổ gán theo `windowDurationMins` (300 = 5h, 10080 = 7d), từng trường sai bị bỏ riêng, `UsageStore.applyCodex` merge thưa. Số này không dùng làm quota evidence. Fixture JSON-RPC của app-server ở [`server/test/fixtures/codex/`](../server/test/fixtures/codex/README.md).
 
 Subagent là custom agent `.codex/agents/<tên>.toml` (đọc bằng `smol-toml`); `developer_instructions` và `model` của nó truyền bằng `-c`/`-m` ở mỗi lần mở và resume. Tuỳ chọn YAML `codex:` (`approvals-reviewer`, `network`, chỉ với `acceptEdits`/`auto`) được lưu vào phiên và truyền bằng `-c`. MCP của Codex do chính Codex đọc từ `~/.codex/config.toml`; TaskPilot không hiển thị hay chuyển.
 

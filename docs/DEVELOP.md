@@ -79,26 +79,54 @@ Ghi report với command/kết quả thật, version và đường dẫn artifac
 
 ## Bố cục mã nguồn
 
-| Đường dẫn                                | Vai trò                                                       |
-| ---------------------------------------- | ------------------------------------------------------------- |
-| `server/src/index.ts`, `app.ts`          | CLI, khởi tạo dịch vụ và đăng ký routes                       |
-| `server/src/core/`                       | Hạ tầng dùng chung, khởi chạy CLI, trạng thái và i18n         |
-| `server/src/modules/<name>/`             | Tính năng server; `index.ts` là điểm truy cập giữa các module |
-| `server/test/`                           | Kiểm thử theo cấu trúc server; tiện ích ở `helpers/`          |
-| `client/src/app/`                        | Ghép ứng dụng và bố cục                                       |
-| `client/src/features/<name>/`            | Thành phần, hooks, API, kiểu dữ liệu và CSS theo tính năng    |
-| `client/src/shared/`                     | API và UI dùng chung, router                                  |
-| `client/src/styles/`, `client/src/i18n/` | CSS nền và tài nguyên ngôn ngữ                                |
-| `workflows/<id>/`                        | Workflow tích hợp, prompt và mẫu tài liệu                     |
-| `subagents/claude/`                      | Mẫu subagent để cài vào repo người dùng                       |
-| `e2e/`                                   | Kiểm thử trình duyệt và môi trường giả lập                    |
+| Đường dẫn                                | Vai trò                                                                                                  |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `server/src/index.ts`, `app.ts`          | CLI, khởi tạo dịch vụ và đăng ký routes                                                                  |
+| `server/src/core/`                       | Hạ tầng dùng chung, trạng thái và i18n; `providers.ts` là nguồn `ProviderId`                             |
+| `server/src/core/<provider>/`            | Phần riêng của `claude`, `codex`, `copilot`: launcher, `home.ts`, `version.ts`, đọc/ghi định dạng native |
+| `server/src/modules/sessions/backends/`  | `ProviderBackend` của từng provider (trait + port), ghép core vào session                                |
+| `server/src/modules/<name>/`             | Tính năng server; `index.ts` là điểm truy cập giữa các module                                            |
+| `server/test/`                           | Kiểm thử theo cấu trúc server; tiện ích ở `helpers/`                                                     |
+| `client/src/app/`                        | Ghép ứng dụng và bố cục                                                                                  |
+| `client/src/features/<name>/`            | Thành phần, hooks, API, kiểu dữ liệu và CSS theo tính năng                                               |
+| `client/src/shared/`                     | API và UI dùng chung, router                                                                             |
+| `client/src/styles/`, `client/src/i18n/` | CSS nền và tài nguyên ngôn ngữ                                                                           |
+| `workflows/<id>/`                        | Workflow tích hợp, prompt và mẫu tài liệu                                                                |
+| `subagents/claude/`                      | Mẫu subagent để cài vào repo người dùng                                                                  |
+| `e2e/`                                   | Kiểm thử trình duyệt và môi trường giả lập                                                               |
 
 Quy tắc import được kiểm tra trong [`architecture.test.ts`](../server/test/architecture.test.ts):
 
 - `core/` không phụ thuộc module ở runtime; `shared/` không phụ thuộc `features/` hoặc `app/`; feature không phụ thuộc `app/`.
 - Truy cập module hoặc feature khác qua `index.ts` của nó.
+- `modules/workflow/**` không có edge tới `core/{claude,codex,copilot}/**`, kể cả import kiểu; dùng `providerTraits` và `SessionPort`.
 - CSS chỉ được import trong feature sở hữu, hoặc từ `app/`, `shared/`.
 - Không có vòng phụ thuộc giữa client features, kể cả import kiểu; server modules không có vòng phụ thuộc runtime.
+
+## Glossary và quy ước tên
+
+| Thuật ngữ                            | Nghĩa                                                                                                                                     | Ví dụ tên                                                                                                                                          |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Provider                             | Một coding CLI TaskPilot chạy: `claude`, `copilot`, `codex`                                                                               | `ProviderId`, `PROVIDER_IDS`, `PROVIDER_LABELS`, `DEFAULT_PROVIDER`, `isProviderId`                                                                |
+| Backend                              | Implementation provider trong tầng session                                                                                                | `ProviderBackend`, `BACKENDS`, `backendOf`                                                                                                         |
+| Trait / port                         | Metadata thuần (không I/O) / hàm tùy chọn có I/O trên backend                                                                             | `ProviderTraits`, `providerTraits(id)`, `checkSubagent`, `promptInventory`, `turnMetrics`                                                          |
+| Capability                           | Kết quả probe/khả năng của provider                                                                                                       | `ProviderCapability`, `CapabilityCheck`                                                                                                            |
+| Subagent / custom agent              | Vai trò hoặc file agent tùy chỉnh của một provider                                                                                        | `ClaudeSubagentInfo`, `CopilotAgent`, `CodexAgent`                                                                                                 |
+| App Server                           | `codex app-server` stdio, chỉ cho probe, inventory và quota                                                                               | `spawnCodexAppServer`, `CodexAppServerProcess`, `withCodexAppServer`                                                                               |
+| Launcher                             | Lệnh chạy TUI/CLI của session                                                                                                             | `codexLauncher`, `codexLaunchSettings`                                                                                                             |
+| Home CLI / home cấu hình             | Thư mục CLI tự đọc (`CODEX_HOME`, `COPILOT_HOME`) / thư mục TaskPilot đọc-ghi cấu hình (`TASKPILOT_*_HOME`); chuỗi rỗng coi như không đặt | `codexHome()`, `codexConfigHome()`, `copilotHome()`, `copilotConfigHome()`, `claudeHome()`                                                         |
+| Requested / actual model             | Model gửi qua `--model` / model provider báo lại                                                                                          | `SessionMeta.model` (wire = requested), `SessionMeta.actualModel`, `RunAttempt.actualModel`                                                        |
+| parse / read / fetch / create…Reader | Biến đổi dữ liệu có sẵn / đọc filesystem / gọi CLI, RPC, API / tạo hàm có cache                                                           | `parseHookInputs`, `parsePermissions`, `parseCopilotQuota`, `readCodexAgent`, `fetchCodexRateLimits`, `fetchCodexModels`, `createCliVersionReader` |
+| Relative / absolute dir              | Đường dẫn trong prompt / trên filesystem                                                                                                  | `taskRelativeDir`, `taskAbsoluteDir`                                                                                                               |
+
+Quy ước:
+
+- Tên nội bộ dùng `ProviderId`; không định nghĩa lại kiểu thứ hai (`Agent`, `ConfigCli`, `AgentCli`). "Agent" chỉ còn cho subagent/custom agent và nhãn UI.
+- Key wire và state giữ nguyên: `agent`, `subagent`, `model`, `cli` (query), `clis`, `codex:`, `agentUsage`, giá trị `MetricsSource`, `SessionFailure`. Đổi tên theo symbol (khai báo/import), không thay chuỗi toàn cục.
+- Server: file `kebab-case.ts`; client: component `PascalCase.tsx`, module `kebab-case.ts` (`task-status.ts`, `query-client.ts`). Mỗi file một trách nhiệm (ví dụ `config/shared/` tách `CliContext`, `ConfigChrome`, `ScopeControls`).
+- Mỗi provider có đúng một owner cho home trong `core/<provider>/home.ts`; session và transcript dùng home CLI, chỉ `modules/config/**` dùng home cấu hình.
+- Chi tiết provider ngoài `core/<provider>/` và `sessions/backends/` đi qua trait/port; `modules/workflow` không import `core/{claude,codex,copilot}`. Nhánh theo tên provider chỉ chấp nhận ở nơi khác biệt đến từ định dạng native thật (`modules/config/**`, client config) và nội dung prompt.
+- Không giữ code chỉ phục vụ test hay giao thức đã bỏ; lịch sử nằm trong git (fixture App Server đã dọn ghi commit gốc trong [README](../server/test/fixtures/codex/README.md)).
 
 ## Ngôn ngữ giao diện
 

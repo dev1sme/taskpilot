@@ -2,12 +2,9 @@ import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { AGENT_LABELS, DEFAULT_AGENT } from "../../core/agents.js";
-import { rolloutTokens } from "../../core/codex/rollout.js";
-import { listCopilotAgents } from "../../core/copilot/agents.js";
-import { copilotModels } from "../../core/copilot/models.js";
 import { HttpError } from "../../core/errors.js";
 import { getTask, TASKS_DIR, writeTaskStatus } from "../tasks/index.js";
-import { requirePreflight, type HookEvent, type SessionMetrics, type PreflightResult } from "../sessions/index.js";
+import { providerTraits, requirePreflight, type HookEvent, type SessionMetrics, type PreflightResult } from "../sessions/index.js";
 import type { SessionMeta, StateStore } from "../../core/state.js";
 import { overlaps } from "./assignments.js";
 import { loadWorkflow, modeOf, OVERRIDE_DIR, reportOf } from "./definition.js";
@@ -118,16 +115,16 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     const { def, selected, snapshot, checks } = prepared;
     const task = await getTask(repo, taskKey);
     const subagents = def.steps.some((s) => s.prompt.includes("{{subagents}}") || s.prompt.includes("{{leaderTools}}")) && this.subagents ? await this.subagents(repo) : undefined;
-    const copilots = await Promise.all(def.steps.map((step, index) => this.copilotLists(repo, def, index, step.prompt, { execution: selected.execution })));
+    const inventories = await Promise.all(def.steps.map((step, index) => this.promptInventory(repo, def, index, step.prompt, { execution: selected.execution })));
     return {
       workflow: { source: def.source, mode: modeOf(def) },
       execution: selected.execution,
       source: selected.source,
       steps: def.steps.map((step, index) => {
-        const copilot = copilots[index];
+        const inventory = inventories[index];
         const configured = resolveExecution({ workflow: def, scope: { kind: "step", stepId: step.id } });
         const effective = snapshot.steps[step.id];
-        const vars = promptVars(def, index, task, { run: { execution: selected.execution }, subagents, copilot, feedback: PROMPT_TEXT.sampleFeedback });
+        const vars = promptVars(def, index, task, { run: { execution: selected.execution }, subagents, inventory, feedback: PROMPT_TEXT.sampleFeedback });
         return {
           id: step.id,
           configured,
@@ -473,12 +470,6 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       if (fromTranscript && (lane.phase === "running" || lane.phase === "waiting")) {
         await this.store.log(run, HISTORY_TEXT.transcriptStop, { body: HISTORY_TEXT.transcriptStopBody });
       }
-      // Codex has no statusline: its TUI hooks carry the model and the rollout path, whose last `token_count` is the thread total.
-      if (meta.agent === "codex" && event === "Stop" && payload.interrupted !== true) {
-        const rollout = typeof payload.transcript_path === "string" && path.isAbsolute(payload.transcript_path) ? await rolloutTokens(payload.transcript_path) : {};
-        this.recordMetrics(run, meta, { ...rollout, model: typeof payload.model === "string" ? payload.model : undefined }, "codex-thread");
-        await this.store.save(run, {});
-      }
       if (event === "Stop" && typeof payload.last_assistant_message === "string") {
         lane.lastMessage = payload.last_assistant_message;
       }
@@ -538,7 +529,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       const run = await this.store.bySession(meta.id);
       if (run && !(await this.acceptEvent(run, meta, await fence))) return;
       if (!run) return;
-      this.recordMetrics(run, meta, { model: data.model, inputTokens: data.inputTokens, outputTokens: data.outputTokens }, meta.agent === "codex" ? "codex-thread" : "legacy");
+      this.recordMetrics(run, meta, { model: data.model, inputTokens: data.inputTokens, outputTokens: data.outputTokens }, data.source ?? "legacy");
       await this.store.save(run, {});
     });
   }
@@ -713,11 +704,11 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       this.recordExecution(run, session, sub ? { kind: "subtask", stepId: def.steps[run.stepIndex].id, n: sub.n } : { kind: "step", stepId: def.steps[run.stepIndex].id }, effective);
     }
     if (session.status !== "running") {
-      // SessionManager currently stores Codex's inferred actual model in meta.model. A default
-      // policy must still resume without an explicit model flag. Keep the actual model separately.
+      // A default policy must resume without an explicit model flag. The observed model is kept
+      // in the attempt (`actualModel`), never in the session's requested `model`.
       const attempt = run.attempts?.findLast((a) => a.sessionId === session.id);
       if (session.agent === "codex" && effective.model === undefined && attempt && attempt.execution.model === undefined) {
-        // `actualModel` is the observed model; state from before it existed stored it in `model`.
+        // legacy: state from before `SessionMeta.actualModel` stored Codex's observed model in `model`.
         const observed = session.actualModel ?? session.model;
         if (observed) attempt.actualModel = observed;
         await this.state.update((state) => {
@@ -774,7 +765,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   private watchForHooks(run: RunState, lane: Lane, sentAt: number, def: WorkflowDef): void {
     const sub = lane === run ? undefined : (lane as SubtaskRun);
     const agent = this.effective(run, def, sub).agent;
-    if (agent !== "copilot") return;
+    if (!providerTraits(agent).warnsWhenNoHook) return;
     const sessionId = lane.sessionId!;
     const promptId = lane.promptId;
     const generation = run.attempts?.findLast((attempt) => attempt.sessionId === sessionId)?.generation;
@@ -795,7 +786,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
           this.sessions.hookSeen(sessionId)
         )
           return;
-        if (target === current) await this.store.save(current, { noHook: true, message: t("run.noHook", { agent: AGENT_LABELS.copilot }) });
+        if (target === current) await this.store.save(current, { noHook: true, message: t("run.noHook", { agent: AGENT_LABELS[agent] }) });
         else {
           (target as SubtaskRun).noHook = true;
           syncDispatch(current);
@@ -821,19 +812,15 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     // Read only for a prompt that lists them: the agent folders are read on every call.
     const subagents = (template.includes("{{subagents}}") || template.includes("{{leaderTools}}")) && this.subagents ? await this.subagents(run.repo) : undefined;
     const def = await this.store.defOf(run);
-    const copilot = await this.copilotLists(run.repo, def, run.stepIndex, template, run);
-    return renderPrompt(template, promptVars(def, run.stepIndex, task, { run, previous: run.previous, subtasks: run.subtasks, subagents, copilot, ...extra }));
+    const inventory = await this.promptInventory(run.repo, def, run.stepIndex, template, run);
+    return renderPrompt(template, promptVars(def, run.stepIndex, task, { run, previous: run.previous, subtasks: run.subtasks, subagents, inventory, ...extra }));
   }
 
-  /** What a Copilot step's {{subagents}} lists; read only when the step runs on Copilot and its prompt uses the variable. An unreadable model list is not an error. */
-  private async copilotLists(repo: string, def: WorkflowDef, stepIndex: number, template: string, run?: Parameters<typeof resolveExecution>[0]["run"]) {
+  /** What a step's {{subagents}} lists of its provider's own agents and models; read only when the prompt uses the variable and the provider has such a list. */
+  private async promptInventory(repo: string, def: WorkflowDef, stepIndex: number, template: string, run?: Parameters<typeof resolveExecution>[0]["run"]) {
     if (!template.includes("{{subagents}}")) return undefined;
-    if (resolveExecution({ workflow: def, run, scope: { kind: "step", stepId: def.steps[stepIndex].id } }).agent !== "copilot") return undefined;
-    const models = await copilotModels().then(
-      (list) => list.map((m) => m.model),
-      () => null,
-    );
-    return { agents: listCopilotAgents(repo), models };
+    const { agent } = resolveExecution({ workflow: def, run, scope: { kind: "step", stepId: def.steps[stepIndex].id } });
+    return this.sessions.promptInventory?.(repo, agent);
   }
 
   private async subtaskPrompt(run: RunState, sub: SubtaskRun): Promise<string> {

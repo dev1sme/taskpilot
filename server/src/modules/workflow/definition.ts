@@ -6,6 +6,7 @@ import { AGENTS, DEFAULT_AGENT, isAgent, type Agent } from "../../core/agents.js
 import { HttpError } from "../../core/errors.js";
 import { t } from "../../core/i18n.js";
 import { MAX_PARALLEL } from "./assignments.js";
+import { providerTraits } from "../sessions/index.js";
 import { mergeOverride, type Provenance } from "./merge.js";
 import { CUSTOM_MODE, DEFAULT_MODE, WORKFLOW_FILE, isMode, listModes, modeDir } from "./modes.js";
 import { launchModel, modelProblem } from "./models.js";
@@ -407,7 +408,7 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
     } else restart = { read: read as string[] };
   }
 
-  if (permissionMode === "plan" && steps.some((s) => s.agent === "codex")) errors.push(t("codex.modeUnsupported"));
+  if (permissionMode === "plan" && steps.some((s) => s.agent !== undefined && !providerTraits(s.agent).permissionModes.includes("plan"))) errors.push(t("codex.modeUnsupported"));
   if ((codex || steps.some((s) => s.codex)) && permissionMode !== "acceptEdits" && permissionMode !== "auto") {
     warnings.push("codex options apply only with permission-mode acceptEdits or auto; Codex ignores them otherwise");
   }

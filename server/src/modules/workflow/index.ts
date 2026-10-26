@@ -55,6 +55,5 @@ export type {
 } from "./types.js";
 export { PROMPT_TEXT } from "./prompt-text.js";
 export { buildHandoff, parseHandoffRequest, type HandoffPreview, type HandoffRequest, type HandoffCommitRequest, type HandoffSanitizer } from "./handoff.js";
-export { CLAUDE_MODEL_ALIASES, isClaudeModel } from "./models.js";
 export { parseQuestions, type Question } from "./questions.js";
 export { promptVars, render, renderPrompt, templateVars } from "./vars.js";

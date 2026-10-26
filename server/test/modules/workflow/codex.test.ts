@@ -178,6 +178,7 @@ it("records the thread id, model and rollout token totals of a Codex PTY lane", 
   const engine = new WorkflowEngine(state, sessions, async () => def);
   const failures: unknown[] = [];
   sessions.on("hook", (meta, event, payload) => void engine.onHook(meta, event, payload).catch((e) => failures.push(e)));
+  sessions.on("metrics", (meta, data) => void engine.onMetrics(meta, data).catch((e) => failures.push(e)));
   await engine.start(repo, "DEMO-1");
   await vi.waitFor(async () => expect((await state.load()).runs[0].phase).toBe("gate"));
   const saved = await state.load();
@@ -193,6 +194,48 @@ it("records the thread id, model and rollout token totals of a Codex PTY lane", 
     metrics: { model: "gpt-6.1-sol", inputTokens: 100, outputTokens: 20 },
   });
   expect(run.sessionMetrics).toMatchObject([{ sessionId: run.sessionId, nativeId: meta.nativeId, source: "codex-thread", basis: "thread", metrics: { inputTokens: 100, outputTokens: 20 } }]);
+  expect(failures).toEqual([]);
+});
+
+/** `old` = state written before `SessionMeta.actualModel`: Codex's observed model sat in `model`. */
+it.each(["new", "old"] as const)("resumes without an explicit model from %s state", async (shape) => {
+  const repo = await makeRepo();
+  const state = new StateStore(await tempDir(`codex-resume-${shape}-`));
+  const sessions = await codexSessions(state);
+  const def = parseWorkflowFiles(
+    new Map([
+      ["workflow.yml", "version: 2\nagent: codex\nsteps:\n  - id: run\n    prompt: p.md\n    outputs: [{id: out, file: out.md}]\n    done-when: out\n"],
+      ["p.md", "Nothing to write"],
+    ]),
+    { dir: repo, origin: "repo" },
+  ).def!;
+  const engine = new WorkflowEngine(state, sessions, async () => def);
+  const failures: unknown[] = [];
+  sessions.on("hook", (meta, event, payload) => void engine.onHook(meta, event, payload).catch((e) => failures.push(e)));
+  sessions.on("metrics", (meta, data) => void engine.onMetrics(meta, data).catch((e) => failures.push(e)));
+  const first = await engine.start(repo, "DEMO-1");
+  await vi.waitFor(async () => expect((await state.load()).runs[0].attempts?.[0]?.actualModel).toBe("gpt-6.1-sol"));
+  const before = (await state.load()).sessions.find((s) => s.id === first.sessionId)!;
+  expect(before.model).toBeUndefined();
+  expect(before.actualModel).toBe("gpt-6.1-sol");
+  if (shape === "old") {
+    await state.update((s) => {
+      const meta = s.sessions.find((m) => m.id === first.sessionId)!;
+      meta.model = meta.actualModel;
+      delete meta.actualModel;
+      delete s.runs[0].attempts![0].actualModel;
+    });
+  }
+  await vi.waitFor(async () => expect((await state.load()).runs[0].phase).not.toBe("starting"));
+  await sessions.stopAndWait(first.sessionId);
+  await engine.retry(repo, "DEMO-1").catch((e) => failures.push(e));
+  await vi.waitFor(async () => expect((await sessions.get(first.sessionId)).status).toBe("running"));
+  const saved = await state.load();
+  const resumed = saved.sessions.find((s) => s.id === first.sessionId)!;
+  expect(resumed.nativeId).toBe(before.nativeId);
+  // The observed model never becomes a request: the resumed launch carries no model.
+  expect(resumed.model).toBeUndefined();
+  expect(saved.runs[0].attempts![0].actualModel).toBe("gpt-6.1-sol");
   expect(failures).toEqual([]);
 });
 

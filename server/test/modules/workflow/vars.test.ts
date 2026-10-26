@@ -304,14 +304,14 @@ describe("{{subagents}} for a Copilot leader", () => {
   const copilot = { agents: [{ name: "reviewer", file: "/r/reviewer.agent.md", scope: "project" as const, description: "Reviews", model: "gpt-6-sol" }], models: ["auto", "gpt-6-sol"] };
 
   it("lists the custom agents and the account models instead of the Claude agents", () => {
-    const text = promptVars(def, 0, task, { run, copilot }).subagents;
+    const text = promptVars(def, 0, task, { run, inventory: copilot }).subagents;
     expect(text).toContain("- `reviewer` (repo) — Reviews · model: gpt-6-sol");
     expect(text).toContain("`auto`, `gpt-6-sol`");
   });
 
   it("says so when the model list could not be read and keeps Claude agents for other leaders", () => {
-    expect(promptVars(def, 0, task, { run, copilot: { agents: [], models: null } }).subagents).toContain("Không đọc được danh sách model");
-    expect(promptVars(def, 0, task, { copilot }).subagents).toContain("Chưa có subagent nào dùng được");
+    expect(promptVars(def, 0, task, { run, inventory: { agents: [], models: null } }).subagents).toContain("Không đọc được danh sách model");
+    expect(promptVars(def, 0, task, { run: { execution: { agent: "claude" as const } } }).subagents).toContain("Chưa có subagent nào dùng được");
   });
 });
 

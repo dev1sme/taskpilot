@@ -98,6 +98,10 @@ describe("server import boundaries", () => {
     expect(breaking(all, (e) => /^server\/src\/(core|modules)\//.test(e.from) && /^server\/src\/(app|index)\.ts$/.test(e.to))).toEqual([]);
   });
 
+  it("workflow reaches providers through sessions, never through core/<provider>", () => {
+    expect(breaking(all, (e) => e.from.startsWith("server/src/modules/workflow/") && /^server\/src\/core\/(claude|codex|copilot)\//.test(e.to))).toEqual([]);
+  });
+
   it("modules have no runtime import cycles", () => {
     expect(
       cycles(

@@ -1,4 +1,5 @@
 import { DEFAULT_AGENT, isAgent } from "../../core/agents.js";
+import { providerTraits } from "../sessions/index.js";
 import { launchModel, modelProblem } from "./models.js";
 import type {
   AgentExecution,
@@ -104,7 +105,8 @@ export function resolveExecution({ workflow, scope, run = {}, assignment }: Reso
     source,
     modelSource: model === undefined ? "default" : "explicit",
   };
-  if (effective.agent === "codex" && effective.permissionMode === "plan") return invalid("permissionMode", "Codex does not support plan; choose a compatible configuration");
+  if (effective.permissionMode === "plan" && !providerTraits(effective.agent).permissionModes.includes("plan"))
+    return invalid("permissionMode", "Codex does not support plan; choose a compatible configuration");
   return effective;
 }
 

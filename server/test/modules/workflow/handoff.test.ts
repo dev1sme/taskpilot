@@ -212,21 +212,21 @@ describe("metrics provenance across handoff", () => {
     const source = await f.manager.get(sourceId);
     if (initialAgent === "claude") await f.engine.onStatusLine(source, { model: { id: "claude-measured" }, cost: { total_cost_usd: 0.42 } });
     else {
-      await f.engine.onMetrics(source, { model: "codex-measured", inputTokens: 100, outputTokens: 20 });
-      await f.engine.onMetrics(source, { inputTokens: 100, outputTokens: 20 });
-      await f.engine.onMetrics(source, { inputTokens: 150 });
+      await f.engine.onMetrics(source, { source: "codex-thread", model: "codex-measured", inputTokens: 100, outputTokens: 20 });
+      await f.engine.onMetrics(source, { source: "codex-thread", inputTokens: 100, outputTokens: 20 });
+      await f.engine.onMetrics(source, { source: "codex-thread", inputTokens: 150 });
     }
     f.request.target = { agent: initialAgent === "claude" ? "codex" : "claude" };
     const { preview } = await f.engine.previewHandoff(f.repo, "DEMO-1", f.request);
     const { operation } = await f.engine.commitHandoff(f.repo, "DEMO-1", f.commitRequest(preview));
     const target = await f.manager.get(operation.targetSessionId!);
     if (initialAgent === "claude") {
-      await f.engine.onMetrics(target, { model: "target-codex", inputTokens: 200, outputTokens: 30 });
-      await f.engine.onMetrics(target, { inputTokens: 200, outputTokens: 30 });
+      await f.engine.onMetrics(target, { source: "codex-thread", model: "target-codex", inputTokens: 200, outputTokens: 30 });
+      await f.engine.onMetrics(target, { source: "codex-thread", inputTokens: 200, outputTokens: 30 });
     } else await f.engine.onStatusLine(target, { model: { id: "target-claude" }, cost: { total_cost_usd: 0.9 } });
     const after = structuredClone(await f.read());
     await f.engine.onStatusLine({ ...source, agent: "claude" }, { cost: { total_cost_usd: 999 } });
-    await f.engine.onMetrics(source, { inputTokens: 999 });
+    await f.engine.onMetrics(source, { source: "codex-thread", inputTokens: 999 });
     expect(await f.read()).toEqual(after);
     const summary = summarizeMetrics(after, f.request.scope);
     expect(summary.sessions).toHaveLength(2);
@@ -264,16 +264,16 @@ describe("metrics provenance across handoff", () => {
   it("replaces cumulative counters across generations of the same native thread without adding attempts", async () => {
     const f = await transactionFixture();
     const source = await f.manager.get((await f.read()).sessionId);
-    await f.engine.onMetrics(source, { inputTokens: 100, outputTokens: 10 });
+    await f.engine.onMetrics(source, { source: "codex-thread", inputTokens: 100, outputTokens: 10 });
     await f.manager.stopAndWait(source.id);
     await f.engine.retry(f.repo, "DEMO-1");
     await vi.waitFor(async () => expect((await f.read()).phase).toBe("waiting"));
     const resumed = await f.manager.get(source.id);
     expect(resumed.nativeId).toBe(source.nativeId);
     expect(resumed.generation).toBeGreaterThan(source.generation!);
-    await f.engine.onMetrics(resumed, { inputTokens: 140, outputTokens: 14 });
-    await f.engine.onMetrics(resumed, { inputTokens: 140, outputTokens: 14 });
-    await f.engine.onMetrics(source, { inputTokens: 999 });
+    await f.engine.onMetrics(resumed, { source: "codex-thread", inputTokens: 140, outputTokens: 14 });
+    await f.engine.onMetrics(resumed, { source: "codex-thread", inputTokens: 140, outputTokens: 14 });
+    await f.engine.onMetrics(source, { source: "codex-thread", inputTokens: 999 });
     const run = await f.read();
     expect(run.attempts).toHaveLength(2);
     const usage = (await f.engine.view(f.repo, "DEMO-1")).usage!;
@@ -304,11 +304,11 @@ describe("metrics provenance across handoff", () => {
   it("counts a leader session once when reused by the next workflow step", async () => {
     const f = await transactionFixture();
     const source = await f.manager.get((await f.read()).sessionId);
-    await f.engine.onMetrics(source, { inputTokens: 100, outputTokens: 10 });
+    await f.engine.onMetrics(source, { source: "codex-thread", inputTokens: 100, outputTokens: 10 });
     await writeFile(path.join(f.repo, ".claude/tasks/DEMO-1/04-summary.md"), "first step output");
     await f.engine.onHook(source, "Stop");
     await f.engine.approve(f.repo, "DEMO-1");
-    await f.engine.onMetrics(await f.manager.get(source.id), { inputTokens: 150, outputTokens: 20 });
+    await f.engine.onMetrics(await f.manager.get(source.id), { source: "codex-thread", inputTokens: 150, outputTokens: 20 });
     const run = await f.read();
     expect(run.stepIndex).toBe(1);
     expect(run.sessionId).toBe(source.id);
@@ -325,7 +325,7 @@ describe("metrics provenance across handoff", () => {
     });
     const { preview } = await f.engine.previewHandoff(f.repo, "DEMO-1", f.request);
     const { operation } = await f.engine.commitHandoff(f.repo, "DEMO-1", f.commitRequest(preview));
-    await f.engine.onMetrics(await f.manager.get(operation.targetSessionId!), { inputTokens: 50 });
+    await f.engine.onMetrics(await f.manager.get(operation.targetSessionId!), { source: "codex-thread", inputTokens: 50 });
     const run = await f.read();
     const summary = summarizeMetrics(run);
     expect(summary.sessions.find((s) => s.sessionId === sourceId)).toMatchObject({ actualModels: [], measurements: [{ source: "legacy", basis: "unknown", metrics: { costUsd: 2.5 } }] });
@@ -638,7 +638,7 @@ describe("handoff crash recovery and lane fences", () => {
     await f.engine.onHook(source, "Stop", { last_assistant_message: "OLD" });
     await f.engine.onHook(source, "SessionStart");
     await f.engine.onExit(source);
-    await f.engine.onMetrics(source, { inputTokens: 999999 });
+    await f.engine.onMetrics(source, { source: "codex-thread", inputTokens: 999999 });
     await f.engine.onStatusLine({ ...source, agent: "claude" }, { cost: { total_cost_usd: 999 } });
     expect(await f.read()).toEqual(before);
     expect((await f.manager.get(operation.targetSessionId!)).reservation).toBeUndefined();

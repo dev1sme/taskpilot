@@ -1,4 +1,5 @@
-import type { AgentCapability, PreflightRequest, PreflightResult, SessionView, SessionCreateOptions, SessionWaitOptions } from "../sessions/index.js";
+import type { Agent } from "../../core/agents.js";
+import type { AgentCapability, PreflightRequest, ProviderPromptInventory, PreflightResult, SessionView, SessionCreateOptions, SessionWaitOptions } from "../sessions/index.js";
 import type { WorkflowDef } from "./types.js";
 import type { SubagentInfo } from "./vars.js";
 
@@ -36,6 +37,8 @@ export interface SessionPort extends Partial<SessionLifecyclePort> {
   stop(id: string): Promise<void>;
   get(id: string): Promise<SessionView>;
   paste(id: string, text: string): void;
+  /** What the leader's `{{subagents}}` lists for `agent`; absent or undefined = nothing provider-specific. Never rejects. */
+  promptInventory?(repo: string, agent: Agent): Promise<ProviderPromptInventory | undefined>;
   /** Whether the session's running process has sent a hook of its own yet. */
   hookSeen(id: string): boolean;
 }

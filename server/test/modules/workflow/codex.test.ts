@@ -1,7 +1,9 @@
 import path from "node:path";
+import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { afterAll, afterEach, expect, it, vi } from "vitest";
 import { StateStore } from "../../../src/core/state.js";
+import type { HookEvent } from "../../../src/modules/sessions/index.js";
 import { SessionManager } from "../../../src/modules/sessions/index.js";
 import { WorkflowEngine } from "../../../src/modules/workflow/engine.js";
 import { parseWorkflowFiles } from "../../../src/modules/workflow/definition.js";
@@ -9,18 +11,75 @@ import { resolveExecution } from "../../../src/modules/workflow/execution.js";
 import { subagentProblems } from "../../../src/modules/workflow/run-checks.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
-const FAKE = path.resolve(import.meta.dirname, "../../helpers/fake-codex.mjs");
+/**
+ * Stands in for the Codex TUI in a PTY: prints the footer (ready marker), then answers every pasted prompt
+ * with hooks that carry its own thread id, the model and a rollout path, like the real hooks (fixtures/codex-tui).
+ * `WRITE:<file>` writes a report (`PLAN_TABLE`: a plan with one Codex member); `INTERRUPT` fires Interrupt as Esc does.
+ * The rollout's `token_count` grows by 100 input / 20 output tokens per turn.
+ */
+const CODEX_TUI = String.raw`
+post() { printf '%s' "$2" | curl -sS -m 5 -o /dev/null -X POST -H "x-taskpilot-hook-token: $TASKPILOT_HOOK_TOKEN" -H "content-type: application/json" --data-binary @- "$TASKPILOT_HOOK_URL/$1"; }
+thread=$(cat /proc/sys/kernel/random/uuid)
+rollout="$PWD/.rollout-$thread.jsonl"
+base='"session_id":"'$thread'","model":"gpt-6.1-sol","transcript_path":"'$rollout'"'
+in=0; out=0; buf=""
+echo "gpt-6.1-sol default · ~/repo"
+while IFS= read -r line; do
+  buf="$buf$line"$'\n'
+  case "$line" in *$'\e[201~'*) ;; *) continue ;; esac
+  post UserPromptSubmit "{$base}"
+  case "$buf" in
+    *INTERRUPT*) post Stop "{$base,\"hook_event_name\":\"Interrupt\"}"; buf=""; continue ;;
+  esac
+  file=$(printf '%s' "$buf" | sed -n 's/.*WRITE:\([A-Za-z0-9_.\/-]*\).*/\1/p' | head -1)
+  if [ -n "$file" ]; then
+    mkdir -p "$(dirname "$file")"
+    case "$buf" in
+      *PLAN_TABLE*) printf '%s\n' '# Plan' '' '## 7. Phân công' '' '| # | Việc | Agent | Subagent | Model | File | Đầu ra | Phụ thuộc |' '|---|---|---|---|---|---|---|---|' '| 1 | Report | codex | - | - | server/ | Report | - |' > "$file" ;;
+      *) echo '# Report' > "$file" ;;
+    esac
+  fi
+  in=$((in+100)); out=$((out+20))
+  printf '%s\n' '{"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":'$in',"output_tokens":'$out'}}}}' >> "$rollout"
+  post Stop "{$base,\"last_assistant_message\":\"DONE\"}"
+  buf=""
+done`;
+// The pre-flight probe still asks `codex app-server` (models, login); only that call goes to the app-server stand-in.
+const FAKE_APP_SERVER = path.resolve(import.meta.dirname, "../../helpers/fake-codex.mjs");
+const codexTui = (id: string) => (id === "preflight" ? { file: process.execPath, args: [FAKE_APP_SERVER] } : { file: "/bin/bash", args: ["-c", CODEX_TUI] });
 const managers: SessionManager[] = [];
-afterEach(() => {
+const servers: http.Server[] = [];
+afterEach(async () => {
   for (const manager of managers.splice(0)) manager.closeAll();
+  await Promise.all(servers.splice(0).map((server) => new Promise((done) => server.close(done))));
 });
+
+/** A SessionManager with the stand-in TUI whose hooks reach it over a real local port, as TaskPilot's /hook routes do. */
+async function codexSessions(state: StateStore): Promise<SessionManager> {
+  let sessions!: SessionManager;
+  const server = http.createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", () => {
+      const event = (req.url ?? "").split("/").pop() as HookEvent;
+      const token = req.headers["x-taskpilot-hook-token"];
+      const payload = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as Record<string, unknown>;
+      void sessions.handleHook(typeof token === "string" ? token : "", event, payload).finally(() => res.end());
+    });
+  });
+  servers.push(server);
+  await new Promise<void>((ready) => server.listen(0, "127.0.0.1", ready));
+  const { port } = server.address() as { port: number };
+  sessions = new SessionManager(state, { launchers: { codex: codexTui }, hookUrl: () => `http://127.0.0.1:${port}/hook` });
+  managers.push(sessions);
+  return sessions;
+}
 afterAll(cleanupTempDirs);
 
 it("runs a Codex leader, dispatches a Codex member, records tokens and completes feedback/gates", async () => {
   const repo = await makeRepo();
   const state = new StateStore(await tempDir("codex-workflow-"));
-  const sessions = new SessionManager(state, { launchers: { codex: () => ({ file: process.execPath, args: [FAKE] }) } });
-  managers.push(sessions);
+  const sessions = await codexSessions(state);
   const files = new Map(
     Object.entries({
       "workflow.yml": `version: 2
@@ -86,33 +145,61 @@ it("rejects Codex plan mode in definitions and accepts Codex subagents in assign
   expect(await subagentProblems("/repo", [{ n: 1, title: "Task", agent: "codex", subagent: "reviewer", files: ["server/"], output: "report", deps: [] }])).toEqual([]);
 });
 
-it.each(["RPC_FAIL", "FAIL_TURN", "SLOW"])("keeps a failed or interrupted %s turn waiting even without done-when", async (prompt) => {
+it("keeps an interrupted (Esc) turn waiting even without done-when", async () => {
   const repo = await makeRepo();
   const state = new StateStore(await tempDir("codex-failed-run-"));
-  const sessions = new SessionManager(state, { launchers: { codex: () => ({ file: process.execPath, args: [FAKE] }) } });
-  managers.push(sessions);
+  const sessions = await codexSessions(state);
   const def = parseWorkflowFiles(
     new Map([
       ["workflow.yml", "version: 2\nagent: codex\nsteps:\n  - id: run\n    prompt: p.md\n"],
-      ["p.md", prompt],
+      ["p.md", "INTERRUPT"],
     ]),
     { dir: repo, origin: "repo" },
   ).def!;
   const engine = new WorkflowEngine(state, sessions, async () => def);
   sessions.on("hook", (meta, event, payload) => void engine.onHook(meta, event, payload));
-  const run = await engine.start(repo, "DEMO-1");
-  if (prompt === "SLOW") {
-    await vi.waitFor(async () => expect((await sessions.get(run.sessionId)).activity).toBe("busy"));
-    await sessions.interrupt(run.sessionId);
-  }
+  await engine.start(repo, "DEMO-1");
   await vi.waitFor(async () => expect((await state.load()).runs[0].phase).toBe("waiting"));
+  // An interrupted turn has no answer to measure.
+  expect((await state.load()).runs[0].sessionMetrics ?? []).toEqual([]);
+});
+
+it("records the thread id, model and rollout token totals of a Codex PTY lane", async () => {
+  const repo = await makeRepo();
+  const state = new StateStore(await tempDir("codex-attempt-"));
+  const sessions = await codexSessions(state);
+  const def = parseWorkflowFiles(
+    new Map([
+      ["workflow.yml", "version: 2\nagent: codex\nsteps:\n  - id: run\n    prompt: p.md\n    gate: approve\n"],
+      ["p.md", "WRITE:out.md"],
+    ]),
+    { dir: repo, origin: "repo" },
+  ).def!;
+  const engine = new WorkflowEngine(state, sessions, async () => def);
+  const failures: unknown[] = [];
+  sessions.on("hook", (meta, event, payload) => void engine.onHook(meta, event, payload).catch((e) => failures.push(e)));
+  await engine.start(repo, "DEMO-1");
+  await vi.waitFor(async () => expect((await state.load()).runs[0].phase).toBe("gate"));
+  const saved = await state.load();
+  const run = saved.runs[0];
+  const meta = saved.sessions.find((s) => s.id === run.sessionId)!;
+  expect(meta.nativeId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(run.attempts).toHaveLength(1);
+  expect(run.attempts![0]).toMatchObject({
+    sessionId: run.sessionId,
+    nativeId: meta.nativeId,
+    actualModel: "gpt-6.1-sol",
+    metricsSource: "codex-thread",
+    metrics: { model: "gpt-6.1-sol", inputTokens: 100, outputTokens: 20 },
+  });
+  expect(run.sessionMetrics).toMatchObject([{ sessionId: run.sessionId, nativeId: meta.nativeId, source: "codex-thread", basis: "thread", metrics: { inputTokens: 100, outputTokens: 20 } }]);
+  expect(failures).toEqual([]);
 });
 
 it("preserves legacy Codex model switches when the run has no execution or attempt fields", async () => {
   const repo = await makeRepo();
   const state = new StateStore(await tempDir("codex-legacy-switch-"));
-  const sessions = new SessionManager(state, { launchers: { codex: () => ({ file: process.execPath, args: [FAKE] }) } });
-  managers.push(sessions);
+  const sessions = await codexSessions(state);
   const def = parseWorkflowFiles(
     new Map([
       [

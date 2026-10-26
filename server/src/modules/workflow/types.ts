@@ -173,7 +173,7 @@ export type SubtaskPhase = "pending" | "starting" | "running" | "waiting" | "don
 
 /**
  * What a subtask's session reported, for the leader's review. Claude supplies model and cost;
- * Codex supplies model and cumulative thread tokens. Missing measurements stay absent.
+ * Codex supplies the hook's model and cumulative thread tokens from its rollout file (source `codex-thread`). Missing measurements stay absent.
  */
 export interface SubtaskMetrics {
   inputTokens?: number;

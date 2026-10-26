@@ -1,4 +1,4 @@
-import { scopeLabel } from "./parts";
+import { scopeLabel } from "./ScopeControls";
 import type { LibraryKind } from "../library/types";
 import type { Scope } from "./types";
 

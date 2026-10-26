@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useId, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { AGENT_LABELS } from "../../shared/agents";
+import { PROVIDER_LABELS } from "../../shared/providers";
 import { AgentBadge } from "../../shared/ui/AgentBadge";
 import { Button } from "../../shared/ui/Button";
 import { Markdown } from "../../shared/ui/Markdown";
@@ -36,7 +36,7 @@ export function GateCard(props: {
   const { taskKey, step } = props;
   const { repo } = useWorkspace();
   const effective = step.effective ?? step;
-  const agent = AGENT_LABELS[effective.agent];
+  const agent = PROVIDER_LABELS[effective.agent];
   const docQuery = useQuery({
     queryKey: ["doc", taskKey, step.doneFile, props.docVersion, repo?.path],
     queryFn: () => workspaceApi.file(taskKey, step.doneFile!),

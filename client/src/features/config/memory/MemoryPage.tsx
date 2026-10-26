@@ -5,9 +5,11 @@ import { Button } from "../../../shared/ui/Button";
 import { DiffDialog } from "../../../shared/ui/DiffDialog";
 import { clockTime } from "../../../shared/ui/Elapsed";
 import { toast } from "../../../shared/ui/Toast";
-import type { ConfigCli } from "../../../shared/router";
+import type { ProviderId } from "../../../shared/providers";
 import { clearDraft, configDraftKey, getDraft, isDirty, setDraft, useDrafts } from "../shared/drafts";
-import { backupToast, ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, ScopeTabs, useConfigCli } from "../shared/parts";
+import { backupToast, ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "../shared/ConfigChrome";
+import { DraftControls, ScopeTabs } from "../shared/ScopeControls";
+import { useConfigCli } from "../shared/CliContext";
 import { useConfig } from "../shared/useConfig";
 import { useSaveFlow } from "../shared/useSaveFlow";
 import { memoryApi } from "./api";
@@ -27,7 +29,7 @@ interface MemoryDraft {
   path: string;
 }
 
-const draftKey = (cli: ConfigCli, scope: Scope) => configDraftKey(cli, `memory:${scope}`);
+const draftKey = (cli: ProviderId, scope: Scope) => configDraftKey(cli, `memory:${scope}`);
 
 /** Instruction files for the selected CLI, editable with diff review and backups. */
 export function MemoryPage() {
@@ -35,7 +37,7 @@ export function MemoryPage() {
   return <MemoryPageForCli key={cli} cli={cli} />;
 }
 
-function MemoryPageForCli({ cli }: { cli: ConfigCli }) {
+function MemoryPageForCli({ cli }: { cli: ProviderId }) {
   const { t } = useTranslation("config");
   const { data, error, loading, reload } = useConfig(["memory", cli], () => memoryApi.memory(cli));
   const [scope, setScope] = useState<Scope>("project");
@@ -140,7 +142,7 @@ function MemoryPageForCli({ cli }: { cli: ConfigCli }) {
   );
 }
 
-function MemoryView({ file, cli }: { file: MemoryFile; cli: ConfigCli }) {
+function MemoryView({ file, cli }: { file: MemoryFile; cli: ProviderId }) {
   const { t } = useTranslation("config");
   const warnLines = new Set(file.checks.filter((c) => c.level === "warn" && c.line).map((c) => c.line));
   const importLines = new Set(file.imports.filter((i) => i.depth === 1).map((i) => i.line));

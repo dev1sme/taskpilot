@@ -1,13 +1,13 @@
 import { ArrowClockwise, Plugs, TreeStructure } from "@phosphor-icons/react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { queryClient } from "../../../shared/api/queryClient";
+import { queryClient } from "../../../shared/api/query-client";
 import { useWorkspace } from "../../workspace";
 import { locale } from "../../../i18n";
 import { Button } from "../../../shared/ui/Button";
 import { toast } from "../../../shared/ui/Toast";
 import { McpForm } from "../mcp/McpForm";
-import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "../shared/parts";
+import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "../shared/ConfigChrome";
 import { useConfig } from "../shared/useConfig";
 import { codegraphApi } from "./api";
 import { mcpApi } from "../mcp/api";

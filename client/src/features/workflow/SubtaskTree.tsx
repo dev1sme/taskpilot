@@ -2,7 +2,7 @@ import { ArrowClockwise, CheckCircle, Circle, FileText, HandPalm, PlugsConnected
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { AGENT_LABELS } from "../../shared/agents";
+import { PROVIDER_LABELS } from "../../shared/providers";
 import { AgentBadge } from "../../shared/ui/AgentBadge";
 import { Button } from "../../shared/ui/Button";
 import { formatDuration } from "../../shared/ui/Elapsed";
@@ -165,7 +165,7 @@ function SubtaskRow(props: TreeProps & { sub: SubtaskRun }) {
       <div className="subtask-main">
         <p className="subtask-title">
           <span className="subtask-num">{sub.n}.</span> {sub.title} <AgentBadge agent={effective.agent} />
-          {!blocked && sub.noHook && sub.phase !== "done" && <span className="subtask-nohook">{t("subtasks.noHook", { agent: AGENT_LABELS[effective.agent] })}</span>}
+          {!blocked && sub.noHook && sub.phase !== "done" && <span className="subtask-nohook">{t("subtasks.noHook", { agent: PROVIDER_LABELS[effective.agent] })}</span>}
           <span className={`subtask-phase phase-${sub.phase}`}>{permission ? t("subtasks.permission") : t(`subtasks.phase.${sub.phase}`)}</span>
         </p>
         <p className="subtask-meta">
@@ -184,7 +184,7 @@ function SubtaskRow(props: TreeProps & { sub: SubtaskRun }) {
           )
         )}
         {!blocked && sub.phase === "waiting" && (
-          <ReplyForm send={(text) => workflowApi.replySubtask(props.taskKey, sub.n, text)} questions={questions} agent={AGENT_LABELS[effective.agent]} onChanged={props.onChanged} />
+          <ReplyForm send={(text) => workflowApi.replySubtask(props.taskKey, sub.n, text)} questions={questions} agent={PROVIDER_LABELS[effective.agent]} onChanged={props.onChanged} />
         )}
         {error && (
           <p className="error" role="alert">

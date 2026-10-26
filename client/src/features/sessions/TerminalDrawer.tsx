@@ -2,7 +2,7 @@ import { ArrowClockwise, CaretDown, CaretUp, HandPalm, Plus, Stop, TerminalWindo
 import { AnimatePresence, motion } from "motion/react";
 import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AGENT_LABELS, AGENTS, type Agent } from "../../shared/agents";
+import { PROVIDER_LABELS, PROVIDER_IDS, type ProviderId } from "../../shared/providers";
 import { AgentBadge } from "../../shared/ui/AgentBadge";
 import { Button, SrOnly } from "../../shared/ui/Button";
 import "./sessions.css";
@@ -20,7 +20,7 @@ interface Props {
   /** Hint shown while there is no session yet. */
   emptyHint: string;
   /** Starts a new session of `agent` in this drawer's scope. */
-  onCreate: (agent: Agent) => Promise<SessionView>;
+  onCreate: (agent: ProviderId) => Promise<SessionView>;
   sessions: SessionView[];
   activeId: string | null;
   open: boolean;
@@ -125,11 +125,11 @@ export function TerminalDrawer(props: Props) {
             </button>
             {choosing && (
               <div id={menuId} className="drawer-add-menu" role="group" aria-label={t("newWith")}>
-                {AGENTS.map((agent) => (
+                {PROVIDER_IDS.map((agent) => (
                   <button
                     key={agent}
                     type="button"
-                    autoFocus={agent === AGENTS[0]}
+                    autoFocus={agent === PROVIDER_IDS[0]}
                     onClick={() => {
                       setChoosing(false);
                       void act("create", async () => {
@@ -139,7 +139,7 @@ export function TerminalDrawer(props: Props) {
                       });
                     }}
                   >
-                    {t("newAgent", { agent: AGENT_LABELS[agent] })}
+                    {t("newAgent", { agent: PROVIDER_LABELS[agent] })}
                   </button>
                 ))}
               </div>

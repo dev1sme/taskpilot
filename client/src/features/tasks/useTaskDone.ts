@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { queryClient } from "../../shared/api/queryClient";
+import { queryClient } from "../../shared/api/query-client";
 import { workflowApi } from "../workflow";
 
 /** Marks a task done or reopens it (task.yml), then refreshes the task list without waiting for the watcher. */

@@ -2,7 +2,7 @@ import { Plus, X } from "@phosphor-icons/react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { clearDraft, setDraft } from "../shared/drafts";
-import { backupToast, RuleChip } from "../shared/parts";
+import { backupToast, RuleChip } from "../shared/ConfigChrome";
 import { useSaveFlow } from "../shared/useSaveFlow";
 import { settingsApi } from "./api";
 import type { Permissions } from "./types";

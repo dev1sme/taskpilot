@@ -1,6 +1,7 @@
 import { Fragment } from "react";
 import { useTranslation } from "react-i18next";
-import { isCliConfigSection, type ConfigCli, type ConfigSection } from "../../shared/router";
+import type { ProviderId } from "../../shared/providers";
+import { isCliConfigSection, type ConfigSection } from "../../shared/router";
 import { call } from "../../shared/api/http";
 import { useWorkspace } from "../workspace";
 import { CodegraphPage } from "./codegraph/CodegraphPage";
@@ -10,19 +11,20 @@ import { LibraryPage } from "./library/LibraryPage";
 import { McpPage } from "./mcp/McpPage";
 import { MemoryPage } from "./memory/MemoryPage";
 import { SettingsPage } from "./settings/SettingsPage";
-import { CapabilityNotice, CliSelector, ConfigCliContext, ConfigHeader, type SectionCapability } from "./shared/parts";
+import { CapabilityNotice, CliSelector, ConfigCliContext, type SectionCapability } from "./shared/CliContext";
+import { ConfigHeader } from "./shared/ConfigChrome";
 import { useConfig } from "./shared/useConfig";
 import { WorkflowPage } from "./workflow/WorkflowPage";
 // After the pages: the narrow-screen rules override their layouts.
 import "./shared/responsive.css";
 
 interface CapabilitiesResponse {
-  cli: ConfigCli;
+  cli: ProviderId;
   sections: Partial<Record<ConfigSection, SectionCapability>>;
 }
 
 /** Native CLI configuration and TaskPilot's shared pages. */
-export function ConfigPage({ section, file, cli = "claude" }: { section: ConfigSection; file?: string; cli?: ConfigCli }) {
+export function ConfigPage({ section, file, cli = "claude" }: { section: ConfigSection; file?: string; cli?: ProviderId }) {
   const { repo } = useWorkspace();
   // Keyed by repo: switching repo mounts the page afresh, so nothing picked or half-filled for the old
   // repo (an open form, a selected item) carries over. Drafts are kept per repo in `drafts.ts`.
@@ -31,7 +33,7 @@ export function ConfigPage({ section, file, cli = "claude" }: { section: ConfigS
   return <Fragment key={repo.path ?? ""}>{isCliConfigSection(section) ? <NativeSection section={section} cli={cli} /> : <Section section={section} file={file} />}</Fragment>;
 }
 
-function NativeSection({ section, cli }: { section: ConfigSection; cli: ConfigCli }) {
+function NativeSection({ section, cli }: { section: ConfigSection; cli: ProviderId }) {
   const { t } = useTranslation("shell");
   const { data, error, loading } = useConfig(["config-capabilities", cli], () => call<CapabilitiesResponse>("GET", `/api/config/capabilities?cli=${cli}`));
   const capability = data?.sections[section] ?? null;

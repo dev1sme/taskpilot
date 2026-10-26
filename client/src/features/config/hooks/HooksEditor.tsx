@@ -1,7 +1,7 @@
 import { Plus, Trash } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import { Button } from "../../../shared/ui/Button";
-import { backupToast } from "../shared/parts";
+import { backupToast } from "../shared/ConfigChrome";
 import { clearDraft, setDraft } from "../shared/drafts";
 import { useSaveFlow } from "../shared/useSaveFlow";
 import { hooksApi } from "./api";

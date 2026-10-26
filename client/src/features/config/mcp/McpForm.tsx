@@ -5,8 +5,8 @@ import { createPortal } from "react-dom";
 import { Button } from "../../../shared/ui/Button";
 import { DiffDialog } from "../../../shared/ui/DiffDialog";
 import { toast } from "../../../shared/ui/Toast";
-import type { ConfigCli } from "../../../shared/router";
-import { ScopeTag } from "../shared/parts";
+import type { ProviderId } from "../../../shared/providers";
+import { ScopeTag } from "../shared/ScopeControls";
 import { useSaveFlow } from "../shared/useSaveFlow";
 import { mcpApi } from "./api";
 import type { McpEntryForm, McpEntryInput } from "./types";
@@ -34,7 +34,7 @@ const toRows = (values: McpEntryForm["env"]): Row[] => values.map((v) => ({ key:
  * TaskPilot's env store and .mcp.json gets `${VAR}`.
  */
 export function McpForm(props: {
-  cli?: ConfigCli;
+  cli?: ProviderId;
   scope: Scope;
   base: McpEntryForm | null;
   baseHash: string;
@@ -175,7 +175,7 @@ export function McpForm(props: {
   );
 }
 
-function ValueRows(props: { title: string; rows: Row[]; onChange: (rows: Row[]) => void; scope: Scope; cli: ConfigCli; keyPlaceholder: string }) {
+function ValueRows(props: { title: string; rows: Row[]; onChange: (rows: Row[]) => void; scope: Scope; cli: ProviderId; keyPlaceholder: string }) {
   const { t } = useTranslation("config");
   const update = (i: number, patch: Partial<Row>) => props.onChange(props.rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   return (

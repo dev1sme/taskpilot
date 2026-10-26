@@ -2,7 +2,7 @@ import { ArrowClockwise, ArrowCounterClockwise, ChatCircleDots, CheckCircle, Fil
 import { AnimatePresence, motion } from "motion/react";
 import { useState, type ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { AGENT_LABELS } from "../../shared/agents";
+import { PROVIDER_LABELS } from "../../shared/providers";
 import { Button } from "../../shared/ui/Button";
 import { Elapsed, formatDuration } from "../../shared/ui/Elapsed";
 import { CategoryIcon, type ActivityItem } from "../activity";
@@ -90,7 +90,7 @@ export function NowCard(props: Props) {
   );
   const markDone = !blocked && run?.noHook && step?.doneFile && <MarkDoneButton complete={() => workflowApi.completeStep(props.taskKey)} onChanged={props.onChanged} onError={setError} />;
   /** Run strings name the agent of the current step (of the first one before a run). */
-  const agent = AGENT_LABELS[(step ?? props.steps[0])?.agent ?? "claude"];
+  const agent = PROVIDER_LABELS[(step ?? props.steps[0])?.agent ?? "claude"];
   const effectiveLine = run && (
     <>
       <p className="now-sub">{t("selection.effective", { agent, model: step?.effective?.model ?? step?.model ?? t("selection.defaultModel") })}</p>

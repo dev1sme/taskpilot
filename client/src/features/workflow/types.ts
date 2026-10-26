@@ -1,8 +1,8 @@
-import type { Agent } from "../../shared/agents";
+import type { ProviderId } from "../../shared/providers";
 import type { RunPhase } from "../workspace";
 
 /** A complete choice: absent model means no model flag, never inheritance from the workflow. */
-export type AgentExecution = { agent: Agent; model?: string };
+export type AgentExecution = { agent: ProviderId; model?: string };
 export type ExecutionSelection = { agent: "workflow"; model?: never } | AgentExecution;
 export type ExecutionSelectionSource = "request" | "repo" | "workflow";
 export type ExecutionSource = "workflow" | "assignment" | "execution" | "lane-override";
@@ -61,7 +61,7 @@ export type UsageTotals = Pick<SubtaskMetrics, "inputTokens" | "outputTokens" | 
 export interface SessionMetricSnapshot {
   sessionId: string;
   nativeId?: string;
-  agent?: Agent;
+  agent?: ProviderId;
   generation?: number;
   source: "claude-statusline" | "codex-thread" | "legacy";
   basis: "session" | "thread" | "unknown";
@@ -72,7 +72,7 @@ export interface MetricsSummary {
   sessions: Array<{
     sessionId: string;
     nativeId?: string;
-    agent?: Agent;
+    agent?: ProviderId;
     attemptIds: string[];
     scopes: LaneScope[];
     actualModels: string[];
@@ -175,7 +175,7 @@ export type SubtaskPhase = "pending" | "starting" | "running" | "waiting" | "don
 export interface Assignment {
   n: number;
   title: string;
-  agent: Agent;
+  agent: ProviderId;
   /** Subagent the whole session runs as (--agent); absent = the agent itself. */
   subagent?: string;
   /** Model as written in the table; absent = the subagent's or the user's default. */
@@ -227,7 +227,7 @@ export interface WorkflowStep {
   id: string;
   title: string;
   /** The agent that runs the step. */
-  agent: Agent;
+  agent: ProviderId;
   model?: string;
   effective?: EffectiveExecution;
   gate: "approve" | "none";
@@ -263,11 +263,11 @@ export interface ExecutionDefaults {
 export interface CapabilityCheck {
   status: "supported" | "unsupported" | "unknown";
   source: string;
-  error?: { code: string; agent: Agent; field: string; message: string };
+  error?: { code: string; agent: ProviderId; field: string; message: string };
 }
 
 export interface AgentCapability {
-  agent: Agent;
+  agent: ProviderId;
   checkedAt: number;
   cli: CapabilityCheck & { version?: string };
   login: CapabilityCheck;

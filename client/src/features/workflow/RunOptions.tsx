@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { AGENTS, AGENT_LABELS, type Agent } from "../../shared/agents";
+import { PROVIDER_IDS, PROVIDER_LABELS, type ProviderId } from "../../shared/providers";
 import { Button } from "../../shared/ui/Button";
 import { useWorkspace } from "../workspace";
 import { workflowApi } from "./api";
@@ -94,12 +94,12 @@ function OptionsForm({ taskKey, initial, disabled, children }: Props) {
           <select
             value={execution.agent}
             disabled={lock || !defaults.data}
-            onChange={(event) => change({ ...value, execution: { agent: event.target.value as Agent | "workflow" } as ExecutionSelection })}
+            onChange={(event) => change({ ...value, execution: { agent: event.target.value as ProviderId | "workflow" } as ExecutionSelection })}
           >
             <option value="workflow">{t("selection.workflow")}</option>
-            {AGENTS.map((agent) => (
+            {PROVIDER_IDS.map((agent) => (
               <option key={agent} value={agent}>
-                {AGENT_LABELS[agent]}
+                {PROVIDER_LABELS[agent]}
               </option>
             ))}
           </select>
@@ -132,7 +132,7 @@ function OptionsForm({ taskKey, initial, disabled, children }: Props) {
       </p>
       {execution.agent !== "workflow" && <p className="now-sub">{t("selection.defaultHint")}</p>}
       {execution.agent !== "workflow" && (capability?.models.status !== "supported" || capability?.login.status === "unknown") && (
-        <p className="now-sub">{t("selection.unverified", { agent: AGENT_LABELS[execution.agent] })}</p>
+        <p className="now-sub">{t("selection.unverified", { agent: PROVIDER_LABELS[execution.agent] })}</p>
       )}
       {capability?.cli.error && (
         <p className="error" role="alert">
@@ -206,9 +206,9 @@ function OptionsForm({ taskKey, initial, disabled, children }: Props) {
           <ul>
             {shown.steps.map((step) => (
               <li key={step.id}>
-                <strong>{step.id}</strong>: {AGENT_LABELS[step.configured.agent]} / {step.configured.model ?? t("selection.defaultModel")}
+                <strong>{step.id}</strong>: {PROVIDER_LABELS[step.configured.agent]} / {step.configured.model ?? t("selection.defaultModel")}
                 {" → "}
-                {AGENT_LABELS[step.effective.agent]} / {step.effective.model ?? t("selection.defaultModel")}
+                {PROVIDER_LABELS[step.effective.agent]} / {step.effective.model ?? t("selection.defaultModel")}
                 {" · "}
                 {t("selection.permission", { value: step.effective.permissionMode ?? "default" })}
                 {step.effective.subagent && ` · ${step.effective.subagent}`}

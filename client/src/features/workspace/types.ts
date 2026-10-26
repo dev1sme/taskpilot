@@ -1,4 +1,4 @@
-import type { Agent } from "../../shared/agents";
+import type { ProviderId } from "../../shared/providers";
 
 /** How far a task got, read by the server from the documents its workflow declares. */
 export interface Stage {
@@ -35,7 +35,7 @@ export interface TaskSummary {
 export interface Info {
   claudeVersion: string | null;
   /** Version of each agent's command; null when it is not installed. */
-  versions?: Partial<Record<Agent, string | null>>;
+  versions?: Partial<Record<ProviderId, string | null>>;
 }
 
 /** Read-only summary of the repo's Claude Code configuration. */

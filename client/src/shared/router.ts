@@ -1,18 +1,18 @@
 import { useEffect, useState } from "react";
+import type { ProviderId } from "./providers";
 
-export type ConfigCli = "claude" | "copilot" | "codex";
 export type Route =
-  { page: "overview" } | { page: "tasks" } | { page: "task"; key: string } | { page: "config"; section: ConfigSection; file?: string; cli?: ConfigCli } | { page: "backups" };
+  { page: "overview" } | { page: "tasks" } | { page: "task"; key: string } | { page: "config"; section: ConfigSection; file?: string; cli?: ProviderId } | { page: "backups" };
 
 export type ConfigSection = "memory" | "settings" | "hooks" | "agents" | "commands" | "skills" | "workflow" | "formats" | "mcp" | "codegraph";
 
 const CONFIG: ConfigSection[] = ["memory", "settings", "hooks", "agents", "commands", "skills", "workflow", "formats", "mcp", "codegraph"];
 const SHARED: ConfigSection[] = ["workflow", "formats", "codegraph"];
-const CLIS: ConfigCli[] = ["claude", "copilot", "codex"];
-let selectedCli: ConfigCli = "claude";
+const CLIS: ProviderId[] = ["claude", "copilot", "codex"];
+let selectedCli: ProviderId = "claude";
 
 export const isCliConfigSection = (section: ConfigSection): boolean => !SHARED.includes(section);
-export const selectedConfigCli = (): ConfigCli => selectedCli;
+export const selectedConfigCli = (): ProviderId => selectedCli;
 
 /** Hash routes keep the server a plain static host: #/, #/tasks, #/tasks/PROJ-1, #/mcp, #/workflow/format-plan.md … */
 export function parseRoute(hash: string): Route {

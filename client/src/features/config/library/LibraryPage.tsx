@@ -6,11 +6,13 @@ import { useWorkspace } from "../../workspace";
 import { Button } from "../../../shared/ui/Button";
 import { DiffDialog } from "../../../shared/ui/DiffDialog";
 import i18n from "../../../i18n";
-import type { ConfigCli } from "../../../shared/router";
+import type { ProviderId } from "../../../shared/providers";
 import { Markdown } from "../../../shared/ui/Markdown";
 import { toast } from "../../../shared/ui/Toast";
 import { clearDraft, configDraftKey, getDraft, setDraft, useDrafts } from "../shared/drafts";
-import { backupToast, ConfigHeader, ConfigToolbar, DraftControls, EmptyCard, LoadError, PageTabs, ScopeTabs, ScopeTag, useConfigCli } from "../shared/parts";
+import { backupToast, ConfigHeader, ConfigToolbar, EmptyCard, LoadError, PageTabs } from "../shared/ConfigChrome";
+import { DraftControls, ScopeTabs, ScopeTag } from "../shared/ScopeControls";
+import { useConfigCli } from "../shared/CliContext";
 import { shadowedBy } from "../shared/precedence";
 import { useConfig } from "../shared/useConfig";
 import { useSaveFlow } from "../shared/useSaveFlow";
@@ -38,10 +40,10 @@ function useCopy(kind: LibraryKind) {
 }
 
 type LibraryScope = LibraryItem["scope"];
-const libraryScopes = (cli: ConfigCli, kind: LibraryKind): readonly LibraryScope[] => (cli === "codex" && kind === "agents" ? ["project"] : ["project", "user"]);
+const libraryScopes = (cli: ProviderId, kind: LibraryKind): readonly LibraryScope[] => (cli === "codex" && kind === "agents" ? ["project"] : ["project", "user"]);
 
 /** Folder of `kind` in `scope`, as the tab and the new-item dialog show it. */
-const scopeDir = (cli: ConfigCli, kind: LibraryKind, scope: LibraryScope) => {
+const scopeDir = (cli: ProviderId, kind: LibraryKind, scope: LibraryScope) => {
   if (cli === "claude") return scope === "project" ? `.claude/${kind}` : `~/.claude/${kind}`;
   if (cli === "codex") return kind === "agents" ? ".codex/agents" : scope === "project" ? ".agents/skills" : "~/.agents/skills";
   if (kind === "agents") return scope === "project" ? ".github/agents" : "~/.copilot/agents";
@@ -49,7 +51,7 @@ const scopeDir = (cli: ConfigCli, kind: LibraryKind, scope: LibraryScope) => {
 };
 
 /** Starting content for a new item; the user edits it before the first save. Placeholders follow the UI language. */
-function template(cli: ConfigCli, kind: LibraryKind, name: string): string {
+function template(cli: ProviderId, kind: LibraryKind, name: string): string {
   const base = name.split("/").pop() ?? name;
   const t = i18n.getFixedT(null, "config", "library.template");
   if (kind === "agents") {
@@ -62,7 +64,7 @@ function template(cli: ConfigCli, kind: LibraryKind, name: string): string {
   return `---\nname: ${base}\ndescription: ${t("skillDescription")}\n---\n\n# ${base}\n\n${t("skillBody")}\n`;
 }
 
-function relFor(cli: ConfigCli, kind: LibraryKind, name: string): string {
+function relFor(cli: ProviderId, kind: LibraryKind, name: string): string {
   return kind === "skills" ? `${name}/SKILL.md` : cli === "codex" ? `${name}.toml` : cli === "copilot" ? `${name}.agent.md` : `${name}.md`;
 }
 
@@ -76,12 +78,12 @@ interface LibraryDraft {
   isNew: boolean;
 }
 
-const draftKey = (cli: ConfigCli, kind: LibraryKind) => configDraftKey(cli, `library:${kind}`);
+const draftKey = (cli: ProviderId, kind: LibraryKind) => configDraftKey(cli, `library:${kind}`);
 
 const KINDS: readonly LibraryKind[] = ["agents", "commands", "skills"];
 
 /** Switches between the three library sections; each tab is the section's own route. */
-function KindTabs({ cli, kind }: { cli: ConfigCli; kind: LibraryKind }) {
+function KindTabs({ cli, kind }: { cli: ProviderId; kind: LibraryKind }) {
   const { t } = useTranslation("config");
   const tabs = KINDS.filter((k) => cli === "claude" || k !== "commands").map((k) => ({
     route: { page: "config", section: k, cli } as const,
@@ -97,7 +99,7 @@ export function LibraryPage({ kind }: { kind: LibraryKind }) {
   return <LibraryPageForCli key={`${cli}:${kind}`} cli={cli} kind={kind} />;
 }
 
-function LibraryPageForCli({ cli, kind }: { cli: ConfigCli; kind: LibraryKind }) {
+function LibraryPageForCli({ cli, kind }: { cli: ProviderId; kind: LibraryKind }) {
   const { t } = useTranslation("config");
   const { data, error, loading, reload } = useConfig(["library", cli, kind], () => libraryApi.library(cli, kind));
   const { reloadInventory } = useWorkspace();
@@ -271,7 +273,7 @@ function LibraryPageForCli({ cli, kind }: { cli: ConfigCli; kind: LibraryKind })
   );
 }
 
-function LibraryEditor({ cli, draft }: { cli: ConfigCli; draft: LibraryDraft }) {
+function LibraryEditor({ cli, draft }: { cli: ProviderId; draft: LibraryDraft }) {
   const { t } = useTranslation("config");
   return (
     <section className="card lib-editor" aria-label={t("library.editLabel", { path: draft.path })}>
@@ -286,7 +288,7 @@ function LibraryEditor({ cli, draft }: { cli: ConfigCli; draft: LibraryDraft }) 
   );
 }
 
-function LibraryDetail({ cli, item, prefix, onEdit, onDeleted }: { cli: ConfigCli; item: LibraryItem; prefix: string; onEdit: () => void; onDeleted: () => void }) {
+function LibraryDetail({ cli, item, prefix, onEdit, onDeleted }: { cli: ProviderId; item: LibraryItem; prefix: string; onEdit: () => void; onDeleted: () => void }) {
   const { t } = useTranslation("config");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -372,7 +374,7 @@ function LibraryDetail({ cli, item, prefix, onEdit, onDeleted }: { cli: ConfigCl
   );
 }
 
-function NewItemDialog(props: { open: boolean; cli: ConfigCli; kind: LibraryKind; scope: LibraryScope; onClose: () => void; onCreate: (name: string) => Promise<void> }) {
+function NewItemDialog(props: { open: boolean; cli: ProviderId; kind: LibraryKind; scope: LibraryScope; onClose: () => void; onCreate: (name: string) => Promise<void> }) {
   const { t } = useTranslation(["config", "common"]);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);

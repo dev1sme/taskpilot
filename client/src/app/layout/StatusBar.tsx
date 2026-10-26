@@ -2,7 +2,7 @@ import { Gauge, HandPalm, TerminalWindow } from "@phosphor-icons/react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { AGENT_LABELS } from "../../shared/agents";
+import { PROVIDER_LABELS } from "../../shared/providers";
 import { href } from "../../shared/router";
 import { useWorkspace } from "../../features/workspace";
 import { locale } from "../../i18n";
@@ -137,7 +137,7 @@ function UsageButton({ usage }: { usage: UsageView }) {
         <div className="usage-popover" id={panelId} ref={panelRef} role="dialog" aria-label={t("status.usageDialog")} tabIndex={-1}>
           <section className="usage-agent">
             <header className="usage-agent-head">
-              <h2>{AGENT_LABELS.claude}</h2>
+              <h2>{PROVIDER_LABELS.claude}</h2>
               <span className="usage-version">{claudeVersion}</span>
             </header>
             <p className="usage-scope">{t("status.usageTitle")}</p>
@@ -147,7 +147,7 @@ function UsageButton({ usage }: { usage: UsageView }) {
           {copilotQuota && copilot && (
             <section className="usage-agent">
               <header className="usage-agent-head">
-                <h2>{AGENT_LABELS.copilot}</h2>
+                <h2>{PROVIDER_LABELS.copilot}</h2>
                 {copilotVersion && <span className="usage-version">{copilotVersion}</span>}
               </header>
               <p className="usage-scope">
@@ -160,7 +160,7 @@ function UsageButton({ usage }: { usage: UsageView }) {
           {codexUsage && codex.length > 0 && (
             <section className="usage-agent">
               <header className="usage-agent-head">
-                <h2>{AGENT_LABELS.codex}</h2>
+                <h2>{PROVIDER_LABELS.codex}</h2>
                 {codexVersion && <span className="usage-version">{codexVersion}</span>}
               </header>
               <p className="usage-scope">{t("status.codexUsageTitle")}</p>

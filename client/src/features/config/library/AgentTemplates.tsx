@@ -2,10 +2,10 @@ import { Eye, Robot, X } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { ConfigCli } from "../../../shared/router";
+import type { ProviderId } from "../../../shared/providers";
 import { Button } from "../../../shared/ui/Button";
 import { DiffDialog } from "../../../shared/ui/DiffDialog";
-import { backupToast } from "../shared/parts";
+import { backupToast } from "../shared/ConfigChrome";
 import { libraryApi } from "./api";
 import type { AgentCheck, AgentTemplate } from "./types";
 import "../../../shared/ui/dialog.css";
@@ -13,7 +13,7 @@ import "../../../shared/ui/icon-button.css";
 import "./agents.css";
 
 /** Shown on the agents page when the repo has no agent of its own: TaskPilot's templates are one click away. */
-export function NoAgentsBanner({ cli, onInstall }: { cli: ConfigCli; onInstall: () => void }) {
+export function NoAgentsBanner({ cli, onInstall }: { cli: ProviderId; onInstall: () => void }) {
   const { t } = useTranslation("config");
   return (
     <section className="agents-banner" aria-label={t("library.templates.bannerTitle")}>
@@ -48,7 +48,7 @@ export function CheckPill({ check }: { check: AgentCheck }) {
 }
 
 /** What TaskPilot found in the agent: whether a workflow can use it, as what, and why not. */
-export function CheckSection({ cli, check }: { cli: ConfigCli; check: AgentCheck }) {
+export function CheckSection({ cli, check }: { cli: ProviderId; check: AgentCheck }) {
   const { t } = useTranslation("config");
   return (
     <section className={`agent-check is-${check.status}`} aria-label={t("library.check.title")}>
@@ -77,7 +77,7 @@ export function CheckSection({ cli, check }: { cli: ConfigCli; check: AgentCheck
  * Writes TaskPilot's subagents to the selected CLI's project agent directory. A file the
  * repo already has is only overwritten when ticked; every write leaves a backup.
  */
-export function TemplatesDialog(props: { cli: ConfigCli; open: boolean; onClose: () => void; onInstalled: () => void }) {
+export function TemplatesDialog(props: { cli: ProviderId; open: boolean; onClose: () => void; onInstalled: () => void }) {
   const { t } = useTranslation(["config", "common"]);
   const [templates, setTemplates] = useState<AgentTemplate[] | null>(null);
   const [chosen, setChosen] = useState<Set<string>>(new Set());

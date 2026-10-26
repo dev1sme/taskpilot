@@ -7,7 +7,7 @@ import { Button } from "../../shared/ui/Button";
 import { clockTime } from "../../shared/ui/Elapsed";
 import { PageHeader } from "../../shared/ui/PageHeader";
 import { Toolbar } from "../../shared/ui/Toolbar";
-import { matchesFilter, runActive, sortTasks, statusOf, type TaskFilter } from "./taskStatus";
+import { matchesFilter, runActive, sortTasks, statusOf, type TaskFilter } from "./task-status";
 import { useTaskDone } from "./useTaskDone";
 import "../../shared/ui/table.css";
 import "./tasks.css";

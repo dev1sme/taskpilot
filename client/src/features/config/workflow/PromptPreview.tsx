@@ -2,7 +2,7 @@ import { Play } from "@phosphor-icons/react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "../../../shared/ui/Button";
-import { AGENT_LABELS } from "../../../shared/agents";
+import { PROVIDER_LABELS } from "../../../shared/providers";
 import { useWorkspace } from "../../workspace";
 import type { ExecutionSelection } from "../../workflow";
 import { getDraft, useDrafts } from "../shared/drafts";
@@ -115,7 +115,7 @@ function PreviewForm({ config, execution }: { config: WorkflowConfig; execution?
         <>
           <p className="field-help">{t("workflow.preview.sample", { key: result.task.key, title: result.task.title })}</p>
           <p className="field-help">
-            {t("workflow.preview.effective", { agent: AGENT_LABELS[result.effective.agent], model: result.effective.model ?? t("workflow.preview.defaultModel") })}
+            {t("workflow.preview.effective", { agent: PROVIDER_LABELS[result.effective.agent], model: result.effective.model ?? t("workflow.preview.defaultModel") })}
           </p>
           <pre className="wf-rendered">{result.text}</pre>
         </>

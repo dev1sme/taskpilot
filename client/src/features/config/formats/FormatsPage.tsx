@@ -4,7 +4,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { href, navigate } from "../../../shared/router";
 import { Button } from "../../../shared/ui/Button";
 import { Markdown } from "../../../shared/ui/Markdown";
-import { ConfigHeader, ConfigToolbar, LoadError, WorkflowTabs } from "../shared/parts";
+import { ConfigHeader, ConfigToolbar, LoadError, WorkflowTabs } from "../shared/ConfigChrome";
 import { useConfig } from "../shared/useConfig";
 import { workflowConfigApi } from "../workflow/api";
 import type { WorkflowConfig } from "../workflow/types";

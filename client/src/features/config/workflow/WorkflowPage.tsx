@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { DiffDialog } from "../../../shared/ui/DiffDialog";
-import { ConfigHeader, ConfigToolbar, LoadError, WorkflowTabs } from "../shared/parts";
-import { Checks } from "./Checks";
+import { ConfigHeader, ConfigToolbar, LoadError, WorkflowTabs } from "../shared/ConfigChrome";
+import { Checks } from "./WorkflowValidation";
 import { FileEditor } from "./FileEditor";
 import { FileNav } from "./FileNav";
 import { FileView } from "./FileView";
@@ -9,7 +9,7 @@ import { LegacyBanner } from "./LegacyBanner";
 import { PromptPreview } from "./PromptPreview";
 import { useWorkflowPage } from "./useWorkflowPage";
 import { WorkflowActions } from "./WorkflowActions";
-import { ModeBar, OriginBadge, OverrideGuide } from "./WorkflowParts";
+import { ModeBar, OriginBadge, OverrideGuide } from "./WorkflowOrigin";
 import "../shared/code-view.css";
 import "../shared/library-view.css";
 import "./workflow.css";

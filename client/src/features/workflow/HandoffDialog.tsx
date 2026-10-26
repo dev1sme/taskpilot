@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { AGENTS, AGENT_LABELS, type Agent } from "../../shared/agents";
+import { PROVIDER_IDS, PROVIDER_LABELS, type ProviderId } from "../../shared/providers";
 import { formatDuration } from "../../shared/ui/Elapsed";
 import { Button } from "../../shared/ui/Button";
 import { useWorkspace } from "../workspace";
@@ -121,7 +121,7 @@ export function HandoffDialog({ taskKey, scope, execution, onChanged, onClose }:
   };
   const locked = busy || !!request;
   const describe = (value: EffectiveExecution) =>
-    `${AGENT_LABELS[value.agent]} · ${value.model ?? t("selection.defaultModel")} · ${t("selection.permission", { value: value.permissionMode ?? "default" })}${value.subagent ? ` · ${value.subagent}` : ""}`;
+    `${PROVIDER_LABELS[value.agent]} · ${value.model ?? t("selection.defaultModel")} · ${t("selection.permission", { value: value.permissionMode ?? "default" })}${value.subagent ? ` · ${value.subagent}` : ""}`;
   return createPortal(
     <dialog
       ref={dialog}
@@ -148,12 +148,12 @@ export function HandoffDialog({ taskKey, scope, execution, onChanged, onClose }:
             disabled={locked}
             onChange={(e) => {
               reset();
-              setTarget({ agent: e.target.value as Agent });
+              setTarget({ agent: e.target.value as ProviderId });
             }}
           >
-            {AGENTS.map((agent) => (
+            {PROVIDER_IDS.map((agent) => (
               <option key={agent} value={agent}>
-                {AGENT_LABELS[agent]}
+                {PROVIDER_LABELS[agent]}
               </option>
             ))}
           </select>
@@ -183,7 +183,9 @@ export function HandoffDialog({ taskKey, scope, execution, onChanged, onClose }:
         </label>
       </div>
       <p className="now-sub">{t("selection.defaultHint")}</p>
-      {(capability?.models.status !== "supported" || capability?.login.status === "unknown") && <p className="now-sub">{t("selection.unverified", { agent: AGENT_LABELS[target.agent] })}</p>}
+      {(capability?.models.status !== "supported" || capability?.login.status === "unknown") && (
+        <p className="now-sub">{t("selection.unverified", { agent: PROVIDER_LABELS[target.agent] })}</p>
+      )}
       {capabilities.error && (
         <p className="error" role="alert">
           {capabilities.error.message}
@@ -266,7 +268,7 @@ export function UsageSummary({ usage }: { usage: MetricsSummary }) {
       </dl>
       {usage.sessions.map((session) => (
         <article key={session.sessionId} className="handoff-usage-session">
-          <code>{session.sessionId}</code> · {session.agent ? AGENT_LABELS[session.agent] : t("handoff.missing")}
+          <code>{session.sessionId}</code> · {session.agent ? PROVIDER_LABELS[session.agent] : t("handoff.missing")}
           <p>{t("handoff.actualModel", { model: session.actualModels.join(", ") || t("handoff.missing") })}</p>
           {session.nativeId && <p>{t("handoff.nativeId", { id: session.nativeId })}</p>}
           <p>{(["costUsd", "inputTokens", "outputTokens"] as const).map((key) => `${t(`handoff.counters.${key}`)}: ${counter(key, session.metrics[key])}`).join(" · ")}</p>
@@ -295,7 +297,7 @@ export function WorkflowHistory({ run, usage, onOpenTerminal }: { run: RunState;
                 <strong>{op.scope.kind === "subtask" ? t("handoff.memberScope", { n: op.scope.n, step: op.scope.stepId }) : t("handoff.stepScope", { step: op.scope.stepId })}</strong> ·{" "}
                 {t(`handoff.stages.${op.stage}`)} · {new Date(op.updatedAt).toLocaleString("vi-VN")}
               </p>
-              <p>{t("handoff.target", { agent: AGENT_LABELS[op.target.agent], model: op.target.model ?? t("selection.defaultModel") })}</p>
+              <p>{t("handoff.target", { agent: PROVIDER_LABELS[op.target.agent], model: op.target.model ?? t("selection.defaultModel") })}</p>
               {op.reason && (
                 <p>
                   {t("handoff.reason")}: {op.reason}
@@ -342,7 +344,7 @@ export function WorkflowHistory({ run, usage, onOpenTerminal }: { run: RunState;
               </p>
               <p>
                 {t("handoff.attemptConfig", {
-                  agent: AGENT_LABELS[attempt.execution.agent],
+                  agent: PROVIDER_LABELS[attempt.execution.agent],
                   requested: attempt.execution.model ?? t("selection.defaultModel"),
                   actual: attempt.actualModel ?? t("handoff.missing"),
                 })}

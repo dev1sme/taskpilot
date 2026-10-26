@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { queryClient } from "../../../shared/api/queryClient";
+import { queryClient } from "../../../shared/api/query-client";
 import { toast } from "../../../shared/ui/Toast";
 import { clearDraft, getDraft, setDraft, useDrafts } from "../shared/drafts";
-import { backupToast } from "../shared/parts";
+import { backupToast } from "../shared/ConfigChrome";
 import { useConfig } from "../shared/useConfig";
 import { useSaveFlow } from "../shared/useSaveFlow";
 import { workflowConfigApi } from "./api";

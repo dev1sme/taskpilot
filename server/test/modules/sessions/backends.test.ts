@@ -3,7 +3,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { PROVIDER_IDS } from "../../../src/core/providers.js";
-import { AGENTS as CLIENT_AGENTS } from "../../../../client/src/shared/agents.js";
+import { PROVIDER_IDS as CLIENT_PROVIDER_IDS } from "../../../../client/src/shared/providers.js";
 import { HOOK_EVENTS } from "../../../src/modules/sessions/hooks.js";
 import { BACKENDS, providerTraits, type HookState } from "../../../src/modules/sessions/backends/index.js";
 import {
@@ -26,7 +26,7 @@ const SID = "5c462bd1-30c6-4a29-9ff8-0280f70857af";
 
 describe("backends", () => {
   it("has one backend per agent", () => {
-    expect(CLIENT_AGENTS).toEqual(PROVIDER_IDS);
+    expect(CLIENT_PROVIDER_IDS).toEqual(PROVIDER_IDS);
     expect(Object.keys(BACKENDS).sort()).toEqual([...PROVIDER_IDS].sort());
     for (const agent of PROVIDER_IDS) expect(BACKENDS[agent].id).toBe(agent);
   });

@@ -2,7 +2,7 @@ import { ArrowDown, ArrowUp, Plus, Trash } from "@phosphor-icons/react";
 import { useId, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { isSeq, parseDocument, type Document } from "yaml";
-import { AGENT_LABELS, AGENTS, isAgent } from "../../../shared/agents";
+import { PROVIDER_LABELS, PROVIDER_IDS, isProviderId } from "../../../shared/providers";
 import { Button } from "../../../shared/ui/Button";
 
 const PERMISSION_MODES = ["default", "acceptEdits", "plan", "auto"];
@@ -48,7 +48,7 @@ export function WorkflowForm(props: { text: string; prompts: string[]; onChange:
   const model = (doc.toJS() ?? {}) as Model;
   const steps = model.steps ?? [];
   /** What a step without its own `agent` runs. */
-  const workflowAgent = isAgent(model.agent) ? model.agent : "claude";
+  const workflowAgent = isProviderId(model.agent) ? model.agent : "claude";
   const outputIds = steps.flatMap((s) => (s.outputs ?? []).map((o) => o.id ?? "")).filter(Boolean);
 
   const edit = (fn: (d: Document) => void) => {
@@ -79,10 +79,10 @@ export function WorkflowForm(props: { text: string; prompts: string[]; onChange:
           <Field label={t("workflow.form.agent")} help={t("workflow.form.agentHelp")}>
             {(id) => (
               <select id={id} value={model.agent ?? ""} onChange={(e) => set(["agent"], e.target.value, true)}>
-                <option value="">{t("workflow.form.agentDefault", { agent: AGENT_LABELS.claude })}</option>
-                {AGENTS.map((a) => (
+                <option value="">{t("workflow.form.agentDefault", { agent: PROVIDER_LABELS.claude })}</option>
+                {PROVIDER_IDS.map((a) => (
                   <option key={a} value={a}>
-                    {AGENT_LABELS[a]}
+                    {PROVIDER_LABELS[a]}
                   </option>
                 ))}
               </select>
@@ -208,10 +208,10 @@ export function WorkflowForm(props: { text: string; prompts: string[]; onChange:
                 <Field label={t("workflow.form.agent")} help={t("workflow.form.stepAgentHelp")}>
                   {(id) => (
                     <select id={id} value={step.agent ?? ""} onChange={(e) => set(["steps", i, "agent"], e.target.value, true)}>
-                      <option value="">{t("workflow.form.stepAgentDefault", { agent: AGENT_LABELS[workflowAgent] })}</option>
-                      {AGENTS.map((a) => (
+                      <option value="">{t("workflow.form.stepAgentDefault", { agent: PROVIDER_LABELS[workflowAgent] })}</option>
+                      {PROVIDER_IDS.map((a) => (
                         <option key={a} value={a}>
-                          {AGENT_LABELS[a]}
+                          {PROVIDER_LABELS[a]}
                         </option>
                       ))}
                     </select>

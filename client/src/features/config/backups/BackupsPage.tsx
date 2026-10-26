@@ -6,7 +6,7 @@ import { DiffDialog } from "../../../shared/ui/DiffDialog";
 import { toast } from "../../../shared/ui/Toast";
 import { useWorkspace } from "../../workspace";
 import { locale } from "../../../i18n";
-import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "../shared/parts";
+import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "../shared/ConfigChrome";
 import { useConfig } from "../shared/useConfig";
 import "../../../shared/ui/table.css";
 import { backupsApi } from "./api";

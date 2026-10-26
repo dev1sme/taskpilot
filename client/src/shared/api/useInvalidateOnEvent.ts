@@ -1,7 +1,7 @@
 import type { QueryKey } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { onServerEvent, onTaskEvent } from "./events";
-import { queryClient } from "./queryClient";
+import { queryClient } from "./query-client";
 
 /** Invalidates `queryKey` whenever the server emits `event` (any task). */
 export function useInvalidateOnEvent(event: string, queryKey: QueryKey): void {

@@ -2,11 +2,13 @@ import { CheckCircle, CircleNotch, HourglassMedium, Key, PencilSimple, Plugs, Pl
 import { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { useWorkspace } from "../../workspace";
-import type { ConfigCli } from "../../../shared/router";
+import type { ProviderId } from "../../../shared/providers";
 import { Button } from "../../../shared/ui/Button";
 import { toast } from "../../../shared/ui/Toast";
 import { McpForm } from "./McpForm";
-import { backupToast, ConfigHeader, ConfigToolbar, EmptyCard, LoadError, ScopeTabs, ScopeTag, useConfigCli } from "../shared/parts";
+import { backupToast, ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "../shared/ConfigChrome";
+import { ScopeTabs, ScopeTag } from "../shared/ScopeControls";
+import { useConfigCli } from "../shared/CliContext";
 import { shadowedBy } from "../shared/precedence";
 import { useConfig } from "../shared/useConfig";
 import { mcpApi } from "./api";
@@ -23,7 +25,7 @@ export function McpPage() {
   return <McpPageForCli key={cli} cli={cli} />;
 }
 
-function McpPageForCli({ cli }: { cli: ConfigCli }) {
+function McpPageForCli({ cli }: { cli: ProviderId }) {
   const { t } = useTranslation("config");
   const tabLabel = (s: Scope) => t(cli === "claude" ? `mcp.tab.${s}` : `mcp.cli.${cli}.tab.${s}`);
   const { data, error, loading, reload } = useConfig(["mcp", cli], () => mcpApi.mcp(cli));
@@ -182,7 +184,7 @@ function McpDetail({
   onEdit,
   onChanged,
 }: {
-  cli: ConfigCli;
+  cli: ProviderId;
   server: McpServer;
   hiddenBy: string | null;
   source: string;

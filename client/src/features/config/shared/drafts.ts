@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
-import { queryClient } from "../../../shared/api/queryClient";
-import type { ConfigCli } from "../../../shared/router";
+import { queryClient } from "../../../shared/api/query-client";
+import type { ProviderId } from "../../../shared/providers";
 import type { RepoInfo } from "../../workspace";
 
 /**
@@ -21,7 +21,7 @@ const NATIVE = /^(memory|settings|hooks|library|mcp):/;
 const PREFIXED = /^(claude|copilot|codex):/;
 
 /** Call from native config pages when constructing a key. Include the file identity before the final scope. */
-export function configDraftKey(cli: ConfigCli, key: string): string {
+export function configDraftKey(cli: ProviderId, key: string): string {
   return `${cli}:${key}`;
 }
 

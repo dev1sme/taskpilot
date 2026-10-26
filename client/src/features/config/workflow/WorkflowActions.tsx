@@ -1,7 +1,7 @@
 import { ArrowCounterClockwise, CheckCircle, Eye, FilePlus, PencilSimple, Plus } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import { Button } from "../../../shared/ui/Button";
-import { DraftControls } from "../shared/parts";
+import { DraftControls } from "../shared/ScopeControls";
 import type { WorkflowPageState } from "./useWorkflowPage";
 import { draftKey } from "./workflow-files";
 

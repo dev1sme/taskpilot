@@ -1,13 +1,13 @@
 import type { Agent } from "../../core/agents.js";
 import type { AgentCapability, PreflightRequest, ProviderPromptInventory, PreflightResult, SessionView, SessionCreateOptions, SessionWaitOptions } from "../sessions/index.js";
 import type { WorkflowDef } from "./types.js";
-import type { SubagentInfo } from "./vars.js";
+import type { ClaudeSubagentInfo } from "./prompt-vars.js";
 
 /** Loads the workflow for a new run: `mode` when given, else the repo's own choice. */
 export type LoadDef = (repo: string, mode?: string) => Promise<WorkflowDef>;
 
 /** The repo's and the user's Claude subagents with their checks; handed in so workflow does not import config. */
-export type SubagentsOf = (repo: string) => Promise<SubagentInfo[]>;
+export type ClaudeSubagentsOf = (repo: string) => Promise<ClaudeSubagentInfo[]>;
 
 /** Read-only checks before run/restart/handoff mutation; receives no environment in its DTO. */
 export interface SessionCapabilityPort {

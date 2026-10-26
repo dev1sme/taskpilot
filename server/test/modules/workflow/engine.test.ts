@@ -8,7 +8,7 @@ import { StateStore } from "../../../src/core/state.js";
 import type { Agent } from "../../../src/core/agents.js";
 import { loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
 import { WorkflowEngine, type SessionPort } from "../../../src/modules/workflow/engine.js";
-import type { SubagentInfo } from "../../../src/modules/workflow/vars.js";
+import type { ClaudeSubagentInfo } from "../../../src/modules/workflow/prompt-vars.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 import { modeDir } from "../../../src/modules/workflow/modes.js";
 import { readTaskStatus } from "../../../src/modules/tasks/status.js";
@@ -902,7 +902,7 @@ describe("workflow engine: dispatch", () => {
 
   it("refuses a Claude row whose subagent is missing or cannot write, and lists the usable ones to the leader", async () => {
     const check = (roles: Array<"leader" | "member">, problems: string[] = []) => ({ status: "ok" as const, roles, problems });
-    const agents: SubagentInfo[] = [
+    const agents: ClaudeSubagentInfo[] = [
       { name: "taskpilot-implementer", scope: "project", description: "Does one\nsubtask.", fields: [{ key: "model", value: "sonnet" }], check: check(["leader", "member"]) },
       { name: "taskpilot-explorer", scope: "project", description: "Finds code.", fields: [{ key: "tools", value: "Read, Grep" }], check: check(["leader"], ["read-only"]) },
       // Hidden by the project's own agent of that name: Claude Code runs the project one.

@@ -27,7 +27,7 @@ export interface Lane {
 }
 
 export const MTIME_SLACK_MS = 100;
-export const ACTIVE: ReadonlyArray<RunState["phase"]> = ["starting", "running", "waiting", "gate", "interrupted"];
+export const ACTIVE_RUN_PHASES: ReadonlyArray<RunState["phase"]> = ["starting", "running", "waiting", "gate", "interrupted"];
 
 /** The run itself when `sessionId` is its leader's session, else the subtask that session works on. */
 export function laneOf(run: RunState, sessionId: string): Lane | undefined {
@@ -51,7 +51,7 @@ export function agentLabel(run: RunState): string {
   return AGENT_LABELS[DEFAULT_AGENT];
 }
 
-export function taskDirOf(run: RunState): string {
+export function taskAbsoluteDir(run: RunState): string {
   return path.join(run.repo, TASKS_DIR, run.taskKey);
 }
 
@@ -86,7 +86,7 @@ export function syncDispatch(run: RunState): void {
 /** An unreadable baseline must block delivery, rather than treating the old report as absent. */
 export async function outputBaseline(run: RunState, file: string): Promise<OutputBaseline> {
   try {
-    const target = path.join(taskDirOf(run), file);
+    const target = path.join(taskAbsoluteDir(run), file);
     const metadata = await stat(target);
     if (!metadata.isFile()) throw new Error(`Output is not a file: ${file}`);
     const digest = createHash("sha256")
@@ -113,7 +113,7 @@ export function laneBlocked(run: RunState, lane: Lane): boolean {
 
 export async function writtenSince(run: RunState, file: string, since: number = run.stepStartedAt, lane: Lane = run): Promise<boolean> {
   try {
-    const s = await stat(path.join(taskDirOf(run), file));
+    const s = await stat(path.join(taskAbsoluteDir(run), file));
     if (lane.outputBaseline?.file === file) {
       const current = await outputBaseline(run, file);
       if (current.fingerprint === lane.outputBaseline.fingerprint) return false;

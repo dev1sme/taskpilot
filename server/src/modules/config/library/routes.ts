@@ -10,7 +10,7 @@ import { codexAgentTarget, libraryTarget } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
 import { readLibrary, type LibraryKind, type LibraryScope } from "./read.js";
 import { checkCodexAgent } from "./check.js";
-import { readTemplates, tomlMeta, type AgentCli, type AgentTemplate } from "./templates.js";
+import { readTemplates, tomlMeta, type AgentTemplateProvider, type AgentTemplate } from "./templates.js";
 
 /** Agents, commands and skills. */
 export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {
@@ -127,7 +127,7 @@ export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOpt
 }
 
 /** Templates named in the body's `names`, or all of them when it has none. */
-async function chosenTemplates(body: unknown, cli: AgentCli): Promise<AgentTemplate[]> {
+async function chosenTemplates(body: unknown, cli: AgentTemplateProvider): Promise<AgentTemplate[]> {
   const all = await readTemplates(cli);
   const names = (body as { names?: unknown } | null)?.names;
   if (names === undefined) return all;
@@ -139,7 +139,7 @@ async function chosenTemplates(body: unknown, cli: AgentCli): Promise<AgentTempl
   });
 }
 
-function cliOf(v: unknown): AgentCli {
+function cliOf(v: unknown): AgentTemplateProvider {
   if (v === undefined || v === "claude") return "claude";
   if (v === "codex") return "codex";
   throw new HttpError(400, t("errors.invalidKind", { kind: String(v) }));
@@ -162,7 +162,7 @@ async function codexProjectAgents(repo: string): Promise<{ name: string; rel: st
   );
 }
 
-async function templateState(repo: string, tpl: AgentTemplate, cli: AgentCli = "claude") {
+async function templateState(repo: string, tpl: AgentTemplate, cli: AgentTemplateProvider = "claude") {
   const target = cli === "codex" ? codexAgentTarget(repo, tpl.rel) : libraryTarget(repo, "agents", "project", tpl.rel);
   const current = await readCurrent(target.abs);
   return {

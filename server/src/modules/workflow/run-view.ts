@@ -3,7 +3,7 @@ import path from "node:path";
 import type { Agent } from "../../core/agents.js";
 import type { ParsedAssignments } from "./assignments.js";
 import { modeOf } from "./definition.js";
-import { ACTIVE, dispatching, taskDirOf, withoutSnapshot } from "./lane.js";
+import { ACTIVE_RUN_PHASES, dispatching, taskAbsoluteDir, withoutSnapshot } from "./lane.js";
 import type { LoadDef } from "./ports.js";
 import { parseQuestions, type Question } from "./questions.js";
 import type { EffectiveExecution, MetricsSummary, RunState, StepDef, WorkflowDef } from "./types.js";
@@ -54,7 +54,7 @@ export async function buildRunView(
   loadDef: LoadDef,
   assignmentsFor: (run: RunState, def: WorkflowDef, index: number) => Promise<ParsedAssignments>,
 ): Promise<RunView> {
-  const pinned = run && ACTIVE.includes(run.phase) ? run.workflow : undefined;
+  const pinned = run && ACTIVE_RUN_PHASES.includes(run.phase) ? run.workflow : undefined;
   // A running run is compared with its own mode as it is now; the repo's mode when no run is active.
   const current = await loadDef(repo, pinned ? modeOf(pinned).id : undefined).catch((e: unknown) => {
     if (pinned) return null;
@@ -101,7 +101,7 @@ async function questionsOf(run: RunState, def: WorkflowDef): Promise<Question[]>
   if (dispatching(run, def)) return [];
   if (run.phase === "gate") {
     const file = def.steps[run.stepIndex]?.doneWhen?.file;
-    const doc = file ? await readFile(path.join(taskDirOf(run), file), "utf8").catch(() => "") : "";
+    const doc = file ? await readFile(path.join(taskAbsoluteDir(run), file), "utf8").catch(() => "") : "";
     const fromDoc = parseQuestions(doc);
     if (fromDoc.length > 0) return fromDoc;
   }

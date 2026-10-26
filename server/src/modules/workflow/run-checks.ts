@@ -1,17 +1,17 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { checkForParallel, parseAssignments, type ParsedAssignments } from "./assignments.js";
-import { taskDirOf } from "./lane.js";
-import type { SessionPort, SubagentsOf } from "./ports.js";
+import { taskAbsoluteDir } from "./lane.js";
+import type { SessionPort, ClaudeSubagentsOf } from "./ports.js";
 import type { Assignment, RunState, WorkflowDef } from "./types.js";
-import { subagentNamed, type SubagentInfo } from "./vars.js";
+import { subagentNamed, type ClaudeSubagentInfo } from "./prompt-vars.js";
 import { ExecutionValidationError, resolveExecution } from "./execution.js";
 
 /** The subtasks a dispatch step would get from the plan's table, with the problems that keep them from running. */
-export async function assignmentsFor(run: RunState, def: WorkflowDef, index: number, subagents?: SubagentsOf, preflight?: SessionPort["preflight"]): Promise<ParsedAssignments> {
+export async function assignmentsFor(run: RunState, def: WorkflowDef, index: number, subagents?: ClaudeSubagentsOf, preflight?: SessionPort["preflight"]): Promise<ParsedAssignments> {
   const dispatch = def.steps[index].dispatch!;
   const file = def.steps.flatMap((s) => s.outputs).find((o) => o.id === dispatch.from)?.file ?? "";
-  const doc = await readFile(path.join(taskDirOf(run), file), "utf8").catch(() => "");
+  const doc = await readFile(path.join(taskAbsoluteDir(run), file), "utf8").catch(() => "");
   const parsed = parseAssignments(doc);
   const errors = [
     ...(parsed.errors.length ? parsed.errors : checkForParallel(parsed.items, dispatch.parallel)),
@@ -26,7 +26,7 @@ export async function assignmentProblems(
   def: WorkflowDef,
   index: number,
   items: Assignment[],
-  subagents?: SubagentsOf,
+  subagents?: ClaudeSubagentsOf,
   preflight?: SessionPort["preflight"],
 ): Promise<string[]> {
   const errors = await subagentProblems(run.repo, items, subagents);
@@ -54,10 +54,10 @@ export async function assignmentProblems(
  * Why a Claude row's subagent cannot run its subtask: it must exist and be able to write, since a
  * member writes its report. Codex and Copilot agents are checked by the session preflight (assignmentProblems): a missing Copilot agent file only warns there, since built-in and plugin agents are not files.
  */
-export async function subagentProblems(repo: string, items: Assignment[], subagents?: SubagentsOf): Promise<string[]> {
+export async function subagentProblems(repo: string, items: Assignment[], subagents?: ClaudeSubagentsOf): Promise<string[]> {
   const named = items.filter((a) => a.agent === "claude" && a.subagent);
   if (!subagents || named.length === 0) return [];
-  let list: SubagentInfo[];
+  let list: ClaudeSubagentInfo[];
   try {
     list = await subagents(repo);
   } catch (e) {

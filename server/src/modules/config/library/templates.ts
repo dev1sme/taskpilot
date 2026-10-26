@@ -5,7 +5,7 @@ import { parse as parseToml } from "smol-toml";
 import { frontmatter } from "../shared/fs.js";
 
 /** Which CLI a template is for: Claude writes .claude/agents/<name>.md, Codex .codex/agents/<name>.toml. */
-export type AgentCli = "claude" | "codex";
+export type AgentTemplateProvider = "claude" | "codex";
 
 /** <package>/subagents; five levels up from both server/src/modules/config/library and dist/server/modules/config/library. */
 const SUBAGENTS_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../../subagents");
@@ -21,7 +21,7 @@ export interface AgentTemplate {
   content: string;
 }
 
-export async function readTemplates(cli: AgentCli = "claude"): Promise<AgentTemplate[]> {
+export async function readTemplates(cli: AgentTemplateProvider = "claude"): Promise<AgentTemplate[]> {
   const dir = cli === "codex" ? CODEX_SUBAGENTS_DIR : SUBAGENTS_DIR;
   const ext = cli === "codex" ? ".toml" : ".md";
   let names: string[];

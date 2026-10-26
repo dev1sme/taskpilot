@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_WORKFLOW_DIR, loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
 import { stageOf } from "../../../src/modules/workflow/stage.js";
 import type { ExecutionAttempt, HandoffJournal, WorkflowDef } from "../../../src/modules/workflow/types.js";
-import { promptVars, render, renderPrompt } from "../../../src/modules/workflow/vars.js";
+import { promptVars, render, renderPrompt } from "../../../src/modules/workflow/prompt-vars.js";
 import { laneKey } from "../../../src/modules/workflow/execution.js";
 import { modeDir } from "../../../src/modules/workflow/modes.js";
 

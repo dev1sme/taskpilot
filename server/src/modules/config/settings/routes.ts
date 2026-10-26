@@ -4,7 +4,7 @@ import { configCli, markConfigAvailable } from "../shared/agent.js";
 import { scopeOf, stringField, type ConfigRouteOptions } from "../shared/http.js";
 import { settingsTarget } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
-import { applyPermissions, maskSettingsText, readPermissions, validatePermissions } from "./permissions.js";
+import { applyPermissions, maskSettingsText, parsePermissions, validatePermissions } from "./permissions.js";
 import { applyNativeFields, nativeDiffView, readNativeFields, validateNativeFields } from "./native.js";
 import { readNativeSettings, readSettings } from "./read.js";
 import { HttpError } from "../../../core/errors.js";
@@ -64,15 +64,15 @@ export function registerSettingsRoutes(app: FastifyInstance, opts: ConfigRouteOp
     if (configCli(req.query.cli) !== "claude") throw new HttpError(400, t("configMessages.settings_routes_02"));
     const target = settingsTarget(requireRepo(), scopeOf(req.params.scope));
     const current = await readCurrent(target.abs);
-    return { path: target.display, exists: current !== null, hash: hashOf(current), ...readPermissions(current) };
+    return { path: target.display, exists: current !== null, hash: hashOf(current), ...parsePermissions(current) };
   });
 
   app.post<{ Params: { scope: string }; Querystring: { cli?: string } }>("/api/config/settings/:scope/permissions/preview", async (req) => {
     if (configCli(req.query.cli) !== "claude") throw new HttpError(400, t("configMessages.settings_routes_03"));
     const target = settingsTarget(requireRepo(), scopeOf(req.params.scope));
     const current = await readCurrent(target.abs);
-    const next = applyPermissions(current, validatePermissions(req.body, readPermissions(current).defaultMode));
-    const normalized = current === null ? null : applyPermissions(current, readPermissions(current));
+    const next = applyPermissions(current, validatePermissions(req.body, parsePermissions(current).defaultMode));
+    const normalized = current === null ? null : applyPermissions(current, parsePermissions(current));
     return {
       diff: diffText(target.display, maskSettingsText(normalized), maskSettingsText(next)),
       changed: next !== normalized,
@@ -88,7 +88,7 @@ export function registerSettingsRoutes(app: FastifyInstance, opts: ConfigRouteOp
     return writeWithBackup({
       repo,
       target,
-      next: applyPermissions(current, validatePermissions(req.body, readPermissions(current).defaultMode)),
+      next: applyPermissions(current, validatePermissions(req.body, parsePermissions(current).defaultMode)),
       baseHash: stringField(req.body, "baseHash"),
       reason: t("backup.permissions"),
       backups,

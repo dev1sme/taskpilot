@@ -38,7 +38,7 @@ export function validatePermissions(body: unknown, currentMode: string | null = 
 }
 
 /** Current permissions of a settings file, for the editor. */
-export function readPermissions(text: string | null): PermissionsInput {
+export function parsePermissions(text: string | null): PermissionsInput {
   const data = parseSettings(text);
   const p = isObject(data.permissions) ? data.permissions : {};
   return {

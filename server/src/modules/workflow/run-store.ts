@@ -3,7 +3,7 @@ import { writeTaskStatus, type TaskStatus } from "../tasks/index.js";
 import type { StateStore } from "../../core/state.js";
 import { appendHandoffHistory, appendHistory } from "./history.js";
 import type { SafeText } from "../../core/safe-text.js";
-import { ACTIVE, laneOf, taskDirOf } from "./lane.js";
+import { ACTIVE_RUN_PHASES, laneOf, taskAbsoluteDir } from "./lane.js";
 import type { LoadDef } from "./ports.js";
 import type { HandoffJournal, RunState, WorkflowDef } from "./types.js";
 
@@ -26,7 +26,7 @@ export class RunStore {
     try {
       const def = await this.defOf(run);
       const step = def.steps[run.stepIndex];
-      await appendHistory(taskDirOf(run), def.history.file, run.taskKey, { at: Date.now(), step: step?.title ?? "", source, ...extra });
+      await appendHistory(taskAbsoluteDir(run), def.history.file, run.taskKey, { at: Date.now(), step: step?.title ?? "", source, ...extra });
     } catch (e) {
       this.onWarning(e);
     }
@@ -35,7 +35,7 @@ export class RunStore {
   /** Records in `task.yml` that the run finished or started; a failed write is reported but never blocks the run. */
   async markTask(run: RunState, status: TaskStatus["status"]): Promise<void> {
     try {
-      await writeTaskStatus(taskDirOf(run), status);
+      await writeTaskStatus(taskAbsoluteDir(run), status);
     } catch (e) {
       this.onWarning(e);
     }
@@ -66,7 +66,7 @@ export class RunStore {
   async logHandoff(run: RunState, operation: HandoffJournal, sanitize: SafeText): Promise<void> {
     try {
       const def = await this.defOf(run);
-      await appendHandoffHistory(taskDirOf(run), def.history.file, run.taskKey, sanitize(def.steps[run.stepIndex]?.title ?? "", 500), operation, sanitize);
+      await appendHandoffHistory(taskAbsoluteDir(run), def.history.file, run.taskKey, sanitize(def.steps[run.stepIndex]?.title ?? "", 500), operation, sanitize);
     } catch (error) {
       this.onWarning(new Error(sanitize(error instanceof Error ? error.message : "Handoff history write failed")));
     }
@@ -78,7 +78,7 @@ export class RunStore {
   }
 
   async bySession(sessionId: string): Promise<RunState | undefined> {
-    const run = (await this.state.load()).runs.find((r) => laneOf(r, sessionId) && ACTIVE.includes(r.phase));
+    const run = (await this.state.load()).runs.find((r) => laneOf(r, sessionId) && ACTIVE_RUN_PHASES.includes(r.phase));
     return run ? structuredClone(run) : undefined;
   }
 

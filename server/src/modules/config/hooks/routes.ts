@@ -8,7 +8,7 @@ import { hookTarget, settingsTarget } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
 import { configCli, markConfigAvailable } from "../shared/agent.js";
 import { applyCopilotHooks, copilotDiffView, listCopilotHookFiles, readCopilotHookFile, readCopilotHooks } from "./copilot.js";
-import { applyHooks, readHookInputs, readHooksBlock, validateCopilotHooks, validateHooks } from "./edit.js";
+import { applyHooks, parseHookInputs, readHooksBlock, validateCopilotHooks, validateHooks } from "./edit.js";
 
 /** Command hooks of each settings file. */
 export function registerConfigHooksRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {
@@ -60,7 +60,7 @@ export function registerConfigHooksRoutes(app: FastifyInstance, opts: ConfigRout
     if (configCli(req.query.cli) !== "claude") throw new HttpError(400, t("configMessages.hooks_routes_05"));
     const target = settingsTarget(requireRepo(), scopeOf(req.params.scope));
     const current = await readCurrent(target.abs);
-    return { path: target.display, exists: current !== null, hash: hashOf(current), hooks: readHookInputs(current), raw: readHooksBlock(current) };
+    return { path: target.display, exists: current !== null, hash: hashOf(current), hooks: parseHookInputs(current), raw: readHooksBlock(current) };
   });
 
   app.post<{ Params: { scope: string }; Querystring: { cli?: string } }>("/api/config/settings/:scope/hooks/preview", async (req) => {
@@ -68,7 +68,7 @@ export function registerConfigHooksRoutes(app: FastifyInstance, opts: ConfigRout
     const target = settingsTarget(requireRepo(), scopeOf(req.params.scope));
     const current = await readCurrent(target.abs);
     const next = applyHooks(current, validateHooks(req.body));
-    const normalized = current === null ? null : applyHooks(current, readHookInputs(current));
+    const normalized = current === null ? null : applyHooks(current, parseHookInputs(current));
     return {
       diff: diffText(target.display, maskSettingsText(normalized), maskSettingsText(next)),
       changed: next !== normalized,

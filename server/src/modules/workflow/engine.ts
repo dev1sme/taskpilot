@@ -13,20 +13,33 @@ import { launchModel } from "./models.js";
 import { archiveOutputs } from "./archive.js";
 import { HISTORY_TEXT, measuredMetrics, mergeCumulative, summarizeMetrics } from "./history.js";
 import { PROMPT_TEXT } from "./prompt-text.js";
-import { ACTIVE, agentLabel, dispatching, laneBlocked, laneOf, outputBaseline, sessionLabel, statusLineMetrics, syncDispatch, taskDirOf, writtenSince, type Lane } from "./lane.js";
-import type { LoadDef, SessionPort, SubagentsOf } from "./ports.js";
+import {
+  ACTIVE_RUN_PHASES,
+  agentLabel,
+  dispatching,
+  laneBlocked,
+  laneOf,
+  outputBaseline,
+  sessionLabel,
+  statusLineMetrics,
+  syncDispatch,
+  taskAbsoluteDir,
+  writtenSince,
+  type Lane,
+} from "./lane.js";
+import type { LoadDef, SessionPort, ClaudeSubagentsOf } from "./ports.js";
 import { assignmentsFor, assignmentProblems } from "./run-checks.js";
 import { ExecutionValidationError, resolveExecution, selectExecution, snapshotExecution } from "./execution.js";
 import { readRepoSettings } from "./settings.js";
 import { RunStore } from "./run-store.js";
 import { buildRunView, type RunView } from "./run-view.js";
 import type { Assignment, EffectiveExecution, ExecutionSelection, LaneScope, MetricsSource, RunState, SubtaskMetrics, SubtaskPhase, SubtaskRun, WorkflowDef } from "./types.js";
-import { promptVars, renderPrompt } from "./vars.js";
+import { promptVars, renderPrompt } from "./prompt-vars.js";
 import { t } from "../../core/i18n.js";
 import { createSafeText } from "../../core/safe-text.js";
 import { HandoffCoordinator, type HandoffCommitRequest, type HandoffRequest, type HandoffSanitizer } from "./handoff.js";
 
-export type { LoadDef, SubagentsOf, SessionPort } from "./ports.js";
+export type { LoadDef, ClaudeSubagentsOf, SessionPort } from "./ports.js";
 export type { RunView } from "./run-view.js";
 
 /** How long a Copilot session may stay without any hook after its prompt before the run says so. */
@@ -52,7 +65,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     private readonly sessions: SessionPort,
     private readonly loadDef: LoadDef = (repo, mode) => loadWorkflow(repo, mode),
     /** Without it the table's subagents are not checked and {{subagents}} lists none. */
-    private readonly subagents?: SubagentsOf,
+    private readonly subagents?: ClaudeSubagentsOf,
     private readonly noHookWarnMs: number = NO_HOOK_WARN_MS,
     sanitizer: HandoffSanitizer = async () => createSafeText([]),
   ) {
@@ -169,7 +182,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     return this.serial(async () => {
       const existing = await this.store.find(repo, taskKey);
       if (existing) this.assertRecovered(existing);
-      if (existing && ACTIVE.includes(existing.phase)) throw new HttpError(409, "A workflow run is already active");
+      if (existing && ACTIVE_RUN_PHASES.includes(existing.phase)) throw new HttpError(409, "A workflow run is already active");
       const prepared = await this.prepare(repo, options);
       prepared.checks.forEach(requirePreflight);
       return this.begin(repo, taskKey, prepared);
@@ -195,7 +208,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
         if (sub.sessionId && (await this.sessions.get(sub.sessionId).catch(() => null))?.status === "running") await this.sessions.stop(sub.sessionId);
       }
       const before = await this.store.defOf(existing);
-      const previous = await archiveOutputs(taskDirOf(existing), before.history.file, new Date());
+      const previous = await archiveOutputs(taskAbsoluteDir(existing), before.history.file, new Date());
       await this.store.log(existing, HISTORY_TEXT.restart, {
         body: previous.files.length ? HISTORY_TEXT.archived(previous.dir, previous.files) : HISTORY_TEXT.nothingArchived,
       });
@@ -319,7 +332,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   setDone(repo: string, taskKey: string, done: boolean): Promise<{ done: { at: number | null } | null }> {
     return this.serial(async () => {
       const run = await this.store.find(repo, taskKey);
-      if (run && ACTIVE.includes(run.phase)) throw new HttpError(409, t("run.activeForDone"));
+      if (run && ACTIVE_RUN_PHASES.includes(run.phase)) throw new HttpError(409, t("run.activeForDone"));
       const status = await writeTaskStatus(path.join(repo, TASKS_DIR, taskKey), done ? "done" : "open");
       if (run) await this.store.log(run, done ? HISTORY_TEXT.taskDone : HISTORY_TEXT.taskReopened);
       return { done: status.status === "done" ? { at: status.doneAt } : null };
@@ -328,7 +341,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
 
   cancel(repo: string, taskKey: string): Promise<RunState> {
     return this.serial(async () => {
-      const run = await this.store.require(repo, taskKey, ACTIVE);
+      const run = await this.store.require(repo, taskKey, ACTIVE_RUN_PHASES);
       this.assertRecovered(run);
       await this.store.log(run, HISTORY_TEXT.cancel);
       return this.store.save(run, { phase: "cancelled", message: t("run.cancelled"), pendingPrompt: undefined });
@@ -399,7 +412,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
         let run = structuredClone(saved);
         await this.handoff.recover(run, (await this.state.load()).sessions);
         run = structuredClone((await this.store.find(run.repo, run.taskKey)) ?? run);
-        if (!ACTIVE.includes(run.phase)) continue;
+        if (!ACTIVE_RUN_PHASES.includes(run.phase)) continue;
         const def = await this.store.defOf(run);
         const lanes: Lane[] = [run, ...(run.subtasks ?? []).filter((sub) => sub.sessionId && !["pending", "done"].includes(sub.phase))];
         let changed = false;
@@ -780,7 +793,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
           target.promptId !== promptId ||
           laneBlocked(current, target) ||
           current.attempts?.findLast((a) => a.sessionId === sessionId)?.generation !== generation ||
-          !ACTIVE.includes(current.phase) ||
+          !ACTIVE_RUN_PHASES.includes(current.phase) ||
           target.sentPrompt?.at !== sentAt ||
           target.phase !== "running" ||
           this.sessions.hookSeen(sessionId)

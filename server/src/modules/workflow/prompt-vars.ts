@@ -39,7 +39,7 @@ export const templateVars = [
  * A Claude subagent of the repo or the user, as the config module reads it (`subagentsOf`). The
  * workflow module only gets it handed in (see WorkflowEngine), so it never imports config.
  */
-export interface SubagentInfo {
+export interface ClaudeSubagentInfo {
   name: string;
   scope: "project" | "user";
   description: string;
@@ -50,7 +50,7 @@ export interface SubagentInfo {
 }
 
 /** The agent Claude Code runs for `name`: the project's when both scopes have one. */
-export function subagentNamed(list: SubagentInfo[], name: string): SubagentInfo | undefined {
+export function subagentNamed(list: ClaudeSubagentInfo[], name: string): ClaudeSubagentInfo | undefined {
   const same = list.filter((a) => a.name === name);
   return same.find((a) => a.scope === "project") ?? same[0];
 }
@@ -69,7 +69,7 @@ export function renderPrompt(template: string, vars: Record<string, string>): st
 }
 
 /** The task directory as Claude sees it from the repo root, with forward slashes. */
-export function taskDirOf(taskKey: string): string {
+export function taskRelativeDir(taskKey: string): string {
   return path.posix.join(TASKS_DIR.split(path.sep).join("/"), taskKey);
 }
 
@@ -88,12 +88,12 @@ export function promptVars(
     /** Every subtask of the run, for the step that reviews them; with the numbers of those done. */
     subtasks?: Array<Assignment & { report?: string; metrics?: SubtaskMetrics; sessionId?: string }>;
     /** The subagents a leader may assign, for {{subagents}}. */
-    subagents?: SubagentInfo[];
+    subagents?: ClaudeSubagentInfo[];
     /** For a leader whose provider lists its own agents and models (Copilot): them, for {{subagents}}. */
     inventory?: ProviderPromptInventory;
   } = {},
 ): Record<string, string> {
-  const taskDir = taskDirOf(task.key);
+  const taskDir = taskRelativeDir(task.key);
   const step = def.steps[stepIndex];
   const effective = resolveExecution({
     workflow: def,
@@ -221,11 +221,11 @@ function subtaskBlock(sub: Assignment, all: Array<Assignment & { report?: string
 }
 
 /** The usable subagents, one line each; a project agent hides the user's agent of the same name. */
-function subagentList(list: SubagentInfo[]): string {
+function subagentList(list: ClaudeSubagentInfo[]): string {
   const T = PROMPT_TEXT.subagents;
   const usable = list.filter((a) => a.check?.roles.length && subagentNamed(list, a.name) === a);
   if (usable.length === 0) return T.none;
-  const field = (a: SubagentInfo, key: string) => a.fields.find((f) => f.key === key)?.value;
+  const field = (a: ClaudeSubagentInfo, key: string) => a.fields.find((f) => f.key === key)?.value;
   return usable.map((a) => T.line(a.name, a.scope, oneLine(a.description), field(a, "model"), field(a, "tools"), a.check!.roles)).join("\n");
 }
 

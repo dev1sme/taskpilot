@@ -11,7 +11,7 @@ import { mergeOverride, type Provenance } from "./merge.js";
 import { CUSTOM_MODE, DEFAULT_MODE, WORKFLOW_FILE, isMode, listModes, modeDir } from "./modes.js";
 import { launchModel, modelProblem } from "./models.js";
 import type { CodexOptions, DispatchDef, OutputDef, StepDef, WorkflowDef } from "./types.js";
-import { templateVars } from "./vars.js";
+import { templateVars } from "./prompt-vars.js";
 
 /** <package>/workflows/default: the "Mặc định" mode. */
 export const DEFAULT_WORKFLOW_DIR = modeDir(DEFAULT_MODE);

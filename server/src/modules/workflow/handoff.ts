@@ -11,7 +11,7 @@ import type { SessionMeta } from "../../core/state.js";
 import type { RunStore } from "./run-store.js";
 import { laneBlocked, outputBaseline, syncDispatch } from "./lane.js";
 import { laneKey, parseExecution, resolveExecution } from "./execution.js";
-import { promptVars } from "./vars.js";
+import { promptVars } from "./prompt-vars.js";
 import type { AgentExecution, EffectiveExecution, HandoffJournal, LaneScope, RunState, WorkflowDef } from "./types.js";
 
 export interface HandoffDocument {

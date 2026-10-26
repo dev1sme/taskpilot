@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { childEnv, claudeLauncher } from "../../../src/core/claude/launch.js";
+import { claudeLauncher } from "../../../src/core/claude/launch.js";
+import { childEnv } from "../../../src/core/launch.js";
 
 describe("claudeLauncher", () => {
   it("runs the session as a subagent with a model, on start and again on resume", () => {

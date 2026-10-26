@@ -1,6 +1,6 @@
 import * as pty from "node-pty";
 import type { WebSocket } from "ws";
-import { childEnv } from "../../../core/claude/launch.js";
+import { childEnv } from "../../../core/launch.js";
 import type { SessionTransport, TransportEvents, TransportLaunch } from "./types.js";
 
 /** Client → server frames on the PTY WebSocket. */

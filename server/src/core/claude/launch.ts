@@ -1,23 +1,4 @@
-export interface LaunchOptions {
-  resume: boolean;
-  /** JSON for --settings (hooks); agents without such a flag get their hooks from a file instead. */
-  settings?: string;
-  permissionMode?: string;
-  /** --model; absent = the subagent's model, else the user's default. */
-  model?: string;
-  /** --agent: the whole session runs as this subagent (its prompt, tools and model). */
-  subagent?: string;
-}
-
-export interface LaunchSpec {
-  file: string;
-  args: string[];
-  /** Variables for the child on top of the inherited ones. */
-  env?: Record<string, string>;
-}
-
-/** Builds the command for a session; injectable so tests can run a plain shell instead of claude. */
-export type Launcher = (sessionId: string, opts: LaunchOptions) => LaunchSpec;
+import { agentArgs, type Launcher } from "../launch.js";
 
 export const claudeLauncher: Launcher = (sessionId, opts) => ({
   file: process.env.TASKPILOT_CLAUDE ?? "claude",
@@ -30,24 +11,3 @@ export const claudeLauncher: Launcher = (sessionId, opts) => ({
     ...agentArgs(opts),
   ],
 });
-
-/** --agent / --model, which claude and copilot spell the same way. */
-export function agentArgs(opts: Pick<LaunchOptions, "model" | "subagent">): string[] {
-  return [...(opts.subagent ? ["--agent", opts.subagent] : []), ...(opts.model ? ["--model", opts.model] : [])];
-}
-
-/**
- * Environment for the child. Inherited CLAUDE* variables (set when TaskPilot itself is started
- * from inside a Claude Code session) make claude run as a child session that never writes its
- * transcript; see docs/SPEC.md §7. The UI token and login must not reach sessions.
- */
-const UI_SECRETS = new Set(["TASKPILOT_TOKEN", "TASKPILOT_AUTH_USER", "TASKPILOT_AUTH_PASSWORD"]);
-
-export function childEnv(base: NodeJS.ProcessEnv = process.env, extra: Record<string, string> = {}): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const [key, value] of Object.entries(base)) {
-    if (value !== undefined && !key.startsWith("CLAUDE") && !UI_SECRETS.has(key)) env[key] = value;
-  }
-  env.COLORTERM = "truecolor";
-  return { ...env, ...extra };
-}

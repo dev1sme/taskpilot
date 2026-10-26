@@ -6,7 +6,7 @@ import path from "node:path";
 import { WebSocket } from "ws";
 import { buildApp } from "../../../src/app.js";
 import { SessionManager } from "../../../src/modules/sessions/index.js";
-import { type Launcher } from "../../../src/core/claude/launch.js";
+import { type Launcher } from "../../../src/core/launch.js";
 import { StateStore, type SessionMeta } from "../../../src/core/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 

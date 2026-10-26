@@ -3,7 +3,7 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../../../src/app.js";
-import type { Launcher } from "../../../src/core/claude/launch.js";
+import type { Launcher } from "../../../src/core/launch.js";
 import { StateStore } from "../../../src/core/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 

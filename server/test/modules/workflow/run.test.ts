@@ -3,7 +3,7 @@ import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../../src/app.js";
-import type { LaunchOptions, Launcher } from "../../../src/core/claude/launch.js";
+import type { LaunchOptions, Launcher } from "../../../src/core/launch.js";
 import { StateStore } from "../../../src/core/state.js";
 import { loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";

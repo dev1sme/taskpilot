@@ -5,7 +5,7 @@ import type { WebSocket } from "ws";
 import { HttpError } from "../../core/errors.js";
 import type { SessionMeta, StateStore } from "../../core/state.js";
 import { nextActivity, type Activity, type HookEvent } from "./hooks.js";
-import type { Launcher } from "../../core/claude/launch.js";
+import type { Launcher } from "../../core/launch.js";
 import { DEFAULT_AGENT, type Agent } from "../../core/agents.js";
 import { backendOf, type HookState } from "./backends/index.js";
 import type { AgentBackend } from "./backends/types.js";

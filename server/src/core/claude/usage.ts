@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import os from "node:os";
-import { childEnv } from "./launch.js";
+import { childEnv } from "../launch.js";
 
 const TIMEOUT_MS = 15_000;
 

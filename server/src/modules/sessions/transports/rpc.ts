@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { childEnv, type LaunchSpec } from "../../../core/claude/launch.js";
+import { childEnv, type LaunchSpec } from "../../../core/launch.js";
 import { randomUUID } from "node:crypto";
 import type { WebSocket } from "ws";
 import { CodexError } from "../../../core/codex/errors.js";

@@ -1,7 +1,6 @@
 import { execFile } from "node:child_process";
 import type { Agent } from "../../../core/agents.js";
-import { childEnv } from "../../../core/claude/launch.js";
-import { CodexError, RpcError } from "../../../core/codex/errors.js";
+import { childEnv } from "../../../core/launch.js";
 import { t } from "../../../core/i18n.js";
 import type { AgentBackend, AgentCapability, BackendProbeContext, PreflightErrorCode, PreflightProblem } from "./types.js";
 
@@ -10,11 +9,6 @@ export function problem(agent: Agent, code: PreflightErrorCode, field: Preflight
 }
 
 export function probeError(agent: Agent, error: unknown, field: PreflightProblem["field"]): PreflightProblem {
-  if (error instanceof CodexError) {
-    const code = error.code === "missing" ? "missing_cli" : error.code === "timeout" ? "timeout" : error.code === "protocol" ? "protocol" : "probe_failed";
-    return problem(agent, code, field);
-  }
-  if (error instanceof RpcError && error.rpcCode === -32601) return problem(agent, "protocol", field);
   const errno = (error as NodeJS.ErrnoException | null)?.code;
   return problem(
     agent,

@@ -1,7 +1,7 @@
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../../../src/app.js";
-import { childEnv } from "../../../src/core/claude/launch.js";
+import { childEnv } from "../../../src/core/launch.js";
 import type { Credentials } from "../../../src/modules/auth/sessions.js";
 import { hostnameOf, isLoopbackHost } from "../../../src/modules/auth/security.js";
 import { StateStore } from "../../../src/core/state.js";

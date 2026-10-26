@@ -5,7 +5,7 @@ import Fastify, { LogController, type FastifyInstance } from "fastify";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { Agent } from "./core/agents.js";
-import type { Launcher } from "./core/claude/launch.js";
+import type { Launcher } from "./core/launch.js";
 import type { ClaudeUsageFields } from "./core/claude/usage.js";
 import type { CodexUsageFields } from "./core/codex/usage.js";
 import type { CopilotQuotaResult } from "./core/copilot/quota.js";

@@ -1,5 +1,5 @@
 import type { Agent } from "../../../core/agents.js";
-import type { Launcher, LaunchSpec } from "../../../core/claude/launch.js";
+import type { Launcher, LaunchSpec } from "../../../core/launch.js";
 import type { HookEvent } from "../hooks.js";
 
 export type CapabilityStatus = "supported" | "unsupported" | "unknown";

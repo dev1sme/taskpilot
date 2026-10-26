@@ -1,4 +1,4 @@
-import { agentArgs, type Launcher } from "../claude/launch.js";
+import { agentArgs, type Launcher } from "../launch.js";
 
 /** Copilot flags for each workflow permission-mode; "default" keeps Copilot's own manual approval. */
 const PERMISSION_FLAGS: Record<string, string[]> = {

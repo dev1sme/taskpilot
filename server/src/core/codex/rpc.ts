@@ -1,10 +1,9 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import type { Readable, Writable } from "node:stream";
-import { childEnv } from "../claude/launch.js";
+import { childEnv, type LaunchSpec } from "../launch.js";
 import { CodexError, RpcError } from "./errors.js";
 import { codexCommand } from "./launch.js";
-import type { LaunchSpec } from "../claude/launch.js";
 
 /** A request the app-server sends to us (an approval); answer it with respond() or fail(). */
 export interface ServerRequest {

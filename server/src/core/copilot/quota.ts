@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { childEnv } from "../claude/launch.js";
+import { childEnv } from "../launch.js";
 
 export type CopilotQuotaResult =
   | { ok: true; snapshots: unknown }

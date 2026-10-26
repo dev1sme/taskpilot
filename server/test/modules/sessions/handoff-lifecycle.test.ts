@@ -5,7 +5,7 @@ import Fastify from "fastify";
 import websocket from "@fastify/websocket";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import type { WebSocket } from "ws";
-import type { Launcher } from "../../../src/core/claude/launch.js";
+import type { Launcher } from "../../../src/core/launch.js";
 import { StateStore, type AppState } from "../../../src/core/state.js";
 import type { RepoContext } from "../../../src/modules/repo/index.js";
 import { SessionManager, registerSessionsRoutes, type ConversationItem } from "../../../src/modules/sessions/index.js";

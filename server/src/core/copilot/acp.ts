@@ -2,7 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { childEnv } from "../claude/launch.js";
+import { childEnv } from "../launch.js";
 
 /** A failed ACP step; `code` tells the caller what went wrong, `message` is for logs. */
 export class CopilotError extends Error {

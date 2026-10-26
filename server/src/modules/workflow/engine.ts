@@ -1,8 +1,8 @@
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
-import { open } from "node:fs/promises";
 import path from "node:path";
 import { AGENT_LABELS, DEFAULT_AGENT } from "../../core/agents.js";
+import { rolloutTokens } from "../../core/codex/rollout.js";
 import { listCopilotAgents } from "../../core/copilot/agents.js";
 import { copilotModels } from "../../core/copilot/models.js";
 import { HttpError } from "../../core/errors.js";
@@ -34,47 +34,6 @@ export type { RunView } from "./run-view.js";
 
 /** How long a Copilot session may stay without any hook after its prompt before the run says so. */
 const NO_HOOK_WARN_MS = 60_000;
-
-/** Largest tail of a Codex rollout file read to find its last `token_count`. */
-const ROLLOUT_TAIL_BYTES = 1 << 20;
-
-/**
- * Cumulative thread tokens from the last `token_count` event of a Codex rollout (the `transcript_path`
- * of its hooks). Best effort: an unreadable file or one without a measurement yields nothing.
- */
-async function rolloutMetrics(file: string): Promise<SubtaskMetrics> {
-  try {
-    const handle = await open(file, "r");
-    try {
-      const { size } = await handle.stat();
-      const length = Math.min(size, ROLLOUT_TAIL_BYTES);
-      const buffer = Buffer.alloc(length);
-      await handle.read(buffer, 0, length, size - length);
-      const lines = buffer.toString("utf8").split("\n");
-      if (length < size) lines.shift(); // first line may be cut
-      for (const line of lines.reverse()) {
-        if (!line.includes('"token_count"')) continue;
-        let record: { type?: string; payload?: { type?: string; info?: { total_token_usage?: { input_tokens?: unknown; output_tokens?: unknown } } } };
-        try {
-          record = JSON.parse(line);
-        } catch {
-          continue;
-        }
-        const total = record.type === "event_msg" && record.payload?.type === "token_count" ? record.payload.info?.total_token_usage : undefined;
-        if (!total) continue;
-        return {
-          ...(typeof total.input_tokens === "number" ? { inputTokens: total.input_tokens } : {}),
-          ...(typeof total.output_tokens === "number" ? { outputTokens: total.output_tokens } : {}),
-        };
-      }
-    } finally {
-      await handle.close();
-    }
-  } catch {
-    // no rollout, no metrics
-  }
-  return {};
-}
 
 export interface RunOptions {
   mode?: string;
@@ -516,7 +475,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       }
       // Codex has no statusline: its TUI hooks carry the model and the rollout path, whose last `token_count` is the thread total.
       if (meta.agent === "codex" && event === "Stop" && payload.interrupted !== true) {
-        const rollout = typeof payload.transcript_path === "string" && path.isAbsolute(payload.transcript_path) ? await rolloutMetrics(payload.transcript_path) : {};
+        const rollout = typeof payload.transcript_path === "string" && path.isAbsolute(payload.transcript_path) ? await rolloutTokens(payload.transcript_path) : {};
         this.recordMetrics(run, meta, { ...rollout, model: typeof payload.model === "string" ? payload.model : undefined }, "codex-thread");
         await this.store.save(run, {});
       }

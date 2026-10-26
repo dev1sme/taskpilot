@@ -81,9 +81,12 @@ export interface AgentBackend {
   prepare?(repo: string): Promise<void>;
   /**
    * Text the agent prints once its prompt takes input. Set when the agent's SessionStart hook does
-   * not fire at startup: the session then reports SessionStart when this text appears.
+   * not fire at startup: the session then reports SessionStart when this text appears. A RegExp is
+   * matched against the recent output as plain text (ANSI removed).
    */
-  readyMarker?: string;
+  readyMarker?: string | RegExp;
+  /** The agent's own conversation id in a hook payload, when it names sessions itself (Codex: `session_id` is its thread id); used to resume. */
+  nativeIdOf?(payload: Record<string, unknown>): string | undefined;
   /**
    * Set when the agent fires PermissionRequest before deciding whether to ask at all: the request
    * shows only if the tool has not finished after this long (or did not just finish).

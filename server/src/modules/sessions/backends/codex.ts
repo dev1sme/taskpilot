@@ -1,9 +1,10 @@
 import { CodexError, RpcError } from "../../../core/codex/errors.js";
-import { codexCommand } from "../../../core/codex/launch.js";
+import { codexLauncher } from "../../../core/codex/launch.js";
 import { listCodexModels } from "../../../core/codex/models.js";
 import { codexLoggedIn, initializeCodex, spawnCodex } from "../../../core/codex/rpc.js";
+import { codexHookSettings, type HookEvent } from "../hooks.js";
 import { emptyCapability, probeError, problem } from "./probe.js";
-import type { AgentBackend, AgentCapability, BackendProbeContext, PreflightProblem } from "./types.js";
+import type { AgentBackend, AgentCapability, BackendProbeContext, HookState, PreflightProblem } from "./types.js";
 
 /** Maps the app-server errors to a preflight problem; everything else falls back to the generic errno mapping. */
 function codexProbeError(error: unknown, field: PreflightProblem["field"]): PreflightProblem {
@@ -15,14 +16,55 @@ function codexProbeError(error: unknown, field: PreflightProblem["field"]): Pref
   return probeError("codex", error, field);
 }
 
+/**
+ * Footer of Codex's input box (`<model> <effort> · <cwd>`), shown only after the folder trust, hook
+ * review, update and working-directory dialogs. A regex because model and cwd vary; after ANSI is
+ * removed the first paint can read `default·~/repo`. Checked on codex 0.163.0 (docs/SPEC.md §7).
+ */
+export const CODEX_READY_MARKER = /·\s*[~/]/;
+
+/**
+ * Codex TUI. Its hooks use Claude's event names with Claude-style payloads, so `normalize` fixes only
+ * what differs: tool names, the missing `PostToolUseFailure`, and Esc firing `Interrupt` not `Stop`.
+ */
 export const codexBackend: AgentBackend = {
   id: "codex",
-  transport: "rpc",
-  launcher: () => codexCommand(),
+  launcher: codexLauncher,
+  launchSettings: codexHookSettings,
   permissionModes: ["default", "acceptEdits", "auto"],
   supportsSubagents: true,
   probe: probeCodex,
+  // Codex fires SessionStart only together with the first prompt, so the engine cannot wait for it.
+  readyMarker: CODEX_READY_MARKER,
+  nativeIdOf: (payload) => (typeof payload.session_id === "string" && payload.session_id ? payload.session_id : undefined),
+  normalize: normalizeCodex,
 };
+
+/** Path of the first file an `apply_patch` patch adds, updates or deletes. */
+function patchedFile(patch: unknown): string | undefined {
+  return typeof patch === "string" ? /^\*\*\* (?:Add|Update|Delete) File: (.+)$/m.exec(patch)?.[1]?.trim() : undefined;
+}
+
+export async function normalizeCodex(event: HookEvent, payload: Record<string, unknown>, _state: HookState): Promise<Record<string, unknown> | null> {
+  const out = { ...payload };
+  // Codex edits files with apply_patch; its input is the patch text in `command`.
+  if (out.tool_name === "apply_patch") {
+    out.tool_name = "Edit";
+    const input = out.tool_input as { command?: unknown; file_path?: unknown } | undefined;
+    const file = patchedFile(input?.command);
+    if (input && typeof input === "object" && file && input.file_path === undefined) out.tool_input = { ...input, file_path: file };
+  }
+  switch (event) {
+    case "SessionStart":
+      // Arrives with the first prompt, after the session already reported itself ready.
+      return null;
+    case "Stop":
+      // `Interrupt` is posted as Stop (codexHookSettings): the turn ended without an answer.
+      return out.hook_event_name === "Interrupt" ? { ...out, interrupted: true } : out;
+    default:
+      return out;
+  }
+}
 
 async function probeCodex(context: BackendProbeContext): Promise<AgentCapability> {
   const capability = emptyCapability(codexBackend);

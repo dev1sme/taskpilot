@@ -44,6 +44,9 @@ export class PtyTransport implements SessionTransport {
       permissionMode: meta.permissionMode,
       model: meta.model,
       subagent: meta.subagent,
+      repo: meta.repo,
+      nativeId: meta.nativeId,
+      codex: meta.codex,
     });
     const proc = pty.spawn(file, args, {
       name: "xterm-256color",
@@ -66,7 +69,7 @@ export class PtyTransport implements SessionTransport {
       for (const ws of this.clients) send(ws, { t: "o", d: data });
       if (this.pendingOutput !== null && backend.readyMarker) {
         this.pendingOutput = (this.pendingOutput + stripAnsi(data)).slice(-PENDING_OUTPUT_CHARS);
-        if (this.pendingOutput.includes(backend.readyMarker)) {
+        if (matches(this.pendingOutput, backend.readyMarker)) {
           this.pendingOutput = null;
           // Stands in for the SessionStart hook the agent sends only with its first prompt.
           events.ready?.();
@@ -167,6 +170,10 @@ export function attachPty(ws: WebSocket, terminal: (create: boolean) => PtyTrans
     }
   });
   ws.on("close", () => terminal(false)?.detach(ws));
+}
+
+function matches(text: string, marker: string | RegExp): boolean {
+  return typeof marker === "string" ? text.includes(marker) : marker.test(text);
 }
 
 /** Terminal output without escape sequences, enough to find a line of text in it. */

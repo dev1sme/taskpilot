@@ -1,3 +1,6 @@
+import type { Agent } from "../../core/agents.js";
+import { CODEX_HOOK_EVENTS } from "../../core/codex/hooks.js";
+
 /** Hook events TaskPilot listens to, by their Claude Code names (Copilot accepts the same names). */
 export const HOOK_EVENTS = [
   "SessionStart",
@@ -38,11 +41,31 @@ export function hookCommand(event: HookEvent): string {
 }
 
 /**
- * The hook command for Copilot's user-level hooks file, which every Copilot session on the machine
- * reads: it does nothing unless TaskPilot started that Copilot (launch.ts sets both variables).
+ * A hook command for an agent whose hooks every session on the machine can read (Copilot's user-level
+ * hooks file) or that may be started by hand: it does nothing unless TaskPilot started that agent
+ * (the launcher sets both variables).
  */
+export function guardedHookCommand(agent: Agent, event: HookEvent): string {
+  return `[ "$TASKPILOT_HOOK_AGENT" = ${agent} ] && [ -n "$TASKPILOT_HOOK_TOKEN" ] || exit 0; ${hookCommand(event)}`;
+}
+
 export function copilotHookCommand(event: HookEvent): string {
-  return `[ "$TASKPILOT_HOOK_AGENT" = copilot ] && [ -n "$TASKPILOT_HOOK_TOKEN" ] || exit 0; ${hookCommand(event)}`;
+  return guardedHookCommand("copilot", event);
+}
+
+export function codexHookCommand(event: HookEvent): string {
+  return guardedHookCommand("codex", event);
+}
+
+/**
+ * Hooks for the Codex launcher (`LaunchOptions.settings`): Codex event name → command. Codex's
+ * `Interrupt` (Esc, no `Stop` follows) is posted as `Stop`; its payload keeps `hook_event_name`, which
+ * `normalizeCodex` reads to tell the two apart.
+ */
+export function codexHookSettings(): string {
+  const commands: Record<string, string> = {};
+  for (const event of CODEX_HOOK_EVENTS) commands[event] = codexHookCommand(event === "Interrupt" ? "Stop" : event);
+  return JSON.stringify(commands);
 }
 
 /**

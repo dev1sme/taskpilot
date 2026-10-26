@@ -10,7 +10,8 @@ import { registerMemoryRoutes } from "./memory/routes.js";
 import { registerSettingsRoutes } from "./settings/routes.js";
 import { registerWorkflowConfigRoutes } from "./workflow/routes.js";
 import type { ConfigRouteOptions } from "./shared/http.js";
-import { CONFIG_CAPABILITIES, CONFIG_CLIS, configCli, type ConfigSection } from "./shared/agent.js";
+import { CONFIG_CAPABILITIES, parseConfigProvider, type ConfigSection } from "./shared/provider-capabilities.js";
+import { PROVIDER_IDS } from "../../core/providers.js";
 import { HttpError } from "../../core/errors.js";
 
 function sectionOf(url: string): ConfigSection | null {
@@ -32,14 +33,14 @@ export function registerConfigRoutes(app: FastifyInstance, opts: ConfigRouteOpti
     if (!section) return;
     const raw = (req.query as { cli?: unknown }).cli;
     if (raw !== undefined && typeof raw !== "string") throw new HttpError(400, t("configMessages.routes_01"));
-    const cli = configCli(raw);
+    const cli = parseConfigProvider(raw);
     if (cli !== "claude" && !CONFIG_CAPABILITIES[cli][section].available) {
       throw new HttpError(501, CONFIG_CAPABILITIES[cli][section].reason ?? t("configMessages.routes_02", { value0: section, value1: cli }));
     }
   });
   app.get<{ Querystring: { cli?: string } }>("/api/config/capabilities", async (req) => {
-    const cli = configCli(req.query.cli);
-    return { cli, clis: CONFIG_CLIS, sections: CONFIG_CAPABILITIES[cli] };
+    const cli = parseConfigProvider(req.query.cli);
+    return { cli, clis: PROVIDER_IDS, sections: CONFIG_CAPABILITIES[cli] };
   });
   registerMcpRoutes(app, opts);
   registerMemoryRoutes(app, opts);

@@ -2,9 +2,9 @@ import { CopilotAgentError, listCopilotAgents, readCopilotAgent } from "../../..
 import { copilotLauncher } from "../../../../core/copilot/launch.js";
 import { CopilotError } from "../../../../core/copilot/acp.js";
 import { copilotModels } from "../../../../core/copilot/models.js";
-import type { AgentBackend, ProviderPromptInventory, SubagentCheck } from "../types.js";
+import type { ProviderBackend, ProviderPromptInventory, SubagentCheck } from "../types.js";
 import { probeError, probePty, problem } from "../probe.js";
-import type { AgentCapability, BackendProbeContext } from "../types.js";
+import type { ProviderCapability, BackendProbeContext } from "../types.js";
 import { ensureCopilotHooks } from "./hooks-file.js";
 import { copilotFinishedTurn, normalizeCopilot } from "./normalize.js";
 
@@ -21,7 +21,7 @@ const READY_MARKER = "/ commands";
  * GitHub Copilot CLI. Its hooks are declared with Claude's PascalCase event names, so Copilot
  * sends Claude-style snake_case payloads with Claude tool names; `normalize` fills the rest.
  */
-export const copilotBackend: AgentBackend = {
+export const copilotBackend: ProviderBackend = {
   id: "copilot",
   permissionModes: ["default", "acceptEdits", "plan", "auto"],
   supportsSubagents: true,
@@ -63,7 +63,7 @@ async function copilotPromptInventory(repo: string): Promise<ProviderPromptInven
 }
 
 /** `--version`, then the account's model list through `copilot --acp`. Login stays unknown; a list that cannot be read is unknown, never blocking. */
-async function probeCopilot(context: BackendProbeContext): Promise<AgentCapability> {
+async function probeCopilot(context: BackendProbeContext): Promise<ProviderCapability> {
   const capability = await probePty(copilotBackend, context);
   if (capability.cli.status !== "supported") return capability;
   let timer: NodeJS.Timeout | undefined;

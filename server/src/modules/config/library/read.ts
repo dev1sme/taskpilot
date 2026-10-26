@@ -5,7 +5,7 @@ import { claudeHome } from "../../../core/claude/home.js";
 import { codexSkillsHome } from "../../../core/codex/home.js";
 import { copilotConfigHome } from "../../../core/copilot/home.js";
 import { displayPath, fileInfo, frontmatter, readText, strings } from "../shared/fs.js";
-import type { ConfigCli } from "../shared/agent.js";
+import { type ProviderId } from "../../../core/providers.js";
 import { checkAgent, checkCodexAgent, checkNames, type AgentCheck } from "./check.js";
 import { readTemplates } from "./templates.js";
 import { tomlMeta } from "./templates.js";
@@ -38,7 +38,7 @@ export interface LibraryItem {
 const SHOWN_FIELDS = ["tools", "allowed-tools", "model", "argument-hint", "color", "disable-model-invocation"];
 
 /** Native library files for the selected CLI; absent cli preserves the Claude API. */
-export async function readLibrary(repo: string, kind: LibraryKind, cli: ConfigCli = "claude"): Promise<LibraryItem[]> {
+export async function readLibrary(repo: string, kind: LibraryKind, cli: ProviderId = "claude"): Promise<LibraryItem[]> {
   const roots: Array<[LibraryScope, string, boolean?]> =
     cli === "claude"
       ? [
@@ -171,7 +171,7 @@ async function readMarkdownItems(
   return out;
 }
 
-async function readSkills(root: string, scope: LibraryScope, repo: string, cli: ConfigCli): Promise<LibraryItem[]> {
+async function readSkills(root: string, scope: LibraryScope, repo: string, cli: ProviderId): Promise<LibraryItem[]> {
   let entries;
   try {
     entries = await readdir(root, { withFileTypes: true });

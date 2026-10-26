@@ -5,7 +5,7 @@ import type { HookEvent } from "../sessions/index.js";
 import type { SessionMeta } from "../../core/state.js";
 import { describeTool, firstLine, type ToolCategory } from "./describe.js";
 import { t } from "../../core/i18n.js";
-import { AGENT_LABELS, DEFAULT_AGENT } from "../../core/agents.js";
+import { PROVIDER_LABELS, DEFAULT_PROVIDER } from "../../core/providers.js";
 
 export type ActivityKind = "session" | "prompt" | "tool" | "permission" | "stop";
 
@@ -111,7 +111,7 @@ export class ActivityStore extends EventEmitter<{ item: [item: ActivityItem] }> 
         return this.put(items, finished);
       }
       case "Stop": {
-        const agent = AGENT_LABELS[meta.agent ?? DEFAULT_AGENT];
+        const agent = PROVIDER_LABELS[meta.agent ?? DEFAULT_PROVIDER];
         // A Stop TaskPilot read from the agent's transcript, not one the agent sent: say so.
         const summary = payload.source === "transcript" ? t("activity.stopFromTranscript", { agent }) : firstLine(str("last_assistant_message"), 140) || t("activity.stop", { agent });
         return this.put(items, { ...base, id: this.newId(), kind: "stop", summary, detail: str("last_assistant_message") });

@@ -4,7 +4,8 @@ import type { FastifyInstance } from "fastify";
 import { HttpError } from "../../../core/errors.js";
 import { t } from "../../../core/i18n.js";
 import { isObject } from "../shared/fs.js";
-import { configCli, markConfigAvailable, type ConfigCli } from "../shared/agent.js";
+import { parseConfigProvider, markConfigAvailable } from "../shared/provider-capabilities.js";
+import { type ProviderId } from "../../../core/providers.js";
 import { stringField, type ConfigRouteOptions } from "../shared/http.js";
 import { codexAgentTarget, libraryTarget } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
@@ -21,9 +22,9 @@ export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOpt
   markConfigAvailable("copilot", "agents");
   markConfigAvailable("copilot", "skills");
 
-  app.get<{ Querystring: { cli?: string } }>("/api/config/agents", async (req) => readLibrary(requireRepo(), "agents", configCli(req.query.cli)));
-  app.get<{ Querystring: { cli?: string } }>("/api/config/commands", async (req) => readLibrary(requireRepo(), "commands", configCli(req.query.cli)));
-  app.get<{ Querystring: { cli?: string } }>("/api/config/skills", async (req) => readLibrary(requireRepo(), "skills", configCli(req.query.cli)));
+  app.get<{ Querystring: { cli?: string } }>("/api/config/agents", async (req) => readLibrary(requireRepo(), "agents", parseConfigProvider(req.query.cli)));
+  app.get<{ Querystring: { cli?: string } }>("/api/config/commands", async (req) => readLibrary(requireRepo(), "commands", parseConfigProvider(req.query.cli)));
+  app.get<{ Querystring: { cli?: string } }>("/api/config/skills", async (req) => readLibrary(requireRepo(), "skills", parseConfigProvider(req.query.cli)));
 
   /**
    * TaskPilot's subagents and how each compares with the repo's .claude/agents/<name>.md, or with
@@ -81,20 +82,20 @@ export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOpt
     return { files: written, skipped: files.filter((f) => f.same).map((f) => f.path) };
   });
 
-  const libraryOf = (kind: string, scope: string, rel: string, cli: ConfigCli) => {
+  const libraryOf = (kind: string, scope: string, rel: string, cli: ProviderId) => {
     if (kind !== "agents" && kind !== "commands" && kind !== "skills") throw new HttpError(400, t("errors.invalidKind", { kind }));
     if (scope !== "project" && scope !== "user") throw new HttpError(400, t("errors.invalidScope", { scope }));
     return libraryTarget(requireRepo(), kind as LibraryKind, scope as LibraryScope, rel, cli);
   };
 
   app.get<{ Params: { kind: string; scope: string }; Querystring: { rel?: string; cli?: string } }>("/api/config/library/:kind/:scope/raw", async (req) => {
-    const target = libraryOf(req.params.kind, req.params.scope, req.query.rel ?? "", configCli(req.query.cli));
+    const target = libraryOf(req.params.kind, req.params.scope, req.query.rel ?? "", parseConfigProvider(req.query.cli));
     const content = await readCurrent(target.abs);
     return { path: target.display, exists: content !== null, content: content ?? "", hash: hashOf(content) };
   });
 
   app.post<{ Params: { kind: string; scope: string }; Querystring: { cli?: string } }>("/api/config/library/:kind/:scope/preview", async (req) => {
-    const target = libraryOf(req.params.kind, req.params.scope, stringField(req.body, "rel"), configCli(req.query.cli));
+    const target = libraryOf(req.params.kind, req.params.scope, stringField(req.body, "rel"), parseConfigProvider(req.query.cli));
     const next = stringField(req.body, "content");
     const current = await readCurrent(target.abs);
     return { diff: diffText(target.display, current, next), changed: current !== next, stale: hashOf(current) !== stringField(req.body, "baseHash") };
@@ -102,7 +103,7 @@ export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOpt
 
   app.put<{ Params: { kind: string; scope: string }; Querystring: { cli?: string } }>("/api/config/library/:kind/:scope", async (req) => {
     const repo = requireRepo();
-    const cli = configCli(req.query.cli);
+    const cli = parseConfigProvider(req.query.cli);
     const rel = stringField(req.body, "rel");
     const target = libraryOf(req.params.kind, req.params.scope, rel, cli);
     const next = stringField(req.body, "content");
@@ -121,7 +122,7 @@ export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOpt
 
   app.delete<{ Params: { kind: string; scope: string }; Querystring: { rel?: string; baseHash?: string; cli?: string } }>("/api/config/library/:kind/:scope", async (req) => {
     const repo = requireRepo();
-    const target = libraryOf(req.params.kind, req.params.scope, req.query.rel ?? "", configCli(req.query.cli));
+    const target = libraryOf(req.params.kind, req.params.scope, req.query.rel ?? "", parseConfigProvider(req.query.cli));
     return writeWithBackup({ repo, target, next: null, baseHash: req.query.baseHash ?? "", reason: t("backup.delete"), backups });
   });
 }

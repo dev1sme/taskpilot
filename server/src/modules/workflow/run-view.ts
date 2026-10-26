@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type { Agent } from "../../core/agents.js";
+import type { ProviderId } from "../../core/providers.js";
 import type { ParsedAssignments } from "./assignments.js";
 import { modeOf } from "./definition.js";
 import { ACTIVE_RUN_PHASES, dispatching, taskAbsoluteDir, withoutSnapshot } from "./lane.js";
@@ -22,7 +22,7 @@ export interface RunView {
     steps: Array<{
       id: string;
       title: string;
-      agent: Agent;
+      agent: ProviderId;
       model?: string;
       effective: EffectiveExecution;
       gate: StepDef["gate"];

@@ -5,4 +5,4 @@ export type { SessionMetrics, SessionMetricsSource } from "./transports/types.js
 export type { SessionFailure, FailureReason } from "./failure.js";
 export { providerTraits, type ProviderPromptInventory, type ProviderTraits, type SubagentCheck } from "./backends/index.js";
 export { SessionPreflightError, requirePreflight } from "./capabilities.js";
-export type { AgentCapability, CapabilityCheck, CapabilityStatus, PreflightErrorCode, PreflightProblem, PreflightRequest, PreflightResult } from "./capabilities.js";
+export type { ProviderCapability, CapabilityCheck, CapabilityStatus, PreflightErrorCode, PreflightProblem, PreflightRequest, PreflightResult } from "./capabilities.js";

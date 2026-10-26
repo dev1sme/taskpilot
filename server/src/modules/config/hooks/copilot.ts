@@ -6,7 +6,7 @@ import { copilotConfigHome } from "../../../core/copilot/home.js";
 import { isObject } from "../shared/fs.js";
 import { hookTarget } from "../shared/targets.js";
 import { readCurrent } from "../shared/writer.js";
-import type { ConfigScope } from "../shared/agent.js";
+import type { ConfigScope } from "../shared/provider-capabilities.js";
 import { isCopilotEvent, type CopilotHookInput } from "./edit.js";
 
 const EDITABLE_FIELDS = new Set(["type", "matcher", "command", "bash", "powershell", "exec", "args", "cwd", "timeoutSec"]);

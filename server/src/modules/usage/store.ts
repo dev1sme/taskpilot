@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import type { Agent } from "../../core/agents.js";
+import type { ProviderId } from "../../core/providers.js";
 import type { CodexUsage, CodexUsageFields } from "../../core/codex/usage.js";
 import type { CopilotQuota } from "../../core/copilot/quota.js";
 import type { StateStore } from "../../core/state.js";
@@ -28,7 +28,7 @@ export interface UsageView extends Partial<ClaudeUsage> {
 /** Account observation, never the cause of a particular session/turn failure. */
 export interface AccountQuotaEvidence {
   scope: "account";
-  agent: Agent;
+  agent: ProviderId;
   source: "claude-statusline" | "copilot-quota";
   observedAt: number;
   validUntil: number;
@@ -57,7 +57,7 @@ export class UsageStore extends EventEmitter<{ change: [usage: UsageView] }> {
     return { ...state.usage, ...(agents ? { agents } : {}) };
   }
 
-  async evidence(agent: Agent, now = Date.now()): Promise<AccountQuotaEvidence | null> {
+  async evidence(agent: ProviderId, now = Date.now()): Promise<AccountQuotaEvidence | null> {
     const state = await this.state.load();
     const usage = agent === "claude" ? state.usage : agent === "copilot" ? state.agentUsage?.copilot : undefined;
     if (!usage) return null;

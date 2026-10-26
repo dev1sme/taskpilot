@@ -8,7 +8,7 @@ import { fetchCodexLoggedIn, initializeCodexAppServer, withCodexAppServer } from
 import { codexHookSettings, type HookEvent } from "../hooks.js";
 import type { SessionMetrics } from "../transports/types.js";
 import { emptyCapability, probeError, problem } from "./probe.js";
-import type { AgentBackend, AgentCapability, BackendProbeContext, HookState, PreflightProblem, SubagentCheck } from "./types.js";
+import type { ProviderBackend, ProviderCapability, BackendProbeContext, HookState, PreflightProblem, SubagentCheck } from "./types.js";
 
 /** Maps the app-server errors to a preflight problem; everything else falls back to the generic errno mapping. */
 function codexProbeError(error: unknown, field: PreflightProblem["field"]): PreflightProblem {
@@ -31,7 +31,7 @@ export const CODEX_READY_MARKER = /·\s*[~/]/;
  * Codex TUI. Its hooks use Claude's event names with Claude-style payloads, so `normalize` fixes only
  * what differs: tool names, the missing `PostToolUseFailure`, and Esc firing `Interrupt` not `Stop`.
  */
-export const codexBackend: AgentBackend = {
+export const codexBackend: ProviderBackend = {
   id: "codex",
   launcher: codexLauncher,
   launchSettings: codexHookSettings,
@@ -94,7 +94,7 @@ export async function normalizeCodex(event: HookEvent, payload: Record<string, u
   }
 }
 
-async function probeCodex(context: BackendProbeContext): Promise<AgentCapability> {
+async function probeCodex(context: BackendProbeContext): Promise<ProviderCapability> {
   const capability = emptyCapability(codexBackend);
   try {
     // A deadline covers handshake + account + every inventory page, not just each request.

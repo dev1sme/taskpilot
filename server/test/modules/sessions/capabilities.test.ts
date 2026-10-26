@@ -5,7 +5,7 @@ import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { resetCopilotModelsCache } from "../../../src/core/copilot/models.js";
 import { buildApp } from "../../../src/app.js";
 import { StateStore } from "../../../src/core/state.js";
-import { SessionManager, SessionPreflightError, requirePreflight, registerSessionsRoutes, type AgentCapability, type PreflightRequest } from "../../../src/modules/sessions/index.js";
+import { SessionManager, SessionPreflightError, requirePreflight, registerSessionsRoutes, type ProviderCapability, type PreflightRequest } from "../../../src/modules/sessions/index.js";
 import { probeError } from "../../../src/modules/sessions/backends/probe.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
@@ -267,7 +267,7 @@ describe("session capabilities and preflight", () => {
       expect((await app.inject({ url: "/api/sessions/capabilities" })).statusCode).toBe(401);
       const response = await app.inject({ url: "/api/sessions/capabilities", headers: { host: "127.0.0.1:8790", "x-taskpilot-token": "test" } });
       expect(response.statusCode).toBe(200);
-      const agents: AgentCapability[] = response.json().agents;
+      const agents: ProviderCapability[] = response.json().agents;
       expect(agents.map((capability) => capability.cli.status)).toEqual(["supported", "unsupported", "supported"]);
       expect(agents[2].models.status).toBe("unknown");
       expect(response.body).not.toMatch(/<EMAIL>|<ID>|<CODEX_HOME>|secret-must-not-leak|extraEnv|TASKPILOT_TOKEN/);

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import type { SafeText } from "../../core/safe-text.js";
-import { AGENT_LABELS } from "../../core/agents.js";
+import { PROVIDER_LABELS } from "../../core/providers.js";
 import { HttpError } from "../../core/errors.js";
 import { t } from "../../core/i18n.js";
 import { getTask, SPEC_DIR, TASKS_DIR } from "../tasks/index.js";
@@ -677,7 +677,7 @@ export class HandoffCoordinator {
       active.pendingPrompt = undefined;
       operation.promptState = "sent";
       if (preview.scope.kind === "subtask") syncDispatch(run);
-      else run.message = sanitize(t("run.step", { step: current.workflow.steps[run.stepIndex].title, agent: AGENT_LABELS[preview.target.agent] }));
+      else run.message = sanitize(t("run.step", { step: current.workflow.steps[run.stepIndex].title, agent: PROVIDER_LABELS[preview.target.agent] }));
       await checkpoint();
       await this.store.logHandoff(run, operation, sanitize);
       return { operation: structuredClone(operation) };

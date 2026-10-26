@@ -10,7 +10,8 @@ import { claudeJsonEntry, nativeMcpDocument, nativeMcpServers, readMcp } from ".
 import { buildEntry, maskEntry, NAME, nativeEntry, patchNativeMcp, validateEntry } from "./edit.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
 import { t } from "../../../core/i18n.js";
-import { configCli, markConfigAvailable, requireConfigScope, type ConfigCli } from "../shared/agent.js";
+import { parseConfigProvider, markConfigAvailable, requireConfigScope } from "../shared/provider-capabilities.js";
+import { type ProviderId } from "../../../core/providers.js";
 import { mcpTarget } from "../shared/targets.js";
 
 type McpScope = "project" | "local" | "user";
@@ -38,7 +39,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
   const projectFile = (repo: string) => path.join(repo, ".mcp.json");
 
   /** Current entry of a server and the version token the editor must send back. */
-  async function current(repo: string, scope: McpScope, name: string, cli: ConfigCli = "claude") {
+  async function current(repo: string, scope: McpScope, name: string, cli: ProviderId = "claude") {
     requireConfigScope(cli, "mcp", scope);
     if (cli !== "claude") {
       const target = mcpTarget(repo, scope, cli);
@@ -59,13 +60,13 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
 
   app.get<{ Querystring: { cli?: string } }>("/api/config/mcp", async (req) => {
     const repo = requireRepo();
-    return readMcp(repo, await envStore.forRepo(repo), configCli(req.query.cli));
+    return readMcp(repo, await envStore.forRepo(repo), parseConfigProvider(req.query.cli));
   });
 
   /** One server for the edit form: values masked, credentials in args/url hidden. */
   app.get<{ Params: { scope: string; name: string }; Querystring: { cli?: string } }>("/api/config/mcp/:scope/:name", async (req) => {
     const repo = requireRepo();
-    const cli = configCli(req.query.cli);
+    const cli = parseConfigProvider(req.query.cli);
     const scope = scopeOf(req.params.scope);
     if (!NAME.test(req.params.name)) throw new HttpError(400, t("mcp.invalidServerName"));
     const { entry, hash } = await current(repo, scope, req.params.name, cli);
@@ -89,14 +90,14 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
   /** Hash of the place a new server would be added, for the "add server" form. */
   app.get<{ Params: { scope: string }; Querystring: { cli?: string } }>("/api/config/mcp/:scope", async (req) => {
     const repo = requireRepo();
-    const cli = configCli(req.query.cli);
+    const cli = parseConfigProvider(req.query.cli);
     const scope = scopeOf(req.params.scope);
     if (cli !== "claude") return { hash: hashOf(await readCurrent(mcpTarget(repo, scope, cli).abs)) };
     if (scope === "project") return { hash: hashOf(await readCurrent(projectFile(repo))) };
     return { hash: "absent" };
   });
 
-  async function plan(repo: string, scope: McpScope, body: unknown, cli: ConfigCli = "claude") {
+  async function plan(repo: string, scope: McpScope, body: unknown, cli: ProviderId = "claude") {
     const input = validateEntry(body);
     const original = input.originalName ?? input.name;
     const before = await current(repo, scope, original, cli);
@@ -111,7 +112,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
 
   app.post<{ Params: { scope: string }; Querystring: { cli?: string } }>("/api/config/mcp/:scope/preview", async (req) => {
     const repo = requireRepo();
-    const cli = configCli(req.query.cli);
+    const cli = parseConfigProvider(req.query.cli);
     const scope = scopeOf(req.params.scope);
     const { input, original, before, entry, secrets } = await plan(repo, scope, req.body, cli);
     if (cli !== "claude") {
@@ -146,7 +147,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
 
   app.put<{ Params: { scope: string }; Querystring: { cli?: string } }>("/api/config/mcp/:scope", async (req) => {
     const repo = requireRepo();
-    const cli = configCli(req.query.cli);
+    const cli = parseConfigProvider(req.query.cli);
     const scope = scopeOf(req.params.scope);
     const { input, original, before, entry, secrets } = await plan(repo, scope, req.body, cli);
     if (before.hash !== baseHashOf(req.body)) throw new HttpError(409, t("mcp.changedOutside"));
@@ -185,7 +186,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
 
   app.delete<{ Params: { scope: string; name: string }; Querystring: { baseHash?: string; cli?: string } }>("/api/config/mcp/:scope/:name", async (req) => {
     const repo = requireRepo();
-    const cli = configCli(req.query.cli);
+    const cli = parseConfigProvider(req.query.cli);
     const scope = scopeOf(req.params.scope);
     const name = req.params.name;
     if (!NAME.test(name)) throw new HttpError(400, t("mcp.invalidServerName"));
@@ -219,7 +220,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
   /** Connection status as Claude reports it (`claude mcp get`); only the status is returned. */
   app.post<{ Params: { name: string }; Querystring: { cli?: string } }>("/api/config/mcp/check/:name", async (req) => {
     const repo = requireRepo();
-    if (configCli(req.query.cli) !== "claude") throw new HttpError(501, t("configMessages.mcp_routes_01"));
+    if (parseConfigProvider(req.query.cli) !== "claude") throw new HttpError(501, t("configMessages.mcp_routes_01"));
     if (!NAME.test(req.params.name)) throw new HttpError(400, t("mcp.invalidServerName"));
     return checkMcp(req.params.name, { cwd: repo, env: await envStore.forRepo(repo) });
   });

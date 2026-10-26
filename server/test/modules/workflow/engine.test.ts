@@ -5,7 +5,7 @@ import { preflightSession } from "../../../src/modules/sessions/capabilities.js"
 import type { SessionView } from "../../../src/modules/sessions/manager.js";
 import type { SessionMeta } from "../../../src/core/state.js";
 import { StateStore } from "../../../src/core/state.js";
-import type { Agent } from "../../../src/core/agents.js";
+import type { ProviderId } from "../../../src/core/providers.js";
 import { loadWorkflow, parseWorkflowFiles, readWorkflowDir } from "../../../src/modules/workflow/definition.js";
 import { WorkflowEngine, type SessionPort } from "../../../src/modules/workflow/engine.js";
 import type { ClaudeSubagentInfo } from "../../../src/modules/workflow/prompt-vars.js";
@@ -35,7 +35,7 @@ class FakeSessions implements SessionPort {
     return preflightSession(request, async () => ({ repo, command: { file: "/bin/bash", args: [] }, extraEnv: {}, timeoutMs: 1000 }));
   }
 
-  async create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: Agent; title?: string; model?: string; subagent?: string }): Promise<SessionView> {
+  async create(repo: string, taskKey: string, opts: { permissionMode?: string; agent?: ProviderId; title?: string; model?: string; subagent?: string }): Promise<SessionView> {
     const id = `00000000-0000-4000-8000-${String(this.sessions.size).padStart(12, "0")}`;
     const meta: SessionMeta = { id, repo, taskKey, title: "Session", createdAt: Date.now(), ...opts };
     await this.state.update((s) => void s.sessions.push(meta));
@@ -361,8 +361,8 @@ describe("workflow engine", () => {
     engine = new WorkflowEngine(state, fake, async (r) => {
       const def = await loadWorkflow(r);
       // As saved by a TaskPilot without agents.
-      for (const s of def.steps) delete (s as { agent?: Agent }).agent;
-      delete (def as { agent?: Agent }).agent;
+      for (const s of def.steps) delete (s as { agent?: ProviderId }).agent;
+      delete (def as { agent?: ProviderId }).agent;
       return def;
     });
     const run = await engine.start(repo, "DEMO-1");

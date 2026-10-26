@@ -1,4 +1,4 @@
-import type { Agent } from "../../core/agents.js";
+import type { ProviderId } from "../../core/providers.js";
 import { CODEX_HOOK_EVENTS } from "../../core/codex/hooks.js";
 
 /** Hook events TaskPilot listens to, by their Claude Code names (Copilot accepts the same names). */
@@ -45,7 +45,7 @@ export function hookCommand(event: HookEvent): string {
  * hooks file) or that may be started by hand: it does nothing unless TaskPilot started that agent
  * (the launcher sets both variables).
  */
-export function guardedHookCommand(agent: Agent, event: HookEvent): string {
+export function guardedHookCommand(agent: ProviderId, event: HookEvent): string {
   return `[ "$TASKPILOT_HOOK_AGENT" = ${agent} ] && [ -n "$TASKPILOT_HOOK_TOKEN" ] || exit 0; ${hookCommand(event)}`;
 }
 

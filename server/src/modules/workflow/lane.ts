@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { AGENT_LABELS, DEFAULT_AGENT, type Agent } from "../../core/agents.js";
+import { PROVIDER_LABELS, DEFAULT_PROVIDER, type ProviderId } from "../../core/providers.js";
 import { TASKS_DIR } from "../tasks/index.js";
 import { t } from "../../core/i18n.js";
 import { resolveExecution } from "./execution.js";
@@ -47,8 +47,8 @@ export function withoutSnapshot(run: RunState): Omit<RunState, "workflow" | "han
 
 /** Name of the agent that runs the run's current step, for run messages. */
 export function agentLabel(run: RunState): string {
-  if (run.workflow) return AGENT_LABELS[resolveExecution({ workflow: run.workflow, run, scope: { kind: "step", stepId: run.workflow.steps[run.stepIndex].id } }).agent];
-  return AGENT_LABELS[DEFAULT_AGENT];
+  if (run.workflow) return PROVIDER_LABELS[resolveExecution({ workflow: run.workflow, run, scope: { kind: "step", stepId: run.workflow.steps[run.stepIndex].id } }).agent];
+  return PROVIDER_LABELS[DEFAULT_PROVIDER];
 }
 
 export function taskAbsoluteDir(run: RunState): string {
@@ -66,8 +66,8 @@ export function statusLineMetrics(payload: Record<string, unknown>): Pick<Subtas
 }
 
 /** An agent with the model its session runs, for the decision log: "Claude (opus)", or "Claude" for its default. */
-export function sessionLabel(agent: Agent, model?: string): string {
-  return model ? `${AGENT_LABELS[agent]} (${model})` : AGENT_LABELS[agent];
+export function sessionLabel(agent: ProviderId, model?: string): string {
+  return model ? `${PROVIDER_LABELS[agent]} (${model})` : PROVIDER_LABELS[agent];
 }
 
 /** The run's own phase and message while its subtasks work: the one needing attention first. */
@@ -79,7 +79,7 @@ export function syncDispatch(run: RunState): void {
   const done = subs.filter((s) => s.phase === "done").length;
   if (interrupted) Object.assign(run, { phase: "interrupted", message: t("run.subtaskInterrupted", { n: interrupted.n }) });
   else if (waiting) Object.assign(run, { phase: "waiting", message: t("run.subtaskWaiting", { n: waiting.n, file: waiting.report }) });
-  else if (silent) Object.assign(run, { phase: "running", message: t("run.subtaskNoHook", { n: silent.n, agent: AGENT_LABELS[silent.agent], file: silent.report }) });
+  else if (silent) Object.assign(run, { phase: "running", message: t("run.subtaskNoHook", { n: silent.n, agent: PROVIDER_LABELS[silent.agent], file: silent.report }) });
   else Object.assign(run, { phase: "running", message: t("run.dispatching", { done, total: subs.length }) });
 }
 

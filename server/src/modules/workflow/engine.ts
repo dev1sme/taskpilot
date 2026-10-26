@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { AGENT_LABELS, DEFAULT_AGENT } from "../../core/agents.js";
+import { PROVIDER_LABELS, DEFAULT_PROVIDER } from "../../core/providers.js";
 import { HttpError } from "../../core/errors.js";
 import { getTask, TASKS_DIR, writeTaskStatus } from "../tasks/index.js";
 import { providerTraits, requirePreflight, type HookEvent, type SessionMetrics, type PreflightResult } from "../sessions/index.js";
@@ -526,7 +526,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     meta = structuredClone(meta);
     const fence = this.eventFence(meta.id);
     return this.serial(async () => {
-      if ((meta.agent ?? DEFAULT_AGENT) !== "claude") return;
+      if ((meta.agent ?? DEFAULT_PROVIDER) !== "claude") return;
       const run = await this.store.bySession(meta.id);
       if (run && !(await this.acceptEvent(run, meta, await fence))) return;
       if (!run) return;
@@ -588,7 +588,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     };
     sub.finishedAt = now;
     await this.saveLane(run, sub, { phase: "done", pendingPrompt: undefined }, "");
-    await this.store.log(run, HISTORY_TEXT.subtaskDone(sub.n, AGENT_LABELS[effective.agent], effective.subagent, effective.model), {
+    await this.store.log(run, HISTORY_TEXT.subtaskDone(sub.n, PROVIDER_LABELS[effective.agent], effective.subagent, effective.model), {
       body: HISTORY_TEXT.subtaskDoneBody(
         sub.report,
         { ...sub.metrics, model: attempt?.actualModel },
@@ -646,7 +646,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     await this.store.save(run, { subtasks, pendingPrompt: undefined, phase: "running", message: t("run.dispatching", { done: 0, total: subtasks.length }) });
     await this.store.log(run, HISTORY_TEXT.dispatch, {
       body: HISTORY_TEXT.dispatchBody(
-        items.map((a) => ({ ...a, agent: AGENT_LABELS[a.agent] })),
+        items.map((a) => ({ ...a, agent: PROVIDER_LABELS[a.agent] })),
         dispatch.parallel,
       ),
     });
@@ -799,7 +799,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
           this.sessions.hookSeen(sessionId)
         )
           return;
-        if (target === current) await this.store.save(current, { noHook: true, message: t("run.noHook", { agent: AGENT_LABELS[agent] }) });
+        if (target === current) await this.store.save(current, { noHook: true, message: t("run.noHook", { agent: PROVIDER_LABELS[agent] }) });
         else {
           (target as SubtaskRun).noHook = true;
           syncDispatch(current);
@@ -880,7 +880,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     if (!snapshot) {
       snapshot = {
         sessionId: meta.id,
-        agent: meta.agent ?? DEFAULT_AGENT,
+        agent: meta.agent ?? DEFAULT_PROVIDER,
         source,
         basis: source === "codex-thread" ? "thread" : source === "claude-statusline" ? "session" : "unknown",
         metrics: {},

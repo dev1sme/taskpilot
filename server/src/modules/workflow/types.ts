@@ -1,7 +1,7 @@
-import type { Agent } from "../../core/agents.js";
+import type { ProviderId } from "../../core/providers.js";
 
 /** A complete choice: absent model means no model flag, never inheritance from the workflow. */
-export type AgentExecution = { agent: Agent; model?: string };
+export type AgentExecution = { agent: ProviderId; model?: string };
 export type ExecutionSelection = { agent: "workflow"; model?: never } | AgentExecution;
 export type ExecutionSelectionSource = "request" | "repo" | "workflow";
 export type ExecutionSource = "workflow" | "assignment" | "execution" | "lane-override";
@@ -72,7 +72,7 @@ export type UsageTotals = Pick<SubtaskMetrics, "inputTokens" | "outputTokens" | 
 export interface SessionMetricSnapshot {
   sessionId: string;
   nativeId?: string;
-  agent?: Agent;
+  agent?: ProviderId;
   generation?: number;
   source: MetricsSource;
   basis: "session" | "thread" | "unknown";
@@ -83,7 +83,7 @@ export interface SessionMetricSnapshot {
 export interface SessionUsage {
   sessionId: string;
   nativeId?: string;
-  agent?: Agent;
+  agent?: ProviderId;
   attemptIds: string[];
   scopes: LaneScope[];
   actualModels: string[];
@@ -156,7 +156,7 @@ export interface DispatchDef {
 export interface Assignment {
   n: number;
   title: string;
-  agent: Agent;
+  agent: ProviderId;
   /** Subagent the whole session runs as (--agent); absent = the agent itself. */
   subagent?: string;
   /** Model as written in the table; `default`/`inherit` pass no --model. Absent = the subagent's or the user's default. */
@@ -217,7 +217,7 @@ export interface StepDef {
   id: string;
   title: string;
   /** The agent that runs this step: the step's own `agent`, else the workflow's. */
-  agent: Agent;
+  agent: ProviderId;
   /** Passed as --model to the step's session: the step's own `model`, else the workflow's; absent for the agent's default. */
   model?: string;
   /** The step's `codex` options merged over the workflow's. */
@@ -247,7 +247,7 @@ export interface WorkflowDef {
   /** The mode it was built for; absent in a snapshot saved before modes existed. `override`: the repo's override is merged in (or is the whole workflow, for "custom"). */
   mode?: { id: string; name: string; override: boolean };
   /** Default agent of the steps (`agent` at the top of workflow.yml); claude when absent. */
-  agent: Agent;
+  agent: ProviderId;
   /** Default model of the steps (`model` at the top of workflow.yml), as written; absent = the agent's default. */
   model?: string;
   permissionMode?: string;

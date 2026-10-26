@@ -6,7 +6,7 @@ import { readHooks } from "../settings/read.js";
 import { scopeOf, stringField, type ConfigRouteOptions } from "../shared/http.js";
 import { hookTarget, settingsTarget } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
-import { configCli, markConfigAvailable } from "../shared/agent.js";
+import { parseConfigProvider, markConfigAvailable } from "../shared/provider-capabilities.js";
 import { applyCopilotHooks, copilotDiffView, listCopilotHookFiles, readCopilotHookFile, readCopilotHooks } from "./copilot.js";
 import { applyHooks, parseHookInputs, readHooksBlock, validateCopilotHooks, validateHooks } from "./edit.js";
 
@@ -15,7 +15,9 @@ export function registerConfigHooksRoutes(app: FastifyInstance, opts: ConfigRout
   const { requireRepo, backups } = opts;
   markConfigAvailable("copilot", "hooks");
 
-  app.get<{ Querystring: { cli?: string } }>("/api/config/hooks", async (req) => (configCli(req.query.cli) === "copilot" ? listCopilotHookFiles(requireRepo()) : readHooks(requireRepo())));
+  app.get<{ Querystring: { cli?: string } }>("/api/config/hooks", async (req) =>
+    parseConfigProvider(req.query.cli) === "copilot" ? listCopilotHookFiles(requireRepo()) : readHooks(requireRepo()),
+  );
 
   const copilotFile = (repo: string, scopeRaw: string, name: string) => {
     const scope = scopeOf(scopeRaw);
@@ -23,7 +25,7 @@ export function registerConfigHooksRoutes(app: FastifyInstance, opts: ConfigRout
     return hookTarget(repo, scope, name, "copilot");
   };
   app.get<{ Params: { scope: string; name: string }; Querystring: { cli?: string } }>("/api/config/hooks/:scope/:name", async (req) => {
-    if (configCli(req.query.cli) !== "copilot") throw new HttpError(400, t("configMessages.hooks_routes_02"));
+    if (parseConfigProvider(req.query.cli) !== "copilot") throw new HttpError(400, t("configMessages.hooks_routes_02"));
     const repo = requireRepo();
     const target = copilotFile(repo, req.params.scope, req.params.name);
     const current = await readCopilotHookFile(repo, target.abs);
@@ -31,7 +33,7 @@ export function registerConfigHooksRoutes(app: FastifyInstance, opts: ConfigRout
   });
 
   app.post<{ Params: { scope: string; name: string }; Querystring: { cli?: string } }>("/api/config/hooks/:scope/:name/preview", async (req) => {
-    if (configCli(req.query.cli) !== "copilot") throw new HttpError(400, t("configMessages.hooks_routes_03"));
+    if (parseConfigProvider(req.query.cli) !== "copilot") throw new HttpError(400, t("configMessages.hooks_routes_03"));
     const repo = requireRepo();
     const target = copilotFile(repo, req.params.scope, req.params.name);
     const current = await readCopilotHookFile(repo, target.abs);
@@ -42,7 +44,7 @@ export function registerConfigHooksRoutes(app: FastifyInstance, opts: ConfigRout
   });
 
   app.put<{ Params: { scope: string; name: string }; Querystring: { cli?: string } }>("/api/config/hooks/:scope/:name", async (req) => {
-    if (configCli(req.query.cli) !== "copilot") throw new HttpError(400, t("configMessages.hooks_routes_04"));
+    if (parseConfigProvider(req.query.cli) !== "copilot") throw new HttpError(400, t("configMessages.hooks_routes_04"));
     const repo = requireRepo();
     const target = copilotFile(repo, req.params.scope, req.params.name);
     const current = await readCopilotHookFile(repo, target.abs);
@@ -57,14 +59,14 @@ export function registerConfigHooksRoutes(app: FastifyInstance, opts: ConfigRout
   });
 
   app.get<{ Params: { scope: string }; Querystring: { cli?: string } }>("/api/config/settings/:scope/hooks", async (req) => {
-    if (configCli(req.query.cli) !== "claude") throw new HttpError(400, t("configMessages.hooks_routes_05"));
+    if (parseConfigProvider(req.query.cli) !== "claude") throw new HttpError(400, t("configMessages.hooks_routes_05"));
     const target = settingsTarget(requireRepo(), scopeOf(req.params.scope));
     const current = await readCurrent(target.abs);
     return { path: target.display, exists: current !== null, hash: hashOf(current), hooks: parseHookInputs(current), raw: readHooksBlock(current) };
   });
 
   app.post<{ Params: { scope: string }; Querystring: { cli?: string } }>("/api/config/settings/:scope/hooks/preview", async (req) => {
-    if (configCli(req.query.cli) !== "claude") throw new HttpError(400, t("configMessages.hooks_routes_06"));
+    if (parseConfigProvider(req.query.cli) !== "claude") throw new HttpError(400, t("configMessages.hooks_routes_06"));
     const target = settingsTarget(requireRepo(), scopeOf(req.params.scope));
     const current = await readCurrent(target.abs);
     const next = applyHooks(current, validateHooks(req.body));
@@ -77,7 +79,7 @@ export function registerConfigHooksRoutes(app: FastifyInstance, opts: ConfigRout
   });
 
   app.put<{ Params: { scope: string }; Querystring: { cli?: string } }>("/api/config/settings/:scope/hooks", async (req) => {
-    if (configCli(req.query.cli) !== "claude") throw new HttpError(400, t("configMessages.hooks_routes_07"));
+    if (parseConfigProvider(req.query.cli) !== "claude") throw new HttpError(400, t("configMessages.hooks_routes_07"));
     const repo = requireRepo();
     const target = settingsTarget(repo, scopeOf(req.params.scope));
     const current = await readCurrent(target.abs);

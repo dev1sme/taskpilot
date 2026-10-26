@@ -1,14 +1,14 @@
 import { execFile } from "node:child_process";
-import type { Agent } from "../../../core/agents.js";
+import type { ProviderId } from "../../../core/providers.js";
 import { childEnv } from "../../../core/launch.js";
 import { t } from "../../../core/i18n.js";
-import type { AgentBackend, AgentCapability, BackendProbeContext, PreflightErrorCode, PreflightProblem } from "./types.js";
+import type { ProviderBackend, ProviderCapability, BackendProbeContext, PreflightErrorCode, PreflightProblem } from "./types.js";
 
-export function problem(agent: Agent, code: PreflightErrorCode, field: PreflightProblem["field"]): PreflightProblem {
+export function problem(agent: ProviderId, code: PreflightErrorCode, field: PreflightProblem["field"]): PreflightProblem {
   return { agent, code, field, message: t(`preflight.${code}`, { agent }) };
 }
 
-export function probeError(agent: Agent, error: unknown, field: PreflightProblem["field"]): PreflightProblem {
+export function probeError(agent: ProviderId, error: unknown, field: PreflightProblem["field"]): PreflightProblem {
   const errno = (error as NodeJS.ErrnoException | null)?.code;
   return problem(
     agent,
@@ -17,7 +17,7 @@ export function probeError(agent: Agent, error: unknown, field: PreflightProblem
   );
 }
 
-export function emptyCapability(backend: Pick<AgentBackend, "id" | "permissionModes" | "supportsSubagents">): AgentCapability {
+export function emptyCapability(backend: Pick<ProviderBackend, "id" | "permissionModes" | "supportsSubagents">): ProviderCapability {
   return {
     agent: backend.id,
     checkedAt: Date.now(),
@@ -32,7 +32,7 @@ export function emptyCapability(backend: Pick<AgentBackend, "id" | "permissionMo
 }
 
 /** Only --version: never starts a conversation or installs hooks. Login/inventory stay unknown. */
-export async function probePty(backend: Pick<AgentBackend, "id" | "permissionModes" | "supportsSubagents">, context: BackendProbeContext): Promise<AgentCapability> {
+export async function probePty(backend: Pick<ProviderBackend, "id" | "permissionModes" | "supportsSubagents">, context: BackendProbeContext): Promise<ProviderCapability> {
   const capability = emptyCapability(backend);
   const result = await new Promise<{ version?: string; error?: PreflightProblem }>((resolve) => {
     execFile(

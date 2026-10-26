@@ -1,13 +1,13 @@
 import type { Launcher } from "../../../core/launch.js";
 import type { SessionMeta } from "../../../core/state.js";
-import type { AgentBackend } from "../backends/types.js";
+import type { ProviderBackend } from "../backends/types.js";
 import type { HookEvent } from "../hooks.js";
 
 /** What a transport needs to start the agent's process for one spawn of a session. */
 export interface TransportLaunch {
   meta: SessionMeta;
   resume: boolean;
-  backend: AgentBackend;
+  backend: ProviderBackend;
   launcher: Launcher;
   /** Environment set before the launcher's own (TaskPilot's env store). */
   extraEnv: Record<string, string>;

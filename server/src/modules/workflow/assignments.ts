@@ -1,5 +1,5 @@
 import { Lexer, type Token, type Tokens } from "marked";
-import { isAgent } from "../../core/agents.js";
+import { isProviderId } from "../../core/providers.js";
 import { modelProblem } from "./models.js";
 import type { Assignment } from "./types.js";
 
@@ -65,18 +65,18 @@ export function parseAssignments(markdown: string): ParsedAssignments {
     const title = cell(row, "title").replace(/\*\*/g, "").trim();
     if (!title) errors.push(`subtask ${n}: the title is empty`);
     const agent = plain(cell(row, "agent")).toLowerCase();
-    if (!isAgent(agent)) errors.push(`subtask ${n}: unknown agent "${plain(cell(row, "agent"))}"`);
+    if (!isProviderId(agent)) errors.push(`subtask ${n}: unknown agent "${plain(cell(row, "agent"))}"`);
     const subagent = word(cell(row, "subagent"));
     const hasSubagent = !NO_VALUE.test(subagent);
     if (hasSubagent && !SUBAGENT_NAME.test(subagent)) errors.push(`subtask ${n}: subagent "${subagent}" must be a name (one word, not starting with -)`);
     const model = word(cell(row, "model"));
     const hasModel = !NO_VALUE.test(model);
-    const problem = hasModel && isAgent(agent) ? modelProblem(agent, model) : null;
+    const problem = hasModel && isProviderId(agent) ? modelProblem(agent, model) : null;
     if (problem) errors.push(`subtask ${n}: model "${model}" ${problem}`);
     const item: Assignment = {
       n,
       title,
-      agent: isAgent(agent) ? agent : "claude",
+      agent: isProviderId(agent) ? agent : "claude",
       ...(hasSubagent ? { subagent } : {}),
       ...(hasModel ? { model } : {}),
       files: list(cell(row, "files")),

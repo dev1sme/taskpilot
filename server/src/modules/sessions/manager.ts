@@ -6,9 +6,9 @@ import { HttpError } from "../../core/errors.js";
 import type { SessionMeta, StateStore } from "../../core/state.js";
 import { nextActivity, type Activity, type HookEvent } from "./hooks.js";
 import type { Launcher } from "../../core/launch.js";
-import { DEFAULT_AGENT, type Agent } from "../../core/agents.js";
+import { DEFAULT_PROVIDER, type ProviderId } from "../../core/providers.js";
 import { backendOf, type HookState, type ProviderPromptInventory } from "./backends/index.js";
-import type { AgentBackend } from "./backends/types.js";
+import type { ProviderBackend } from "./backends/types.js";
 import { PtyTransport, attachPty } from "./transports/pty.js";
 import type { SessionMetrics } from "./transports/types.js";
 import { preflightSession, sessionCapabilities, type PreflightRequest } from "./capabilities.js";
@@ -19,7 +19,7 @@ import type { AccountQuotaEvidence } from "../usage/index.js";
 export type SessionStatus = "running" | "exited";
 
 export interface SessionView extends SessionMeta {
-  agent: Agent;
+  agent: ProviderId;
   status: SessionStatus;
   exitCode: number | null;
   /** null while the session is not running. */
@@ -30,7 +30,7 @@ export interface SessionView extends SessionMeta {
 
 export interface SessionCreateOptions {
   permissionMode?: string;
-  agent?: Agent;
+  agent?: ProviderId;
   title?: string;
   model?: string;
   subagent?: string;
@@ -72,7 +72,7 @@ export interface SessionManagerOptions {
   /** Replaces Claude's command (tests). */
   launcher?: Launcher;
   /** Replaces an agent's command (tests). */
-  launchers?: Partial<Record<Agent, Launcher>>;
+  launchers?: Partial<Record<ProviderId, Launcher>>;
   scrollbackLimit?: number;
   /** Base URL the hook commands post to, e.g. http://127.0.0.1:8790/hook; null before listen(). */
   hookUrl?: () => string | null;
@@ -84,7 +84,7 @@ export interface SessionManagerOptions {
   transcriptIdleMs?: number;
   /** Total deadline for each read-only capability probe (default 5 s). */
   preflightTimeoutMs?: number;
-  accountQuota?: (agent: Agent) => Promise<AccountQuotaEvidence | null>;
+  accountQuota?: (agent: ProviderId) => Promise<AccountQuotaEvidence | null>;
 }
 
 export interface SessionEvents {
@@ -109,7 +109,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
   private closing = false;
   private readonly changing = new Set<string>();
   private readonly byHookToken = new Map<string, string>();
-  private readonly launchers: Partial<Record<Agent, Launcher>>;
+  private readonly launchers: Partial<Record<ProviderId, Launcher>>;
   private readonly scrollbackLimit: number;
   private readonly hookUrl: () => string | null;
   private readonly extraEnv: (repo: string) => Promise<Record<string, string>>;
@@ -163,7 +163,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
   }
 
   /** What a leader on `agent` may name in its `{{subagents}}`; undefined when the provider lists nothing. */
-  promptInventory(repo: string, agent: Agent): Promise<ProviderPromptInventory | undefined> {
+  promptInventory(repo: string, agent: ProviderId): Promise<ProviderPromptInventory | undefined> {
     const backend = backendOf(agent);
     return backend.promptInventory ? backend.promptInventory(repo) : Promise.resolve(undefined);
   }
@@ -184,10 +184,10 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       createdAt: Date.now(),
       ...(opts.operationId ? { reservation: { operationId: opts.operationId, role: "target" as const, at: Date.now() } } : {}),
       ...(opts.permissionMode ? { permissionMode: opts.permissionMode } : {}),
-      ...(opts.agent && opts.agent !== DEFAULT_AGENT ? { agent: opts.agent } : {}),
+      ...(opts.agent && opts.agent !== DEFAULT_PROVIDER ? { agent: opts.agent } : {}),
       ...(opts.model ? { model: opts.model } : {}),
       ...(opts.subagent ? { subagent: opts.subagent } : {}),
-      ...(opts.codex && (opts.agent ?? DEFAULT_AGENT) === "codex" ? { codex: opts.codex } : {}),
+      ...(opts.codex && (opts.agent ?? DEFAULT_PROVIDER) === "codex" ? { codex: opts.codex } : {}),
     };
     this.launching.add(meta.id);
     const pending = signal();
@@ -466,7 +466,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       .catch((e: unknown) => this.emit("warning", e));
   }
 
-  private async pollTranscript(meta: SessionMeta, live: Live, finishedTurn: NonNullable<AgentBackend["finishedTurn"]>, since: number): Promise<void> {
+  private async pollTranscript(meta: SessionMeta, live: Live, finishedTurn: NonNullable<ProviderBackend["finishedTurn"]>, since: number): Promise<void> {
     if (!live.transport.running || live.stopping || live.lastHookAt !== null) return this.stopWatching(live);
     if (live.activity === "permission") return;
     const payload = await finishedTurn(meta.id, since, this.transcriptIdleMs);
@@ -675,7 +675,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       const extra = await this.extraEnv(meta.repo);
       await backend.prepare?.(meta.repo).catch((e: unknown) => this.emit("warning", e));
       if (live.stopping) throw new HttpError(409, "Session startup was stopped");
-      const launcher = this.launchers[meta.agent ?? DEFAULT_AGENT] ?? backend.launcher;
+      const launcher = this.launchers[meta.agent ?? DEFAULT_PROVIDER] ?? backend.launcher;
       const hookUrl = this.hookUrl();
       // Recover even the crash window between OS spawn and persisting its PID.
       const ownerMarker = this.ownerMarker(meta.id);
@@ -772,7 +772,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     const live = this.live.get(meta.id);
     return {
       ...meta,
-      agent: meta.agent ?? DEFAULT_AGENT,
+      agent: meta.agent ?? DEFAULT_PROVIDER,
       status: this.isRunning(meta.id) ? "running" : "exited",
       exitCode: live?.exitCode ?? null,
       activity: live?.transport.running ? live.activity : null,
@@ -781,7 +781,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
   }
 
   private async evidenceView(meta: SessionMeta): Promise<SessionView> {
-    const accountQuota = await this.accountQuota(meta.agent ?? DEFAULT_AGENT);
+    const accountQuota = await this.accountQuota(meta.agent ?? DEFAULT_PROVIDER);
     return { ...this.view(meta), ...(accountQuota ? { accountQuota } : {}) };
   }
 }

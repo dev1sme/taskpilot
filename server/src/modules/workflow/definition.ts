@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
-import { AGENTS, DEFAULT_AGENT, isAgent, type Agent } from "../../core/agents.js";
+import { PROVIDER_IDS, DEFAULT_PROVIDER, isProviderId, type ProviderId } from "../../core/providers.js";
 import { HttpError } from "../../core/errors.js";
 import { t } from "../../core/i18n.js";
 import { MAX_PARALLEL } from "./assignments.js";
@@ -207,15 +207,15 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
   const codex = readCodex("codex", doc.codex);
 
   /** `agent` of the workflow or of a step; undefined when absent or invalid (then reported). */
-  const readAgent = (where: string, value: unknown): Agent | undefined => {
+  const readAgent = (where: string, value: unknown): ProviderId | undefined => {
     if (value === undefined) return undefined;
-    if (isAgent(value)) return value;
-    errors.push(`${where} must be one of ${AGENTS.join(", ")}`);
+    if (isProviderId(value)) return value;
+    errors.push(`${where} must be one of ${PROVIDER_IDS.join(", ")}`);
     return undefined;
   };
-  const agent = readAgent("agent", doc.agent) ?? DEFAULT_AGENT;
+  const agent = readAgent("agent", doc.agent) ?? DEFAULT_PROVIDER;
   /** `model` of the workflow or of a step, checked against the agent that runs it; undefined when absent or invalid. */
-  const readModel = (where: string, value: unknown, of: Agent): string | undefined => {
+  const readModel = (where: string, value: unknown, of: ProviderId): string | undefined => {
     if (value === undefined) return undefined;
     const problem = modelProblem(of, value);
     if (problem) return void errors.push(`${where}${typeof value === "string" ? ` ${value}` : ""} ${problem}`);
@@ -264,7 +264,7 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
   const steps: StepDef[] = [];
   const outputIds = new Set<string>();
   /** Agent of the step that writes each output: the leader of a dispatch step reading it. */
-  const outputAgent = new Map<string, Agent>();
+  const outputAgent = new Map<string, ProviderId>();
   const outputFiles = new Set<string>([history.file]);
   /** A dispatch step: its table comes from an earlier output, its prompt is for each subtask. */
   const readDispatch = (at: string, raw: Record<string, unknown>, index: number): StepDef | null => {

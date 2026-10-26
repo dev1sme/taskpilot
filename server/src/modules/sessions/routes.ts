@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { isAgent, type Agent } from "../../core/agents.js";
+import { isProviderId, type ProviderId } from "../../core/providers.js";
 import { HttpError } from "../../core/errors.js";
 import type { RepoContext } from "../repo/index.js";
 import { getTask, REPO_SESSION_KEY } from "../tasks/index.js";
@@ -13,10 +13,10 @@ function sessionId(id: string): string {
 }
 
 /** Optional `{ agent }` body of a new session; Claude when absent. */
-function agentOf(body: unknown): Agent | undefined {
+function agentOf(body: unknown): ProviderId | undefined {
   const agent = typeof body === "object" && body !== null ? (body as { agent?: unknown }).agent : undefined;
   if (agent === undefined || agent === null) return undefined;
-  if (!isAgent(agent)) throw new HttpError(400, `Unknown agent: ${String(agent)}`);
+  if (!isProviderId(agent)) throw new HttpError(400, `Unknown agent: ${String(agent)}`);
   return agent;
 }
 

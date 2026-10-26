@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { t } from "../../../core/i18n.js";
-import { configCli, markConfigAvailable } from "../shared/agent.js";
+import { parseConfigProvider, markConfigAvailable } from "../shared/provider-capabilities.js";
 import { scopeOf, stringField, type ConfigRouteOptions } from "../shared/http.js";
 import { memoryTarget } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
@@ -12,16 +12,16 @@ export function registerMemoryRoutes(app: FastifyInstance, opts: ConfigRouteOpti
   markConfigAvailable("codex", "memory");
   markConfigAvailable("copilot", "memory");
 
-  app.get<{ Querystring: { cli?: string } }>("/api/config/memory", async (req) => readMemory(requireRepo(), configCli(req.query.cli)));
+  app.get<{ Querystring: { cli?: string } }>("/api/config/memory", async (req) => readMemory(requireRepo(), parseConfigProvider(req.query.cli)));
 
   app.get<{ Params: { scope: string }; Querystring: { cli?: string } }>("/api/config/memory/:scope/raw", async (req) => {
-    const target = memoryTarget(requireRepo(), scopeOf(req.params.scope), configCli(req.query.cli));
+    const target = memoryTarget(requireRepo(), scopeOf(req.params.scope), parseConfigProvider(req.query.cli));
     const content = await readCurrent(target.abs);
     return { path: target.display, exists: content !== null, content: content ?? "", hash: hashOf(content) };
   });
 
   app.post<{ Params: { scope: string }; Querystring: { cli?: string } }>("/api/config/memory/:scope/preview", async (req) => {
-    const target = memoryTarget(requireRepo(), scopeOf(req.params.scope), configCli(req.query.cli));
+    const target = memoryTarget(requireRepo(), scopeOf(req.params.scope), parseConfigProvider(req.query.cli));
     const next = stringField(req.body, "content");
     const current = await readCurrent(target.abs);
     return { diff: diffText(target.display, current, next), changed: current !== next, stale: hashOf(current) !== stringField(req.body, "baseHash") };
@@ -29,7 +29,7 @@ export function registerMemoryRoutes(app: FastifyInstance, opts: ConfigRouteOpti
 
   app.put<{ Params: { scope: string }; Querystring: { cli?: string } }>("/api/config/memory/:scope", async (req) => {
     const repo = requireRepo();
-    const target = memoryTarget(repo, scopeOf(req.params.scope), configCli(req.query.cli));
+    const target = memoryTarget(repo, scopeOf(req.params.scope), parseConfigProvider(req.query.cli));
     return writeWithBackup({
       repo,
       target,

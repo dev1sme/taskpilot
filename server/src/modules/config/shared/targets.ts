@@ -4,7 +4,8 @@ import { claudeHome } from "../../../core/claude/home.js";
 import { codexConfigHome, codexSkillsHome } from "../../../core/codex/home.js";
 import { copilotConfigHome } from "../../../core/copilot/home.js";
 import { displayPath } from "./fs.js";
-import { requireConfigScope, type ConfigCli, type ConfigScope } from "./agent.js";
+import { requireConfigScope, type ConfigScope } from "./provider-capabilities.js";
+import { type ProviderId } from "../../../core/providers.js";
 import { HttpError } from "../../../core/errors.js";
 import { overrideDir, PROMPT_FILE, SETTINGS_FILE, WORKFLOW_FILE } from "../../workflow/index.js";
 import type { LibraryKind, LibraryScope } from "../library/read.js";
@@ -31,7 +32,7 @@ export function projectMemoryFiles(repo: string): { main: string; other: string 
   return { main: existsSync(dotClaude) ? dotClaude : root, other: null };
 }
 
-export function memoryTarget(repo: string, scope: MemoryScope, cli: ConfigCli = "claude"): FileTarget {
+export function memoryTarget(repo: string, scope: MemoryScope, cli: ProviderId = "claude"): FileTarget {
   requireConfigScope(cli, "memory", scope);
   const abs =
     cli === "claude"
@@ -54,7 +55,7 @@ export function memoryTarget(repo: string, scope: MemoryScope, cli: ConfigCli = 
   return { abs, display: displayPath(abs, repo) };
 }
 
-export function settingsTarget(repo: string, scope: SettingsScope, cli: ConfigCli = "claude"): FileTarget {
+export function settingsTarget(repo: string, scope: SettingsScope, cli: ProviderId = "claude"): FileTarget {
   requireConfigScope(cli, "settings", scope);
   const abs =
     cli === "claude"
@@ -94,7 +95,7 @@ const LIBRARY_REL: Record<LibraryKind, (rel: string) => boolean> = {
 };
 
 /** An agent, command or skill file; `rel` must match the kind's naming (no "..", no other files). */
-export function libraryTarget(repo: string, kind: LibraryKind, scope: LibraryScope, rel: string, cli: ConfigCli = "claude"): FileTarget {
+export function libraryTarget(repo: string, kind: LibraryKind, scope: LibraryScope, rel: string, cli: ProviderId = "claude"): FileTarget {
   requireConfigScope(cli, kind, scope);
   if (cli === "codex" && kind === "agents") {
     if (scope !== "project") throw new HttpError(400, t("configMessages.shared_targets_01", { value0: scope }));
@@ -134,7 +135,7 @@ export function codexAgentTarget(repo: string, rel: string): FileTarget {
 }
 
 /** Native hook JSON files; Claude hooks live inside settings.json and use settingsTarget. */
-export function hookTarget(repo: string, scope: ConfigScope, rel: string, cli: ConfigCli): FileTarget {
+export function hookTarget(repo: string, scope: ConfigScope, rel: string, cli: ProviderId): FileTarget {
   requireConfigScope(cli, "hooks", scope);
   if (cli !== "copilot" || !/^[A-Za-z0-9][\w.-]*\.json$/.test(rel)) throw new HttpError(400, t("errors.invalidName", { name: rel }));
   const root = scope === "project" ? path.join(repo, ".github", "hooks") : path.join(copilotConfigHome(), "hooks");
@@ -143,7 +144,7 @@ export function hookTarget(repo: string, scope: ConfigScope, rel: string, cli: C
 }
 
 /** Native MCP container. Codex stores its MCP table in config.toml. */
-export function mcpTarget(repo: string, scope: ConfigScope, cli: ConfigCli = "claude"): FileTarget {
+export function mcpTarget(repo: string, scope: ConfigScope, cli: ProviderId = "claude"): FileTarget {
   requireConfigScope(cli, "mcp", scope);
   if (cli === "codex") return settingsTarget(repo, scope as SettingsScope, cli);
   if (cli === "claude" && scope !== "project") throw new HttpError(400, t("configMessages.shared_targets_02"));

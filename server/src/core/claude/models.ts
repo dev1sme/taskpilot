@@ -1,4 +1,4 @@
-import { AGENT_LABELS } from "../agents.js";
+import { PROVIDER_LABELS } from "../providers.js";
 
 /** Model aliases Claude Code accepts; `default` and `inherit` mean "no --model". */
 export const CLAUDE_MODEL_ALIASES = ["default", "inherit", "haiku", "sonnet", "opus", "fable", "opusplan"] as const;
@@ -12,5 +12,5 @@ export function isClaudeModel(value: string): boolean {
 /** Why `value` (already a one-word model name) cannot be a Claude model, or null when it can. */
 export function claudeModelProblem(value: string): string | null {
   if (isClaudeModel(value)) return null;
-  return `is not a ${AGENT_LABELS.claude} model; use one of ${CLAUDE_MODEL_ALIASES.join(", ")} or an id like claude-sonnet-5-5`;
+  return `is not a ${PROVIDER_LABELS.claude} model; use one of ${CLAUDE_MODEL_ALIASES.join(", ")} or an id like claude-sonnet-5-5`;
 }

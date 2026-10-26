@@ -1,5 +1,5 @@
-import type { Agent } from "../../core/agents.js";
-import type { AgentCapability, PreflightRequest, ProviderPromptInventory, PreflightResult, SessionView, SessionCreateOptions, SessionWaitOptions } from "../sessions/index.js";
+import type { ProviderId } from "../../core/providers.js";
+import type { ProviderCapability, PreflightRequest, ProviderPromptInventory, PreflightResult, SessionView, SessionCreateOptions, SessionWaitOptions } from "../sessions/index.js";
 import type { WorkflowDef } from "./types.js";
 import type { ClaudeSubagentInfo } from "./prompt-vars.js";
 
@@ -11,7 +11,7 @@ export type ClaudeSubagentsOf = (repo: string) => Promise<ClaudeSubagentInfo[]>;
 
 /** Read-only checks before run/restart/handoff mutation; receives no environment in its DTO. */
 export interface SessionCapabilityPort {
-  capabilities(repo: string): Promise<{ agents: AgentCapability[] }>;
+  capabilities(repo: string): Promise<{ agents: ProviderCapability[] }>;
   preflight(repo: string, request: PreflightRequest): Promise<PreflightResult>;
 }
 
@@ -38,7 +38,7 @@ export interface SessionPort extends Partial<SessionLifecyclePort> {
   get(id: string): Promise<SessionView>;
   paste(id: string, text: string): void;
   /** What the leader's `{{subagents}}` lists for `agent`; absent or undefined = nothing provider-specific. Never rejects. */
-  promptInventory?(repo: string, agent: Agent): Promise<ProviderPromptInventory | undefined>;
+  promptInventory?(repo: string, agent: ProviderId): Promise<ProviderPromptInventory | undefined>;
   /** Whether the session's running process has sent a hook of its own yet. */
   hookSeen(id: string): boolean;
 }

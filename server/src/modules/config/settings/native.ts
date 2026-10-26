@@ -2,9 +2,10 @@ import { t } from "../../../core/i18n.js";
 import { parse as parseToml } from "smol-toml";
 import { HttpError } from "../../../core/errors.js";
 import { isObject } from "../shared/fs.js";
-import type { ConfigCli, ConfigScope } from "../shared/agent.js";
+import type { ConfigScope } from "../shared/provider-capabilities.js";
+import { type ProviderId } from "../../../core/providers.js";
 
-type NativeCli = Exclude<ConfigCli, "claude">;
+type NativeCli = Exclude<ProviderId, "claude">;
 type NativeValue = string | boolean | null;
 export type NativeFields = Record<string, NativeValue>;
 

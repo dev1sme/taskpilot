@@ -2,7 +2,8 @@ import { t } from "../../../core/i18n.js";
 import path from "node:path";
 import { claudeHome } from "../../../core/claude/home.js";
 import { displayPath, isObject, maskValue, readJsonFile, strings } from "../shared/fs.js";
-import type { ConfigCli, ConfigScope } from "../shared/agent.js";
+import type { ConfigScope } from "../shared/provider-capabilities.js";
+import { type ProviderId } from "../../../core/providers.js";
 import { settingsTarget } from "../shared/targets.js";
 import { readCurrent } from "../shared/writer.js";
 import { nativeKeys, readNativeFields, type NativeFields } from "./native.js";
@@ -34,7 +35,7 @@ export interface NativeSettingsFile {
 }
 
 /** Only the validated native fields leave the server. Unknown fields and credentials stay on disk. */
-export async function readNativeSettings(repo: string, cli: Exclude<ConfigCli, "claude">): Promise<NativeSettingsFile[]> {
+export async function readNativeSettings(repo: string, cli: Exclude<ProviderId, "claude">): Promise<NativeSettingsFile[]> {
   const scopes: ConfigScope[] = cli === "codex" ? ["project", "user"] : ["project", "local", "user"];
   return Promise.all(
     scopes.map(async (scope) => {

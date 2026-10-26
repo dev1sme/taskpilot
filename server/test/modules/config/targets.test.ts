@@ -2,7 +2,7 @@ import { mkdir, readFile, symlink } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { BackupStore } from "../../../src/modules/config/backups/store.js";
-import { configCli, markConfigAvailable, requireConfigScope } from "../../../src/modules/config/shared/agent.js";
+import { parseConfigProvider, markConfigAvailable, requireConfigScope } from "../../../src/modules/config/shared/provider-capabilities.js";
 import { codexConfigHome as configuredCodexHome } from "../../../src/core/codex/home.js";
 import { copilotConfigHome as configuredCopilotHome } from "../../../src/core/copilot/home.js";
 import { hookTarget, isAllowedPath, libraryTarget, mcpTarget, memoryTarget, settingsTarget } from "../../../src/modules/config/shared/targets.js";
@@ -82,9 +82,9 @@ describe("isAllowedPath", () => {
 
 describe("CLI capability", () => {
   it("defaults to Claude and rejects unknown CLI or scope", async () => {
-    expect(configCli()).toBe("claude");
-    expect(configCli("copilot")).toBe("copilot");
-    expect(() => configCli("other")).toThrow();
+    expect(parseConfigProvider()).toBe("claude");
+    expect(parseConfigProvider("copilot")).toBe("copilot");
+    expect(() => parseConfigProvider("other")).toThrow();
     expect(() => requireConfigScope("codex", "hooks", "project")).toThrow();
     expect(() => markConfigAvailable("codex", "hooks")).toThrow();
     expect((await get("/api/config/capabilities")).cli).toBe("claude");

@@ -4,7 +4,7 @@ import fastifyWebsocket from "@fastify/websocket";
 import Fastify, { LogController, type FastifyInstance } from "fastify";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import type { Agent } from "./core/agents.js";
+import type { ProviderId } from "./core/providers.js";
 import type { Launcher } from "./core/launch.js";
 import type { ClaudeUsageFields } from "./core/claude/usage.js";
 import type { CodexUsageFields } from "./core/codex/usage.js";
@@ -45,7 +45,7 @@ export interface AppOptions {
   /** Overrides the claude command (tests). */
   launcher?: Launcher;
   /** Overrides an agent's command (tests). */
-  launchers?: Partial<Record<Agent, Launcher>>;
+  launchers?: Partial<Record<ProviderId, Launcher>>;
   /** Overrides how often and how patiently a hookless session's transcript is read (tests). */
   transcript?: { pollMs: number; idleMs: number };
   /** Overrides workflow loading (tests). */

@@ -6,7 +6,7 @@ import { parse as parseToml } from "smol-toml";
 import { codexConfigHome } from "../../../core/codex/home.js";
 import { copilotConfigHome } from "../../../core/copilot/home.js";
 import { readText } from "../shared/fs.js";
-import type { ConfigCli } from "../shared/agent.js";
+import { type ProviderId } from "../../../core/providers.js";
 import { HttpError } from "../../../core/errors.js";
 
 export type McpScope = "project" | "local" | "user";
@@ -40,7 +40,7 @@ export interface McpConfig {
  * MCP servers Claude sees for this repo: project (.mcp.json, shared), local (~/.claude.json
  * projects[repo], private) and user (~/.claude.json top level). Secret values are masked.
  */
-export async function readMcp(repo: string, provided: Record<string, string> = {}, cli: ConfigCli = "claude"): Promise<McpConfig> {
+export async function readMcp(repo: string, provided: Record<string, string> = {}, cli: ProviderId = "claude"): Promise<McpConfig> {
   if (cli !== "claude") return readNativeMcp(repo, provided, cli);
   const projectFile = path.join(repo, ".mcp.json");
   const project = await readJsonFile(projectFile);

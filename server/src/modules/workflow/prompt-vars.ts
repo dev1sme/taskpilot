@@ -1,5 +1,5 @@
 import path from "node:path";
-import { AGENT_LABELS } from "../../core/agents.js";
+import { PROVIDER_LABELS } from "../../core/providers.js";
 import type { ProviderPromptInventory } from "../sessions/index.js";
 import { SPEC_DIR, TASKS_DIR } from "../tasks/index.js";
 import { HISTORY_TEXT, summarizeMetrics } from "./history.js";
@@ -116,7 +116,7 @@ export function promptVars(
     key: task.key,
     title: task.title,
     step: step?.title ?? "",
-    agent: AGENT_LABELS[effective.agent],
+    agent: PROVIDER_LABELS[effective.agent],
     executionPolicy: [
       opts.run && (executionOfRun(opts.run).agent !== "workflow" || effective.source === "lane-override") ? PROMPT_TEXT.executionPolicy(executionOfRun(opts.run), effective) : "",
       opts.run?.handoffs?.some(
@@ -127,7 +127,7 @@ export function promptVars(
     ]
       .filter(Boolean)
       .join("\n\n"),
-    leaderTools: effective.agent === "claude" ? PROMPT_TEXT.leaderClaudeTools : PROMPT_TEXT.leaderOtherTools(AGENT_LABELS[effective.agent]),
+    leaderTools: effective.agent === "claude" ? PROMPT_TEXT.leaderClaudeTools : PROMPT_TEXT.leaderOtherTools(PROVIDER_LABELS[effective.agent]),
     stepNumber: String(stepIndex + 1),
     stepCount: String(def.steps.length),
     taskDir,
@@ -172,7 +172,7 @@ export function promptVars(
     return (
       PROMPT_TEXT.subtaskLine(
         a.n,
-        HISTORY_TEXT.worker(AGENT_LABELS[worker.agent], worker.subagent, worker.model),
+        HISTORY_TEXT.worker(PROVIDER_LABELS[worker.agent], worker.subagent, worker.model),
         a.title,
         `${taskDir}/${a.report ?? lastDispatch?.report.replaceAll("{{n}}", String(a.n)) ?? ""}`,
       ) +

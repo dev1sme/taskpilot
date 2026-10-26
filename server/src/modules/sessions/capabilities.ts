@@ -1,13 +1,13 @@
-import { AGENTS, type Agent } from "../../core/agents.js";
+import { PROVIDER_IDS, type ProviderId } from "../../core/providers.js";
 import { HttpError } from "../../core/errors.js";
 import { backendOf } from "./backends/index.js";
 import { emptyCapability, problem } from "./backends/probe.js";
-import type { AgentCapability, BackendProbeContext, CapabilityCheck, PreflightProblem } from "./backends/types.js";
+import type { ProviderCapability, BackendProbeContext, CapabilityCheck, PreflightProblem } from "./backends/types.js";
 
-export type { AgentCapability, CapabilityCheck, CapabilityStatus, PreflightErrorCode, PreflightProblem } from "./backends/types.js";
+export type { ProviderCapability, CapabilityCheck, CapabilityStatus, PreflightErrorCode, PreflightProblem } from "./backends/types.js";
 
 export interface PreflightRequest {
-  agent: Agent;
+  agent: ProviderId;
   permissionMode?: string;
   model?: string;
   subagent?: string;
@@ -17,7 +17,7 @@ export interface PreflightResult {
   /** unknown may proceed with explicit uncertainty; blocked must never mutate a lane. */
   status: "ready" | "unknown" | "blocked";
   configuration: PreflightRequest;
-  capability: AgentCapability;
+  capability: ProviderCapability;
   model: CapabilityCheck;
   errors: PreflightProblem[];
 }
@@ -38,12 +38,12 @@ export function requirePreflight(result: PreflightResult): void {
 type ContextOf = (request: PreflightRequest) => Promise<BackendProbeContext>;
 
 /** Fresh, context-local probes: no global model/login cache or account data in API responses. */
-export async function sessionCapabilities(contextOf: ContextOf): Promise<{ agents: AgentCapability[] }> {
-  const agents = await Promise.all(AGENTS.map((agent) => probe({ agent }, contextOf)));
+export async function sessionCapabilities(contextOf: ContextOf): Promise<{ agents: ProviderCapability[] }> {
+  const agents = await Promise.all(PROVIDER_IDS.map((agent) => probe({ agent }, contextOf)));
   return { agents };
 }
 
-async function probe(request: PreflightRequest, contextOf: ContextOf): Promise<AgentCapability> {
+async function probe(request: PreflightRequest, contextOf: ContextOf): Promise<ProviderCapability> {
   const backend = backendOf(request.agent);
   try {
     return await backend.probe(await contextOf(request));

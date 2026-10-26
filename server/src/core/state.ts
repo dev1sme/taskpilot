@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { Agent } from "./agents.js";
+import type { ProviderId } from "./providers.js";
 import type { CodexUsage } from "./codex/usage.js";
 import type { CopilotQuota } from "./copilot/quota.js";
 import type { ClaudeUsage } from "../modules/usage/index.js";
@@ -13,7 +13,7 @@ export interface SessionMeta {
   /** The agent's own id of the conversation when the agent picks it (Codex thread id); absent = id. */
   nativeId?: string;
   /** The coding agent the session runs; absent = claude (sessions saved before agents existed). */
-  agent?: Agent;
+  agent?: ProviderId;
   repo: string;
   taskKey: string;
   title: string;

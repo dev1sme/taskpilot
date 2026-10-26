@@ -1,4 +1,4 @@
-import type { Agent } from "../../../core/agents.js";
+import type { ProviderId } from "../../../core/providers.js";
 import type { Launcher, LaunchSpec } from "../../../core/launch.js";
 import type { HookEvent } from "../hooks.js";
 import type { SessionMetrics, SessionMetricsSource } from "../transports/types.js";
@@ -20,7 +20,7 @@ export type PreflightErrorCode =
 /** Safe to return through an API: never include raw stderr, account data or environment. */
 export interface PreflightProblem {
   code: PreflightErrorCode;
-  agent: Agent;
+  agent: ProviderId;
   field: "cli" | "login" | "model" | "permissionMode" | "subagent";
   message: string;
 }
@@ -31,8 +31,8 @@ export interface CapabilityCheck {
   error?: PreflightProblem;
 }
 
-export interface AgentCapability {
-  agent: Agent;
+export interface ProviderCapability {
+  agent: ProviderId;
   checkedAt: number;
   cli: CapabilityCheck & { version?: string };
   login: CapabilityCheck;
@@ -96,9 +96,9 @@ export interface ProviderTraits {
  * How TaskPilot runs one coding agent in a session. Everything past this interface (engine,
  * activity feed, hook routes) works with Claude Code's hook names and payload fields.
  */
-export interface AgentBackend extends ProviderTraits {
-  id: Agent;
-  probe(context: BackendProbeContext): Promise<AgentCapability>;
+export interface ProviderBackend extends ProviderTraits {
+  id: ProviderId;
+  probe(context: BackendProbeContext): Promise<ProviderCapability>;
   launcher: Launcher;
   /** JSON for the agent's --settings flag, when it takes its hooks on the command line. */
   launchSettings?(): string;

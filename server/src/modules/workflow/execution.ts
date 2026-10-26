@@ -1,4 +1,4 @@
-import { DEFAULT_AGENT, isAgent } from "../../core/agents.js";
+import { DEFAULT_PROVIDER, isProviderId } from "../../core/providers.js";
 import { providerTraits } from "../sessions/index.js";
 import { launchModel, modelProblem } from "./models.js";
 import type {
@@ -30,7 +30,7 @@ export function parseExecution(value: unknown, field = "execution"): ExecutionSe
     if (data.model !== undefined) return invalid(`${field}.model`, "must be absent when agent is workflow");
     return { agent: "workflow" };
   }
-  if (!isAgent(data.agent)) return invalid(`${field}.agent`, "must be workflow, claude, copilot or codex");
+  if (!isProviderId(data.agent)) return invalid(`${field}.agent`, "must be workflow, claude, copilot or codex");
   if (data.model !== undefined) {
     const problem = modelProblem(data.agent, data.model);
     if (problem) return invalid(`${field}.model`, problem);
@@ -92,7 +92,7 @@ export function resolveExecution({ workflow, scope, run = {}, assignment }: Reso
     choice = policy;
     source = "execution";
   } else {
-    choice = { agent: base.agent ?? DEFAULT_AGENT, model: base.model };
+    choice = { agent: base.agent ?? DEFAULT_PROVIDER, model: base.model };
     source = row ? "assignment" : "workflow";
   }
   const model = launchModel(choice.model);

@@ -4,7 +4,6 @@ import type { Agent } from "../../shared/agents";
 export const REPO_SESSION_KEY = "@repo";
 
 export interface SessionView {
-  transport: "pty" | "rpc";
   id: string;
   taskKey: string;
   title: string;
@@ -21,10 +20,7 @@ export interface SessionView {
     observedAt: number;
     generation?: number;
     evidence: {
-      source: "codex-turn" | "codex-startup" | "unclassified";
-      code?: "usageLimitExceeded" | "unauthorized" | "http401" | "connection" | "missing" | "notLoggedIn" | "modelUnknown";
-      threadId?: string;
-      turnId?: string;
+      source: "unclassified";
     };
   };
   accountQuota?: {
@@ -36,14 +32,4 @@ export interface SessionView {
     validUntil?: number;
     exhausted: boolean;
   };
-}
-
-export interface ConversationItem {
-  id: string;
-  kind: "user" | "agent" | "tool" | "approval" | "error";
-  text: string;
-  detail?: string;
-  status?: "running" | "done" | "failed" | "pending" | "accepted" | "declined" | "cancelled";
-  requestId?: string;
-  at: number;
 }

@@ -17,35 +17,6 @@
   "opening": "Đang mở terminal…",
   "notRunning": "[Session không chạy. Bấm Resume để tiếp tục hội thoại này.]",
   "disconnected": "[mất kết nối tới server: {{code}}]",
-  "conversation": {
-    "title": "Hội thoại Codex",
-    "messages": "Tin nhắn",
-    "empty": "Gửi yêu cầu để bắt đầu. Hội thoại trước khi TaskPilot khởi động lại nằm trong lịch sử hoạt động.",
-    "prompt": "Yêu cầu cho Codex",
-    "commands": "Lệnh: /compact, /review [branch <tên> | commit <sha> | nội dung], /model [id], /skills, $skill. Lệnh / khác chỉ có trong TUI Codex và sẽ báo không hỗ trợ.",
-    "send": "Gửi (Ctrl/⌘+Enter)",
-    "interrupt": "Ngắt lượt",
-    "approval": "Codex xin quyền",
-    "accept": "Chấp nhận",
-    "decline": "Từ chối",
-    "details": "Chi tiết",
-    "disconnected": "Mất kết nối. Đang kết nối lại…",
-    "kind": {
-      "user": "Bạn",
-      "agent": "Codex",
-      "tool": "Công cụ",
-      "error": "Lỗi"
-    },
-    "status": {
-      "running": "Đang chạy",
-      "done": "Xong",
-      "failed": "Lỗi",
-      "pending": "Chờ duyệt",
-      "accepted": "Đã chấp nhận",
-      "declined": "Đã từ chối",
-      "cancelled": "Đã hủy"
-    }
-  },
   "retired": "đã được thay",
   "reserved": "đang bàn giao",
   "retiredHint": "Phiên đã được thay, chỉ xem lịch sử. Tiếp tục công việc ở phiên đích của lane; không thể Resume hoặc gửi input vào phiên này.",

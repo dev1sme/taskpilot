@@ -7,8 +7,6 @@ import { AgentBadge } from "../../shared/ui/AgentBadge";
 import { Button, SrOnly } from "../../shared/ui/Button";
 import "./sessions.css";
 import { sessionsApi } from "./api";
-import { useConversation } from "./useConversation";
-import { Conversation } from "./Conversation";
 import type { SessionView } from "./types";
 
 // xterm.js is loaded when the drawer first opens.
@@ -217,17 +215,7 @@ export function TerminalDrawer(props: Props) {
           >
             {active ? (
               <Suspense fallback={<p className="hint drawer-empty">{t("opening")}</p>}>
-                {readOnly ? (
-                  active.transport === "rpc" ? (
-                    <SessionHistory key={active.id} session={active} />
-                  ) : (
-                    <TerminalHistory key={active.id} sessionId={active.id} />
-                  )
-                ) : active.transport === "rpc" ? (
-                  <Conversation key={`${active.id}-${generation}`} session={active} />
-                ) : (
-                  <Terminal key={`${active.id}-${generation}`} sessionId={active.id} onExit={props.onChanged} />
-                )}
+                {readOnly ? <TerminalHistory key={active.id} sessionId={active.id} /> : <Terminal key={`${active.id}-${generation}`} sessionId={active.id} onExit={props.onChanged} />}
               </Suspense>
             ) : (
               <p className="hint drawer-empty">{props.emptyHint}</p>
@@ -239,32 +227,7 @@ export function TerminalDrawer(props: Props) {
   );
 }
 
-/** Retired and reserved sessions expose replay only, with no input or approval controls. */
-function SessionHistory({ session }: { session: SessionView }) {
-  const { t } = useTranslation("sessions");
-  const { items } = useConversation(session.id);
-  return (
-    <div className="conversation">
-      <div className="conversation-items" role="log" aria-label={t("history")}>
-        {!items.length && <p className="hint">{t("historyEmpty")}</p>}
-        {items.map((item) => (
-          <article key={item.id} className={`conversation-item conversation-${item.kind}`}>
-            <strong>{item.kind === "approval" ? t("conversation.approval") : t(`conversation.kind.${item.kind}`)}</strong>
-            <p>{item.text}</p>
-            {item.status && <span>{t(`conversation.status.${item.status}`)}</span>}
-            {item.detail && (
-              <details>
-                <summary>{t("conversation.details")}</summary>
-                <pre>{item.detail}</pre>
-              </details>
-            )}
-          </article>
-        ))}
-      </div>
-    </div>
-  );
-}
-
+/** Retired and reserved sessions expose replay only, with no input controls. */
 function TerminalHistory({ sessionId }: { sessionId: string }) {
   const { t } = useTranslation("sessions");
   const ref = useRef<HTMLDivElement>(null);

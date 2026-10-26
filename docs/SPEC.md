@@ -12,14 +12,14 @@ Trình duyệt: React + Vite + xterm.js
              │
 Server: Node.js + TypeScript + Fastify
   ├─ RepoScanner: quét và theo dõi task
-  ├─ SessionManager: PTY Claude/Copilot; RPC Codex
+  ├─ SessionManager: mọi phiên là PTY (Claude, Copilot, Codex TUI)
   ├─ WorkflowEngine: gửi prompt, kiểm tra đầu ra, chờ duyệt
   ├─ ActivityStore: lưu và phát hoạt động từ hooks
   └─ StateStore: lưu phiên, lần chạy và repo gần nhất
              │
        Claude Code / Copilot CLI / Codex CLI
-             ├─ Hooks gọi về /hook/:event bằng curl (PTY)
-             └─ App Server JSON-RPC qua stdio (Codex)
+             ├─ Hooks gọi về /hook/:event bằng curl (mọi phiên)
+             └─ codex app-server ngắn hạn qua stdio (chỉ probe và hạn mức Codex)
 ```
 
 [`app.ts`](../server/src/app.ts) khởi tạo dịch vụ và nối sự kiện: hook tới activity và engine, phiên thoát tới engine, thông tin hạn mức tới usage, thay đổi dữ liệu tới SSE.
@@ -49,17 +49,17 @@ Việc con hoàn thành khi đã ghi báo cáo trong lượt hiện tại và nh
 
 Bảng có thể có thêm cột `Subagent` và `Model`. Khi duyệt gate, `assignments.ts` kiểm cú pháp và model theo agent của dòng (Claude chỉ nhận alias hoặc id `claude-…`), rồi engine kiểm subagent của dòng `claude` bằng `subagentsOf(repo)` (bản project trước bản user): phải tồn tại và có vai trò `member` theo [`library/check.ts`](../server/src/modules/config/library/check.ts). Lỗi nào cũng chặn duyệt. Việc con mở phiên với `--agent`/`--model` tương ứng; `default` và `inherit` không truyền `--model`.
 
-Khi chạy, engine ghi thời điểm, model/cost từ status line Claude hoặc model/token từ Codex thread. Requested model được giữ riêng với model thực tế backend báo; Copilot thiếu số đo thực tế và chi phí. Số liệu đi vào nhật ký, `{{subtasks}}` và cây việc con; sau bàn giao giữ provenance theo session/attempt như [mục 9](#9-metrics-và-bằng-chứng-quota). Run cũ thiếu các trường này vẫn đọc được.
+Khi chạy, engine ghi thời điểm, model/cost từ status line Claude hoặc model/token của thread Codex (model từ hook, token từ rollout). Requested model được giữ riêng với model thực tế backend báo; Copilot thiếu số đo thực tế và chi phí. Số liệu đi vào nhật ký, `{{subtasks}}` và cây việc con; sau bàn giao giữ provenance theo session/attempt như [mục 9](#9-metrics-và-bằng-chứng-quota). Run cũ thiếu các trường này vẫn đọc được.
 
 Bảng phân công, trạng thái và câu hỏi việc con được trả về cùng dữ liệu lần chạy. Quy tắc phân tích nằm trong [`assignments.ts`](../server/src/modules/workflow/assignments.ts). Các phiên cùng dùng repo đang mở; kiểm tra phạm vi file không thay thế worktree hay sandbox.
 
 ## 4. Tích hợp CLI
 
-Mỗi CLI có một `AgentBackend` trong [`sessions/backends/`](../server/src/modules/sessions/backends), phụ trách khởi chạy, hooks, nhận biết sẵn sàng và chuẩn hóa sự kiện. Engine và activity sử dụng tên sự kiện chung như `SessionStart`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`.
+Mỗi CLI có một `AgentBackend` trong [`sessions/backends/`](../server/src/modules/sessions/backends), phụ trách khởi chạy, hooks, nhận biết sẵn sàng và chuẩn hóa sự kiện. Mọi phiên chạy TUI của CLI trong `PtyTransport`; người dùng nhập, duyệt quyền và dùng slash command ngay trong terminal. Engine và activity sử dụng tên sự kiện chung như `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`.
 
 - **Claude:** truyền hooks bằng `--settings`, ghép cùng cấu hình người dùng. `statusLine` do TaskPilot chèn gửi mức sử dụng về server rồi gọi tiếp status line của người dùng. Tiếp tục phiên bằng `--resume`.
 - **Copilot:** cài hooks tại `$COPILOT_HOME/hooks/taskpilot.json`, mặc định dưới `~/.copilot`. Hooks chỉ chạy cho phiên có biến môi trường TaskPilot phù hợp. `--session-id` dùng cho cả tạo và tiếp tục phiên.
-- **Codex:** App Server JSON-RPC qua stdio; native thread id khác id session TaskPilot. Readiness, approval, lỗi và kết thúc lượt được chuẩn hóa từ RPC, không dùng hooks Claude/Copilot. Resume giữ thread/model; bàn giao luôn tạo thread mới. Quyền theo [bảng Codex](CONFIGURATION.md#quyền-và-cấu-hình-codex).
+- **Codex:** chạy `codex` TUI; hooks truyền cho từng lần chạy bằng `-c hooks.<Event>=…`, không ghi file của người dùng. Codex không có `--session-id`: native thread id lấy từ `session_id` của hook đầu tiên và khác id session TaskPilot. Tiếp tục bằng `codex resume <thread id>` kèm lại mọi cờ; bàn giao luôn tạo thread mới. Sẵn sàng nhận biết bằng footer ô nhập. Chi tiết ở [Codex TUI](#codex-tui), quyền theo [bảng Codex](CONFIGURATION.md#quyền-và-cấu-hình-codex).
 - Môi trường con bỏ các biến `CLAUDE*` kế thừa để transcript được lưu bình thường, đồng thời loại bí mật đăng nhập UI. Kho môi trường MCP được thêm vào các phiên TaskPilot mở.
 - Khi tiếp tục, TaskPilot truyền lại `--agent` và `--model` nếu có cấu hình, để giữ lựa chọn của phiên.
 
@@ -92,7 +92,17 @@ Giao diện dùng một model meter và một quy tắc giờ cho mọi agent: g
 
 Khai báo agent trong `core/agents.ts`, viết launcher và đọc phiên bản trong `core/<agent>/`, rồi thêm backend vào `modules/sessions/backends/`. Cập nhật danh sách agent phía client và thông tin phiên bản ở `/api/info`.
 
-Trước khi nối vào engine, cần kiểm tra bằng CLI thật: tạo/tiếp tục phiên, nhận prompt nhiều dòng, xác nhận tin cậy thư mục, quyền, thứ tự hook, kết thúc lượt và cách đọc transcript. Bài kiểm thử dùng CLI giả không thay thế bước này.
+Kiểu và helper chung (`Launcher`, `LaunchOptions`, `childEnv`, `agentArgs`) nằm ở [`core/launch.ts`](../server/src/core/launch.ts); đọc `--version` dùng [`core/cli-version.ts`](../server/src/core/cli-version.ts). Thư mục `core/<agent>/` chỉ chứa phần riêng của CLI đó. CLI mới cũng chạy TUI trong PTY và gửi hooks về `/hook/:event`; không có transport riêng theo provider. Phần khác nhau giữa các CLI khai báo trong backend:
+
+| Trường `AgentBackend` | Dùng khi |
+|---|---|
+| `launcher`, `launchSettings` | Dựng lệnh, cờ quyền/model/subagent và cách truyền hooks |
+| `prepare` | Phải cài file trước khi mở (Copilot ghi hooks cấp user) |
+| `readyMarker` (`string` hoặc `RegExp`) | CLI chỉ phát `SessionStart` cùng prompt đầu; `PtyTransport` phát `SessionStart` tổng hợp khi thấy dấu |
+| `nativeIdOf` | CLI tự cấp id phiên; manager lưu `nativeId` từ hook rồi đổi `session_id` của payload về id TaskPilot |
+| `normalize`, `permissionGraceMs`, `finishedTurn` | Payload khác hợp đồng chung, `PermissionRequest` đến muộn, hoặc cần đọc transcript khi thiếu `Stop` |
+
+Trước khi nối vào engine, cần kiểm tra bằng CLI thật: tạo/tiếp tục phiên, nhận prompt nhiều dòng, xác nhận tin cậy thư mục và tin cậy hooks, quyền, thứ tự hook, kết thúc lượt và cách đọc transcript. Bài kiểm thử dùng CLI giả không thay thế bước này.
 
 ## 7. Lưu ý tương thích CLI
 
@@ -122,21 +132,51 @@ Quan sát trên Copilot CLI `1.0.103` ngày 23/10/2026; cần kiểm tra lại k
 - **Leader Copilot:** khi bước chạy bằng Copilot và prompt có `{{subagents}}`, engine thay bằng danh sách custom agent Copilot (`listCopilotAgents`) cùng danh sách model của tài khoản (không đọc được thì ghi `-`), để leader điền bảng Phân công; leader Claude/Codex giữ danh sách Claude/Codex. Policy lane vẫn ép `Agent = copilot`; Model chỉ dùng giá trị trong danh sách hoặc `-`.
 - **Test:** vitest đặt `TASKPILOT_COPILOT` trỏ binary không tồn tại để test không đọc tài khoản thật; fixture ACP ghi từ 1.0.103 tại `server/test/fixtures/copilot/acp-handshake.jsonl`. Chưa nghiệm thu một task có việc con Copilot với Subagent/Model hợp lệ trên CLI thật (tốn premium request).
 
-### Codex App Server
+### Codex TUI
 
-Tích hợp theo [tài liệu App Server chính thức](https://learn.chatgpt.com/docs/app-server), fixture JSONL thu từ `codex-cli 0.163.0` ngày 22/10/2026 tại `server/test/fixtures/codex/`. Mỗi phiên dùng một tiến trình stdio riêng, độc lập với daemon. `SessionMeta.id` là id TaskPilot; `nativeId` là thread id Codex. Thiếu native id thì từ chối resume, không tự tạo thread khác.
+Quan sát trên `codex-cli 0.163.0` ngày 26/10/2026; fixture hook, rollout và màn hình thật ở [`server/test/fixtures/codex-tui/`](../server/test/fixtures/codex-tui/README.md). Cần kiểm tra lại khi nâng phiên bản. Mỗi phiên chạy `codex` TUI trong PTY như Claude/Copilot; `SessionMeta.id` là id TaskPilot, `nativeId` là thread id Codex.
 
-`RpcTransport` chuyển thread/turn/item thành hợp đồng hook chung để engine và activity xử lý; `turn/completed` kết thúc lượt, lỗi `willRetry` không kết thúc sớm. Ngắt hoặc lỗi sẽ đóng tool chưa có `item/completed`. Gửi thêm input khi đang chạy là steering, không tạo `UserPromptSubmit` thứ hai. Token từ `thread/tokenUsage/updated.total` là số tích lũy của thread; không suy ra chi phí USD.
+Launcher ([`core/codex/launch.ts`](../server/src/core/codex/launch.ts)) dựng lệnh:
 
-Conversation dùng WebSocket `/api/sessions/:id/conversation` với replay/upsert theo item id và bộ đệm tối đa 2 triệu ký tự, 1.000 item. REST `/input`, `/interrupt`, `/approvals/:requestId` dùng cùng xác thực HTTP. Approval chỉ nhận `accept` hoặc `decline`, giữ đúng id gốc kể cả số `0`; dừng phiên hủy request chưa trả lời. Request tương tác khác (user-input, elicitation, quyền mở rộng) bị từ chối bằng lỗi RPC có thông báo; bản đầu chưa có biểu mẫu cho chúng.
+```text
+codex [resume <nativeId>] --no-daemon -c check_for_update_on_startup=false
+      [-m <model>] [-s workspace-write -a on-request|never]
+      [-c approvals_reviewer=…] [-c sandbox_workspace_write.network_access=…]
+      [-c developer_instructions=…]
+      -c hooks.<Event>=[{hooks=[{type="command",command="…"}]}]   # mỗi sự kiện
+```
 
-Hạn mức tài khoản lấy từ `account/rateLimits/read` (best effort sau `ready`) và notification `account/rateLimits/updated` (không có `threadId`); cửa sổ gán theo `windowDurationMins` (300 = 5h, 10080 = 7d), từng trường sai bị bỏ riêng, `UsageStore.applyCodex` merge thưa và throttle 60 giây khi số không đổi. Đọc qua `QuotaPoller` chung; không dùng làm quota evidence.
+- `--no-daemon` bắt buộc khi có `-c`; thiếu nó TUI chạy embedded và hiện cảnh báo. `check_for_update_on_startup=false` bắt buộc: hộp thoại "Update available" nhận Enter mặc định là **Update now** và chạy script cài đặt.
+- Giá trị `-c` là TOML, serialize bằng `smol-toml` ([`core/codex/hooks.ts`](../server/src/core/codex/hooks.ts)); argv không qua shell nên `developer_instructions` nhiều dòng, có `"` hay `\` vẫn giữ nguyên.
+- Không có `--session-id`. Resume không giữ model, sandbox hay approval của thread, nên launcher truyền lại đủ cờ. Thread do App Server cũ tạo vẫn resume được bằng TUI. Thiếu `nativeId` thì từ chối resume, không tự tạo thread khác; phiên chưa nhận prompt nào chưa có `nativeId`.
+- Resume trong thư mục khác cwd đã ghi của thread làm TUI hỏi chọn thư mục; TaskPilot luôn resume trong repo của phiên nên thường không gặp.
 
-Slash command là tính năng TUI nên `paste()` tự phân giải tập con có RPC tương đương: `/compact` → `thread/compact/start`, `/review` → `review/start`, `/model` → `model/list` rồi lưu model cho `turn/start` sau, `/skills` → `skills/list`, `$name` → `UserInput` loại `skill`; lệnh khác trả lỗi tại chỗ. Subagent là custom agent `.codex/agents/<tên>.toml` (đọc bằng `smol-toml`), `developer_instructions` và `model` đưa vào `thread/start|resume`. Tuỳ chọn `approvalsReviewer`/`networkAccess` (chỉ với sandbox `acceptEdits`/`auto`) đã có ở launch; việc nối từ YAML `codex:` vào phiên chưa hoàn tất. MCP của Codex do chính Codex đọc từ `~/.codex/config.toml`, TaskPilot không hiển thị hay chuyển.
+**Hooks.** Lệnh hook giống Claude (`curl` tới `$TASKPILOT_HOOK_URL/<Event>`), cộng guard `TASKPILOT_HOOK_AGENT=codex`. Hook kế thừa env của tiến trình `codex`, nên lệnh tĩnh và mọi giá trị theo phiên đi qua env. Hook `-c` chỉ tồn tại trong lần chạy đó; hooks của người dùng (`~/.codex/hooks.json`) vẫn chạy song song và không bị sửa. Codex chỉ chạy hook đã được tin cậy:
 
-Các giới hạn đã quan sát ở spike: thread tạo qua App Server vẫn xuất hiện trong `codex resume` theo repo; `model/list` vẫn trả danh sách khi chưa đăng nhập nên kiểm thêm `account/read`; `default` phụ thuộc trust của repo. `acceptEdits` và `auto` theo [bảng quyền](CONFIGURATION.md#quyền-và-cấu-hình-codex). Protocol có thể thay đổi khi nâng CLI; cần chạy lại probe và nghiệm thu tích hợp.
+- Hook mới hoặc đổi lệnh làm TUI hiện `Hooks need review` trước ô nhập. Người dùng chọn **Trust all and continue** trong terminal một lần; Codex lưu `trusted_hash` vào `~/.codex/config.toml` theo khóa vị trí (`/<session-flags>/config.toml:<event>:0:0`). Lần sau cùng lệnh thì không hỏi lại.
+- Chọn "Continue without trusting" hoặc Esc thì hook chưa tin cậy bị bỏ qua im lặng: không có `Stop`, lane chờ mãi. TaskPilot chưa phát hiện hộp thoại này; người dùng cần xem terminal của phiên.
+- TaskPilot không dùng `--dangerously-bypass-hook-trust` vì cờ này bỏ trust cho mọi hook, kể cả hook của người dùng.
 
-Nghiệm thu tích hợp ngày 22/10/2026: Codex 0.163.0 qua UI Chromium đạt prompt nhiều dòng, Stop, accept tạo file/decline không tạo file, ngắt và resume giữ model/thread cùng mã nhớ; workflow Codex thật hoàn tất plan/feedback/gate/dispatch/review/done, có token thật. Đổi sang Claude Code 2.1.308 đã mở đúng PTY/id và gửi prompt đọc báo cáo, nhưng tài khoản Claude hết hạn mức tuần trước khi trả lời; chưa nghiệm thu được phần sinh tổng kết Claude thật trong lần này. Test tự động dùng CLI giả kiểm luồng đổi agent và hồi quy Claude/Copilot.
+**Sẵn sàng và hợp đồng sự kiện.** `SessionStart` chỉ đến cùng prompt đầu (cả khi resume), nên backend dùng `readyMarker` `/·\s*[~/]/`: footer `<model> <effort> · <cwd>` chỉ hiện sau mọi hộp thoại chặn ô nhập (Folder trust, Hooks need review, Update available, Working directory). Chuỗi `Ask Codex to do anything` hiện trước các hộp thoại nên không dùng làm dấu. `PtyTransport` phát `SessionStart` tổng hợp; `SessionStart` thật của Codex bị `normalize` bỏ, nhưng `session_id` của nó vẫn được lưu làm `nativeId`. Manager đổi `session_id` của mọi payload về id TaskPilot trước khi chuyển cho engine/activity.
+
+| Codex gửi | TaskPilot xử lý |
+|---|---|
+| `PreToolUse`/`PostToolUse` với `tool_name: "apply_patch"` | Đổi thành `Edit`, thêm `tool_input.file_path` từ dòng `*** Add/Update/Delete File:` |
+| `PostToolUse` của lệnh lỗi | Vẫn là `PostToolUse`: Codex không có `PostToolUseFailure`, `tool_response` chỉ là text, không có exit code |
+| `PermissionRequest` | Bắn ngay sau `PreToolUse`, trước hộp thoại approval; không có `tool_use_id`. Người dùng duyệt trong terminal |
+| `Interrupt` (Esc khi đang chạy, không có `Stop`) | Gửi tới `/hook/Stop` với `interrupted: true`; lane về `waiting`, không ghi số đo |
+| `Stop` | Kết thúc lượt; `last_assistant_message` là lời nhắn cuối |
+| `SessionEnd` | Không đăng ký; SIGTERM không phát sự kiện này |
+
+Trường `permission_mode` trong payload luôn là `"default"`, không phản ánh sandbox/approval thật. Slash command, `$skill` và approval là tính năng của TUI, người dùng gõ/trả lời trực tiếp trong terminal; TaskPilot không còn conversation WebSocket hay REST input/interrupt/approval.
+
+**Số đo và lỗi.** Khi `Stop` không bị ngắt, engine đọc tối đa 1 MiB cuối của `transcript_path` (`~/.codex/sessions/YYYY/MM/DD/rollout-*-<thread id>.jsonl`) và lấy `token_count.info.total_token_usage` cuối cùng (số cộng dồn của thread); model thực tế lấy từ trường `model` của hook. Nguồn số đo vẫn là `codex-thread`. Rollout có thể chưa ghi `token_count` của lượt vừa xong lúc `Stop` bắn [chưa xác minh trên CLI thật]; vì là số cộng dồn, lượt sau tự bù. Không suy ra chi phí USD. Hook không mang tín hiệu lỗi quota/auth có kiểu, nên `quotaDetection` của Codex là `unknown`; `Stop` có `failed` chỉ cho lỗi `unknown`.
+
+**Probe và hạn mức.** TUI không có lệnh tương đương `model/list` hay `account/rateLimits/read`, nên probe/preflight và `QuotaPoller` vẫn mở `codex app-server --listen stdio://` ngắn hạn, chỉ đọc rồi tắt ([`backends/codex.ts`](../server/src/modules/sessions/backends/codex.ts), [`modules/usage/codex.ts`](../server/src/modules/usage/codex.ts)). Probe kiểm `initialize`, `account/read` (vì `model/list` vẫn trả danh sách khi chưa đăng nhập) và `model/list`; không tạo thread/turn. Hạn mức đọc bằng `account/rateLimits/read`; cửa sổ gán theo `windowDurationMins` (300 = 5h, 10080 = 7d), từng trường sai bị bỏ riêng, `UsageStore.applyCodex` merge thưa. Số này không dùng làm quota evidence. Fixture JSON-RPC của app-server ở [`server/test/fixtures/codex/`](../server/test/fixtures/codex/README.md).
+
+Subagent là custom agent `.codex/agents/<tên>.toml` (đọc bằng `smol-toml`); `developer_instructions` và `model` của nó truyền bằng `-c`/`-m` ở mỗi lần mở và resume. Tuỳ chọn YAML `codex:` (`approvals-reviewer`, `network`, chỉ với `acceptEdits`/`auto`) được lưu vào phiên và truyền bằng `-c`. MCP của Codex do chính Codex đọc từ `~/.codex/config.toml`; TaskPilot không hiển thị hay chuyển.
+
+Nghiệm thu qua UI ngày 22/10/2026 (prompt nhiều dòng, Stop, approval, ngắt/resume, workflow tới done, có token thật) chạy trên đường App Server cũ, không áp dụng cho TUI. Luồng TUI hiện được kiểm bằng CLI giả (`server/test/helpers/fake-codex-tui.mjs`) dựng theo fixture; chưa nghiệm thu qua UI với Codex thật.
 
 ## 8. Execution và bàn giao
 
@@ -144,7 +184,7 @@ Nghiệm thu tích hợp ngày 22/10/2026: Codex 0.163.0 qua UI Chromium đạt 
 
 `run.workflow` giữ nguyên định nghĩa gốc để so `outdated`; execution, snapshot yêu cầu ban đầu và `laneOverrides` lưu riêng. RunView trả riêng `runMode` từ snapshot để form chạy lại giữ cách chạy cũ kể cả done/cancelled, độc lập cách chạy cho run mới của repo. Ngoại lệ keyed theo step id hoặc dispatch id + số việc; không áp sang bước tương lai. Run thiếu execution theo workflow, field mới optional. Một agent cụ thể cho run không tự sửa bảng phân công: agent/model trái policy bị chặn theo dòng trước approve, launch muộn và retry.
 
-`GET /api/sessions/capabilities` và preflight dùng cùng repo/env/quyền với launch. Codex kiểm initialize, account/read và model/list riêng, không tạo thread/turn. Claude/Copilot giữ unknown cho login/inventory chưa xác minh. Preflight chặn quyền/subagent không tương thích, không bỏ hạn chế hoặc tự fallback.
+`GET /api/sessions/capabilities` và preflight dùng cùng repo/env/quyền với launch. Codex kiểm initialize, account/read và model/list qua `codex app-server` ngắn hạn, không tạo thread/turn. Claude/Copilot giữ unknown cho login/inventory chưa xác minh. Preflight chặn quyền/subagent không tương thích, không bỏ hạn chế hoặc tự fallback.
 
 ### Transaction và ranh giới lane
 
@@ -158,7 +198,7 @@ Nghiệm thu tích hợp ngày 22/10/2026: Codex 0.163.0 qua UI Chromium đạt 
 
 Preview gắn revision/fingerprint của lane và tài liệu liên quan, không dựa toàn bộ run.updatedAt; việc khác tiến triển không tự làm preview hết hiệu lực. Commit kiểm lại scope, nguồn/generation, quyền, target, fingerprint và preflight. Preview cũ trả 409. Cùng operation id/request là idempotent; đổi nội dung dưới cùng id bị từ chối. Hai operation cạnh tranh chỉ một được phép bàn giao.
 
-Reservation khóa input/resume/approval của hai phía qua cả REST và WebSocket đang mở. Với nguồn còn chạy/chờ quyền phải có xác nhận dừng/hủy quyền. Barrier chờ transport/process group thoát thật, có deadline; gọi kill hay đóng stdout không được coi là đã thoát. Target id được lưu trước spawn, target dùng session/native thread mới. Sau ready mới bind lane + ngoại lệ + attempt, retire nguồn rồi gửi prompt. Phiên nguồn chỉ đọc lịch sử sau commit.
+Reservation khóa resume và nhập terminal của hai phía qua cả REST và WebSocket PTY đang mở. Với nguồn còn chạy/chờ quyền phải có xác nhận dừng/hủy quyền. Barrier chờ transport/process group thoát thật, có deadline; gọi kill hay đóng stdout không được coi là đã thoát. Target id được lưu trước spawn, target dùng session/native thread mới. Sau ready mới bind lane + ngoại lệ + attempt, retire nguồn rồi gửi prompt. Phiên nguồn chỉ đọc lịch sử sau commit.
 
 Journal lưu bền vững qua `prepared` → `source-stopped` → `target-created` → `committed` hoặc `failed`; giao prompt có `pending` → `sending` → `sent`. Lỗi ghi state dừng side effect kế tiếp. Không archive, đổi stepIndex, bỏ gate, chạy lại việc done hay thay phụ thuộc. Bàn giao chỉ áp dụng lane đã bắt đầu, đang starting/running/waiting/interrupted trong run hoạt động; done/cancelled/gate/pending và lane bị khóa không được chuyển.
 
@@ -176,18 +216,16 @@ Process ownership dùng PID + identity/thời điểm khởi tạo (Linux boot i
 
 ## 9. Metrics và bằng chứng quota
 
-Attempts lưu scope, session/generation, cấu hình yêu cầu, model thực tế nếu có, native id, thời điểm và nguồn số đo. `sessionMetrics` giữ snapshot cumulative theo session: `claude-statusline` cho model/cost, `codex-thread` cho model/token, `legacy` cho dữ liệu cũ chưa xác minh provenance. Cùng session qua nhiều bước/resume chỉ tính một lần; notification cumulative mới thay số cũ. Tổng counter chỉ xuất hiện nếu mọi session có số đo, luôn kèm coverage; thiếu không thành 0, không suy cost hay quota từ tokens. UI, history và prompt review dùng chung cách tổng hợp.
+Attempts lưu scope, session/generation, cấu hình yêu cầu, model thực tế nếu có, native id, thời điểm và nguồn số đo. `sessionMetrics` giữ snapshot cumulative theo session: `claude-statusline` cho model/cost, `codex-thread` cho model/token (model từ hook, token từ rollout), `legacy` cho dữ liệu cũ chưa xác minh provenance. Cùng session qua nhiều bước/resume chỉ tính một lần; notification cumulative mới thay số cũ. Tổng counter chỉ xuất hiện nếu mọi session có số đo, luôn kèm coverage; thiếu không thành 0, không suy cost hay quota từ tokens. UI, history và prompt review dùng chung cách tổng hợp.
 
-[`sessions/failure.ts`](../server/src/modules/sessions/failure.ts) chỉ chiếu evidence allowlist, không đưa stderr/backend prose vào DTO. Lỗi đúng thread/turn đã hoàn tất failed mới trở thành bằng chứng; willRetry hoặc sự kiện stale không chốt nguyên nhân. Evidence live bị xóa khi prompt/spawn mới; restart không dựng lại nguyên nhân từ transcript hay quota tài khoản cũ.
+[`sessions/failure.ts`](../server/src/modules/sessions/failure.ts) chỉ chiếu evidence allowlist, không đưa stderr/backend prose vào DTO. Hiện không backend nào cung cấp lỗi theo lượt có kiểu: `Stop` có `failed` chỉ tạo lỗi `unknown` (`evidence.source: "unclassified"`). Evidence live bị xóa khi prompt/spawn mới; restart không dựng lại nguyên nhân từ transcript hay quota tài khoản cũ.
 
 | Backend / tín hiệu | Phân loại và mức kiểm chứng |
 |---|---|
-| Codex failed đúng thread/turn, `codexErrorInfo: "usageLimitExceeded"` | quota; adapter supported theo schema CLI 0.163.0 và fake tổng hợp. Chưa có recording tài khoản thật hết quota. |
-| Codex `unauthorized` / connection HTTP 401 | auth; HTTP 401 có fixture thật, enum unauthorized theo schema. |
-| Codex stream disconnected/connection failed, HTTP status null | network theo schema, test tổng hợp. |
-| Startup missing / notLoggedIn / modelUnknown | cli / auth / model từ kiểm tra startup, không gán quota. |
-| `rateLimitExceeded`, HTTP 429, session budget, timeout/no-hook/text lạ | unknown; không đủ chứng minh hết usage tài khoản. |
+| Codex TUI: hook không có lỗi có kiểu; rollout `rate_limit_reached_type` chưa thấy khác `null` | unknown (`quotaDetection: unknown`); không có fixture tài khoản thật hết quota. |
+| Preflight Codex: CLI thiếu / chưa đăng nhập / model không có trong inventory | Chặn trước khi mở phiên (`missing_cli`, `not_logged_in`, `model_unavailable`), không gán quota. |
+| Timeout/no-hook/text lạ, `Stop` có `failed` | unknown; không đủ chứng minh hết usage tài khoản. |
 | Claude / Copilot failure quota theo lượt | unknown; chưa có adapter/fixture xác minh, vẫn dùng bàn giao thủ công. |
-| Claude `/usage` + statusline / Copilot account quota | Quan sát toàn tài khoản, có source/time; tối đa 5 phút, hết hiệu lực sớm khi qua reset. Không dùng làm nguyên nhân lỗi lane. |
+| Claude `/usage` + statusline / Copilot account quota / Codex `account/rateLimits/read` | Quan sát toàn tài khoản, có source/time; tối đa 5 phút, hết hiệu lực sớm khi qua reset. Không dùng làm nguyên nhân lỗi lane. |
 
-Khi có quota evidence phù hợp, UI gợi ý tiếp tục bằng Codex/chọn agent khác/để sau; vẫn qua preview và xác nhận, không tự chuyển, mua quota hay đổi quyền. Nguồn/version/giới hạn fixture nằm trong [`server/test/fixtures/codex/README.md`](../server/test/fixtures/codex/README.md). Cách chạy smoke CLI thật có giới hạn và lưu kết quả ở [DEVELOP](DEVELOP.md#smoke-codex-thật-có-giới-hạn).
+Khi có quota evidence phù hợp, UI gợi ý tiếp tục bằng Codex/chọn agent khác/để sau; vẫn qua preview và xác nhận, không tự chuyển, mua quota hay đổi quyền. Hiện chưa backend nào sinh evidence này. Nguồn/version/giới hạn fixture nằm trong [`server/test/fixtures/codex-tui/README.md`](../server/test/fixtures/codex-tui/README.md) (phiên) và [`server/test/fixtures/codex/README.md`](../server/test/fixtures/codex/README.md) (probe/hạn mức). Cách chạy smoke CLI thật có giới hạn và lưu kết quả ở [DEVELOP](DEVELOP.md#smoke-codex-thật-có-giới-hạn).

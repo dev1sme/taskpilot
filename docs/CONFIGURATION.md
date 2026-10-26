@@ -104,30 +104,30 @@ Preview, prompt, validation bảng, launch muộn và retry dùng chung resolver
 
 `GET /api/sessions/capabilities` trả capability theo repo/env với trạng thái `supported`, `unsupported` hoặc `unknown` và nguồn kiểm chứng. Preflight không tạo thread/turn, không phải lượt LLM thử.
 
-| Backend | Picker / kiểm chứng trước khi chạy                                                                                                                                             |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Claude  | Picker chỉ Mặc định; kiểm CLI, cú pháp model/quyền; chưa xác minh đầy đủ login và inventory tài khoản. Giữ model YAML/bảng khi theo workflow.                                  |
-| Copilot | Picker chỉ Mặc định; kiểm CLI, cú pháp model/quyền; chưa có inventory/login đã xác minh. Tên hợp cú pháp không chứng minh tài khoản dùng được.                                 |
-| Codex   | `initialize` kiểm CLI/protocol, `account/read` kiểm đăng nhập riêng, `model/list` cấp inventory. Danh sách model có thể tồn tại khi logout, nên không dùng nó thay kiểm login. |
+| Backend | Picker / kiểm chứng trước khi chạy                                                                                                                                                                              |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude  | Picker chỉ Mặc định; kiểm CLI, cú pháp model/quyền; chưa xác minh đầy đủ login và inventory tài khoản. Giữ model YAML/bảng khi theo workflow.                                                                   |
+| Copilot | Picker chỉ Mặc định; kiểm CLI, cú pháp model/quyền; chưa có inventory/login đã xác minh. Tên hợp cú pháp không chứng minh tài khoản dùng được.                                                                  |
+| Codex   | Qua `codex app-server` ngắn hạn: `initialize` kiểm CLI/protocol, `account/read` kiểm đăng nhập riêng, `model/list` cấp inventory. Danh sách model có thể tồn tại khi logout, nên không dùng nó thay kiểm login. |
 
 Thiếu CLI, logout Codex, inventory không đọc được cho model Codex cụ thể, model không có trong inventory hoặc quyền không hỗ trợ đều chặn trước khi đổi lane. Trạng thái `unknown` được hiển thị rõ; runtime vẫn có thể thất bại và không tự chọn CLI/model khác. Cấu hình yêu cầu hiệu lực khác model thực tế: model thực tế chỉ được ghi khi backend báo.
 
 ### Quyền và cấu hình Codex
 
-Codex dùng App Server qua stdio, cấu hình và đăng nhập Codex hiện có. Adapter cấu hình có thể đọc và vá các trường settings đã validate cùng bảng MCP trong `.codex/config.toml` và `~/.codex/config.toml`; giao diện Codex mở biểu mẫu này. TaskPilot không chuyển hooks, MCP, settings hoặc subagent Claude sang Codex. Cột `Subagent` của dòng Codex là tên file trong `.codex/agents/` (không kèm `.toml`) hoặc `-` ([xem Subagent Codex](#subagent-codex)). Menu **+** dùng model mặc định; workflow và bảng phân công có thể đặt model. Model thực tế của phiên được lưu cùng native thread id để tiếp tục đúng model.
+Phiên Codex chạy `codex` TUI trong terminal của TaskPilot, dùng cấu hình và đăng nhập Codex hiện có; approval, slash command và `$skill` được gõ/trả lời ngay trong terminal. Probe, danh sách model và hạn mức vẫn mở `codex app-server` ngắn hạn, chỉ đọc. Adapter cấu hình có thể đọc và vá các trường settings đã validate cùng bảng MCP trong `.codex/config.toml` và `~/.codex/config.toml`; giao diện Codex mở biểu mẫu này. TaskPilot không chuyển hooks, MCP, settings hoặc subagent Claude sang Codex. Cột `Subagent` của dòng Codex là tên file trong `.codex/agents/` (không kèm `.toml`) hoặc `-` ([xem Subagent Codex](#subagent-codex)). Menu **+** dùng model mặc định; workflow và bảng phân công có thể đặt model. Model thực tế (trường `model` của hook) được lưu cùng native thread id; khi tiếp tục, TaskPilot truyền lại model và quyền vì `codex resume` không giữ chúng.
 
-| `permission-mode`    | Sandbox Codex              | Approval policy     |
-| -------------------- | -------------------------- | ------------------- |
-| Bỏ trống / `default` | Theo cấu hình Codex        | Theo cấu hình Codex |
-| `acceptEdits`        | `workspace-write`          | `on-request`        |
-| `auto`               | `workspace-write`          | `never`             |
-| `plan`               | Bị từ chối trong TaskPilot | —                   |
+| `permission-mode`    | Sandbox Codex              | Approval policy     | Cờ của `codex`                     |
+| -------------------- | -------------------------- | ------------------- | ---------------------------------- |
+| Bỏ trống / `default` | Theo cấu hình Codex        | Theo cấu hình Codex | Không truyền                       |
+| `acceptEdits`        | `workspace-write`          | `on-request`        | `-s workspace-write -a on-request` |
+| `auto`               | `workspace-write`          | `never`             | `-s workspace-write -a never`      |
+| `plan`               | Bị từ chối trong TaskPilot | —                   | —                                  |
 
-`acceptEdits` của Codex cho phép lệnh trong sandbox chạy mà không hỏi, chỉ xin quyền vượt sandbox; khác với quyền cùng tên của Claude. `auto` vẫn chịu sandbox và không tự mở quyền bên ngoài. Plan mode của Codex là API thử nghiệm và không viết được tài liệu đầu ra, nên chưa hỗ trợ. Chế độ mặc định giữ quyền của cấu hình người dùng. TaskPilot không đặt `danger-full-access` hoặc cờ `--dangerously-*`.
+`acceptEdits` của Codex cho phép lệnh trong sandbox chạy mà không hỏi, chỉ xin quyền vượt sandbox; khác với quyền cùng tên của Claude. `auto` vẫn chịu sandbox và không tự mở quyền bên ngoài. Plan mode của Codex là tính năng thử nghiệm và không viết được tài liệu đầu ra, nên chưa hỗ trợ. Chế độ mặc định giữ quyền của cấu hình người dùng. TaskPilot không đặt `danger-full-access` hoặc cờ `--dangerously-*`, kể cả `--dangerously-bypass-hook-trust`. Mọi lần mở còn có `--no-daemon -c check_for_update_on_startup=false` để TUI không hiện hộp thoại cập nhật (Enter mặc định của nó chạy cập nhật Codex).
 
 #### Giảm chờ quyền (tùy chọn)
 
-Mặc định không đổi. Probe sandbox với `codex-cli 0.163.0` (`codex sandbox`, `workspace-write`) cho thấy: `.git` chỉ đọc nên `git commit` luôn phải xin quyền ngoài sandbox; mạng tắt nên `curl`/tải gói bị chặn; `npm test` cục bộ chạy không cần hỏi. Ba lượt probe qua model chưa hoàn tất do hết quota Codex, nên chưa có fixture thật cho nội dung `requestApproval`. Hai khoá tùy chọn dưới đây chỉ có tác dụng với `acceptEdits`/`auto`; ở `default` Codex dùng cấu hình của bạn:
+Mặc định không đổi. Probe sandbox với `codex-cli 0.163.0` (`codex sandbox`, `workspace-write`) cho thấy: `.git` chỉ đọc nên `git commit` luôn phải xin quyền ngoài sandbox; mạng tắt nên `curl`/tải gói bị chặn; `npm test` cục bộ chạy không cần hỏi. Hai khoá tùy chọn dưới đây chỉ có tác dụng với `acceptEdits`/`auto`; ở `default` Codex dùng cấu hình của bạn:
 
 ```yaml
 codex:
@@ -138,11 +138,24 @@ codex:
 - `approvals-reviewer: auto_review` để Codex tự rà các yêu cầu quyền thay vì hỏi người dùng; đây là cách giảm hỏi cho lệnh git.
 - `network: true` bật `sandbox_workspace_write.network_access`; chỉ giải quyết mạng, không giải quyết `.git` chỉ đọc.
 - Khoá đặt ở đầu workflow hoặc từng bước (kể cả `dispatch`); bước ghi đè từng trường. Khoá/giá trị lạ (ví dụ `sandbox`) là lỗi; không có đường nào dẫn tới `danger-full-access`. Có cảnh báo khi đặt `codex:` mà `permission-mode` không phải `acceptEdits`/`auto`, hoặc không có bước Codex nào.
-- Giá trị của lane được lưu vào phiên (`codex`) và truyền vào `thread/start`/`thread/resume`; đổi giá trị giữa các bước thì mở phiên mới. Chưa kiểm với Codex thật vì hết quota lúc probe.
+- Giá trị của lane được lưu vào phiên (`codex`) và truyền bằng `-c approvals_reviewer=…` / `-c sandbox_workspace_write.network_access=…` mỗi lần mở và tiếp tục; đổi giá trị giữa các bước thì mở phiên mới. Spike TUI ngày 26/10/2026 xác nhận hai khoá có hiệu lực (`turn_context` trong rollout); chưa kiểm hiệu quả giảm hỏi quyền qua một workflow thật.
+
+### Hooks của Codex
+
+TaskPilot truyền hooks cho từng lần chạy bằng `-c hooks.<Event>=…` (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, `Stop`, `Interrupt`). Không ghi `~/.codex/hooks.json` hay `.codex/hooks.json`; hooks của bạn trong các file đó vẫn chạy song song và không bị sửa. Codex bạn tự mở không chạy hook TaskPilot.
+
+Codex chỉ chạy hook đã được tin cậy. Lần đầu mở phiên Codex từ TaskPilot (và sau khi nâng TaskPilot làm đổi lệnh hook), terminal của phiên hiện:
+
+```text
+Hooks need review · N hooks are new or changed
+1. Review hooks  2. Trust all and continue  3. Continue without trusting (hooks won't run)
+```
+
+Chọn **Trust all and continue** trong terminal. Codex lưu `trusted_hash` vào `[hooks.state."/<session-flags>/config.toml:<event>:0:0"]` của `~/.codex/config.toml`, nên các lần sau không hỏi lại. Nếu chọn mục 3 hoặc Esc, Codex bỏ qua hook im lặng: TaskPilot không nhận `Stop`, lane đứng ở `running` cho tới khi bạn dừng phiên. Repo chưa được tin cậy cũng hiện `Trust this folder?` trong terminal trước khi phiên sẵn sàng. Một công cụ khác cũng truyền `-c hooks.<Event>` sẽ dùng chung khóa trust theo vị trí và có thể làm Codex hỏi lại.
 
 ### Slash command của Codex
 
-App Server không có slash command (đó là tính năng TUI). Ô nhập phiên Codex tự phân giải tập con có RPC tương đương: `/compact`, `/review [branch <tên>|commit <sha>|<hướng dẫn>]`, `/model [id]` (kiểm `model/list`, áp dụng cho các lượt sau), `/skills`, và `$tên-skill …`. Lệnh khác (`/xyz`) báo rõ là chỉ có trong TUI Codex và không gửi cho model; đường dẫn như `/home/x` và `$HOME` được gửi nguyên văn.
+Slash command (`/compact`, `/review`, `/model`, …) và `$tên-skill` là tính năng của TUI Codex: gõ trực tiếp trong terminal của phiên. TaskPilot không phân giải hay chuyển tiếp chúng.
 
 ### Nút usage (Claude, Copilot, Codex)
 
@@ -150,7 +163,7 @@ Nút ở thanh trạng thái chỉ hiện chữ "Usage" (đổi sang cảnh báo
 
 - **Claude:** cửa sổ 5h và 7d lấy từ `claude -p "/usage"` (không tốn token), chi phí phiên (`spend`) từ status line. Nếu bản Claude không trả `usage_report` (API key, gateway, thiếu scope) thì giữ số từ status line/lần đọc trước.
 - **Copilot:** premium requests, giờ reset theo đơn vị (`premium requests reset lúc …`).
-- **Codex:** cửa sổ 5h và 7d, gói, credits, từ `account/rateLimits/read` và `account/rateLimits/updated`.
+- **Codex:** cửa sổ 5h và 7d, gói, credits, từ `account/rateLimits/read` của `codex app-server` ngắn hạn (không đọc từ phiên TUI).
 
 Số liệu làm tươi khi khởi động server, nền mỗi 5 phút và khi agent đó có hoạt động (tối đa một lần mỗi phút), nên không cần phiên đang chạy.
 
@@ -175,7 +188,7 @@ Cùng quy tắc áp dụng cho `model` trong `workflow.yml` ở cấp chung và 
 
 Codex hỗ trợ custom agent là file TOML trong `<repo>/.codex/agents/<tên>.toml` (cần `name`, `description`, `developer_instructions`; tùy chọn `model`, `sandbox_mode`, `model_reasoning_effort`). Mẫu của TaskPilot nằm ở [`subagents/codex/`](../subagents/codex) và cài qua trang **Agents** (chọn CLI Codex) với preview diff, backup và chống ghi đè như `.claude/agents`.
 
-- **Việc con:** ghi tên file vào cột `Subagent` của dòng `codex`. TaskPilot đưa `developer_instructions` vào `thread/start|resume`; model của dòng thắng, nếu không dùng `model` của agent, nếu không nữa giữ model mặc định. Thiếu file, TOML hỏng hoặc không có `developer_instructions` chặn ở preflight (`unsupported_subagent`). Chỉ cột `Subagent` ghi tên TOML thật; `explorer`/`worker` built-in của Codex không điền vào cột này.
+- **Việc con:** ghi tên file vào cột `Subagent` của dòng `codex`. TaskPilot truyền `developer_instructions` bằng `-c developer_instructions=…` mỗi lần mở và tiếp tục phiên; model của dòng thắng, nếu không dùng `model` của agent, nếu không nữa giữ model mặc định. Thiếu file, TOML hỏng hoặc không có `developer_instructions` chặn ở preflight (`unsupported_subagent`). Chỉ cột `Subagent` ghi tên TOML thật; `explorer`/`worker` built-in của Codex không điền vào cột này.
 - **Leader Codex:** yêu cầu trực tiếp Codex dùng subagent (built-in `explorer`/`worker` hoặc custom agent) khi cần dò rộng hoặc song song. Subagent kế thừa quyền của phiên và tốn thêm token.
 - `{{subagents}}` hiện chỉ liệt kê subagent Claude; leader Codex tự xem `.codex/agents/`.
 
@@ -207,7 +220,7 @@ Cảnh báo khác: subagent khai `AskUserQuestion` (việc con không nên hỏi
 
 ### Số liệu từng việc
 
-Với việc con Codex, TaskPilot ghi model thực tế và tổng token vào/ra do App Server báo; chi phí theo việc không có. Hạn mức tài khoản Codex hiện ở nút usage, không gán cho việc con. Với việc con chạy Claude, TaskPilot ghi model thật (từ status line), thời gian và chi phí. Số liệu hiện ở cây việc con, nhật ký và biến `{{subtasks}}`; chạy Copilot không có chi phí, thiếu số liệu ghi `model không rõ` / `chi phí không có`, không ước đoán. Bước rà soát của leader dùng chúng để đánh giá từng subagent/model trong mục **Đánh giá subagent / model** của tổng kết.
+Với việc con Codex, TaskPilot ghi model thực tế (từ hook) và tổng token vào/ra của thread (từ `token_count` trong rollout transcript, đọc khi lượt kết thúc); chi phí theo việc không có. Hạn mức tài khoản Codex hiện ở nút usage, không gán cho việc con. Với việc con chạy Claude, TaskPilot ghi model thật (từ status line), thời gian và chi phí. Số liệu hiện ở cây việc con, nhật ký và biến `{{subtasks}}`; chạy Copilot không có chi phí, thiếu số liệu ghi `model không rõ` / `chi phí không có`, không ước đoán. Bước rà soát của leader dùng chúng để đánh giá từng subagent/model trong mục **Đánh giá subagent / model** của tổng kết.
 
 Sau bàn giao, số liệu giữ provenance theo attempt/session: `claude-statusline`, `codex-thread` hoặc `legacy`. Token/cost cumulative của cùng session chỉ lấy snapshot mới nhất, không cộng lại theo bước hay notification; tổng một counter chỉ có khi mọi session có counter đó, kèm coverage. Không ghép cost Claude vào token Codex để giả chi phí đích, không suy quota từ token. Xem [kiến trúc metrics và quota](SPEC.md#9-metrics-và-bằng-chứng-quota).
 

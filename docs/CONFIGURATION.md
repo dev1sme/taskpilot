@@ -4,19 +4,21 @@
 
 TaskPilot đọc `.env` cạnh `package.json` của chính ứng dụng, kể cả khi khởi chạy từ repo khác. Thứ tự ưu tiên: tùy chọn CLI → môi trường tiến trình → `.env` → mặc định. Xem mẫu tại [`.env.example`](../.env.example).
 
-| Biến                                                         | Mặc định / ý nghĩa                                                                                                    |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `TASKPILOT_HOST` / `TASKPILOT_PORT`                          | `127.0.0.1` / `8790`; có thể ghi đè bằng `--host` / `--port`                                                          |
-| `TASKPILOT_HOME`                                             | `~/.taskpilot`; nơi lưu trạng thái, bản sao lưu và dữ liệu xác thực                                                   |
-| `TASKPILOT_AUTH_USER` / `TASKPILOT_AUTH_PASSWORD`            | Tài khoản đăng nhập; đặt cả hai hoặc để trống cả hai                                                                  |
-| `TASKPILOT_TOKEN`                                            | Token cố định thay cho token ngẫu nhiên; khi dùng tài khoản, đây là token API tùy chọn cho header `x-taskpilot-token` |
-| `TASKPILOT_ALLOWED_HOSTS`                                    | Danh sách hostname bổ sung được chấp nhận, phân cách bằng dấu phẩy                                                    |
-| `TASKPILOT_CLAUDE` / `TASKPILOT_COPILOT` / `TASKPILOT_CODEX` | Lệnh CLI; mặc định `claude` / `copilot` / `codex`                                                                     |
-| `TASKPILOT_CLAUDE_HOME` / `TASKPILOT_CLAUDE_JSON`            | Nơi TaskPilot đọc cấu hình Claude; mặc định `~/.claude` / `~/.claude.json`                                            |
-| `TASKPILOT_CODEX_HOME`                                       | Ghi đè nơi TaskPilot đọc cấu hình Codex, hữu ích cho kiểm thử; mặc định dùng `CODEX_HOME` hoặc `~/.codex`             |
-| `TASKPILOT_CODEX_SKILLS_HOME`                                | Ghi đè thư mục skills cá nhân Codex khi kiểm thử; mặc định là `~/.agents/skills`, độc lập với `CODEX_HOME`          |
-| `TASKPILOT_COPILOT_HOME`                                     | Ghi đè nơi TaskPilot đọc cấu hình Copilot, hữu ích cho kiểm thử; mặc định dùng `COPILOT_HOME` hoặc `~/.copilot`       |
-| `COPILOT_HOME`                                               | Thư mục cấu hình Copilot, gồm hooks; mặc định `~/.copilot`                                                            |
+| Biến                                                         | Mặc định / ý nghĩa                                                                                                                   |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `TASKPILOT_HOST` / `TASKPILOT_PORT`                          | `127.0.0.1` / `8790`; có thể ghi đè bằng `--host` / `--port`                                                                         |
+| `TASKPILOT_HOME`                                             | `~/.taskpilot`; nơi lưu trạng thái, bản sao lưu và dữ liệu xác thực                                                                  |
+| `TASKPILOT_AUTH_USER` / `TASKPILOT_AUTH_PASSWORD`            | Tài khoản đăng nhập; đặt cả hai hoặc để trống cả hai                                                                                 |
+| `TASKPILOT_TOKEN`                                            | Token cố định thay cho token ngẫu nhiên; khi dùng tài khoản, đây là token API tùy chọn cho header `x-taskpilot-token`                |
+| `TASKPILOT_ALLOWED_HOSTS`                                    | Danh sách hostname bổ sung được chấp nhận, phân cách bằng dấu phẩy                                                                   |
+| `TASKPILOT_CLAUDE` / `TASKPILOT_COPILOT` / `TASKPILOT_CODEX` | Lệnh CLI; mặc định `claude` / `copilot` / `codex`                                                                                    |
+| `TASKPILOT_CLAUDE_HOME` / `TASKPILOT_CLAUDE_JSON`            | Nơi TaskPilot đọc cấu hình Claude; mặc định `~/.claude` / `~/.claude.json`; giá trị rỗng coi như không đặt                           |
+| `TASKPILOT_CODEX_HOME`                                       | Ghi đè nơi TaskPilot đọc cấu hình Codex, hữu ích cho kiểm thử; mặc định theo thứ tự `CODEX_HOME`, `~/.codex`; rỗng = không đặt       |
+| `TASKPILOT_CODEX_SKILLS_HOME`                                | Ghi đè thư mục skills cá nhân Codex khi kiểm thử; mặc định là `~/.agents/skills`, độc lập với `CODEX_HOME`                           |
+| `TASKPILOT_COPILOT_HOME`                                     | Ghi đè nơi TaskPilot đọc cấu hình Copilot, hữu ích cho kiểm thử; mặc định theo thứ tự `COPILOT_HOME`, `~/.copilot`; rỗng = không đặt |
+| `CODEX_HOME` / `COPILOT_HOME`                                | Home do chính CLI dùng (Copilot: hooks, `session-state`, agents); mặc định `~/.codex` / `~/.copilot`; rỗng = không đặt               |
+
+Mỗi provider có hai lớp home, cùng nằm trong `server/src/core/<provider>/home.ts`: **home CLI** (`CODEX_HOME`, `COPILOT_HOME`) là nơi CLI con thật sự đọc/ghi, nên hooks, `session-state` và agent Copilot của session luôn theo lớp này; **home cấu hình** (`TASKPILOT_*_HOME`) chỉ là nơi trang Cấu hình đọc/ghi và mặc định bằng home CLI. CLI con không nhận `TASKPILOT_*_HOME`. Biến env rỗng được coi như không đặt.
 
 Đăng nhập, reverse proxy và giới hạn truy cập được mô tả tại [Triển khai](DEPLOY.md).
 
@@ -30,7 +32,7 @@ Trang Cấu hình có bộ chọn Claude, Copilot, Codex trong URL (`?cli=...`).
 | Settings          | `.claude/settings.json`, `.claude/settings.local.json`, `~/.claude/settings.json` | `.github/copilot/settings.json`, `.github/copilot/settings.local.json`, `~/.copilot/settings.json` | `.codex/config.toml`, `~/.codex/config.toml`                          |
 | Hooks             | Trong settings Claude                                                             | `.github/hooks/*.json`, `~/.copilot/hooks/*.json`                                                  | Chưa có adapter hooks đã xác minh                                     |
 | Agents            | `.claude/agents`, `~/.claude/agents`                                              | `.github/agents`, `~/.copilot/agents`; `.claude/agents` chỉ xem                                    | `.codex/agents/*.toml` trong repo                                     |
-| Commands / skills | `.claude/commands` và `.claude/skills` ở project/user                             | Không có commands; skills ở `.github/skills`, `~/.copilot/skills`                                  | Không có commands; skills ở `.agents/skills`, `~/.agents/skills`       |
+| Commands / skills | `.claude/commands` và `.claude/skills` ở project/user                             | Không có commands; skills ở `.github/skills`, `~/.copilot/skills`                                  | Không có commands; skills ở `.agents/skills`, `~/.agents/skills`      |
 | MCP               | `.mcp.json`, `~/.claude.json` (project/local/user)                                | Đọc `.mcp.json`; ghi `.github/mcp.json`, `~/.copilot/mcp-config.json`                              | Bảng `mcp_servers` trong `.codex/config.toml`, `~/.codex/config.toml` |
 
 Vị trí skills cá nhân của Codex theo [tài liệu Codex](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills) là `~/.agents/skills`, độc lập với `CODEX_HOME`.

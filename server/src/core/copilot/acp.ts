@@ -1,8 +1,9 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { childEnv } from "../launch.js";
+import { copilotHome } from "./home.js";
 
 /** A failed ACP step; `code` tells the caller what went wrong, `message` is for logs. */
 export class CopilotError extends Error {
@@ -131,7 +132,7 @@ export class AcpClient {
 
 /** Where copilot keeps a session's directory; COPILOT_HOME moves the whole config tree. */
 function sessionDir(sessionId: string): string {
-  return join(process.env.COPILOT_HOME ?? join(homedir(), ".copilot"), "session-state", sessionId);
+  return join(copilotHome(), "session-state", sessionId);
 }
 
 export function parseModels(result: unknown): { models: AcpModel[]; currentModelId?: string } {

@@ -4,7 +4,9 @@ import path from "node:path";
 import { createTwoFilesPatch } from "diff";
 import { HttpError } from "../../../core/errors.js";
 import type { BackupEntry, BackupStore } from "../backups/store.js";
-import { claudeHome, codexHome, copilotHome } from "./fs.js";
+import { claudeHome } from "../../../core/claude/home.js";
+import { codexConfigHome } from "../../../core/codex/home.js";
+import { copilotConfigHome } from "../../../core/copilot/home.js";
 import { isAllowedPath, type FileTarget } from "./targets.js";
 import { t } from "../../../core/i18n.js";
 
@@ -15,10 +17,10 @@ import { t } from "../../../core/i18n.js";
  */
 async function symlinkedDir(abs: string, repo: string): Promise<string | null> {
   const file = path.resolve(abs);
-  const roots = [path.resolve(repo), path.resolve(claudeHome()), path.resolve(codexHome()), path.resolve(copilotHome())];
+  const roots = [path.resolve(repo), path.resolve(claudeHome()), path.resolve(codexConfigHome()), path.resolve(copilotConfigHome())];
   const root = roots.filter((r) => file.startsWith(r + path.sep)).sort((a, b) => b.length - a.length)[0];
   if (!root) return null;
-  if (root === path.resolve(codexHome()) || root === path.resolve(copilotHome())) {
+  if (root === path.resolve(codexConfigHome()) || root === path.resolve(copilotConfigHome())) {
     try {
       if ((await lstat(root)).isSymbolicLink()) return root;
     } catch {

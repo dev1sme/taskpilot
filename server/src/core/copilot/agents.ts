@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import path from "node:path";
+import { copilotHome } from "./home.js";
 
 /** A custom agent Copilot can run with `--agent <name>`. */
 export interface CopilotAgent {
@@ -32,7 +32,7 @@ interface Location {
 
 /** Where copilot 1.0.103 looks (verified with `--agent <unknown>`); first match wins, longer suffix first. */
 function locations(repo: string): Location[] {
-  const home = process.env.COPILOT_HOME || path.join(homedir(), ".copilot");
+  const home = copilotHome();
   return [
     { dir: path.join(repo, ".github", "agents"), scope: "project", suffixes: [".agent.md", ".md"] },
     { dir: path.join(repo, ".claude", "agents"), scope: "project", suffixes: [".md"] },

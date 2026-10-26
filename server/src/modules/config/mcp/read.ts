@@ -1,8 +1,11 @@
 import path from "node:path";
-import { claudeJson, displayPath, envRefs, isObject, maskValue, readJsonFile, strings } from "../shared/fs.js";
+import { claudeJson } from "../../../core/claude/home.js";
+import { displayPath, envRefs, isObject, maskValue, readJsonFile, strings } from "../shared/fs.js";
 import { t } from "../../../core/i18n.js";
 import { parse as parseToml } from "smol-toml";
-import { codexHome, copilotHome, readText } from "../shared/fs.js";
+import { codexConfigHome } from "../../../core/codex/home.js";
+import { copilotConfigHome } from "../../../core/copilot/home.js";
+import { readText } from "../shared/fs.js";
 import type { ConfigCli } from "../shared/agent.js";
 import { HttpError } from "../../../core/errors.js";
 
@@ -83,12 +86,12 @@ async function readNativeMcp(repo: string, provided: Record<string, string>, cli
     cli === "codex"
       ? [
           { scope: "project" as const, file: path.join(repo, ".codex", "config.toml") },
-          { scope: "user" as const, file: path.join(codexHome(), "config.toml") },
+          { scope: "user" as const, file: path.join(codexConfigHome(), "config.toml") },
         ]
       : [
           { scope: "project" as const, file: path.join(repo, ".mcp.json"), readonly: true },
           { scope: "project" as const, file: path.join(repo, ".github", "mcp.json") },
-          { scope: "user" as const, file: path.join(copilotHome(), "mcp-config.json") },
+          { scope: "user" as const, file: path.join(copilotConfigHome(), "mcp-config.json") },
         ];
   const sources: McpConfig["sources"] = [];
   const servers: McpServer[] = [];

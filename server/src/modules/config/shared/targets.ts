@@ -1,6 +1,9 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { claudeHome, codexHome, codexSkillsHome, copilotHome, displayPath } from "./fs.js";
+import { claudeHome } from "../../../core/claude/home.js";
+import { codexConfigHome, codexSkillsHome } from "../../../core/codex/home.js";
+import { copilotConfigHome } from "../../../core/copilot/home.js";
+import { displayPath } from "./fs.js";
 import { requireConfigScope, type ConfigCli, type ConfigScope } from "./agent.js";
 import { HttpError } from "../../../core/errors.js";
 import { overrideDir, PROMPT_FILE, SETTINGS_FILE, WORKFLOW_FILE } from "../../workflow/index.js";
@@ -41,12 +44,12 @@ export function memoryTarget(repo: string, scope: MemoryScope, cli: ConfigCli = 
         ? {
             project: path.join(repo, "AGENTS.md"),
             local: "",
-            user: path.join(codexHome(), "AGENTS.md"),
+            user: path.join(codexConfigHome(), "AGENTS.md"),
           }[scope]
         : {
             project: path.join(repo, ".github", "copilot-instructions.md"),
             local: "",
-            user: path.join(copilotHome(), "copilot-instructions.md"),
+            user: path.join(copilotConfigHome(), "copilot-instructions.md"),
           }[scope];
   return { abs, display: displayPath(abs, repo) };
 }
@@ -64,12 +67,12 @@ export function settingsTarget(repo: string, scope: SettingsScope, cli: ConfigCl
         ? {
             project: path.join(repo, ".codex", "config.toml"),
             local: "",
-            user: path.join(codexHome(), "config.toml"),
+            user: path.join(codexConfigHome(), "config.toml"),
           }[scope]
         : {
             project: path.join(repo, ".github", "copilot", "settings.json"),
             local: path.join(repo, ".github", "copilot", "settings.local.json"),
-            user: path.join(copilotHome(), "settings.json"),
+            user: path.join(copilotConfigHome(), "settings.json"),
           }[scope];
   return { abs, display: displayPath(abs, repo) };
 }
@@ -100,7 +103,7 @@ export function libraryTarget(repo: string, kind: LibraryKind, scope: LibrarySco
   if (cli === "copilot" && kind === "agents") {
     const pattern = scope === "project" ? /^[A-Za-z0-9][\w.-]*\.(?:agent\.)?md$/ : /^[A-Za-z0-9][\w.-]*\.agent\.md$/;
     if (!pattern.test(rel)) throw new HttpError(400, t("errors.invalidName", { name: rel }));
-    const root = scope === "project" ? path.join(repo, ".github", "agents") : path.join(copilotHome(), "agents");
+    const root = scope === "project" ? path.join(repo, ".github", "agents") : path.join(copilotConfigHome(), "agents");
     const abs = path.join(root, rel);
     return { abs, display: displayPath(abs, repo) };
   }
@@ -113,7 +116,7 @@ export function libraryTarget(repo: string, kind: LibraryKind, scope: LibrarySco
           : codexSkillsHome()
         : scope === "project"
           ? path.join(repo, ".github", "skills")
-          : path.join(copilotHome(), "skills");
+          : path.join(copilotConfigHome(), "skills");
     const abs = path.join(root, ...rel.split("/"));
     return { abs, display: displayPath(abs, repo) };
   }
@@ -134,7 +137,7 @@ export function codexAgentTarget(repo: string, rel: string): FileTarget {
 export function hookTarget(repo: string, scope: ConfigScope, rel: string, cli: ConfigCli): FileTarget {
   requireConfigScope(cli, "hooks", scope);
   if (cli !== "copilot" || !/^[A-Za-z0-9][\w.-]*\.json$/.test(rel)) throw new HttpError(400, t("errors.invalidName", { name: rel }));
-  const root = scope === "project" ? path.join(repo, ".github", "hooks") : path.join(copilotHome(), "hooks");
+  const root = scope === "project" ? path.join(repo, ".github", "hooks") : path.join(copilotConfigHome(), "hooks");
   const abs = path.join(root, rel);
   return { abs, display: displayPath(abs, repo) };
 }
@@ -144,7 +147,7 @@ export function mcpTarget(repo: string, scope: ConfigScope, cli: ConfigCli = "cl
   requireConfigScope(cli, "mcp", scope);
   if (cli === "codex") return settingsTarget(repo, scope as SettingsScope, cli);
   if (cli === "claude" && scope !== "project") throw new HttpError(400, t("configMessages.shared_targets_02"));
-  const abs = cli === "claude" ? path.join(repo, ".mcp.json") : scope === "project" ? path.join(repo, ".github", "mcp.json") : path.join(copilotHome(), "mcp-config.json");
+  const abs = cli === "claude" ? path.join(repo, ".mcp.json") : scope === "project" ? path.join(repo, ".github", "mcp.json") : path.join(copilotConfigHome(), "mcp-config.json");
   return { abs, display: displayPath(abs, repo) };
 }
 
@@ -179,16 +182,16 @@ export function isAllowedPath(abs: string, repo: string): boolean {
     path.join(claudeHome(), "CLAUDE.md"),
     path.join(claudeHome(), "settings.json"),
     path.join(repo, "AGENTS.md"),
-    path.join(codexHome(), "AGENTS.md"),
+    path.join(codexConfigHome(), "AGENTS.md"),
     path.join(repo, ".codex", "config.toml"),
-    path.join(codexHome(), "config.toml"),
+    path.join(codexConfigHome(), "config.toml"),
     path.join(repo, ".github", "copilot-instructions.md"),
-    path.join(copilotHome(), "copilot-instructions.md"),
+    path.join(copilotConfigHome(), "copilot-instructions.md"),
     path.join(repo, ".github", "copilot", "settings.json"),
     path.join(repo, ".github", "copilot", "settings.local.json"),
-    path.join(copilotHome(), "settings.json"),
+    path.join(copilotConfigHome(), "settings.json"),
     path.join(repo, ".github", "mcp.json"),
-    path.join(copilotHome(), "mcp-config.json"),
+    path.join(copilotConfigHome(), "mcp-config.json"),
     // ~/.claude.json is never written directly: Claude Code rewrites it constantly; MCP entries
     // there are changed through `claude mcp add-json/remove`.
   ].map((x) => path.resolve(x));
@@ -196,11 +199,14 @@ export function isAllowedPath(abs: string, repo: string): boolean {
   // The workflow override and settings.yml: files directly in .taskpilot/, never TaskPilot's own workflows/default/.
   if (path.dirname(p) === path.resolve(overrideDir(repo)) && (isWorkflowFileName(path.basename(p)) || path.basename(p) === SETTINGS_FILE)) return true;
   if (path.dirname(p) === path.resolve(repo, ".codex", "agents") && /^[A-Za-z0-9][\w.-]*\.toml$/.test(path.basename(p))) return true;
-  if ([path.join(repo, ".github", "hooks"), path.join(copilotHome(), "hooks")].some((root) => path.dirname(p) === path.resolve(root)) && /^[A-Za-z0-9][\w.-]*\.json$/.test(path.basename(p)))
+  if (
+    [path.join(repo, ".github", "hooks"), path.join(copilotConfigHome(), "hooks")].some((root) => path.dirname(p) === path.resolve(root)) &&
+    /^[A-Za-z0-9][\w.-]*\.json$/.test(path.basename(p))
+  )
     return true;
   if (path.dirname(p) === path.resolve(repo, ".github", "agents") && /^[A-Za-z0-9][\w.-]*\.(?:agent\.)?md$/.test(path.basename(p))) return true;
-  if (path.dirname(p) === path.resolve(copilotHome(), "agents") && /^[A-Za-z0-9][\w.-]*\.agent\.md$/.test(path.basename(p))) return true;
-  for (const root of [path.join(repo, ".agents", "skills"), codexSkillsHome(), path.join(repo, ".github", "skills"), path.join(copilotHome(), "skills")]) {
+  if (path.dirname(p) === path.resolve(copilotConfigHome(), "agents") && /^[A-Za-z0-9][\w.-]*\.agent\.md$/.test(path.basename(p))) return true;
+  for (const root of [path.join(repo, ".agents", "skills"), codexSkillsHome(), path.join(repo, ".github", "skills"), path.join(copilotConfigHome(), "skills")]) {
     const rel = path.relative(path.resolve(root), p).split(path.sep).join("/");
     if (SKILL_REL.test(rel)) return true;
   }

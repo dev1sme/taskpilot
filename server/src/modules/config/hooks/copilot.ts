@@ -2,7 +2,8 @@ import { t } from "../../../core/i18n.js";
 import { readdir, lstat } from "node:fs/promises";
 import path from "node:path";
 import { HttpError } from "../../../core/errors.js";
-import { copilotHome, isObject } from "../shared/fs.js";
+import { copilotConfigHome } from "../../../core/copilot/home.js";
+import { isObject } from "../shared/fs.js";
 import { hookTarget } from "../shared/targets.js";
 import { readCurrent } from "../shared/writer.js";
 import type { ConfigScope } from "../shared/agent.js";
@@ -82,7 +83,7 @@ export function copilotDiffView(text: string | null): string | null {
 /** Refuse reads through hook-directory symlinks as well as file symlinks. */
 export async function readCopilotHookFile(repo: string, abs: string): Promise<string | null> {
   const projectRoot = path.resolve(repo);
-  const userRoot = path.resolve(copilotHome());
+  const userRoot = path.resolve(copilotConfigHome());
   const root = abs.startsWith(userRoot + path.sep) ? userRoot : projectRoot;
   for (let current = path.resolve(abs); current !== root; current = path.dirname(current)) {
     try {
@@ -105,7 +106,7 @@ export async function listCopilotHookFiles(repo: string): Promise<Array<{ scope:
   const out: Array<{ scope: ConfigScope; name: string; path: string; hooks: CopilotHookInput[]; error?: string }> = [];
   for (const [scope, root] of [
     ["project", path.join(repo, ".github", "hooks")],
-    ["user", path.join(copilotHome(), "hooks")],
+    ["user", path.join(copilotConfigHome(), "hooks")],
   ] as const) {
     let names: string[];
     try {

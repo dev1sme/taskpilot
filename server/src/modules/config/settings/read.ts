@@ -1,6 +1,7 @@
 import { t } from "../../../core/i18n.js";
 import path from "node:path";
-import { claudeHome, displayPath, isObject, maskValue, readJsonFile, strings } from "../shared/fs.js";
+import { claudeHome } from "../../../core/claude/home.js";
+import { displayPath, isObject, maskValue, readJsonFile, strings } from "../shared/fs.js";
 import type { ConfigCli, ConfigScope } from "../shared/agent.js";
 import { settingsTarget } from "../shared/targets.js";
 import { readCurrent } from "../shared/writer.js";

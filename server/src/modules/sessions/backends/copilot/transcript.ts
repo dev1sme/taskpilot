@@ -1,6 +1,6 @@
 import { open } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
+import { copilotHome } from "../../../../core/copilot/home.js";
 
 /** Enough of events.jsonl to find the last assistant message of a turn. */
 const TRANSCRIPT_TAIL_BYTES = 2 * 1024 * 1024;
@@ -16,10 +16,6 @@ const TURN_END_SLACK_MS = 500;
 /** events.jsonl of a Copilot session. */
 export function copilotTranscript(sessionId: string): string {
   return path.join(copilotHome(), "session-state", sessionId, "events.jsonl");
-}
-
-export function copilotHome(): string {
-  return process.env.COPILOT_HOME || path.join(os.homedir(), ".copilot");
 }
 
 export async function readTail(file: string): Promise<string | null> {

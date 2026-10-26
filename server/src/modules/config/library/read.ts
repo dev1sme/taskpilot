@@ -1,7 +1,10 @@
 import { readdir, realpath, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import path from "node:path";
-import { claudeHome, codexSkillsHome, copilotHome, displayPath, fileInfo, frontmatter, readText, strings } from "../shared/fs.js";
+import { claudeHome } from "../../../core/claude/home.js";
+import { codexSkillsHome } from "../../../core/codex/home.js";
+import { copilotConfigHome } from "../../../core/copilot/home.js";
+import { displayPath, fileInfo, frontmatter, readText, strings } from "../shared/fs.js";
 import type { ConfigCli } from "../shared/agent.js";
 import { checkAgent, checkCodexAgent, checkNames, type AgentCheck } from "./check.js";
 import { readTemplates } from "./templates.js";
@@ -48,7 +51,7 @@ export async function readLibrary(repo: string, kind: LibraryKind, cli: ConfigCl
           : [
               ["project", path.join(repo, ".github", "agents")],
               ["project", path.join(repo, ".claude", "agents"), false],
-              ["user", path.join(copilotHome(), "agents")],
+              ["user", path.join(copilotConfigHome(), "agents")],
             ]
         : cli === "codex"
           ? [
@@ -57,7 +60,7 @@ export async function readLibrary(repo: string, kind: LibraryKind, cli: ConfigCl
             ]
           : [
               ["project", path.join(repo, ".github", "skills")],
-              ["user", path.join(copilotHome(), "skills")],
+              ["user", path.join(copilotConfigHome(), "skills")],
             ];
   // Agents are compared with TaskPilot's templates by name.
   const templates = kind === "agents" && cli !== "copilot" ? new Map((await readTemplates(cli)).map((tpl) => [tpl.name, tpl.content])) : undefined;

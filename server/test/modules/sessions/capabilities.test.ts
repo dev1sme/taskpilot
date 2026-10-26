@@ -54,7 +54,7 @@ describe("session capabilities and preflight", () => {
     expect(result.capability).toMatchObject({
       cli: { status: "supported", source: "initialize", version: "0.163.0" },
       login: { status: "supported", source: "account/read" },
-      quotaDetection: { status: "supported", source: "adapter" },
+      quotaDetection: { status: "unknown", source: "unverified" },
     });
     expect(result.model).toEqual({ status: "supported", source: "model/list" });
     expect((await readLog()).map((entry) => entry.method)).toEqual(["initialize", "initialized", "account/read", "model/list", "model/list"]);
@@ -98,7 +98,7 @@ describe("session capabilities and preflight", () => {
     expect(result.capability).not.toHaveProperty("actualModel");
     expect(launch.mock.calls[0][1]).toMatchObject({ model: undefined });
     const session = await manager.create(repo, "DEMO-1", result.configuration);
-    expect(session.model).toBe("actual-default-model");
+    expect(session.model).toBeUndefined();
   });
 
   it.each([
@@ -142,12 +142,11 @@ describe("session capabilities and preflight", () => {
     const configuration = { agent: "codex", permissionMode: "acceptEdits", model: "gpt-6.1-sol" } as const;
     await manager.preflight(repo, configuration);
     const session = await manager.create(repo, "DEMO-1", configuration);
-    expect(launch.mock.calls[0][1]).toMatchObject(launch.mock.calls[1][1]);
+    expect(launch.mock.calls[0][1]).toEqual(launch.mock.calls[1][1]);
     const log = await readLog();
     expect(log.every((entry) => entry.cwd === repo && entry.marker === "launcher-wins" && entry.codexHome === path.join(repo, ".codex-test"))).toBe(true);
     expect(log.every((entry) => entry.uiToken === undefined && entry.claudeEntry === undefined)).toBe(true);
-    expect(log.find((entry) => entry.method === "thread/start")?.params).toEqual({ cwd: repo, model: "gpt-6.1-sol", sandbox: "workspace-write", approvalPolicy: "on-request" });
-    expect(session.nativeId).toBe("fake-preflight-thread");
+    expect(session.model).toBe("gpt-6.1-sol");
   });
 
   it("does not reuse model or login results across repos or environment changes", async () => {

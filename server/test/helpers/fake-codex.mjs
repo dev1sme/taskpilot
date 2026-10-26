@@ -41,6 +41,9 @@ process.on("SIGTERM", () => {
     Number(process.env.FAKE_CODEX_EXIT_DELAY_MS ?? 0),
   );
 });
+// Session tests run this stand-in in a PTY: "start" says the SIGTERM handler is installed, the footer is the TUI's ready marker.
+if (process.env.FAKE_CODEX_EXIT_LOG) appendFileSync(process.env.FAKE_CODEX_EXIT_LOG, "start\n");
+if (process.env.FAKE_CODEX_READY) process.stdout.write("gpt-6.1-sol default · ~/repo\n");
 if (process.env.FAKE_CODEX_CHILD_DELAY_MS) {
   const child = spawn(
     process.execPath,
@@ -49,6 +52,8 @@ if (process.env.FAKE_CODEX_CHILD_DELAY_MS) {
       `
     const fs = require("node:fs");
     let stopping = false;
+    // In a PTY the child gets SIGHUP when the session leader exits; a surviving tool has to outlast it.
+    process.on("SIGHUP", () => {});
     process.on("SIGTERM", () => { if (!stopping) { stopping = true; setTimeout(() => process.exit(0), Number(process.env.FAKE_CODEX_CHILD_DELAY_MS)); } });
     fs.writeFileSync(process.env.FAKE_CODEX_CHILD_FILE, String(process.pid));
     setInterval(() => {}, 1000);

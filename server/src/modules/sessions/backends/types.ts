@@ -73,7 +73,6 @@ export interface AgentBackend {
   /** Subagent flags supported by the adapter, not proof of a particular custom agent's tools. */
   supportsSubagents: boolean;
   probe(context: BackendProbeContext): Promise<AgentCapability>;
-  transport?: "pty" | "rpc";
   launcher: Launcher;
   /** JSON for the agent's --settings flag, when it takes its hooks on the command line. */
   launchSettings?(): string;

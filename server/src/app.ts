@@ -131,12 +131,11 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     // A subtask's model and cost, for the leader's review of the subtasks.
     void engine.onStatusLine(meta, payload).catch(logError);
   });
-  sessions.on("rateLimits", (_meta, data) => void usage.applyCodex(data).catch(logError));
   const copilotQuota = createCopilotPoller(usage, opts.copilotQuota, logError);
   sessions.on("hook", (meta, event) => {
     if (meta.agent === "copilot" && (event === "SessionStart" || event === "PostToolUse" || event === "Stop")) copilotQuota.request();
   });
-  // Codex's numbers also come from its sessions; this poller fills them in before any session exists.
+  // Codex's account numbers come from its read-only app-server; a TUI session reports none.
   const codexQuota = createCodexPoller(usage, opts.codexUsage, logError);
   codexQuota.start();
   copilotQuota.start();

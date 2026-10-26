@@ -10,19 +10,15 @@ import { DEFAULT_AGENT, type Agent } from "../../core/agents.js";
 import { backendOf, type HookState } from "./backends/index.js";
 import type { AgentBackend } from "./backends/types.js";
 import { PtyTransport, attachPty } from "./transports/pty.js";
-import { RpcTransport } from "./transports/rpc.js";
-import { codexHttpError } from "./transports/codex-errors.js";
-import type { SessionMetrics, SessionTransport } from "./transports/types.js";
+import type { SessionMetrics } from "./transports/types.js";
 import { preflightSession, sessionCapabilities, type PreflightRequest } from "./capabilities.js";
 import type { BackendProbeContext } from "./backends/types.js";
 import { unknownFailure, type SessionFailure } from "./failure.js";
-import type { CodexUsageFields } from "../../core/codex/usage.js";
 import type { AccountQuotaEvidence } from "../usage/index.js";
 
 export type SessionStatus = "running" | "exited";
 
 export interface SessionView extends SessionMeta {
-  transport: "pty" | "rpc";
   agent: Agent;
   status: SessionStatus;
   exitCode: number | null;
@@ -59,7 +55,7 @@ interface Live {
   startupError?: unknown;
   owner?: SessionMeta["processOwner"];
   /** Runs the agent's process; kept across resumes with its scrollback and attached clients. */
-  transport: SessionTransport;
+  transport: PtyTransport;
   exitCode: number | null;
   activity: Activity;
   /** Authenticates hook callbacks from this process; new for every spawn. */
@@ -93,8 +89,6 @@ export interface SessionManagerOptions {
 
 export interface SessionEvents {
   metrics: [meta: SessionMeta, data: SessionMetrics];
-  /** Codex account rate limits, from the session's own app-server. */
-  rateLimits: [meta: SessionMeta, data: CodexUsageFields];
   /** Status or activity changed; for UI refresh. */
   change: [meta: SessionMeta];
   hook: [meta: SessionMeta, event: HookEvent, payload: Record<string, unknown>];
@@ -140,17 +134,11 @@ export class SessionManager extends EventEmitter<SessionEvents> {
   }
 
   async capabilities(repo: string) {
-    const result = await sessionCapabilities((request) => this.probeContext(repo, request));
-    for (const capability of result.agents) {
-      if (capability.agent === "codex") capability.quotaDetection = { status: "supported", source: "adapter" };
-    }
-    return result;
+    return sessionCapabilities((request) => this.probeContext(repo, request));
   }
 
   async preflight(repo: string, request: PreflightRequest) {
-    const result = await preflightSession(request, (configuration) => this.probeContext(repo, configuration));
-    if (request.agent === "codex") result.capability.quotaDetection = { status: "supported", source: "adapter" };
-    return result;
+    return preflightSession(request, (configuration) => this.probeContext(repo, configuration));
   }
 
   private async probeContext(repo: string, request: PreflightRequest): Promise<BackendProbeContext> {
@@ -158,7 +146,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     const launcher = this.launchers[request.agent] ?? backend.launcher;
     return {
       repo,
-      command: launcher("preflight", { resume: false, settings: backend.launchSettings?.(), permissionMode: request.permissionMode, model: request.model, subagent: request.subagent }),
+      command: launcher("preflight", { resume: false, settings: backend.launchSettings?.(), permissionMode: request.permissionMode, model: request.model, subagent: request.subagent, repo }),
       extraEnv: await this.extraEnv(repo),
       timeoutMs: this.preflightTimeoutMs,
     };
@@ -434,7 +422,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     }
   }
 
-  /** Submits a prompt through the session's PTY or RPC transport. */
+  /** Submits a prompt through the session's PTY. */
   paste(id: string, text: string): void {
     this.assertInput(id);
     const transport = this.live.get(id)?.transport;
@@ -496,13 +484,31 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     this.stopWatching(live);
     const meta = await this.find(id);
     const backend = backendOf(meta.agent);
-    const payload = backend.normalize ? await backend.normalize(event, raw, live.hookState) : raw;
+    // An agent that names its own threads (Codex) sends that id as session_id; it is kept as nativeId, the payload carries ours.
+    const nativeId = backend.nativeIdOf?.(raw);
+    const normalized = backend.normalize ? await backend.normalize(event, raw, live.hookState) : raw;
     if (this.live.get(id) !== live || live.stopping || !live.transport.running || live.hookToken !== token) return false;
-    if (payload && typeof payload.session_id === "string" && payload.session_id !== id) return false;
+    if (!nativeId && normalized && typeof normalized.session_id === "string" && normalized.session_id !== id) return false;
+    if (nativeId) await this.saveNativeId(meta, live, nativeId, typeof raw.model === "string" ? raw.model : undefined);
+    if (this.live.get(id) !== live || live.stopping || live.hookToken !== token) return false;
+    const payload = nativeId && normalized ? { ...normalized, session_id: id } : normalized;
     if (!payload) return true;
     if (backend.permissionGraceMs) this.graced(meta, live, event, payload, backend.permissionGraceMs);
     else this.apply(meta, live, event, payload);
     return true;
+  }
+
+  /** Stores the agent's own conversation id (and the model it reported) of the running process, for resume. */
+  private async saveNativeId(meta: SessionMeta, live: Live, nativeId: string, model?: string): Promise<void> {
+    const saved = (await this.state.load()).sessions.find((s) => s.id === meta.id);
+    if (!saved || saved.generation !== live.generation) return;
+    if (saved.nativeId === nativeId && (saved.model || !model)) return;
+    await this.state.update((s) => {
+      const current = s.sessions.find((x) => x.id === meta.id);
+      if (!current || current.generation !== live.generation) return;
+      current.nativeId = nativeId;
+      if (!current.model && model) current.model = model;
+    });
   }
 
   /**
@@ -547,7 +553,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       this.emit("change", meta);
     }
     if (event === "SessionStart") live.ready.resolve();
-    const activity = live.transport instanceof RpcTransport && live.transport.awaitingApproval ? "permission" : nextActivity(event);
+    const activity = nextActivity(event);
     if (activity !== live.activity) {
       live.activity = activity;
       this.emit("change", meta);
@@ -592,54 +598,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     );
     const meta = (await this.state.load()).sessions.find((s) => s.id === id);
     if (meta) this.controls.set(id, meta);
-    const known = !!meta;
-    if (!known) ws.close(4404, "Unknown session");
-    else if ((await this.find(id)).agent === "codex") {
-      ws.close(4409, "Use the conversation socket");
-      const live = this.live.get(id);
-      if (live?.transport instanceof PtyTransport && !live.transport.running) this.live.delete(id);
-    }
-  }
-
-  async attachConversation(id: string, ws: WebSocket): Promise<void> {
-    try {
-      const meta = await this.find(id);
-      if (backendOf(meta.agent).transport !== "rpc") {
-        ws.close(4409, "Session uses PTY");
-        return;
-      }
-      let live = this.live.get(id);
-      if (!live) {
-        live = this.emptyLive(meta.agent);
-        this.live.set(id, live);
-      }
-      if (ws.readyState === 1) (live.transport as RpcTransport).attach(ws);
-    } catch {
-      ws.close(4404, "Unknown session");
-    }
-  }
-
-  async interrupt(id: string): Promise<void> {
-    const transport = await this.rpc(id);
-    this.assertInput(id);
-    await transport.interrupt();
-  }
-
-  async answer(id: string, requestId: string, decision: "accept" | "decline"): Promise<void> {
-    const transport = await this.rpc(id);
-    this.assertInput(id);
-    transport.answer(requestId, decision);
-    const live = this.live.get(id)!;
-    live.activity = transport.awaitingApproval ? "permission" : "busy";
-    this.emit("change", await this.find(id));
-  }
-
-  private async rpc(id: string): Promise<RpcTransport> {
-    await this.find(id);
-    this.assertInput(id);
-    const transport = this.live.get(id)?.transport;
-    if (!(transport instanceof RpcTransport) || !transport.running) throw new HttpError(409, "Session has no running RPC transport");
-    return transport;
+    if (!meta) ws.close(4404, "Unknown session");
   }
 
   closeAll(): void {
@@ -662,7 +621,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       live = this.emptyLive();
       this.live.set(id, live);
     }
-    return live?.transport instanceof PtyTransport ? live.transport : undefined;
+    return live?.transport;
   }
 
   private async spawn(savedMeta: SessionMeta, resume: boolean): Promise<void> {
@@ -671,7 +630,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     if (this.closing || this.cancelledLaunches.has(meta.id)) throw new HttpError(409, "Session startup was stopped");
     const hookToken = randomBytes(24).toString("base64url");
     const backend = backendOf(meta.agent);
-    const previous = this.live.get(meta.id) ?? this.emptyLive(meta.agent);
+    const previous = this.live.get(meta.id) ?? this.emptyLive();
     const live: Live = {
       ...previous,
       started: signal(),
@@ -730,31 +689,9 @@ export class SessionManager extends EventEmitter<SessionEvents> {
           ready: () => {
             if (!live.stopping) live.ready.resolve();
           },
-          hook: (event, payload) => {
-            if (backend.transport === "rpc") live.lastHookAt = Date.now();
-            this.apply(meta, live, event, payload);
-          },
-          nativeId: async (nativeId, model) => {
-            if (this.live.get(meta.id) !== live || live.stopping) throw new HttpError(409, "Session startup was stopped");
-            await this.state.update((s) => {
-              const saved = s.sessions.find((x) => x.id === meta.id);
-              if (!saved || saved.generation !== meta.generation) throw new HttpError(409, "Session generation changed");
-              saved.nativeId = nativeId;
-              if (!saved.model && model) saved.model = model;
-            });
-            meta.nativeId = nativeId;
-            if (!meta.model && model) meta.model = model;
-          },
+          hook: (event, payload) => this.apply(meta, live, event, payload),
           metrics: (data) => {
             if (this.live.get(meta.id) === live && !live.stopping) this.emit("metrics", meta, data);
-          },
-          rateLimits: (data) => {
-            if (this.live.get(meta.id) === live && !live.stopping) this.emit("rateLimits", meta, data);
-          },
-          failure: (data) => {
-            if (this.live.get(meta.id) !== live || live.stopping) return;
-            live.failure = { ...data, generation: meta.generation };
-            this.emit("change", meta);
           },
           exit: (exitCode) => {
             // Resolve before emitting: listeners enqueue engine work but are never part of this barrier.
@@ -776,7 +713,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       live.hookToken = null;
       if (!live.transport.running) live.exited.resolve();
       this.emit("change", meta);
-      throw backend.transport === "rpc" && !(error instanceof HttpError) ? codexHttpError(error) : error;
+      throw error;
     } finally {
       live.started.resolve();
     }
@@ -795,7 +732,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     return !!live && (!live.started.done || live.transport.running);
   }
 
-  private emptyLive(agent?: Agent): Live {
+  private emptyLive(): Live {
     const exited = signal();
     exited.resolve();
     const started = signal();
@@ -805,7 +742,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       ready: signal(),
       exited,
       stopping: false,
-      transport: backendOf(agent).transport === "rpc" ? new RpcTransport(this.scrollbackLimit) : new PtyTransport(this.scrollbackLimit),
+      transport: new PtyTransport(this.scrollbackLimit),
       exitCode: null,
       activity: "starting",
       hookToken: null,
@@ -820,7 +757,6 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     return {
       ...meta,
       agent: meta.agent ?? DEFAULT_AGENT,
-      transport: backendOf(meta.agent).transport ?? "pty",
       status: this.isRunning(meta.id) ? "running" : "exited",
       exitCode: live?.exitCode ?? null,
       activity: live?.transport.running ? live.activity : null,

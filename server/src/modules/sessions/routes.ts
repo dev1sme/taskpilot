@@ -31,7 +31,7 @@ function modelOf(body: unknown): string | undefined {
   return model.trim();
 }
 
-/** Agent sessions of a task or of the repo, and the PTY socket of each. */
+/** Agent sessions of a task or of the repo, and the PTY socket of each. Input and interrupts go through the terminal. */
 export function registerSessionsRoutes(app: FastifyInstance, opts: { repo: RepoContext; sessions: SessionManager; runs: { usesSession(id: string): Promise<boolean> } }) {
   const { sessions } = opts;
   const requireRepo = opts.repo.require;
@@ -58,33 +58,6 @@ export function registerSessionsRoutes(app: FastifyInstance, opts: { repo: RepoC
   app.post<{ Params: { id: string } }>("/api/sessions/:id/stop", async (req) => {
     await sessions.stopAndWait(sessionId(req.params.id));
     return { ok: true };
-  });
-
-  app.post<{ Params: { id: string }; Body: { text?: unknown } }>("/api/sessions/:id/input", async (req) => {
-    const id = sessionId(req.params.id);
-    if (typeof req.body?.text !== "string" || !req.body.text.trim()) throw new HttpError(400, "Body must contain text");
-    if ((await sessions.get(id)).transport !== "rpc") throw new HttpError(409, "Session uses PTY");
-    sessions.paste(id, req.body.text);
-    return { ok: true };
-  });
-
-  app.post<{ Params: { id: string } }>("/api/sessions/:id/interrupt", async (req) => {
-    await sessions.interrupt(sessionId(req.params.id));
-    return { ok: true };
-  });
-
-  app.post<{ Params: { id: string; requestId: string }; Body: { decision?: unknown } }>("/api/sessions/:id/approvals/:requestId", async (req) => {
-    if (req.body?.decision !== "accept" && req.body?.decision !== "decline") throw new HttpError(400, "Decision must be accept or decline");
-    await sessions.answer(sessionId(req.params.id), req.params.requestId, req.body.decision);
-    return { ok: true };
-  });
-
-  app.get<{ Params: { id: string } }>("/api/sessions/:id/conversation", { websocket: true }, (socket, req) => {
-    if (!SESSION_ID.test(req.params.id)) {
-      socket.close(4400, "Invalid session id");
-      return;
-    }
-    void sessions.attachConversation(req.params.id, socket);
   });
 
   app.delete<{ Params: { id: string } }>("/api/sessions/:id", async (req) => {

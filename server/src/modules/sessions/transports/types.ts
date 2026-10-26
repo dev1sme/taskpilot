@@ -1,9 +1,7 @@
 import type { Launcher } from "../../../core/launch.js";
-import type { CodexUsageFields } from "../../../core/codex/usage.js";
 import type { SessionMeta } from "../../../core/state.js";
 import type { AgentBackend } from "../backends/types.js";
 import type { HookEvent } from "../hooks.js";
-import type { SessionFailure } from "../failure.js";
 
 /** What a transport needs to start the agent's process for one spawn of a session. */
 export interface TransportLaunch {
@@ -19,15 +17,10 @@ export interface TransportLaunch {
 
 /** How a transport reports back to the SessionManager while its process runs. */
 export interface TransportEvents {
-  nativeId?(id: string, model?: string): Promise<void>;
   /** Persist ownership before readiness or any prompt; groupId is an isolated POSIX process group. */
   process?(pid: number, groupId?: number): Promise<void>;
   ready?(): void;
   metrics?(data: SessionMetrics): void;
-  /** Account rate limits Codex reported (read after ready or pushed by `account/rateLimits/updated`); sparse. */
-  rateLimits?(data: CodexUsageFields): void;
-  /** Only final failures of this process/turn; retry notifications are not failures. */
-  failure?(data: SessionFailure): void;
   /** An event the transport saw itself, in Claude Code's hook names and payload fields. */
   hook(event: HookEvent, payload: Record<string, unknown>): void;
   /** The process ended; the transport no longer runs. */
@@ -41,8 +34,8 @@ export interface TransportEvents {
 export interface SessionTransport {
   /** Whether a process is running. */
   readonly running: boolean;
-  /** Starts a process; RPC startup can also reject while checking the account or opening a thread. */
-  start(launch: TransportLaunch, events: TransportEvents): void | Promise<void>;
+  /** Starts a process. */
+  start(launch: TransportLaunch, events: TransportEvents): Promise<void>;
   /** Sends a prompt and submits it. */
   paste(text: string): void;
   /** Ends the process; the end is reported through `events.exit`. */
@@ -55,14 +48,4 @@ export interface SessionMetrics {
   model?: string;
   inputTokens?: number;
   outputTokens?: number;
-}
-
-export interface ConversationItem {
-  id: string;
-  kind: "user" | "agent" | "tool" | "approval" | "error";
-  text: string;
-  detail?: string;
-  status?: "running" | "done" | "failed" | "pending" | "accepted" | "declined" | "cancelled";
-  requestId?: string;
-  at: number;
 }

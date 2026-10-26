@@ -8,7 +8,7 @@ import type { WebSocket } from "ws";
 import type { Launcher } from "../../../src/core/launch.js";
 import { StateStore, type AppState } from "../../../src/core/state.js";
 import type { RepoContext } from "../../../src/modules/repo/index.js";
-import { SessionManager, registerSessionsRoutes, type ConversationItem } from "../../../src/modules/sessions/index.js";
+import { SessionManager, registerSessionsRoutes } from "../../../src/modules/sessions/index.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
 const FAKE = path.resolve(import.meta.dirname, "../../helpers/fake-codex.mjs");
@@ -25,7 +25,7 @@ afterAll(cleanupTempDirs);
 class Socket extends EventEmitter {
   readyState = 1;
   OPEN = 1;
-  frames: Array<{ t: string; d?: string; item?: ConversationItem; items?: ConversationItem[] }> = [];
+  frames: Array<{ t: string; d?: string }> = [];
   send(data: string) {
     this.frames.push(JSON.parse(data));
   }
@@ -35,14 +35,6 @@ class Socket extends EventEmitter {
   }
   get output() {
     return this.frames.map((f) => f.d ?? "").join("");
-  }
-  get items() {
-    const items = new Map<string, ConversationItem>();
-    for (const f of this.frames) {
-      for (const i of f.items ?? []) items.set(i.id, i);
-      if (f.item) items.set(f.item.id, f.item);
-    }
-    return [...items.values()];
   }
   input(text: string) {
     this.emit("message", JSON.stringify({ t: "i", d: text }));
@@ -54,13 +46,18 @@ class Socket extends EventEmitter {
 async function setup(env: Record<string, string> = {}) {
   const repo = await makeRepo();
   const state = new StateStore(await tempDir("handoff-lifecycle-"));
-  const codex: Launcher = () => ({ file: process.execPath, args: [FAKE], env });
+  // The stand-in runs in a PTY like a TUI would: READY prints Codex's footer, EXIT_LOG says when its signal handler exists.
+  const codex: Launcher = () => ({ file: process.execPath, args: [FAKE], env: { FAKE_CODEX_READY: "1", ...env } });
   const manager = new SessionManager(state, { launcher: echo, launchers: { codex } });
   managers.push(manager);
   return { manager, state, repo, codex };
 }
 function token(manager: SessionManager, id: string) {
   return (manager as unknown as { live: Map<string, { hookToken: string }> }).live.get(id)!.hookToken;
+}
+/** The stand-in only ends in its delayed way once its SIGTERM handler exists; before that the signal kills it at once. */
+async function started(log: string) {
+  await vi.waitFor(async () => expect(await readFile(log, "utf8")).toContain("start"));
 }
 async function api(manager: SessionManager, repo: string) {
   const app = Fastify();
@@ -72,7 +69,7 @@ async function api(manager: SessionManager, repo: string) {
 }
 
 describe("session handoff lifecycle", () => {
-  it("persists the reserved id and journal callback before starting a fresh native thread", async () => {
+  it("persists the reserved id and journal callback before starting a fresh process", async () => {
     const { manager, state, repo } = await setup();
     let recordedId = "";
     const created = await manager.create(repo, "DEMO-1", {
@@ -88,9 +85,15 @@ describe("session handoff lifecycle", () => {
       },
     });
     expect(created.id).toBe(recordedId);
-    expect(created.nativeId).toBeTruthy();
     expect(created.generation).toBe(1);
     expect((await manager.waitForReady(created.id)).id).toBe(recordedId);
+    // The thread id comes with a hook of the TUI; the hook's session_id is the agent's own id, not ours.
+    const seen: unknown[] = [];
+    manager.on("hook", (_meta, _event, payload) => seen.push(payload.session_id));
+    expect(await manager.handleHook(token(manager, created.id), "UserPromptSubmit", { session_id: "thread-1", model: "gpt-6.1-sol" })).toBe(true);
+    expect(seen).toEqual([recordedId]);
+    expect(await manager.get(created.id)).toMatchObject({ nativeId: "thread-1", model: "gpt-6.1-sol" });
+    expect((await new StateStore(state.dir).load()).sessions[0].nativeId).toBe("thread-1");
     expect(() => manager.paste(created.id, "not committed")).toThrow();
     await manager.release(created.id, "transfer-1");
     manager.paste(created.id, "hello");
@@ -161,27 +164,25 @@ describe("session handoff lifecycle", () => {
     expect(await manager.handleHook(oldToken, "Stop", {})).toBe(false);
   });
 
-  it("blocks REST input, approvals, interrupts and resume while reserved and retired", async () => {
+  it("blocks REST resume while reserved and retired; RPC input, approval and interrupt routes are gone", async () => {
     const { manager, repo } = await setup();
     const source = await manager.create(repo, "DEMO-1", { agent: "codex" });
     const app = await api(manager, repo);
     await manager.reserve(source.id, "rest");
-    const requests = [
-      { url: `/api/sessions/${source.id}/resume` },
+    const resume = { url: `/api/sessions/${source.id}/resume` };
+    const removed = [
       { url: `/api/sessions/${source.id}/input`, payload: { text: "unsafe" } },
       { url: `/api/sessions/${source.id}/approvals/0`, payload: { decision: "accept" } },
       { url: `/api/sessions/${source.id}/interrupt` },
     ];
-    for (const req of requests) expect((await app.inject({ method: "POST", ...req })).statusCode).toBe(409);
+    expect((await app.inject({ method: "POST", ...resume })).statusCode).toBe(409);
+    for (const req of removed) expect((await app.inject({ method: "POST", ...req })).statusCode).toBe(404);
     const target = await manager.create(repo, "DEMO-1", { agent: "codex", operationId: "rest" });
-    expect(target.nativeId).not.toBe(source.nativeId);
     await manager.stopAndWait(source.id);
     await manager.retire(source.id, "rest", target.id);
-    for (const req of requests) expect((await app.inject({ method: "POST", ...req })).statusCode).toBe(409);
+    expect((await app.inject({ method: "POST", ...resume })).statusCode).toBe(409);
+    for (const req of removed) expect((await app.inject({ method: "POST", ...req })).statusCode).toBe(404);
     expect(await manager.list(repo, "DEMO-1")).toHaveLength(2);
-    const socket = new Socket();
-    await manager.attachConversation(source.id, socket as unknown as WebSocket);
-    expect(socket.frames.some((f) => f.t === "items")).toBe(true);
     await manager.release(target.id, "rest");
     await manager.stopAndWait(target.id);
   });
@@ -215,6 +216,7 @@ describe("session handoff lifecycle", () => {
     const log = path.join(dir, "exit.log");
     const { manager, repo } = await setup({ FAKE_CODEX_EXIT_DELAY_MS: "250", FAKE_CODEX_CLOSE_STDOUT_ON_STOP: "1", FAKE_CODEX_EXIT_LOG: log });
     const source = await manager.create(repo, "DEMO-1", { agent: "codex" });
+    await started(log);
     let engineFinished = false;
     let exitProcessed = false;
     let queue = Promise.resolve();
@@ -237,8 +239,10 @@ describe("session handoff lifecycle", () => {
   });
 
   it("keeps the reservation when stop times out, then allows an explicit retry", async () => {
-    const { manager, repo } = await setup({ FAKE_CODEX_EXIT_DELAY_MS: "250" });
+    const log = path.join(await tempDir("stop-timeout-"), "exit.log");
+    const { manager, repo } = await setup({ FAKE_CODEX_EXIT_DELAY_MS: "250", FAKE_CODEX_EXIT_LOG: log });
     const source = await manager.create(repo, "DEMO-1", { agent: "codex" });
+    await started(log);
     await manager.reserve(source.id, "timeout");
     await expect(manager.stopAndWait(source.id, { timeoutMs: 25 })).rejects.toMatchObject({ status: 409 });
     expect((await manager.get(source.id)).reservation?.operationId).toBe("timeout");
@@ -262,11 +266,13 @@ describe("session handoff lifecycle", () => {
   });
 
   it("keeps source locked after rollback timeout, then retires target before unlocking source", async () => {
-    const { manager, repo } = await setup({ FAKE_CODEX_EXIT_DELAY_MS: "250" });
+    const log = path.join(await tempDir("rollback-timeout-"), "exit.log");
+    const { manager, repo } = await setup({ FAKE_CODEX_EXIT_DELAY_MS: "250", FAKE_CODEX_EXIT_LOG: log });
     const source = await manager.create(repo, "DEMO-1");
     await manager.reserve(source.id, "rollback");
     await manager.stopAndWait(source.id);
     const target = await manager.create(repo, "DEMO-1", { agent: "codex", operationId: "rollback" });
+    await started(log);
     await expect(manager.rollback(source.id, target.id, "rollback", { timeoutMs: 25 })).rejects.toMatchObject({ status: 409 });
     expect((await manager.get(source.id)).reservation).toBeTruthy();
     expect((await manager.get(target.id)).reservation).toBeTruthy();

@@ -91,7 +91,7 @@ export const codexLauncher: Launcher = (sessionId, opts) => {
   };
 };
 
-/** Parameters for `thread/start` and, with `threadId`, `thread/resume`. Throws CodexError for what Codex cannot do. */
+/** Launch settings of a Codex session. Throws CodexError for what Codex cannot do. */
 export function codexThreadOptions(opts: CodexThreadOptions): CodexThreadParams {
   const agent = opts.subagent ? readCodexAgent(opts.cwd, opts.subagent) : undefined;
   const mode = opts.permissionMode;
@@ -113,10 +113,4 @@ export function codexThreadOptions(opts: CodexThreadOptions): CodexThreadParams 
     ...(sandboxed && opts.approvalsReviewer ? { approvalsReviewer: opts.approvalsReviewer } : {}),
     ...(sandboxed && opts.networkAccess !== undefined ? { config: { sandbox_workspace_write: { network_access: opts.networkAccess } } } : {}),
   };
-}
-
-/** `thread/resume` parameters: the same settings again, since a resumed thread does not keep them. */
-export function codexResumeOptions(opts: CodexThreadOptions & { threadId: string | undefined }): CodexThreadParams & { threadId: string; excludeTurns: true } {
-  if (!opts.threadId) throw new CodexError("noThread", "session has no Codex thread id to resume");
-  return { threadId: opts.threadId, ...codexThreadOptions(opts), excludeTurns: true };
 }

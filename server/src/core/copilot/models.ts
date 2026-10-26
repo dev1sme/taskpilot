@@ -1,4 +1,4 @@
-import { copilotAcpSession, CopilotError } from "./acp.js";
+import { copilotAcpSession } from "./acp.js";
 
 export interface CopilotModel {
   /** Name to pass to `--model`. */
@@ -31,21 +31,4 @@ export function copilotModels(): Promise<CopilotModel[]> {
 
 export function resetCopilotModelsCache(): void {
   cache = null;
-}
-
-/** Why a model cannot be used: not offered to the account, or the list could not be read. */
-export type CopilotModelProblem = { kind: "unknown"; model: string; available: string[]; message: string } | { kind: "unavailable"; model: string; message: string; error: Error };
-
-/** null when the account offers `model`. A list that cannot be read is "unavailable", not "unknown". */
-export async function copilotModelProblem(model: string): Promise<CopilotModelProblem | null> {
-  let models: CopilotModel[];
-  try {
-    models = await copilotModels();
-  } catch (err) {
-    const error = err instanceof Error ? err : new CopilotError("protocol", String(err));
-    return { kind: "unavailable", model, message: `could not read the Copilot model list: ${error.message}`, error };
-  }
-  if (models.some((m) => m.model === model)) return null;
-  const available = models.map((m) => m.model);
-  return { kind: "unknown", model, available, message: `Copilot does not offer model "${model}"; available: ${available.join(", ") || "none"}` };
 }

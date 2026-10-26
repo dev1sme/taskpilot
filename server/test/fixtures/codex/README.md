@@ -2,6 +2,8 @@
 
 Bản ghi JSON-RPC thật của `codex app-server --listen stdio://`, thu bằng `probe.mjs`. Fake app-server và test ánh xạ phát lại các file này; khi đổi phiên bản Codex thì thu lại và so sánh.
 
+> **Đã dọn (REFACTOR-002):** TaskPilot không còn chạy session qua App Server (session chạy bằng TUI + hook, xem `server/test/fixtures/codex-tui/`). Chỉ giữ ba bản ghi còn test dùng: `handshake.jsonl`, `not-logged-in.jsonl`, `turn.jsonl`. Các bản ghi `defaults`, `edit`, `approval-accept`, `approval-decline`, `approval-cancel`, `untrusted`, `auto`, `interrupt`, `busy`, `resume`, `bad-model`, `plan` đã xoá; lấy lại từ git history ở commit `f727b99` (`git show f727b99:server/test/fixtures/codex/<tên>.jsonl`). Các đoạn dưới đây ghi kết quả quan sát từ những bản ghi đó và giữ làm tài liệu protocol; tên file nhắc tới có thể không còn trong thư mục.
+
 - Phiên bản đã kiểm: **`codex-cli 0.163.0`** (Linux x86_64, tài khoản ChatGPT gói Plus), ngày 2026-10-22.
 - Model mặc định lúc thu: `gpt-6.1-sol` (theo `~/.codex/config.toml`, `model_reasoning_effort = "high"`).
 
@@ -11,13 +13,12 @@ Bản ghi JSON-RPC thật của `codex app-server --listen stdio://`, thu bằng
 codex --version
 # Không tốn quota:
 node server/test/fixtures/codex/probe.mjs --scenario handshake --out server/test/fixtures/codex
-node server/test/fixtures/codex/probe.mjs --scenario defaults --repo "$(mktemp -d)" --out server/test/fixtures/codex
 CODEX_HOME=$(mktemp -d) node server/test/fixtures/codex/probe.mjs --scenario not-logged-in --out server/test/fixtures/codex
-# Tốn một lượt ngắn mỗi kịch bản (resume: hai lượt):
+# Tốn một lượt ngắn mỗi kịch bản:
 node server/test/fixtures/codex/probe.mjs --scenario turn --repo "$(mktemp -d)" --out server/test/fixtures/codex
 ```
 
-Kịch bản: `handshake`, `defaults`, `turn`, `edit`, `approval-accept`, `approval-decline`, `approval-cancel`, `untrusted`, `auto`, `git-commit`, `network`, `npm-test`, `interrupt`, `busy`, `resume`, `bad-model`, `not-logged-in`, `plan`. `--repo` trống thì probe tạo git repo tạm. `TASKPILOT_CODEX` thay đường dẫn `codex` như server. `--timeout <ms>` mặc định 180000.
+Kịch bản: `handshake`, `turn`, `git-commit`, `network`, `npm-test`, `not-logged-in`. `--repo` trống thì probe tạo git repo tạm. `TASKPILOT_CODEX` thay đường dẫn `codex` như server. `--timeout <ms>` mặc định 180000.
 
 Mỗi dòng là `{"dir":"send"|"recv"|"note","msg":…}`. `send` là probe gửi, `recv` là app-server gửi, `note` là ghi chú của probe (pid, kill, tóm tắt cuối). Probe thay đường dẫn repo bằng `<REPO>`, thư mục ngoài workspace bằng `<OUTSIDE>`, `CODEX_HOME` bằng `<CODEX_HOME>`, thư mục tạm bằng `<TMP>`, home bằng `<HOME>`, e-mail bằng `<EMAIL>`, và các id tài khoản/cài đặt bằng `<ID>`.
 

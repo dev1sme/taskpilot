@@ -5,8 +5,8 @@ import { childEnv, type LaunchSpec } from "../launch.js";
 import { CodexError, RpcError } from "./errors.js";
 import { codexAppServerCommand } from "./launch.js";
 
-/** A request the app-server sends to us (an approval); answer it with respond() or fail(). */
-export interface ServerRequest {
+/** A request the app-server sends to us; TaskPilot does not answer them (probe/inventory/quota need none). */
+interface ServerRequest {
   /** Numeric, counted by the server from 0: it can equal the id of a request of ours. */
   id: number | string;
   method: string;
@@ -75,16 +75,6 @@ export class CodexRpc extends EventEmitter<RpcEvents> {
 
   notify(method: string, params?: unknown): void {
     if (!this.closed) this.send({ method, ...(params === undefined ? {} : { params }) });
-  }
-
-  /** Answers a server request, e.g. `{decision: "accept"}` for an approval. */
-  respond(id: number | string, result: unknown): void {
-    if (!this.closed) this.send({ id, result });
-  }
-
-  /** Answers a server request with an error, e.g. for a method we do not handle. */
-  fail(id: number | string, code: number, message: string): void {
-    if (!this.closed) this.send({ id, error: { code, message } });
   }
 
   /** Stops talking and rejects what is pending; the process is the caller's to stop. */
@@ -197,20 +187,6 @@ export async function initializeCodex(rpc: CodexRpc, opts: { timeoutMs?: number 
   }
   rpc.notify("initialized");
   return result;
-}
-
-/** Spawn plus handshake; the process is killed when the handshake fails. */
-export async function startCodex(env: Record<string, string> = {}, cwd?: string): Promise<CodexProcess & { init: InitializeResult }> {
-  const proc = await spawnCodex(env, cwd);
-  try {
-    return { ...proc, init: await initializeCodex(proc.rpc) };
-  } catch (err) {
-    proc.kill();
-    if (err instanceof CodexError && err.code === "closed" && proc.stderr()) {
-      throw new CodexError("closed", `Codex app-server exited: ${proc.stderr().trim().split("\n").at(-1)}`);
-    }
-    throw err;
-  }
 }
 
 /** `account/read`: false when nobody is logged in (`account` is null; model/list still answers then). */

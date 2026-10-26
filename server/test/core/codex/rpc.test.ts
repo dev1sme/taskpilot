@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { CodexError, RpcError } from "../../../src/core/codex/errors.js";
-import { CodexRpc, codexLoggedIn, initializeCodex, type ServerRequest } from "../../../src/core/codex/rpc.js";
+import { CodexRpc, codexLoggedIn, initializeCodex } from "../../../src/core/codex/rpc.js";
 
 interface Line {
   dir: "send" | "recv" | "note";
@@ -29,6 +29,12 @@ function pair() {
   const rpc = new CodexRpc({ input, output });
   const serve = (message: unknown) => output.write(`${JSON.stringify(message)}\n`);
   return { rpc, written, serve, output };
+}
+/** What a "request" event carries (the server asks something of us). */
+interface ServerRequest {
+  id: number | string;
+  method: string;
+  params: unknown;
 }
 const tick = () => new Promise((r) => setTimeout(r, 5));
 
@@ -99,12 +105,7 @@ describe("CodexRpc", () => {
     serve({ id: 1, result: { turn: {} } });
     await expect(p).resolves.toEqual({ turn: {} });
     expect(requests).toEqual([{ id: 1, method: "item/commandExecution/requestApproval", params: { itemId: "i" } }]);
-    rpc.respond(1, { decision: "decline" });
-    rpc.fail(2, -32601, "unsupported");
-    expect(written.slice(1)).toEqual([
-      { id: 1, result: { decision: "decline" } },
-      { id: 2, error: { code: -32601, message: "unsupported" } },
-    ]);
+    expect(written).toEqual([{ id: 1, method: "turn/start" }]);
   });
 });
 
@@ -157,7 +158,7 @@ describe("CodexRpc against recorded fixtures", () => {
   });
 
   it("reads every line the server sent in each fixture without an invalid line", async () => {
-    for (const name of ["turn", "edit", "approval-accept", "approval-decline", "approval-cancel", "untrusted", "auto", "interrupt", "busy", "resume", "bad-model", "plan", "not-logged-in"]) {
+    for (const name of ["turn", "not-logged-in"]) {
       const { rpc, serve, lines, seen } = replay(name);
       const invalid: string[] = [];
       rpc.on("invalid", (l) => invalid.push(l));
@@ -169,23 +170,10 @@ describe("CodexRpc against recorded fixtures", () => {
     }
   });
 
-  it("hands over the approval of approval-accept.jsonl and answers it with id 0", async () => {
-    const { rpc, written, serve, lines, seen } = replay("approval-accept");
-    for (const l of lines) if (l.dir === "recv") serve(l.msg);
-    await tick();
-    const [approval] = seen.requests;
-    expect(approval).toMatchObject({ id: 0, method: "item/commandExecution/requestApproval" });
-    expect(approval.params).toMatchObject({ kind: "command", itemId: expect.any(String) });
-    rpc.respond(approval.id, { decision: "accept" });
-    const sent = lines.find((l) => l.dir === "send" && l.msg.id === 0)!;
-    expect(written.at(-1)).toEqual(sent.msg);
-  });
-
-  it("surfaces the -32600 error of resuming an unknown thread (resume.jsonl)", async () => {
+  it("surfaces a JSON-RPC error as RpcError with its code", async () => {
     const { rpc, serve } = pair();
-    const failure = fixture("resume").find((l) => l.dir === "recv" && l.msg.error)!;
     const p = rpc.request("thread/resume", { threadId: "00000000-0000-7000-8000-000000000000" });
-    serve({ ...failure.msg, id: 1 });
+    serve({ id: 1, error: { code: -32600, message: "no rollout found for thread id" } });
     await expect(p).rejects.toMatchObject({ rpcCode: -32600, message: expect.stringContaining("no rollout found") });
   });
 });

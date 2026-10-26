@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { copilotModelProblem, copilotModels, resetCopilotModelsCache } from "../../../src/core/copilot/models.js";
+import { copilotModels, resetCopilotModelsCache } from "../../../src/core/copilot/models.js";
 
 const FAKE = resolve(import.meta.dirname, "fake-acp.mjs");
 const FIXTURE_SESSION = "00000000-0000-4000-8000-000000000001";
@@ -86,24 +86,5 @@ describe("copilotModels", () => {
   it("rejects an entry without modelId as a protocol error", async () => {
     process.env.FAKE_COPILOT_MODELS = JSON.stringify([{ name: "x" }]);
     await expect(copilotModels()).rejects.toMatchObject({ code: "protocol" });
-  });
-});
-
-describe("copilotModelProblem", () => {
-  it("is null for a model of the account", async () => {
-    await expect(copilotModelProblem("gpt-6-astra")).resolves.toBeNull();
-  });
-
-  it("names the model and lists what the account offers", async () => {
-    const problem = await copilotModelProblem("no-such-model");
-    expect(problem).toMatchObject({ kind: "unknown", model: "no-such-model" });
-    expect(problem?.kind === "unknown" && problem.available).toContain("gpt-6-sol");
-  });
-
-  it("reports a list it cannot read apart from an unknown model", async () => {
-    process.env.TASKPILOT_COPILOT = "/no/such/copilot";
-    const problem = await copilotModelProblem("gpt-6-sol");
-    expect(problem).toMatchObject({ kind: "unavailable", model: "gpt-6-sol" });
-    expect(problem?.kind === "unavailable" && problem.error).toMatchObject({ code: "missing" });
   });
 });

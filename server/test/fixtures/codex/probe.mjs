@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Drives a real `codex app-server --listen stdio://` through one scenario and records every JSON-RPC line
 // (both directions) to <out>/<scenario>.jsonl. The recordings are the fixtures that fakes and mapping tests replay.
-// Spends ChatGPT quota: every scenario except `handshake`, `defaults` and `not-logged-in` runs at least one short turn.
+// Spends ChatGPT quota: every scenario except `handshake` and `not-logged-in` runs at least one short turn.
 //
 //   node server/test/fixtures/codex/probe.mjs --scenario turn --repo /tmp/probe-repo --out server/test/fixtures/codex
 //   CODEX_HOME=$(mktemp -d) node server/test/fixtures/codex/probe.mjs --scenario not-logged-in
@@ -16,23 +16,11 @@ import { execFileSync } from "node:child_process";
 
 const SCENARIOS = [
   "handshake",
-  "defaults",
   "turn",
-  "edit",
-  "approval-accept",
-  "approval-decline",
-  "approval-cancel",
-  "untrusted",
-  "auto",
   "git-commit",
   "network",
   "npm-test",
-  "interrupt",
-  "busy",
-  "resume",
-  "bad-model",
   "not-logged-in",
-  "plan",
 ];
 
 function parseArgs(argv) {
@@ -203,14 +191,12 @@ async function run(args) {
   const env = { ...process.env };
   const server = new AppServer({ env, log });
   const timeout = args.timeout;
-  // acceptEdits row of the planned permission table.
+  // acceptEdits row of the permission table.
   const acceptEdits = { cwd: repo, sandbox: "workspace-write", approvalPolicy: "on-request" };
-  const outsideFile = path.join(outsideBase, "probe.txt");
-  const escalate = `Run exactly this one shell command and nothing else: touch ${outsideFile}\nIt writes outside the workspace, so request escalated permissions if the sandbox blocks it. Then reply with one word: DONE or FAILED.`;
   const summary = {};
 
   try {
-    const init = await server.initialize(args.scenario === "plan");
+    const init = await server.initialize();
     summary.initialize = init.result ?? init.error;
     if (init.error) return;
 
@@ -219,13 +205,6 @@ async function run(args) {
         summary.account = (await server.request("account/read", { refreshToken: false })).result;
         const models = await server.request("model/list", { includeHidden: false });
         summary.models = models.result?.data?.map((m) => m.id ?? m.model);
-        break;
-      }
-      case "defaults": {
-        // The `default` permission row: no sandbox/approvalPolicy override. Ephemeral, and no turn, so nothing is spent.
-        const started = await server.request("thread/start", { cwd: repo, ephemeral: true });
-        summary.approvalPolicy = started.result?.approvalPolicy ?? started.error;
-        summary.sandbox = started.result?.sandbox;
         break;
       }
       case "not-logged-in": {
@@ -246,40 +225,6 @@ async function run(args) {
         const r = await oneTurn(server, { threadParams: acceptEdits, prompt, timeout });
         summary.status = r.completed?.params?.turn?.status;
         summary.wroteFile = existsSync(path.join(repo, "probe.txt")) && readFileSync(path.join(repo, "probe.txt"), "utf8").trim();
-        break;
-      }
-      case "edit": {
-        // The model often writes files through the shell; ask for apply_patch so a fileChange item shows up.
-        const prompt = "Use your apply_patch tool (not a shell command) to append a line containing the word edited to README.md. Reply DONE.";
-        const r = await oneTurn(server, { threadParams: acceptEdits, prompt, decision: "accept", timeout });
-        summary.status = r.completed?.params?.turn?.status;
-        summary.readme = readFileSync(path.join(repo, "README.md"), "utf8");
-        break;
-      }
-      case "approval-accept":
-      case "approval-decline":
-      case "approval-cancel": {
-        const decision = args.scenario.slice("approval-".length);
-        const r = await oneTurn(server, { threadParams: acceptEdits, prompt: escalate, decision, timeout });
-        summary.status = r.completed?.params?.turn?.status;
-        summary.outsideFileCreated = existsSync(outsideFile);
-        break;
-      }
-      case "untrusted": {
-        // Contrast for `acceptEdits`: does "untrusted" ask before a plain in-workspace command?
-        const r = await oneTurn(server, {
-          threadParams: { ...acceptEdits, approvalPolicy: "untrusted" },
-          prompt: "Run `ls` in the workspace, then create a file named untrusted.txt containing hi. Reply DONE.",
-          decision: "accept",
-          timeout,
-        });
-        summary.status = r.completed?.params?.turn?.status;
-        break;
-      }
-      case "auto": {
-        const r = await oneTurn(server, { threadParams: { ...acceptEdits, approvalPolicy: "never" }, prompt: escalate, timeout });
-        summary.status = r.completed?.params?.turn?.status;
-        summary.outsideFileCreated = existsSync(outsideFile);
         break;
       }
       case "git-commit":
@@ -313,71 +258,6 @@ async function run(args) {
             summary.commits = 0;
           }
         }
-        break;
-      }
-      case "interrupt":
-      case "busy": {
-        const started = await server.request("thread/start", acceptEdits);
-        const threadId = started.result.thread.id;
-        const commandStarted = server.waitFor((m) => m.method === "item/started" && m.params?.item?.type === "commandExecution", timeout);
-        const done = server.waitFor(isTurnDone(threadId), timeout);
-        const turn = await server.request("turn/start", { threadId, input: text("Run exactly this shell command: sleep 60\nThen reply DONE.") });
-        await commandStarted;
-        if (args.scenario === "busy") {
-          // A second turn/start while the first turn is still running.
-          const second = await server.request("turn/start", { threadId, input: text("Also: when you are done, reply with the word BANANA.") });
-          summary.secondTurnStart = second.error ?? { turnId: second.result?.turn?.id, sameTurn: second.result?.turn?.id === turn.result.turn.id };
-        }
-        const interrupted = await server.request("turn/interrupt", { threadId, turnId: turn.result.turn.id });
-        summary.interruptResponse = interrupted.result ?? interrupted.error;
-        const completed = await done;
-        summary.status = completed?.params?.turn?.status;
-        summary.error = completed?.params?.turn?.error;
-        break;
-      }
-      case "resume": {
-        const first = await oneTurn(server, { threadParams: acceptEdits, prompt: "Remember the codeword PELICAN-42. Reply only OK.", timeout });
-        const threadId = first.started.result.thread.id;
-        log("note", { kill: "SIGKILL", threadId });
-        server.child.kill("SIGKILL");
-        await server.exited;
-        const second = new AppServer({ env, log });
-        try {
-          await second.initialize();
-          const resumed = await second.request("thread/resume", { threadId, ...acceptEdits, excludeTurns: true });
-          summary.resume = resumed.error ?? { sameThread: resumed.result.thread.id === threadId, status: resumed.result.thread.status };
-          const done = second.waitFor(isTurnDone(threadId), timeout);
-          await second.request("turn/start", { threadId, input: text("What codeword did I ask you to remember? Reply with the codeword only.") });
-          const completed = await done;
-          summary.status = completed?.params?.turn?.status;
-          summary.answer = completed?.params?.turn?.items?.filter((i) => i.type === "agentMessage").at(-1)?.text;
-          const unknown = await second.request("thread/resume", { threadId: "00000000-0000-7000-8000-000000000000" });
-          summary.unknownThread = unknown.error ?? "accepted";
-        } finally {
-          await second.close();
-        }
-        break;
-      }
-      case "bad-model": {
-        const r = await oneTurn(server, { threadParams: { ...acceptEdits, model: "gpt-no-such-model-probe" }, prompt: "Reply OK.", timeout: 60_000 });
-        summary.threadStart = r.started.error ?? { model: r.started.result.model };
-        summary.turn = r.turn?.error ?? r.completed?.params?.turn?.status ?? "no turn/completed";
-        summary.turnError = r.completed?.params?.turn?.error;
-        break;
-      }
-      case "plan": {
-        // Experimental collaborationMode "plan" (needs capabilities.experimentalApi): does it still write files?
-        const models = await server.request("model/list", {});
-        const model = models.result?.data?.find((m) => m.isDefault)?.id;
-        const r = await oneTurn(server, {
-          threadParams: acceptEdits,
-          prompt: "Create a file named plan.txt containing the word plan. Reply DONE.",
-          turnExtra: { collaborationMode: { mode: "plan", settings: { model, reasoning_effort: null, developer_instructions: null } } },
-          decision: "decline",
-          timeout,
-        });
-        summary.turn = r.turn?.error ?? r.completed?.params?.turn?.status;
-        summary.wroteFile = existsSync(path.join(repo, "plan.txt"));
         break;
       }
     }

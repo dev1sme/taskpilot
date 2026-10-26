@@ -4,7 +4,7 @@ import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { CodexError } from "../../../src/core/codex/errors.js";
 import { cleanupTempDirs, tempDir } from "../../helpers/fixtures.js";
 import { parse as parseToml } from "smol-toml";
-import { codexAppServerCommand, codexLauncher, codexResumeOptions, codexThreadOptions } from "../../../src/core/codex/launch.js";
+import { codexAppServerCommand, codexLauncher, codexThreadOptions } from "../../../src/core/codex/launch.js";
 
 afterAll(cleanupTempDirs);
 afterEach(() => {
@@ -55,7 +55,6 @@ describe("codexThreadOptions", () => {
       const repo = await agentRepo('name = "worker"\nmodel = "agent-model"\ndeveloper_instructions = "Be careful."\n');
       expect(codexThreadOptions({ cwd: repo, subagent: "worker" })).toEqual({ cwd: repo, model: "agent-model", developerInstructions: "Be careful." });
       expect(codexThreadOptions({ cwd: repo, subagent: "worker", model: "row-model" }).model).toBe("row-model");
-      expect(codexResumeOptions({ cwd: repo, threadId: "t1", subagent: "worker" })).toMatchObject({ developerInstructions: "Be careful." });
     });
 
     it("keeps the session model when the agent has none", async () => {
@@ -102,29 +101,6 @@ describe("codexThreadOptions", () => {
     for (const permissionMode of [undefined, "default", "acceptEdits", "auto"]) {
       expect(JSON.stringify(codexThreadOptions({ cwd, permissionMode }))).not.toMatch(/danger|full-access|dangerously/);
     }
-  });
-});
-
-describe("codexResumeOptions", () => {
-  it("repeats the settings with the thread id and without the old turns", () => {
-    expect(codexResumeOptions({ cwd: "/repo", threadId: "t1", permissionMode: "auto", model: "m" })).toEqual({
-      threadId: "t1",
-      cwd: "/repo",
-      model: "m",
-      sandbox: "workspace-write",
-      approvalPolicy: "never",
-      excludeTurns: true,
-    });
-  });
-
-  it("repeats approvalsReviewer and networkAccess on resume", () => {
-    const r = codexResumeOptions({ cwd: "/repo", threadId: "t1", permissionMode: "acceptEdits", approvalsReviewer: "auto_review", networkAccess: true });
-    expect(r).toMatchObject({ approvalsReviewer: "auto_review", config: { sandbox_workspace_write: { network_access: true } } });
-  });
-
-  it("fails without a thread id instead of starting a new thread", () => {
-    expect(() => codexResumeOptions({ cwd: "/repo", threadId: undefined })).toThrowError(CodexError);
-    expect(() => codexResumeOptions({ cwd: "/repo", threadId: "" })).toThrowError(expect.objectContaining({ code: "noThread" }));
   });
 });
 

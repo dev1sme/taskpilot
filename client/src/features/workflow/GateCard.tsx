@@ -27,6 +27,7 @@ export function GateCard(props: {
   assignments: ParsedAssignments | null;
   /** Concurrency of that dispatch step. */
   parallel: number;
+  maxSubtasks?: number;
   isLast: boolean;
   docVersion: number;
   onOpenDoc: (path: string) => void;
@@ -115,7 +116,7 @@ export function GateCard(props: {
         </div>
       )}
 
-      {props.assignments && <AssignmentPreview assignments={props.assignments} parallel={props.parallel} />}
+      {props.assignments && <AssignmentPreview assignments={props.assignments} parallel={props.parallel} maxSubtasks={props.maxSubtasks} />}
 
       {error && (
         <p className="error" role="alert">

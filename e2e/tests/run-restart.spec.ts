@@ -21,20 +21,14 @@ async function fakeRun(page: Page, phase: string) {
       title: "Điều tra & lên kế hoạch",
       gate: "approve",
       doneFile: "02-plan.md",
-      outputs: [
-        { id: "investigation", file: "01-investigation.md" },
-        { id: "plan", file: "02-plan.md" },
-      ],
+      outputs: [{ id: "plan", file: "02-plan.md" }],
     },
     {
       id: "implement",
       title: "Implement",
       gate: "approve",
       doneFile: "04-summary.md",
-      outputs: [
-        { id: "progress", file: "03-progress.md" },
-        { id: "summary", file: "04-summary.md" },
-      ],
+      outputs: [{ id: "summary", file: "04-summary.md" }],
     },
   ];
   const restarts: string[] = [];
@@ -66,12 +60,13 @@ test("a running task restarts from the toolbar after a confirmation", async ({ p
   await expect.poll(() => restarts).toEqual(["POST"]);
 });
 
-test("an interrupted task offers restart next to resending the step", async ({ page }) => {
+test("an interrupted task offers restart under its options", async ({ page }) => {
   const restarts = await fakeRun(page, "interrupted");
   await page.goto("/#/tasks/PROJ-1");
   const card = page.locator(".now-card");
   await expect(card.getByRole("button", { name: "Gửi lại bước" })).toBeVisible();
   await expect(page.locator(".toolbar").getByRole("button", { name: "Chạy lại từ đầu" })).toHaveCount(0);
+  await card.locator(".now-restart > summary").click();
   await card.getByRole("button", { name: "Chạy lại từ đầu" }).click();
   await expect.poll(() => restarts).toEqual(["POST"]);
 });

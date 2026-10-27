@@ -52,12 +52,16 @@ function Metrics({ metrics }: { metrics: SubtaskMetrics }) {
 }
 
 /** The subtasks the plan's table gives, shown at the gate so the reviewer sees what approving starts. */
-export function AssignmentPreview(props: { assignments: ParsedAssignments; parallel: number }) {
+export function AssignmentPreview(props: { assignments: ParsedAssignments; parallel: number; maxSubtasks?: number }) {
   const { t } = useTranslation("workflow");
   const { items, errors } = props.assignments;
   return (
     <section className="subtask-preview" aria-label={t("subtasks.previewLabel")}>
-      <h4>{t("subtasks.previewTitle", { count: items.length, parallel: props.parallel })}</h4>
+      <h4>
+        {props.maxSubtasks !== undefined
+          ? t("subtasks.previewTitleLimited", { count: items.length, max: props.maxSubtasks, parallel: props.parallel })
+          : t("subtasks.previewTitle", { count: items.length, parallel: props.parallel })}
+      </h4>
       {errors.length > 0 ? (
         <div className="error" role="alert">
           <p>{t("subtasks.invalid")}</p>

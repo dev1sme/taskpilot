@@ -13,7 +13,7 @@ const ITEMS = [
 const LEADER = "00000000-0000-4000-8000-000000000001";
 
 // Runs are faked at the network layer (as in questions.spec.ts): a real one would launch the agents.
-async function fakeRun(page: Page, opts: { stepIndex: number; phase: string; subtasks?: unknown[]; assignments?: unknown; subtaskQuestions?: unknown }) {
+async function fakeRun(page: Page, opts: { stepIndex: number; phase: string; subtasks?: unknown[]; assignments?: unknown; subtaskQuestions?: unknown; maxSubtasks?: number }) {
   const now = Date.now();
   const run = {
     repo: "/repo",
@@ -28,11 +28,12 @@ async function fakeRun(page: Page, opts: { stepIndex: number; phase: string; sub
     subtasks: opts.subtasks,
   };
   const sent: Array<{ url: string; body: unknown }> = [];
+  const steps = STEPS.map((s) => (s.dispatch && opts.maxSubtasks ? { ...s, dispatch: { ...s.dispatch, maxSubtasks: opts.maxSubtasks } } : s));
   await page.route("**/api/tasks/PROJ-1/run", (route) =>
     route.request().method() === "GET"
       ? route.fulfill({
           json: {
-            workflow: { source: "leader", origin: "default", historyFile: "00-history.md", steps: STEPS, outdated: false },
+            workflow: { source: "leader", origin: "default", historyFile: "00-history.md", steps, outdated: false },
             run,
             questions: [],
             assignments: opts.assignments ?? null,
@@ -70,6 +71,20 @@ test("a plan whose table cannot run cannot be approved, and says why", async ({ 
   await page.goto("/#/tasks/PROJ-1");
   const preview = page.getByRole("region", { name: "Các việc con của kế hoạch" });
   await expect(preview).toContainText('unknown agent "gemini"');
+  await expect(page.getByRole("button", { name: "Duyệt, sang bước tiếp" })).toBeDisabled();
+});
+
+test("a table over max-subtasks shows n / max and cannot be approved", async ({ page }) => {
+  await fakeRun(page, {
+    stepIndex: 0,
+    phase: "gate",
+    assignments: { items: [...ITEMS, { ...ITEMS[0], n: 3, title: "Docs" }], errors: ["the table has 3 subtasks; the limit is 2"] },
+    maxSubtasks: 2,
+  });
+  await page.goto("/#/tasks/PROJ-1");
+  const preview = page.getByRole("region", { name: "Các việc con của kế hoạch" });
+  await expect(preview).toContainText("3 / 2 việc con tối đa");
+  await expect(preview).toContainText("the limit is 2");
   await expect(page.getByRole("button", { name: "Duyệt, sang bước tiếp" })).toBeDisabled();
 });
 

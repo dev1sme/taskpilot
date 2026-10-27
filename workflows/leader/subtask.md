@@ -4,7 +4,7 @@ Leader đã chia task {{key}}: "{{title}}" thành các việc con và giao cho b
 
 Đọc gọn, không đọc toàn bộ tài liệu:
 - Trong {{out.plan}}: mục Mục tiêu, phần Thay đổi theo file của file bạn được sửa, và Cách verify.
-- Trong {{historyFile}}: chỉ entry "Duyệt" mới nhất (có ghi chú của reviewer).
+- Trong {{historyFile}}: chỉ entry "Ba duyệt" mới nhất (có ghi chú của reviewer).
 - Báo cáo của các việc phụ thuộc (nếu có, liệt kê ở dưới).
 
 ## Việc của bạn

@@ -22,10 +22,9 @@ Mở repo đó trong TaskPilot. Task xuất hiện khi `spec/` có ít nhất m�
 .claude/tasks/DEMO-1/
   spec/                  # Yêu cầu bạn viết
   00-history.md          # Nhật ký quyết định, góp ý và duyệt
-  01-investigation.md    # Tài liệu agent tạo theo workflow mặc định
-  02-plan.md
-  03-progress.md
-  04-summary.md
+  02-plan.md             # Kế hoạch, đã gồm phần điều tra hiện trạng
+  03-viec-N.md           # Báo cáo từng việc con (chỉ workflow leader)
+  04-summary.md          # Tổng kết
   task.yml               # Trạng thái hoàn thành do TaskPilot quản lý
   archive/<stamp>/       # Tài liệu của lần chạy trước khi chạy lại từ đầu
 ```

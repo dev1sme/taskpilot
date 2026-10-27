@@ -76,6 +76,8 @@
     "previewLabel": "Các việc con của kế hoạch",
     "previewTitle_one": "Duyệt xong, Claude giao {{count}} việc con (chạy tối đa {{parallel}} việc cùng lúc)",
     "previewTitle_other": "Duyệt xong, Claude giao {{count}} việc con (chạy tối đa {{parallel}} việc cùng lúc)",
+    "previewTitleLimited_one": "Duyệt xong, Claude giao {{count}} / {{max}} việc con tối đa (chạy tối đa {{parallel}} việc cùng lúc)",
+    "previewTitleLimited_other": "Duyệt xong, Claude giao {{count}} / {{max}} việc con tối đa (chạy tối đa {{parallel}} việc cùng lúc)",
     "invalid": "Bảng phân công trong kế hoạch chưa chạy được. Gửi góp ý để Claude sửa lại:",
     "after": "sau việc {{list}}",
     "permission": "xin quyền",

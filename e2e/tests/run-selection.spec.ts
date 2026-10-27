@@ -62,7 +62,7 @@ test("independent selectors, default model reset, preview and actual Codex launc
   await agent(page).selectOption("codex");
   await picker(page).getByRole("button", { name: "Xem trước cấu hình hiệu lực", exact: true }).click();
   const preview = picker(page).locator(".run-options-preview");
-  await expect(preview).toContainText("Copilot / Mặc định của agent → Codex / Mặc định của agent");
+  await expect(preview).toContainText("Claude / Mặc định của agent → Codex / Mặc định của agent");
   await expect(preview).toContainText("quyền: default");
   expect(readFileSync(path.join(repo, ".taskpilot/settings.yml"), "utf8")).not.toContain("execution:");
   await model(page).selectOption("gpt-6.1-sol");

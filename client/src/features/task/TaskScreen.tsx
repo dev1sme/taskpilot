@@ -248,6 +248,7 @@ function TaskScreenContent({ task }: { task: TaskSummary }) {
                     questions={view.questions}
                     assignments={nextStep?.dispatch ? view.assignments : null}
                     parallel={nextStep?.dispatch?.parallel ?? 1}
+                    maxSubtasks={nextStep?.dispatch?.maxSubtasks}
                     isLast={run.stepIndex === steps.length - 1}
                     docVersion={task.updatedAt}
                     onOpenDoc={setDoc}

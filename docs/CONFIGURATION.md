@@ -57,14 +57,16 @@ TaskPilot cung cấp các mẫu subagent tại [`subagents/claude/`](../subagent
 
 `agent` chọn CLI: `claude`, `copilot` hoặc `codex`. Trong chế độ **Theo cấu hình workflow**, `model` từng bước ghi đè giá trị chung; khi bước sau đổi agent/model, TaskPilot tạo phiên mới và chuyển bối cảnh qua tài liệu cùng nhật ký. Lựa chọn agent cụ thể ở form áp dụng quy tắc execution dưới đây.
 
-Workflow `default` dùng Claude điều tra và Copilot triển khai khi theo workflow. Để dùng một CLI cho mọi bước, chọn **Agent** tại task. Nếu muốn giữ phối hợp CLI và chỉ đổi bước implement sang Claude, tạo `.taskpilot/workflow.yml`:
+Workflow `default` chạy mọi bước bằng một CLI (Claude) khi theo workflow, nên điều tra, góp ý, duyệt và triển khai nằm trong một phiên. Bước sau cùng phiên không đọc lại spec và tài liệu đã đọc, chỉ đọc entry nhật ký mới. Để dùng CLI khác cho mọi bước, chọn **Agent** tại task. Nếu muốn giữ phối hợp "Claude điều tra, Copilot triển khai" như trước, tạo `.taskpilot/workflow.yml`:
 
 ```yaml
 extends: default
 steps:
   - id: implement
-    agent: claude
+    agent: copilot
 ```
+
+Bước implement đổi agent (hoặc `codex:` khác giữa các bước) thì TaskPilot mở phiên mới và chuyển bối cảnh qua tài liệu cùng nhật ký.
 
 Thêm `model: sonnet` vào một bước để chọn model Claude cho bước đó. Bỏ `model`, hoặc dùng `default` / `inherit`, để CLI dùng model mặc định. Model Copilot phụ thuộc tài khoản; không mặc định coi alias của Claude là model Copilot hợp lệ. Nếu đặt model chung rồi đổi CLI ở một bước, nên đặt model riêng cho bước ấy.
 
@@ -266,7 +268,7 @@ Quy tắc ghép:
 - Các khóa chung `agent`, `model`, `permission-mode`, `language`, `rules`, `history`, `restart` thay thế giá trị gốc khi được khai báo.
 - Bước có `id` đã tồn tại chỉ thay các trường được ghi; `outputs` ghép theo `id` đầu ra. Bước mới phải có đúng một trong `before` / `after` để xác định vị trí.
 - File prompt hoặc mẫu tài liệu cùng tên thay toàn bộ file gốc. Phần không ghi đè tiếp tục nhận cập nhật từ workflow tích hợp.
-- Bước `dispatch` chỉ cho sửa `title` và `dispatch.prompt`, `dispatch.format`, `dispatch.parallel`; không thêm bước ngay sát nó.
+- Bước `dispatch` chỉ cho sửa `title` và `dispatch.prompt`, `dispatch.format`, `dispatch.parallel`, `dispatch.max-subtasks`; không thêm bước ngay sát nó.
 
 Override chỉ áp dụng cho chế độ mà nó `extends`. Commit `.taskpilot/` để chia sẻ cấu hình. Lần chạy giữ nguyên bản chụp workflow lúc bắt đầu; thay đổi chỉ áp dụng cho lần chạy mới hoặc **Chạy lại từ đầu**.
 
@@ -333,6 +335,20 @@ steps:
       parallel: 2
 ```
 
+`max-subtasks` (tùy chọn, số nguyên ≥ 1) giới hạn tổng số việc con của bảng Phân công, tách khỏi `parallel` (số việc chạy cùng lúc). Bảng vượt giới hạn bị chặn khi xem trước và khi duyệt (kể cả `parallel: 1`): gate hiện "n / max việc con tối đa" kèm lỗi, nút duyệt khoá; TaskPilot không cắt dòng hay sửa file. Workflow `leader` có sẵn `max-subtasks: 4`; override đổi hoặc xoá được, run đang chạy giữ giới hạn trong snapshot, run cũ không có khoá thì không giới hạn. Workflow `leader` yêu cầu chia ít việc nhất; một việc là hợp lệ.
+
+```yaml
+extends: leader
+steps:
+  - id: dispatch
+    dispatch:
+      max-subtasks: 2
+```
+
 `parallel` nhận từ 1 đến 4. Khi chạy song song, mỗi việc phải khai báo `File`; chỉ các việc đã đủ phụ thuộc và không trùng phạm vi file với việc đang chạy mới được khởi động. Đây là điều phối theo đường dẫn khai báo, không phải cơ chế cô lập filesystem.
 
 Workflow đầy đủ chỉ cho phép một `dispatch`, ngay sau bước `gate: approve` và có bước tiếp theo. `dispatch.from` trỏ tới đầu ra kế hoạch; `report` phải chứa `{{n}}`. Bước này không khai báo `prompt`, `outputs`, `done-when` hoặc `gate` ở cấp bước.
+
+## Ghi chú nâng cấp
+
+Workflow `default` và `leader` chỉ còn hai tài liệu `02-plan.md` (đã gộp phần điều tra) và `04-summary.md`; `01-investigation.md` và `03-progress.md` đã bỏ. Override `extends` còn vá các output `investigation` hoặc `progress` sẽ báo lỗi, ví dụ "output `investigation` is not in step investigate of the base mode; remove it from the override, or give it a `file` to add a new output". Xoá phần vá đó và viết nội dung điều tra vào mục "Hiện trạng" của `plan`. Prompt override còn `{{out.investigation}}` hoặc `{{out.progress}}` cần bỏ biến này; dùng `{{continuity}}` để đọc gọn khi cùng phiên. Run đang chạy giữ snapshot cũ và không bị ảnh hưởng. Mặc định `default` không còn ép Copilot ở bước implement; thêm override `agent: copilot` như trên để giữ hành vi cũ.

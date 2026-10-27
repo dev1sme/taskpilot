@@ -36,7 +36,7 @@ test("the built-in workflow is read only; the mode is chosen without an override
   await expect(guide).toContainText("Khi nào có hiệu lực:");
   const nav = page.getByRole("navigation", { name: "File của workflow" });
   await expect(nav).toContainText("Điều tra & lên kế hoạch");
-  await expect(nav).toContainText("01-investigation.md, 02-plan.md ✓");
+  await expect(nav).toContainText("02-plan.md ✓");
   // Skeletons sit in their own group, not inside the steps.
   await expect(nav.getByRole("button", { name: /format-plan\.md/ })).toContainText("02-plan.md");
   await nav.getByRole("button", { name: /investigate\.md/ }).click();
@@ -131,7 +131,7 @@ test("the documents page shows each step's documents with their skeletons and li
   const plan = page.locator(".fmt-card").filter({ hasText: "02-plan.md" }).first();
   await expect(plan).toContainText("Khung: format-plan.md");
   await expect(plan).toContainText("bước xong khi Claude ghi file này");
-  await expect(plan.locator(".fmt-rendered h2").first()).toHaveText("1. Mục tiêu");
+  await expect(plan.locator(".fmt-rendered h2").first()).toHaveText("1. Mục tiêu & phạm vi");
   // Hints stay visible once rendered.
   await expect(plan.locator(".fmt-rendered blockquote").first()).toContainText("Kết quả cần đạt");
   await plan.getByRole("tab", { name: "Nguồn" }).click();
@@ -146,7 +146,7 @@ test("the documents page shows each step's documents with their skeletons and li
   expect((await page.request.put("/api/config/workflow/file", { data: { name: "format-plan.md", content: planFile, baseHash: "absent" } })).ok()).toBe(true);
   await page.reload();
   const card = page.locator(".fmt-card").filter({ hasText: "02-plan.md" }).first();
-  await expect(card.locator(".fmt-rendered h2").first()).toHaveText("1. Mục tiêu");
+  await expect(card.locator(".fmt-rendered h2").first()).toHaveText("1. Mục tiêu & phạm vi");
   await card.getByRole("button", { name: "Sửa" }).click();
   await expect(page).toHaveURL(/#\/workflow\/format-plan\.md$/);
   await expect(page.locator(".wf-file .code-head")).toContainText(".taskpilot/format-plan.md");

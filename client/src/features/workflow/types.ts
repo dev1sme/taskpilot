@@ -235,7 +235,7 @@ export interface WorkflowStep {
   /** Documents the step writes, from the workflow. */
   outputs: Array<{ id: string; file: string }>;
   /** Set on a dispatch step: each subtask of the plan runs in its own session. */
-  dispatch: { from: string; report: string; parallel: number } | null;
+  dispatch: { from: string; report: string; parallel: number; /** Cap on the total subtasks; absent = no limit. */ maxSubtasks?: number } | null;
 }
 
 /** The ways a repo can run a workflow, and the one it uses by default. */

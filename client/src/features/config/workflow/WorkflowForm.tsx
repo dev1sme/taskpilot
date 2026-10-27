@@ -16,7 +16,7 @@ interface StepModel {
   gate?: string;
   "done-when"?: string;
   outputs?: Array<{ id?: string; file?: string; content?: string; format?: string }>;
-  dispatch?: { from?: string; prompt?: string; report?: string; format?: string; parallel?: number };
+  dispatch?: { from?: string; prompt?: string; report?: string; format?: string; parallel?: number; "max-subtasks"?: number };
 }
 
 interface Model {
@@ -170,6 +170,7 @@ export function WorkflowForm(props: { text: string; prompts: string[]; onChange:
               prompts={props.prompts}
               onSet={(key, value, optional) => set(["steps", i, "dispatch", key], value, optional)}
               onParallel={(n) => edit((d) => d.setIn(["steps", i, "dispatch", "parallel"], n))}
+              onMaxSubtasks={(n) => edit((d) => (n === undefined ? d.deleteIn(["steps", i, "dispatch", "max-subtasks"]) : d.setIn(["steps", i, "dispatch", "max-subtasks"], n)))}
               onTitle={(v) => set(["steps", i, "title"], v, true)}
               onId={(v) => set(["steps", i, "id"], v)}
             />
@@ -328,6 +329,8 @@ function DispatchFields(props: {
   prompts: string[];
   onSet: (key: "from" | "prompt" | "report" | "format", value: string, optional?: boolean) => void;
   onParallel: (n: number) => void;
+  /** Undefined removes the key (no limit). */
+  onMaxSubtasks: (n: number | undefined) => void;
   onTitle: (value: string) => void;
   onId: (value: string) => void;
 }) {
@@ -369,6 +372,22 @@ function DispatchFields(props: {
                 </option>
               ))}
             </select>
+          )}
+        </Field>
+        <Field label={t("workflow.form.dispatchMaxSubtasks")} help={t("workflow.form.dispatchMaxSubtasksHelp")}>
+          {(id) => (
+            <input
+              id={id}
+              type="number"
+              min={1}
+              step={1}
+              placeholder={t("workflow.form.dispatchMaxSubtasksNone")}
+              value={d["max-subtasks"] ?? ""}
+              onChange={(e) => {
+                const n = e.target.valueAsNumber;
+                props.onMaxSubtasks(Number.isInteger(n) && n >= 1 ? n : undefined);
+              }}
+            />
           )}
         </Field>
       </div>

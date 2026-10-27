@@ -2,15 +2,13 @@
 
 Kế hoạch của task {{key}}: "{{title}}" đã được duyệt (bước {{stepNumber}}/{{stepCount}}: {{step}}).
 
-- Nhật ký quyết định: {{historyFile}}. Đọc trước tiên: trong đó có góp ý của reviewer và lý do của các quyết định trong kế hoạch.
-- Tài liệu của các bước trước, cần làm theo:
-{{inputs}}
+- {{continuity}}
 
 ## Việc cần làm
 
 Thực hiện kế hoạch trong {{out.plan}}.
 
-- Cập nhật {{out.progress}} trong lúc làm, mỗi bước của kế hoạch một dòng checklist.
+- Không ghi file tiến độ riêng: tiến độ nằm trong câu trả lời cuối lượt và {{out.summary}}.
 - Chạy build và test ghi trong kế hoạch. Sửa lỗi, hoặc ghi rõ vì sao không sửa được.
 
 ## Tài liệu cần viết

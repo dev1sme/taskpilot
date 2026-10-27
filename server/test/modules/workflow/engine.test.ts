@@ -97,7 +97,7 @@ describe("workflow engine", () => {
     repo = await makeRepo();
     state = new StateStore(await tempDir("taskpilot-state-"));
     fake = new FakeSessions(state);
-    // The built-in workflow implements with Copilot; these tests drive a single Claude session.
+    // Pin every step to Claude: these tests drive a single Claude session.
     engine = new WorkflowEngine(state, fake, async (r) => {
       const def = await loadWorkflow(r);
       def.steps.forEach((s) => (s.agent = "claude"));
@@ -428,7 +428,7 @@ describe("workflow engine", () => {
     await write("02-plan.md");
     await hook("Stop");
     await engine.approve(repo, "DEMO-1");
-    await write("03-progress.md");
+    await write("04-summary.md");
     fake.exit(first.sessionId);
     await engine.onExit(fake.meta(first.sessionId));
     expect((await state.load()).runs[0]).toMatchObject({ phase: "interrupted", stepIndex: 1 });
@@ -443,20 +443,20 @@ describe("workflow engine", () => {
     const archive = path.join(taskDir(), "archive");
     const [stamp] = await readdir(archive);
     expect(stamp).toMatch(/^\d{8}-\d{6}$/);
-    expect((await readdir(path.join(archive, stamp))).sort()).toEqual(["02-plan.md", "03-progress.md"]);
+    expect((await readdir(path.join(archive, stamp))).sort()).toEqual(["02-plan.md", "04-summary.md"]);
     // Documents stay in place for Claude to read and rewrite.
-    expect((await readdir(taskDir())).sort()).toEqual([HISTORY_FILE, "02-plan.md", "03-progress.md", "archive", "notes.txt", "spec", "task.yml"].sort());
+    expect((await readdir(taskDir())).sort()).toEqual([HISTORY_FILE, "02-plan.md", "04-summary.md", "archive", "notes.txt", "spec", "task.yml"].sort());
 
     const log = await readFile(path.join(taskDir(), HISTORY_FILE), "utf8");
-    expect(log).toContain(`· Triển khai · Chạy lại từ đầu\n\nBản cũ: archive/${stamp}/ (02-plan.md, 03-progress.md)`);
+    expect(log).toContain(`· Triển khai · Chạy lại từ đầu\n\nBản cũ: archive/${stamp}/ (02-plan.md, 04-summary.md)`);
     expect(log.lastIndexOf("Bắt đầu quy trình")).toBeGreaterThan(log.indexOf("Chạy lại từ đầu"));
 
-    // The new run's first prompt sends Claude to the archived plan and progress first.
-    expect(run.previous).toEqual({ dir: `archive/${stamp}`, files: ["02-plan.md", "03-progress.md"] });
+    // The new run's first prompt sends Claude to the archived plan and summary first.
+    expect(run.previous).toEqual({ dir: `archive/${stamp}`, files: ["02-plan.md", "04-summary.md"] });
     await hook("SessionStart");
     const prompt = fake.pasted.at(-1)!;
     expect(prompt).toContain("Task này được chạy lại từ bước đầu.");
-    expect(prompt).toContain(`- .claude/tasks/DEMO-1/archive/${stamp}/02-plan.md\n- .claude/tasks/DEMO-1/archive/${stamp}/03-progress.md\n`);
+    expect(prompt).toContain(`- .claude/tasks/DEMO-1/archive/${stamp}/02-plan.md\n- .claude/tasks/DEMO-1/archive/${stamp}/04-summary.md\n`);
     expect(prompt).not.toMatch(/\n{3}/);
     expect(fake.pasted[0]).not.toContain("chạy lại từ bước đầu");
   });

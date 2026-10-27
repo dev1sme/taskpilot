@@ -12,9 +12,11 @@ Bạn đang làm task {{key}}: "{{title}}" (bước {{stepNumber}}/{{stepCount}}
 
 Chỉ điều tra và lập kế hoạch. Không sửa source code.
 
-Điều tra codebase: file liên quan, luồng xử lý, convention, test đang có. Sau đó viết các tài liệu dưới đây.
+Điều tra codebase: file liên quan, luồng xử lý, convention, test đang có. Ghi kết quả vào mục "Hiện trạng" của kế hoạch (không có tài liệu điều tra riêng), rồi viết tài liệu dưới đây.
 
-Kế hoạch phải có mục "7. Phân công": chia việc thành các việc con, mỗi việc giao cho một agent (claude, copilot hoặc codex). Mỗi việc đủ nhỏ để một session làm xong, có file được sửa và việc phải xong trước. Reviewer duyệt xong, TaskPilot mở một session cho từng việc.
+Kế hoạch phải có mục "8. Phân công": chia việc thành các việc con, mỗi việc giao cho một agent (claude, copilot hoặc codex). Chia ít việc nhất có thể: gộp việc nhỏ cùng vùng file; một việc là hợp lệ. Mỗi việc đủ nhỏ để một session làm xong, có file được sửa và việc phải xong trước. Reviewer duyệt xong, TaskPilot mở một session cho từng việc.
+
+{{subtaskLimit}}
 
 ## Subagent và model
 

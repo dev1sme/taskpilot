@@ -32,11 +32,11 @@ describe("workflow definition", () => {
     const def = await loadWorkflow(await makeRepo());
     expect(def).toMatchObject({ origin: "default", source: path.join(DEFAULT_WORKFLOW_DIR, "workflow.yml") });
     expect(def.history).toMatchObject({ file: "00-history.md", entry: "## <YYYY-MM-DD HH:MM> · {{step}} · {{agent}}", format: "format-history.md" });
-    expect(def.steps.flatMap((s) => s.outputs.map((o) => o.format))).toEqual(["format-investigation.md", "format-plan.md", "format-progress.md", "format-summary.md"]);
-    expect(def.restart).toEqual({ read: ["plan", "summary", "progress"] });
+    expect(def.steps.flatMap((s) => s.outputs.map((o) => o.format))).toEqual(["format-plan.md", "format-summary.md"]);
+    expect(def.restart).toEqual({ read: ["plan", "summary"] });
     expect(def.steps.map((s) => [s.id, s.gate, s.doneWhen?.file, s.outputs.map((o) => o.file)])).toEqual([
-      ["investigate", "approve", "02-plan.md", ["01-investigation.md", "02-plan.md"]],
-      ["implement", "approve", "04-summary.md", ["03-progress.md", "04-summary.md"]],
+      ["investigate", "approve", "02-plan.md", ["02-plan.md"]],
+      ["implement", "approve", "04-summary.md", ["04-summary.md"]],
     ]);
     expect(def.steps[0].prompt).toContain("{{outputs}}");
     expect(def.steps[0].onReject).toContain("{{feedback}}");
@@ -155,9 +155,9 @@ describe("workflow definition", () => {
   });
 
   it("runs every step with Claude unless the workflow or the step names another agent", async () => {
-    // The built-in workflow plans with Claude and implements with Copilot.
+    // The built-in workflow runs every step with Claude; a repo override can move one step to another agent.
     const def = await loadWorkflow(await makeRepo());
-    expect([def.agent, ...def.steps.map((s) => s.agent)]).toEqual(["claude", "claude", "copilot"]);
+    expect([def.agent, ...def.steps.map((s) => s.agent)]).toEqual(["claude", "claude", "claude"]);
 
     const two = "version: 2\nagent: copilot\nsteps:\n  - id: a\n    prompt: p.md\n    agent: claude\n  - id: b\n    prompt: p.md\n";
     const parsed = parse(two).def!;

@@ -213,10 +213,10 @@ describe("prompt variables", () => {
     for (const heading of ["## Bối cảnh", "## Việc cần làm", "## Tài liệu cần viết", "## Quy tắc", "## Khi xong"]) expect(first).toContain(heading);
     expect(first).toContain('Bạn đang làm task A-1: "Health" (bước 1/2: Điều tra & lên kế hoạch).');
     expect(first).toContain("Không sửa source code.");
-    expect(first).toContain("- `.claude/tasks/A-1/02-plan.md`: mục tiêu, thay đổi theo file");
-    expect(first).toContain("# A-1 — Kế hoạch\n\n## 1. Mục tiêu");
-    expect(first).toContain("## 5. Cách verify");
-    expect(first).toContain("# A-1 — Điều tra");
+    expect(first).toContain("- `.claude/tasks/A-1/02-plan.md`: mục tiêu & phạm vi, hiện trạng (file:dòng), thay đổi theo file");
+    expect(first).toContain("# A-1 — Kế hoạch\n\n## 1. Mục tiêu & phạm vi");
+    expect(first).toContain("## 6. Cách verify");
+    expect(first).not.toContain("# A-1 — Điều tra");
     expect(first).toContain("## <YYYY-MM-DD HH:MM> · Điều tra & lên kế hoạch · Claude\n\n**Quyết định:**");
     expect(first).toContain("- Chỉ thêm entry mới vào cuối .claude/tasks/A-1/00-history.md bằng Edit");
     expect(first).toContain("Không dùng tool AskUserQuestion");
@@ -229,19 +229,19 @@ describe("prompt variables", () => {
     const second = renderPrompt(implement.prompt, promptVars(builtIn, 1, task));
     expect(second).toContain("Thực hiện kế hoạch trong .claude/tasks/A-1/02-plan.md.");
     expect(second).toContain("(bước 2/2: Triển khai)");
-    expect(second).toContain("- `.claude/tasks/A-1/01-investigation.md`");
-    expect(second).toContain("Cập nhật .claude/tasks/A-1/03-progress.md trong lúc làm");
+    expect(second).toContain("- `.claude/tasks/A-1/02-plan.md`");
+    expect(second).not.toContain("03-progress.md");
+    expect(second).toContain("Không ghi file tiến độ riêng");
     expect(second).toContain("# A-1 — Tóm tắt");
-    expect(second).toContain("- [ ] 1. <bước 1 của kế hoạch>");
     expect(second).toContain("- Không push, không merge.");
     expect(second).not.toMatch(/\{\{/);
 
     const reject = renderPrompt(investigate.onReject!, promptVars(builtIn, 0, task, { feedback: "More tests" }));
     expect(reject).toMatch(/^## Góp ý\n\nGóp ý của reviewer cho kế hoạch của task A-1: "Health":\n\nMore tests\n/);
-    expect(reject).toContain("Cập nhật .claude/tasks/A-1/02-plan.md (và .claude/tasks/A-1/01-investigation.md nếu liên quan)");
+    expect(reject).toContain("Cập nhật .claude/tasks/A-1/02-plan.md. Giữ");
     expect(reject).not.toMatch(/\{\{/);
     const fix = renderPrompt(implement.onReject!, promptVars(builtIn, 1, task, { feedback: "Fix lint" }));
-    expect(fix).toContain("viết lại .claude/tasks/A-1/04-summary.md để mô tả trạng thái cuối cùng");
+    expect(fix).toContain("Viết lại .claude/tasks/A-1/04-summary.md để mô tả trạng thái cuối cùng");
     expect(fix).not.toMatch(/\{\{/);
 
     // No English sentences left from the old prompts.
@@ -282,7 +282,7 @@ describe("leader template prompts", () => {
     const review = render(2, leader.steps[2].prompt, { subtasks: subs });
     const reviseReview = render(2, leader.steps[2].onReject!, { subtasks: subs, feedback: "x" });
     for (const text of [plan, subtask, review, reviseReview]) expect(text).not.toMatch(/\{\{/);
-    expect(plan).toContain("## 7. Phân công");
+    expect(plan).toContain("## 8. Phân công");
     expect(plan).toContain("| # | Việc | Agent | Subagent | Model | File | Đầu ra | Phụ thuộc |");
     expect(plan).toContain("Chưa có subagent nào dùng được");
     expect(subtask).toContain("Việc 2: UI");
@@ -294,8 +294,8 @@ describe("leader template prompts", () => {
     // Without subagents; each one the repo has adds a line of {{subagents}}.
     expect(plan.length).toBeLessThanOrEqual(4600);
     expect(subtask.length).toBeLessThanOrEqual(2000);
-    expect(review.length).toBeLessThanOrEqual(2900);
-    expect(reviseReview.length).toBeLessThanOrEqual(1500);
+    expect(review.length).toBeLessThanOrEqual(2960);
+    expect(reviseReview.length).toBeLessThanOrEqual(1700);
   });
 });
 

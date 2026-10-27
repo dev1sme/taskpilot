@@ -26,7 +26,7 @@ export async function makeRepo(): Promise<string> {
   await mkdir(path.join(tasks, "DEMO-2", "spec", "ui"), { recursive: true });
   await writeFile(path.join(tasks, "DEMO-2", "spec", "ui", "screen.md"), "no heading here\n");
   await mkdir(path.join(tasks, "NOSPEC"), { recursive: true });
-  await writeFile(path.join(tasks, "NOSPEC", "01-investigation.md"), "# x\n");
+  await writeFile(path.join(tasks, "NOSPEC", "notes-old.md"), "# x\n");
   await writeFile(path.join(repo, "secret.md"), "outside task dir\n");
   await symlink(path.join(repo, "secret.md"), path.join(tasks, "DEMO-1", "spec", "link.md"));
   return repo;

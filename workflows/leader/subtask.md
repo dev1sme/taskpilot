@@ -2,15 +2,16 @@
 
 Leader đã chia task {{key}}: "{{title}}" thành các việc con và giao cho bạn một việc (bước {{stepNumber}}/{{stepCount}}: {{step}}).
 
-- Nhật ký quyết định: {{historyFile}}. Đọc trước tiên: trong đó có góp ý của reviewer và lý do của các quyết định trong kế hoạch.
-- Tài liệu của các bước trước, cần làm theo:
-{{inputs}}
+Đọc gọn, không đọc toàn bộ tài liệu:
+- Trong {{out.plan}}: mục Mục tiêu, phần Thay đổi theo file của file bạn được sửa, và Cách verify.
+- Trong {{historyFile}}: chỉ entry "Duyệt" mới nhất (có ghi chú của reviewer).
+- Báo cáo của các việc phụ thuộc (nếu có, liệt kê ở dưới).
 
 ## Việc của bạn
 
 {{subtask}}
 
-Chỉ làm đúng việc này; các việc khác do member khác đảm nhận. Subagent của CLI (nếu có) chỉ dùng khi việc đủ lớn để chia; bạn vẫn chịu trách nhiệm kết quả và báo cáo. Chạy build và test liên quan. Sửa lỗi, hoặc ghi rõ vì sao không sửa được.
+Chỉ làm đúng việc này; các việc khác do member khác đảm nhận. Subagent của CLI (nếu có) chỉ dùng khi việc đủ lớn để chia; bạn vẫn chịu trách nhiệm kết quả và báo cáo. Chạy test hẹp liên quan đến file của bạn, không chạy toàn bộ test suite (leader chạy verify đầy đủ ở bước rà soát). Sửa lỗi, hoặc ghi rõ vì sao không sửa được.
 
 ## Tài liệu cần viết
 

@@ -12,7 +12,7 @@ Bạn đang làm task {{key}}: "{{title}}" (bước {{stepNumber}}/{{stepCount}}
 
 Chỉ điều tra và lập kế hoạch. Không sửa source code.
 
-Điều tra codebase: file liên quan, luồng xử lý, convention, test đang có. Sau đó viết các tài liệu dưới đây.
+Điều tra codebase: file liên quan, luồng xử lý, convention, test đang có. Ghi kết quả vào mục "Hiện trạng" của kế hoạch (không có tài liệu điều tra riêng), rồi viết tài liệu dưới đây.
 
 ## Tài liệu cần viết
 

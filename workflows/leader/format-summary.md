@@ -10,7 +10,7 @@
 <!-- Lệnh đã chạy và kết quả thật. Test fail thì ghi rõ lỗi. -->
 
 ## Đánh giá subagent / model
-<!-- Bảng: | Việc | Subagent | Model | Thời gian | Chi phí | Nhận xét | Lần sau |. -->
+<!-- Bảng: | Việc | Subagent | Model | Thời gian | Chi phí | Nhận xét | Lần sau |. Ghi "Không có" khi không có số liệu hoặc nhận xét. -->
 
 ## Còn lại
 <!-- Việc chưa làm hoặc để sau. Ghi "Không có" nếu không có. -->

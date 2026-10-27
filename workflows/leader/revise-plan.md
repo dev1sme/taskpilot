@@ -6,8 +6,8 @@ Góp ý của reviewer cho kế hoạch của task {{key}}: "{{title}}":
 
 ## Bối cảnh
 
-- Góp ý đã được ghi vào {{historyFile}}; đọc các entry trước để nắm bối cảnh.
-- Tài liệu hiện tại: {{out.investigation}} và {{out.plan}}.
+- {{continuity}}
+- Tài liệu hiện tại: {{out.plan}}.
 
 {{executionPolicy}}
 
@@ -17,11 +17,13 @@ Góp ý của reviewer cho kế hoạch của task {{key}}: "{{title}}":
 
 ## Việc cần làm
 
-Xử lý từng điểm góp ý. Điều tra thêm nếu cần. Vẫn không sửa source code. Kiểm lại mọi dòng Phân công theo chính sách thực thi trước khi viết xong.
+Xử lý từng điểm góp ý. Điều tra thêm nếu cần. Vẫn không sửa source code. Giữ bảng "8. Phân công" ít việc nhất có thể (gộp việc nhỏ cùng vùng file; một việc là hợp lệ). Kiểm lại mọi dòng Phân công theo chính sách thực thi trước khi viết xong.
+
+{{subtaskLimit}}
 
 ## Tài liệu cần viết
 
-Cập nhật {{out.plan}} (và {{out.investigation}} nếu liên quan). Giữ nguyên các heading hiện có của tài liệu.
+Cập nhật {{out.plan}}. Giữ nguyên các heading hiện có của tài liệu.
 
 ## Quy tắc
 

@@ -251,9 +251,9 @@ it("provides read-only task preview and validates start/restart API bodies with 
   await h.settings("execution: { agent: codex }\nexecutionVersion: 1\n");
   expect((await post("", { mode: "default" })).statusCode).toBe(200);
   expect((await h.run()).execution).toEqual(execution);
-  // A different repo without settings still previews the built-in mixed configuration.
+  // A different repo without settings still previews the built-in single-agent configuration.
   const secondRepo = await makeRepo();
-  expect((await h.engine.preview(secondRepo, "DEMO-1")).steps.map((s) => s.effective.agent)).toEqual(["claude", "copilot"]);
+  expect((await h.engine.preview(secondRepo, "DEMO-1")).steps.map((s) => s.effective.agent)).toEqual(["claude", "claude"]);
 });
 
 it("enforces an explicit model on every Leader member and keeps table defaults from inheriting it", async () => {

@@ -33,19 +33,16 @@ steps:
     prompt: investigate.md
     on-reject: revise-plan.md
     outputs:
-      - id: investigation
-        file: 01-investigation.md
-        content: phạm vi, file liên quan (kèm đường dẫn), hiện trạng phần đó, rủi ro
-        format: format-investigation.md
       - id: plan
         file: 02-plan.md
-        content: mục tiêu, thay đổi theo file, các bước theo thứ tự, rủi ro, cách verify (lệnh build/test chính xác), câu hỏi mở, phân công (bảng việc con)
+        content: mục tiêu & phạm vi, hiện trạng (file:dòng), thay đổi theo file, các bước theo thứ tự, rủi ro, cách verify (lệnh build/test chính xác), câu hỏi mở, phân công (bảng việc con)
         format: format-plan.md
     done-when: plan
     gate: approve
 
   # After approval, one session per row of the table of {{out.plan}}. A subtask is done when its report is written.
   # parallel: how many subtasks may run at once (1-4); only those whose `File` cells do not overlap.
+  # max-subtasks: cap on the rows of the table (integer >= 1); over it the reviewer cannot approve. Remove it for no cap.
   - id: dispatch
     title: Giao việc
     dispatch:
@@ -54,6 +51,7 @@ steps:
       report: 03-viec-{{n}}.md
       format: format-subtask.md
       parallel: 1
+      max-subtasks: 4
 
   - id: review
     title: Rà soát

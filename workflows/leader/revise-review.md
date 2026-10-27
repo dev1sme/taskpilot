@@ -6,14 +6,13 @@ Góp ý của reviewer cho phần rà soát của task {{key}}: "{{title}}":
 
 ## Bối cảnh
 
-- Góp ý đã được ghi vào {{historyFile}}; đọc các entry trước để nắm bối cảnh.
-- Kế hoạch: {{out.plan}}.
+- {{continuity}}
 - Báo cáo của từng việc:
 {{subtasks}}
 
 ## Việc cần làm
 
-Xử lý từng điểm góp ý, rồi chạy lại build và test ghi trong kế hoạch. Góp ý về leader: tự sửa, không giao lại cho member.
+Xử lý từng điểm góp ý, rồi chạy lại phần verify bị ảnh hưởng (đủ bộ nếu sửa rộng). Góp ý về leader: tự sửa, không giao lại cho member.
 
 ## Tài liệu cần viết
 

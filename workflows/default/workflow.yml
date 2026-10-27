@@ -5,8 +5,9 @@ name: Mặc định
 description: Điều tra & lên kế hoạch, rồi triển khai trong một session.
 version: 2
 # permission-mode: acceptEdits        # default | acceptEdits | plan | auto
-# Agent of every step: claude | copilot | codex. A step's own `agent` overrides it, e.g. Claude
-# investigates and Copilot implements: `agent: copilot` on the implement step.
+# Agent of every step: claude | copilot | codex. A step's own `agent` overrides it, but a different
+# agent opens a second session. Example, Claude investigates and Copilot implements: override with
+# `steps: [{id: implement, agent: copilot}]`.
 # agent: claude
 
 # The task's decision log: the heading Claude uses for its own entries ({{historyEntry}}) and the
@@ -26,7 +27,7 @@ rules:
 
 # After "Chạy lại từ đầu", {{previousRun}} asks Claude to read these archived documents first.
 restart:
-  read: [plan, summary, progress]
+  read: [plan, summary]
 
 steps:
   - id: investigate
@@ -34,27 +35,18 @@ steps:
     prompt: investigate.md
     on-reject: revise-plan.md
     outputs:
-      - id: investigation
-        file: 01-investigation.md
-        content: phạm vi, file liên quan (kèm đường dẫn), hiện trạng phần đó, rủi ro
-        format: format-investigation.md
       - id: plan
         file: 02-plan.md
-        content: mục tiêu, thay đổi theo file, các bước theo thứ tự, rủi ro, cách verify (lệnh build/test chính xác), câu hỏi mở
+        content: mục tiêu & phạm vi, hiện trạng (file:dòng), thay đổi theo file, các bước theo thứ tự, rủi ro, cách verify (lệnh build/test chính xác), câu hỏi mở
         format: format-plan.md
     done-when: plan
     gate: approve
 
   - id: implement
     title: Triển khai
-    agent: copilot
     prompt: implement.md
     on-reject: revise-implementation.md
     outputs:
-      - id: progress
-        file: 03-progress.md
-        content: checklist các bước của kế hoạch, kèm ghi chú vướng mắc; luôn cập nhật
-        format: format-progress.md
       - id: summary
         file: 04-summary.md
         content: thay đổi gì, file đã sửa, kết quả build/test, việc còn lại, ghi chú cho reviewer

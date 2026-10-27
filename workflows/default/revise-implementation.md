@@ -6,8 +6,7 @@ Góp ý của reviewer cho phần triển khai của task {{key}}: "{{title}}":
 
 ## Bối cảnh
 
-- Góp ý đã được ghi vào {{historyFile}}; đọc các entry trước để nắm bối cảnh.
-- Kế hoạch: {{out.plan}}.
+- {{continuity}}
 
 ## Việc cần làm
 
@@ -15,7 +14,7 @@ Xử lý từng điểm góp ý, sau đó chạy lại build và test ghi trong 
 
 ## Tài liệu cần viết
 
-Cập nhật {{out.progress}}, và viết lại {{out.summary}} để mô tả trạng thái cuối cùng. Giữ nguyên các heading hiện có của tài liệu.
+Viết lại {{out.summary}} để mô tả trạng thái cuối cùng. Giữ nguyên các heading hiện có của tài liệu.
 
 ## Quy tắc
 

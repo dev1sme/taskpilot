@@ -10,18 +10,7 @@ import { makeRepo } from "../../helpers/fixtures.js";
 useConfigApp();
 
 const dir = () => path.join(repo, ".taskpilot");
-const BUILT_IN = [
-  "format-history.md",
-  "format-investigation.md",
-  "format-plan.md",
-  "format-progress.md",
-  "format-summary.md",
-  "implement.md",
-  "investigate.md",
-  "revise-implementation.md",
-  "revise-plan.md",
-  "workflow.yml",
-];
+const BUILT_IN = ["format-history.md", "format-plan.md", "format-summary.md", "implement.md", "investigate.md", "revise-implementation.md", "revise-plan.md", "workflow.yml"];
 
 /** Contents of TaskPilot's own workflow, to prove no route ever writes there. */
 let pristine: Record<string, string>;
@@ -144,7 +133,7 @@ describe("workflow config", () => {
     await saveDefaults({ agent: "codex", model: "repo-model" });
     await send("POST", "/api/config/workflow/override", { mode: "default" });
     const original = await raw("workflow.yml");
-    const content = `${original.content}steps:\n  - id: implement\n    model: workflow-model\n`;
+    const content = `${original.content}steps:\n  - id: implement\n    agent: copilot\n    model: workflow-model\n`;
     await put("workflow.yml", content);
     await put("agent-preview.md", "{{agent}} / {{rules}} / {{historyEntry}}");
     const drafts = { "workflow.yml": `${content}    prompt: agent-preview.md\n` };
@@ -419,10 +408,10 @@ describe("workflow config", () => {
       stepId: "investigate",
       kind: "onReject",
       feedback: "Thêm test",
-      drafts: { "workflow.yml": yml.replace("01-investigation.md", "01-dieu-tra.md") },
+      drafts: { "workflow.yml": yml.replace("02-plan.md", "02-ke-hoach.md") },
     });
     expect(drafted.json().text).toContain("Thêm test");
-    expect(drafted.json().text).toContain(".claude/tasks/TASK-1/01-dieu-tra.md nếu liên quan");
+    expect(drafted.json().text).toContain(".claude/tasks/TASK-1/02-ke-hoach.md");
     expect((await send("POST", "/api/config/workflow/render", { stepId: "nope", kind: "prompt" })).statusCode).toBe(404);
   });
 

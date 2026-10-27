@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { overlaps, parseAssignments } from "../../../src/modules/workflow/assignments.js";
+import { checkSubtaskLimit, overlaps, parseAssignments } from "../../../src/modules/workflow/assignments.js";
 
 const plan = (table: string[], heading = "## 7. Phân công") => ["# T-1 — Kế hoạch", "", "## 6. Câu hỏi mở", "1. A?", "", heading, "", ...table, "", "## 8. Khác", ""].join("\n");
 
@@ -118,5 +118,14 @@ describe("overlaps", () => {
     expect(overlaps(["server/src"], ["server/srcx/a.ts"])).toBe(false);
     expect(overlaps(["a.ts"], ["b.ts"])).toBe(false);
     expect(overlaps([], ["b.ts"])).toBe(false);
+  });
+});
+
+describe("subtask limit", () => {
+  const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ n: i + 1, title: "t", agent: "claude" as const, files: [], output: "", deps: [] }));
+  it("reports a table over the limit, and nothing without a limit or within it", () => {
+    expect(checkSubtaskLimit(rows(3), undefined)).toEqual([]);
+    expect(checkSubtaskLimit(rows(3), 3)).toEqual([]);
+    expect(checkSubtaskLimit(rows(4), 3)).toEqual([expect.stringContaining("4 subtasks but dispatch.max-subtasks allows 3")]);
   });
 });

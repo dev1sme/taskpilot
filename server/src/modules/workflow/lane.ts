@@ -21,7 +21,7 @@ export interface Lane {
   /** A subtask's first prompt; the run's own is set once when it begins. */
   startedAt?: number;
   pendingPrompt?: string;
-  sentPrompt?: { stepIndex: number; text: string; at: number };
+  sentPrompt?: { stepIndex: number; text: string; at: number; sessionId?: string };
   lastMessage?: string;
   noHook?: boolean;
 }

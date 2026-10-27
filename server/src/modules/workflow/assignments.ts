@@ -110,6 +110,12 @@ export function checkForParallel(items: Assignment[], parallel: number): string[
   return items.filter((a) => a.files.length === 0).map((a) => `subtask ${a.n}: File is required when subtasks run in parallel`);
 }
 
+/** Problem when the table holds more subtasks than the dispatch step allows; nothing when there is no limit. */
+export function checkSubtaskLimit(items: Assignment[], max: number | undefined): string[] {
+  if (max === undefined || items.length <= max) return [];
+  return [`the table has ${items.length} subtasks but dispatch.max-subtasks allows ${max}: merge subtasks or raise the limit`];
+}
+
 /** True when two lists of files or directories share a path: equal, or one inside the other. */
 export function overlaps(a: string[], b: string[]): boolean {
   const left = a.map(normalize);

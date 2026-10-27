@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { checkForParallel, parseAssignments, type ParsedAssignments } from "./assignments.js";
+import { checkForParallel, checkSubtaskLimit, parseAssignments, type ParsedAssignments } from "./assignments.js";
 import { taskAbsoluteDir } from "./lane.js";
 import type { SessionPort, ClaudeSubagentsOf } from "./ports.js";
 import type { Assignment, RunState, WorkflowDef } from "./types.js";
@@ -14,7 +14,7 @@ export async function assignmentsFor(run: RunState, def: WorkflowDef, index: num
   const doc = await readFile(path.join(taskAbsoluteDir(run), file), "utf8").catch(() => "");
   const parsed = parseAssignments(doc);
   const errors = [
-    ...(parsed.errors.length ? parsed.errors : checkForParallel(parsed.items, dispatch.parallel)),
+    ...(parsed.errors.length ? parsed.errors : [...checkSubtaskLimit(parsed.items, dispatch.maxSubtasks), ...checkForParallel(parsed.items, dispatch.parallel)]),
     ...(await assignmentProblems(run, def, index, parsed.items, subagents, preflight)),
   ];
   return { items: errors.length ? [] : parsed.items, errors };

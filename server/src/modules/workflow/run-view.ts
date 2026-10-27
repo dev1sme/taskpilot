@@ -78,7 +78,9 @@ export async function buildRunView(
         gate: s.gate,
         doneFile: s.doneWhen?.file ?? null,
         outputs: s.outputs.map((o) => ({ id: o.id, file: o.file })),
-        dispatch: s.dispatch ? { from: s.dispatch.from, report: s.dispatch.report, parallel: s.dispatch.parallel } : null,
+        dispatch: s.dispatch
+          ? { from: s.dispatch.from, report: s.dispatch.report, parallel: s.dispatch.parallel, ...(s.dispatch.maxSubtasks !== undefined ? { maxSubtasks: s.dispatch.maxSubtasks } : {}) }
+          : null,
       })),
       outdated: !!pinned && JSON.stringify(pinned) !== JSON.stringify(current),
     },

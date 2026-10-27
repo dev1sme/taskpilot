@@ -23,8 +23,16 @@ export const PROMPT_TEXT = {
         : `Mọi dòng Phân công phải có Agent = \`${selection.agent}\`; Model = ${selection.model ? `\`${selection.model}\`` : "\`-\` (hoặc default/inherit), không kế thừa model YAML cũ"}.${selection.agent === "codex" ? " Subagent là tên file trong `.codex/agents/` của repo (không kèm `.toml`) hoặc `-`." : " Chỉ dùng subagent tương thích với CLI và có vai trò member; không copy subagent Claude sang CLI khác."} Không tự đổi CLI/model để sửa bảng.`,
       "Giữ nguyên quyền của workflow; TaskPilot chặn cấu hình không tương thích. Chỉ dùng tool thực sự có trong session; không giả nhận đã gọi tool/subagent không có.",
     ].join("\n\n"),
+  /** {{continuity}} for a session that has not been given an earlier prompt of this lane: read everything. */
+  fresh: (historyFile: string, inputs: string) =>
+    `Đọc trước tiên ${historyFile} (góp ý của reviewer và lý do của các quyết định)${inputs ? `, rồi các tài liệu của các bước trước, cần làm theo:\n${inputs}` : "."}`,
+  /** {{continuity}} for a session that already received this lane's earlier prompt; it falls back to reading all when the context is gone. */
+  continued: (historyFile: string, inputs: string) =>
+    `Session này đã làm phần trước của task: không đọc lại spec và các tài liệu đã viết; chỉ đọc các entry của ${historyFile} sau entry cuối cùng bạn viết. Nếu không còn bối cảnh (session vừa khởi động lại), đọc toàn bộ ${historyFile}${inputs ? ` và:\n${inputs}` : "."}`,
+  /** {{subtaskLimit}}: the cap on the table, said to the leader. */
+  subtaskLimit: (max: number) => `Bảng Phân công tối đa ${max} việc; vượt thì reviewer không duyệt được. Chia ít việc nhất có thể, gộp việc nhỏ cùng vùng file.`,
   leaderClaudeTools:
-    "- Dò code: nếu session có Task tool, gọi subagent vai trò \`leader\`, ưu tiên model rẻ (vd \`taskpilot-explorer\`). Không có tool thì tự dò code.\n- Cột \`Subagent\`: chỉ subagent vai trò \`member\` ở trên, chỉ cho việc của claude.",
+    "- Task nhỏ: tự đọc code. Chỉ khi cần dò rộng và session có Task tool, gọi subagent vai trò \`leader\`, ưu tiên model rẻ (vd \`taskpilot-explorer\`); không bắt buộc.\n- Cột \`Subagent\`: chỉ subagent vai trò \`member\` ở trên, chỉ cho việc của claude.",
   leaderOtherTools: (agent: string) =>
     `Leader chạy bằng ${agent}: tự dò code bằng tool đang có. Không yêu cầu Task tool hoặc gọi subagent Claude. Không giả nhận chức năng ủy quyền chưa có.${agent === "Codex" ? CODEX_SUBAGENTS : ""}`,
   skeleton: "Tài liệu có khung: giữ heading đúng thứ tự, điền mọi mục, bỏ gợi ý <!-- -->.",

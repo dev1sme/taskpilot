@@ -761,7 +761,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
         phase: "running",
         stepStartedAt: now,
         ...(lane !== run && lane.startedAt === undefined ? { startedAt: now } : {}),
-        sentPrompt: { stepIndex: run.stepIndex, text, at: now },
+        sentPrompt: { stepIndex: run.stepIndex, text, at: now, sessionId: lane.sessionId },
         pendingPrompt: undefined,
         noHook: undefined,
       },
@@ -826,7 +826,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     const subagents = (template.includes("{{subagents}}") || template.includes("{{leaderTools}}")) && this.subagents ? await this.subagents(run.repo) : undefined;
     const def = await this.store.defOf(run);
     const inventory = await this.promptInventory(run.repo, def, run.stepIndex, template, run);
-    return renderPrompt(template, promptVars(def, run.stepIndex, task, { run, previous: run.previous, subtasks: run.subtasks, subagents, inventory, ...extra }));
+    return renderPrompt(template, promptVars(def, run.stepIndex, task, { run, previous: run.previous, continued: continued(run), subtasks: run.subtasks, subagents, inventory, ...extra }));
   }
 
   /** What a step's {{subagents}} lists of its provider's own agents and models; read only when the prompt uses the variable and the provider has such a list. */
@@ -839,7 +839,10 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   private async subtaskPrompt(run: RunState, sub: SubtaskRun): Promise<string> {
     const def = await this.store.defOf(run);
     const task = await getTask(run.repo, run.taskKey);
-    return renderPrompt(def.steps[run.stepIndex].dispatch!.prompt, promptVars(def, run.stepIndex, task, { run, previous: run.previous, subtask: sub, subtasks: run.subtasks }));
+    return renderPrompt(
+      def.steps[run.stepIndex].dispatch!.prompt,
+      promptVars(def, run.stepIndex, task, { run, previous: run.previous, continued: continued(sub), subtask: sub, subtasks: run.subtasks }),
+    );
   }
 
   private effective(run: RunState, def: WorkflowDef, sub?: SubtaskRun): EffectiveExecution {
@@ -979,4 +982,9 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     this.queue = next.catch(() => undefined);
     return next;
   }
+}
+
+/** True when the lane's session already got an earlier prompt of this lane; runs saved before `sessionId` was recorded count as fresh. */
+function continued(lane: { sessionId?: string; sentPrompt?: { sessionId?: string } }): boolean {
+  return lane.sessionId !== undefined && lane.sentPrompt?.sessionId === lane.sessionId;
 }

@@ -280,7 +280,7 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
     }
     if (index === stepCount - 1) errors.push(`${at}: a dispatch step needs a review step after it`);
     const d = raw.dispatch;
-    if (!isObject(d)) return (errors.push(`${at}.dispatch must be {from, prompt, report, format, parallel}`), null);
+    if (!isObject(d)) return (errors.push(`${at}.dispatch must be {from, prompt, report, format, parallel, max-subtasks}`), null);
 
     const from = typeof d.from === "string" ? d.from : "";
     const leader = outputAgent.get(from);
@@ -298,6 +298,12 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
         errors.push(`${at}.dispatch.parallel must be an integer from 1 to ${MAX_PARALLEL}`);
       } else parallel = d.parallel;
     }
+    let maxSubtasks: number | undefined;
+    if (d["max-subtasks"] !== undefined) {
+      const m = d["max-subtasks"];
+      if (typeof m !== "number" || !Number.isInteger(m) || m < 1) errors.push(`${at}.dispatch.max-subtasks must be an integer of at least 1`);
+      else maxSubtasks = m;
+    }
     const dispatch: DispatchDef = {
       from,
       prompt: prompt?.text ?? "",
@@ -305,6 +311,7 @@ export function parseWorkflowFiles(files: Map<string, string>, where: { dir: str
       report,
       ...(format ? { format: format.file, formatText: format.text } : {}),
       parallel,
+      ...(maxSubtasks !== undefined ? { maxSubtasks } : {}),
     };
     return {
       id,

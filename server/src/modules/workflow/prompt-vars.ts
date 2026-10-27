@@ -33,6 +33,8 @@ export const templateVars = [
   "subagents",
   "executionPolicy",
   "leaderTools",
+  "continuity",
+  "subtaskLimit",
 ] as const;
 
 /**
@@ -82,6 +84,8 @@ export function promptVars(
     /** Existing run policy only; repo defaults must never enter a running prompt. */
     run?: Pick<RunState, "execution" | "laneOverrides" | "attempts" | "sessionMetrics" | "handoffs">;
     previous?: RunState["previous"];
+    /** The session about to get this prompt was already sent an earlier prompt of the same lane. False/absent = read everything. */
+    continued?: boolean;
     feedback?: string;
     /** The subtask a dispatch step's prompt is for. */
     subtask?: Assignment & { report?: string };
@@ -182,13 +186,18 @@ export function promptVars(
     );
   });
 
+  const inputs = list(def.steps.slice(0, Math.max(stepIndex, 0)).flatMap((s) => s.outputs));
+  // The step right before the dispatch step is the one that writes the table.
+  const maxSubtasks = def.steps[stepIndex + 1]?.dispatch?.maxSubtasks;
   return {
     ...base,
+    continuity: opts.continued ? PROMPT_TEXT.continued(historyFile, inputs) : PROMPT_TEXT.fresh(historyFile, inputs),
+    subtaskLimit: maxSubtasks !== undefined ? PROMPT_TEXT.subtaskLimit(maxSubtasks) : "",
     historyEntry: render(def.history.entry, base),
     historyFormat: fence(render(def.history.formatText ?? def.history.entry, base).trim()),
     rules: rulesFor(def.rules, base, !!opts.subtask),
     outputs: documents(step?.outputs ?? []),
-    inputs: list(def.steps.slice(0, Math.max(stepIndex, 0)).flatMap((s) => s.outputs)),
+    inputs,
     previousRun: previousRun(def, opts.previous, taskDir, historyFile),
     subtasks: listed.join("\n"),
     subagents: opts.inventory ? inventoryList(opts.inventory) : subagentList(opts.subagents ?? []),
@@ -239,7 +248,7 @@ function inventoryList({ agents, models }: ProviderPromptInventory): string {
 }
 
 /** A description on one line and short enough for a list; agent descriptions often carry examples. */
-function oneLine(text: string, max = 300): string {
+function oneLine(text: string, max = 160): string {
   const flat = text.replace(/\s+/g, " ").trim();
   return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat;
 }

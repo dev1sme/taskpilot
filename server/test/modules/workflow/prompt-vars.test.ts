@@ -443,3 +443,56 @@ describe("review provenance after handoff", () => {
     expect(promptVars(leader, 2, task, { run: { handoffs: [{ ...operation, stage: "failed" }] } }).executionPolicy).toBe("");
   });
 });
+
+describe("{{continuity}}, {{subtaskLimit}} and the subagent hint", () => {
+  const withDispatch = (maxSubtasks?: number): WorkflowDef => ({
+    ...def,
+    steps: [
+      def.steps[0],
+      {
+        id: "dispatch",
+        title: "Dispatch",
+        prompt: "",
+        promptFile: "",
+        outputs: [],
+        gate: "none",
+        dispatch: { from: "plan", prompt: "", promptFile: "", report: "r-{{n}}.md", parallel: 1, ...(maxSubtasks !== undefined ? { maxSubtasks } : {}) },
+      },
+      def.steps[1],
+    ],
+  });
+
+  it("reads everything in a fresh session (also the default when run is old) and only the news when continued", () => {
+    const fresh = promptVars(def, 1, task).continuity;
+    expect(fresh).toContain("Đọc trước tiên .claude/tasks/A-1/log.md");
+    expect(fresh).toContain("- `.claude/tasks/A-1/plan.md`: the plan");
+    expect(fresh).not.toContain("Session này đã làm phần trước");
+
+    const continued = promptVars(def, 1, task, { continued: true }).continuity;
+    expect(continued).toContain("Session này đã làm phần trước của task");
+    expect(continued).toContain("sau entry cuối cùng bạn viết");
+    // The fallback when the context is gone: the full reading list.
+    expect(continued).toContain("Nếu không còn bối cảnh");
+    expect(continued).toContain("- `.claude/tasks/A-1/plan.md`: the plan");
+  });
+
+  it("says nothing about documents for the first step, which has no inputs", () => {
+    expect(promptVars(def, 0, task).continuity).toBe("Đọc trước tiên .claude/tasks/A-1/log.md (góp ý của reviewer và lý do của các quyết định).");
+  });
+
+  it("gives the member limit to the step before the dispatch step only when it is set", () => {
+    expect(promptVars(withDispatch(3), 0, task).subtaskLimit).toContain("tối đa 3 việc");
+    expect(promptVars(withDispatch(), 0, task).subtaskLimit).toBe("");
+    expect(promptVars(def, 0, task).subtaskLimit).toBe("");
+  });
+
+  it("makes the subagent hint optional and keeps listed descriptions to 160 characters", () => {
+    expect(promptVars(def, 0, task, { run: { execution: { agent: "claude" } } }).leaderTools).toMatch(/Task nhỏ: tự đọc code.*không bắt buộc/);
+    const long = "x".repeat(400);
+    const list = promptVars(def, 0, task, {
+      subagents: [{ name: "a", scope: "project", description: long, fields: [], check: { status: "ok", roles: ["member"], problems: [] } }],
+    }).subagents;
+    expect(list).toContain(`${"x".repeat(159)}…`);
+    expect(list).not.toContain("x".repeat(160));
+  });
+});

@@ -150,6 +150,8 @@ export interface DispatchDef {
   formatText?: string;
   /** Subtasks allowed to run at the same time, 1..MAX_PARALLEL. */
   parallel: number;
+  /** Most subtasks the whole table may hold; absent = no limit (also for a run whose snapshot predates the key). */
+  maxSubtasks?: number;
 }
 
 /** One row of the assignment table. */
@@ -205,7 +207,7 @@ export interface SubtaskRun extends Assignment {
   finishedAt?: number;
   metrics?: SubtaskMetrics;
   pendingPrompt?: string;
-  sentPrompt?: { stepIndex: number; text: string; at: number };
+  sentPrompt?: { stepIndex: number; text: string; at: number; sessionId?: string };
   lastMessage?: string;
   /** The agent sent no hook for a while after the prompt, so nothing tells TaskPilot when it is done. */
   noHook?: boolean;
@@ -291,7 +293,7 @@ export interface RunState {
   /** Claude's last message of the latest turn (Stop hook), shown at gates. */
   lastMessage?: string;
   /** The latest prompt pasted into the session, as sent: a real task's prompt, not a preview. */
-  sentPrompt?: { stepIndex: number; text: string; at: number };
+  sentPrompt?: { stepIndex: number; text: string; at: number; sessionId?: string };
   /** Prompt to send once the session reports SessionStart. */
   pendingPrompt?: string;
   /** The step's agent sent no hook for a while after the prompt (a subtask has its own flag). */

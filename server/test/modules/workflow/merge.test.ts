@@ -69,3 +69,22 @@ describe("mergeOverride", () => {
     expect(m.provenance.files["investigate.md"]).toBe("replaced");
   });
 });
+
+describe("mergeOverride: max-subtasks and dropped outputs", () => {
+  it("lets an override set dispatch.max-subtasks and rejects a bad value", async () => {
+    const ok = await merged("leader", "extends: leader\nsteps:\n  - id: dispatch\n    dispatch:\n      max-subtasks: 2\n");
+    expect(ok.m.errors).toEqual([]);
+    expect(ok.parsed!.errors).toEqual([]);
+    expect(ok.parsed!.def!.steps.find((s) => s.dispatch)?.dispatch?.maxSubtasks).toBe(2);
+    for (const bad of ["0", "1.5", '"2"']) {
+      const r = await merged("leader", `extends: leader\nsteps:\n  - id: dispatch\n    dispatch:\n      max-subtasks: ${bad}\n`);
+      expect([...r.m.errors, ...(r.parsed?.errors ?? [])].join(" ")).toMatch(/max-subtasks must be an integer of at least 1/);
+    }
+  });
+
+  it("names the output when an override patches one the mode does not have", async () => {
+    const { m } = await merged("default", "extends: default\nsteps:\n  - id: investigate\n    outputs:\n      - id: gone-output\n        content: x\n");
+    expect(m.errors).toHaveLength(1);
+    expect(m.errors[0]).toMatch(/gone-output.*not in step investigate.*remove it from the override/);
+  });
+});

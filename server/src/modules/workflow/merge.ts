@@ -22,7 +22,7 @@ export interface MergeResult {
 const TOP_KEYS = ["agent", "model", "permission-mode", "language", "rules", "history", "restart"];
 const STEP_KEYS = ["title", "agent", "model", "prompt", "on-reject", "gate", "done-when"];
 /** What an override may change of the dispatch step; the rest (`from`, `report`) is the engine's. */
-const DISPATCH_KEYS = ["prompt", "format", "parallel"];
+const DISPATCH_KEYS = ["prompt", "format", "parallel", "max-subtasks"];
 
 type Doc = Record<string, unknown>;
 
@@ -35,7 +35,7 @@ const isObject = (v: unknown): v is Doc => typeof v === "object" && v !== null &
  * - a step with a base step's id patches it (only the keys written; outputs by output id);
  * - any other step is new and says `before` or `after` which step it goes next to;
  * - a file of the override replaces the base's file of the same name.
- * The dispatch step is the engine's: it only takes a patch of `title` and `dispatch.prompt|format|parallel`,
+ * The dispatch step is the engine's: it only takes a patch of `title` and `dispatch.prompt|format|parallel|max-subtasks`,
  * and no step goes right next to it.
  */
 export function mergeOverride(base: Map<string, string>, override: Map<string, string>): MergeResult {
@@ -152,7 +152,9 @@ function patchOutputs(target: Doc, patch: unknown, at: string, errors: string[])
     }
     const existing = outputs.find((x) => x.id === o.id);
     if (existing) Object.assign(existing, o);
-    else outputs.push({ ...o });
+    else if (typeof o.file !== "string") {
+      errors.push(`${at}.outputs[${j}]: output \`${o.id}\` is not in step ${String(target.id)} of the base mode; remove it from the override, or give it a \`file\` to add a new output`);
+    } else outputs.push({ ...o });
   }
   target.outputs = outputs;
 }

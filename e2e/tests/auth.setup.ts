@@ -7,6 +7,6 @@ setup("log in", async ({ page }) => {
   await page.getByLabel("Tên đăng nhập").fill(E2E_USER);
   await page.getByLabel("Mật khẩu").fill(E2E_PASSWORD);
   await page.getByRole("button", { name: "Đăng nhập" }).click();
-  await expect(page.locator("main.login")).toBeHidden();
+  await expect(page.getByRole("navigation", { name: "Điều hướng" })).toBeVisible();
   await page.context().storageState({ path: AUTH_FILE });
 });

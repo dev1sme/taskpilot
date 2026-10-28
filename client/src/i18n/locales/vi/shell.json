@@ -1,0 +1,56 @@
+{
+  "skipNav": "Bỏ qua điều hướng",
+  "pending": "Màn hình này đang được dựng lại.",
+  "taskNotFound": {
+    "title": "Không thấy task {{key}}",
+    "body": "Task có thể đã bị xoá hoặc đổi tên trong .claude/tasks."
+  },
+  "nav": {
+    "label": "Điều hướng",
+    "overview": "Tổng quan",
+    "tasks": "Task",
+    "memory": "Hướng dẫn",
+    "settings": "Settings & quyền",
+    "hooks": "Hooks",
+    "library": "Thư viện",
+    "agents": "Agents",
+    "commands": "Commands",
+    "skills": "Skills",
+    "workflow": "Workflow",
+    "formats": "Định dạng tài liệu",
+    "backups": "Lịch sử thay đổi",
+    "mcp": "MCP servers",
+    "codegraph": "Codegraph"
+  },
+  "navGroup": {
+    "workspace": "Workspace",
+    "config": "Cấu hình agent",
+    "integrations": "Tích hợp"
+  },
+  "sidebar": {
+    "collapse": "Thu gọn sidebar",
+    "expand": "Mở rộng sidebar",
+    "open": "Mở menu điều hướng",
+    "close": "Đóng menu điều hướng"
+  },
+  "repoSwitch": "Bấm để chọn",
+  "noRepo": "Chưa chọn repo",
+  "account": {
+    "version": "{{agent}} {{version}}",
+    "missing": "chưa có {{agent}}"
+  },
+  "palette": {
+    "label": "Tìm nhanh",
+    "placeholder": "Tìm task hoặc trang",
+    "empty": "Không có kết quả",
+    "group": {
+      "tasks": "Task",
+      "pages": "Trang",
+      "commands": "Lệnh"
+    }
+  },
+  "status": {
+    "sessionsRunning": "{{count}} session đang chạy",
+    "asking": "{{count}} xin quyền"
+  }
+}

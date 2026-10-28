@@ -1,0 +1,6 @@
+{
+  "dialogTitle": "Mở repo",
+  "dialogHint": "Đường dẫn tới repo có thư mục .claude/tasks. TaskPilot nhớ repo này cho lần sau.",
+  "path": "Đường dẫn repo",
+  "open": "Mở repo"
+}

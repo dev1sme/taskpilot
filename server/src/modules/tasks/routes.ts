@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { StateStore } from "../../core/state.js";
+import type { AppState, StateStore } from "../../core/state.js";
 import type { RepoContext } from "../repo/index.js";
 import type { SessionManager } from "../sessions/index.js";
 import { getTask, listTasks, readTaskFile, type TaskSummary } from "./scan.js";
@@ -13,6 +13,22 @@ export interface TaskStage {
 }
 
 /** What the repo's workflow says about task documents; supplied by the app so tasks does not depend on workflow. */
+/** A task with what its workflow makes of its documents. */
+export interface TaskDetail extends TaskSummary {
+  stage: TaskStage;
+  /** The decision log's file name, from the workflow. */
+  historyFile: string;
+  /** Marked done: task.yml says so, or (without the file) the run finished; `at` is unknown then. */
+  done: { at: number | null } | null;
+}
+
+/** A task as the task list shows it: its run and sessions too. */
+export interface TaskListItem extends TaskDetail {
+  run: { phase: AppState["runs"][number]["phase"]; stepIndex: number; stepStartedAt: number } | null;
+  waitingPermission: boolean;
+  sessionsRunning: number;
+}
+
 export type DescribeTasks = (repo: string) => Promise<{ stageOf: (files: string[], taskKey: string) => TaskStage; historyFile: string }>;
 
 const UNKNOWN = { stageOf: () => ({ done: 0, total: 0, step: null }), historyFile: "" };
@@ -32,7 +48,7 @@ export function registerTasksRoutes(app: FastifyInstance, opts: { repo: RepoCont
     historyFile: d.historyFile,
   });
 
-  app.get("/api/tasks", async () => {
+  app.get("/api/tasks", async (): Promise<TaskListItem[]> => {
     const current = requireRepo();
     const { runs } = await opts.state.load();
     const d = await describe(current);
@@ -51,7 +67,7 @@ export function registerTasksRoutes(app: FastifyInstance, opts: { repo: RepoCont
     );
   });
 
-  app.get<{ Params: { key: string } }>("/api/tasks/:key", async (req) => {
+  app.get<{ Params: { key: string } }>("/api/tasks/:key", async (req): Promise<TaskDetail> => {
     const repo = requireRepo();
     const task = await getTask(repo, req.params.key);
     const run = (await opts.state.load()).runs.find((r) => r.repo === repo && r.taskKey === task.key);

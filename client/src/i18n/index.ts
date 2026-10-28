@@ -2,12 +2,15 @@ import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import auth from "./locales/vi/auth.json";
 import common from "./locales/vi/common.json";
+import repo from "./locales/vi/repo.json";
+import shell from "./locales/vi/shell.json";
+import tasks from "./locales/vi/tasks.json";
 
 /**
  * UI strings, one JSON file per feature (namespace). A second language is a sibling of `vi` with the
  * same files; `i18next.d.ts` types every `t()` key against `vi`.
  */
-export const resources = { vi: { auth, common } } as const;
+export const resources = { vi: { auth, common, repo, shell, tasks } } as const;
 
 export const defaultNS = "common";
 

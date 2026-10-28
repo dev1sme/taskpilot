@@ -1,23 +1,71 @@
-import { createHashHistory, createRootRoute, createRoute, createRouter, Outlet } from "@tanstack/react-router";
+import { createHashHistory, createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { Pending } from "./pending";
+import { CONFIG_SECTIONS, configSearch, type ConfigSection } from "./routes";
+import { Shell } from "./shell";
 
 function NotFound() {
   const { t } = useTranslation();
-  return <p className="p-6 text-muted">{t("notFound")}</p>;
+  return <p className="p-8 text-muted">{t("notFound")}</p>;
 }
 
-const rootRoute = createRootRoute({ component: Outlet, notFoundComponent: NotFound });
+const rootRoute = createRootRoute({ component: Shell, notFoundComponent: NotFound });
 
-const indexRoute = createRoute({
+const overviewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: function Home() {
-    const { t } = useTranslation();
-    return <p className="p-6 text-muted">{t("appName")}</p>;
+  component: function Overview() {
+    const { t } = useTranslation("shell");
+    return <Pending title={t("nav.overview")} />;
   },
 });
 
-const routeTree = rootRoute.addChildren([indexRoute]);
+const tasksRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/tasks",
+  component: function Tasks() {
+    const { t } = useTranslation("shell");
+    return <Pending title={t("nav.tasks")} />;
+  },
+});
+
+export const taskRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/tasks/$key",
+  component: function Task() {
+    const { key } = taskRoute.useParams();
+    return <Pending title={key} />;
+  },
+});
+
+export const configRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/config/$section",
+  validateSearch: configSearch,
+  params: {
+    parse: ({ section }) => {
+      if (!(CONFIG_SECTIONS as readonly string[]).includes(section)) throw new Error(`Unknown config section: ${section}`);
+      return { section: section as ConfigSection };
+    },
+    stringify: ({ section }) => ({ section }),
+  },
+  component: function Config() {
+    const { t } = useTranslation("shell");
+    const { section } = configRoute.useParams();
+    return <Pending title={t(`nav.${section}`)} />;
+  },
+});
+
+const backupsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/backups",
+  component: function Backups() {
+    const { t } = useTranslation("shell");
+    return <Pending title={t("nav.backups")} />;
+  },
+});
+
+const routeTree = rootRoute.addChildren([overviewRoute, tasksRoute, taskRoute, configRoute, backupsRoute]);
 
 // Hash routes keep the server a plain static host: #/, #/tasks/PROJ-1, #/config/mcp?cli=codex…
 export const router = createRouter({ routeTree, history: createHashHistory(), defaultPreload: "intent" });

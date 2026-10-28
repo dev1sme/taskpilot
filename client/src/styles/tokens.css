@@ -1,99 +1,100 @@
 /*
- * TaskPilot: neutral charcoal dark surfaces and warm light surfaces with a jade interaction accent; light and dark supported.
- * One brand accent (jade) for interaction, amber only for "needs you", green for done.
- * Every text/background pair used is at least 4.5:1; markers and bands at least 3:1.
+ * TaskPilot: slate surfaces with a green "run" accent (ui-ux-pro-max: developer tool, dark mode + Swiss
+ * minimalism); light and dark supported. Green is interaction and completion (completion always with its
+ * check icon), amber only "needs you", red failure. Every text/background pair used is at least 4.5:1.
  */
 :root {
   color-scheme: dark;
 
-  --bg: #18191b;
-  --sidebar: #1c1d20;
-  --surface: #212225;
-  --raised: #27282c;
-  --hover: #303136;
-  --sunken: #141517;
-  --line: #34353b;
-  --line-strong: #50525b;
+  --bg: #0f172a;
+  --sidebar: #0b1222;
+  --surface: #1b2336;
+  --raised: #232c3f;
+  --hover: #283245;
+  --sunken: #0a101e;
+  --line: #2a3446;
+  --line-strong: #475569;
 
-  --ink: #e6e7eb;
-  --muted: #afb1bb;
-  --faint: #9598a4;
+  --ink: #f8fafc;
+  --muted: #a3b1c6;
+  --faint: #94a3b8;
 
-  --signal: #85c7b2;
-  --signal-text: #a1d7c6;
-  --on-signal: #10251d;
-  --signal-soft: rgba(133, 199, 178, 0.12);
+  --signal: #22c55e;
+  --signal-text: #4ade80;
+  --on-signal: #0f172a;
+  --signal-soft: rgba(34, 197, 94, 0.14);
 
-  --attention: #e6b566;
-  --on-attention: #1d1404;
-  --attention-soft: #29251e;
-  --attention-line: #655338;
+  --attention: #fbbf24;
+  --on-attention: #0f172a;
+  --attention-soft: #2a2414;
+  --attention-line: #6b5520;
 
-  --done: #91c79b;
-  --done-soft: rgba(145, 199, 155, 0.12);
-  --danger: #ff8a8a;
-  --danger-soft: rgba(255, 107, 107, 0.13);
+  --done: #4ade80;
+  --done-soft: rgba(74, 222, 128, 0.12);
+  --danger: #fca5a5;
+  --danger-soft: rgba(248, 113, 113, 0.14);
 
-  --cat-read: #85c7b2;
-  --cat-write: #91c79b;
-  --cat-run: #b48cf2;
-  --cat-search: #3fc1c9;
-  --cat-web: #f08a5d;
-  --cat-agent: #e879b0;
-  --cat-plan: #d8b44a;
-  --cat-other: #afb1bb;
+  --cat-read: #60a5fa;
+  --cat-write: #4ade80;
+  --cat-run: #c4b5fd;
+  --cat-search: #22d3ee;
+  --cat-web: #fdba74;
+  --cat-agent: #f9a8d4;
+  --cat-plan: #fcd34d;
+  --cat-other: #a3b1c6;
 
-  --terminal: #141517;
+  --terminal: #0a0f1c;
 
-  --sans: "Geist", system-ui, sans-serif;
-  --mono: "Geist Mono", ui-monospace, monospace;
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 16px;
-  --shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  --sans: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+  --heading: var(--mono);
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --shadow: 0 10px 30px rgba(2, 6, 23, 0.45);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --fast: 150ms;
+  --fast: 200ms;
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bg: #f5f6f1;
-  --sidebar: #ebeee6;
+  --bg: #f8fafc;
+  --sidebar: #f1f5f9;
   --surface: #ffffff;
-  --raised: #f7f9f3;
-  --hover: #e3e9dd;
-  --sunken: #eef1e8;
-  --line: #dce2d5;
-  --line-strong: #bac6b7;
+  --raised: #f4f7fa;
+  --hover: #eaeff5;
+  --sunken: #eef2f6;
+  --line: #e2e8f0;
+  --line-strong: #cbd5e1;
 
-  --ink: #181d1b;
-  --muted: #536451;
-  --faint: #586a53;
+  --ink: #0f172a;
+  --muted: #475569;
+  --faint: #556378;
 
-  --signal: #226d53;
-  --signal-text: #195e46;
+  --signal: #15803d;
+  --signal-text: #166534;
   --on-signal: #ffffff;
-  --signal-soft: rgba(34, 109, 83, 0.1);
+  --signal-soft: rgba(21, 128, 61, 0.1);
 
-  --attention: #8a5c00;
+  --attention: #92400e;
   --on-attention: #ffffff;
-  --attention-soft: #fff7e8;
-  --attention-line: #f0d29a;
+  --attention-soft: #fff7e6;
+  --attention-line: #f5d28a;
 
-  --done: #426d27;
-  --done-soft: rgba(66, 109, 39, 0.1);
-  --danger: #c0362c;
-  --danger-soft: rgba(192, 54, 44, 0.08);
+  --done: #166534;
+  --done-soft: rgba(22, 101, 52, 0.1);
+  --danger: #b91c1c;
+  --danger-soft: rgba(185, 28, 28, 0.08);
 
-  --cat-read: #226d53;
-  --cat-write: #426d27;
-  --cat-run: #7046c2;
-  --cat-search: #0d7f87;
-  --cat-web: #b4501f;
-  --cat-agent: #b3366f;
-  --cat-plan: #8a6a00;
-  --cat-other: #536451;
+  --cat-read: #1d4ed8;
+  --cat-write: #166534;
+  --cat-run: #6d28d9;
+  --cat-search: #0e7490;
+  --cat-web: #c2410c;
+  --cat-agent: #be185d;
+  --cat-plan: #92400e;
+  --cat-other: #475569;
 
-  --shadow: 0 8px 24px rgba(21, 23, 27, 0.08);
+  --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
 }

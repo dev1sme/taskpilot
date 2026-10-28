@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "./tokens.css";
 
-/* tokens.css is the single source of the palette (DESIGN.md); Tailwind only names its variables. */
+/* tokens.css is the single source of the palette and fonts (DESIGN.md); Tailwind only names its variables. */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme inline {
@@ -41,6 +41,7 @@
 
   --font-sans: var(--sans);
   --font-mono: var(--mono);
+  --font-heading: var(--heading);
   --radius-sm: var(--r-sm);
   --radius-md: var(--r-md);
   --radius-lg: var(--r-lg);
@@ -62,9 +63,32 @@
   body {
     @apply bg-bg font-sans text-[15px] leading-normal text-ink antialiased;
   }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="menuitem"],
+  [role="menuitemradio"],
+  [role="option"],
+  [role="tab"],
+  summary {
+    cursor: pointer;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
   :focus-visible {
     outline: 2px solid var(--signal);
     outline-offset: 2px;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-heading tracking-tight;
   }
   code {
     @apply rounded-[4px] bg-sunken px-[5px] py-px font-mono text-[0.88em];

@@ -161,11 +161,18 @@ export function Sidebar({ mode, onToggle, onNavigate, onSwitchRepo }: { mode: Si
           <BrandMark />
           {!rail && <span className="truncate font-semibold">{t("common:appName")}</span>}
         </Link>
-        <Tooltip content={toggleLabel} side="right">
-          <Button variant="ghost" size="icon-sm" onClick={onToggle} aria-label={toggleLabel} aria-expanded={mode === "drawer" ? undefined : !rail}>
+        {mode === "drawer" ? (
+          // The drawer focuses this button when it opens; a tooltip there would pop up on its own.
+          <Button variant="ghost" size="icon-sm" onClick={onToggle} aria-label={toggleLabel}>
             <SidebarSimple aria-hidden />
           </Button>
-        </Tooltip>
+        ) : (
+          <Tooltip content={toggleLabel} side="right">
+            <Button variant="ghost" size="icon-sm" onClick={onToggle} aria-label={toggleLabel} aria-expanded={!rail}>
+              <SidebarSimple aria-hidden />
+            </Button>
+          </Tooltip>
+        )}
       </div>
 
       <button

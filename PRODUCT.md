@@ -44,14 +44,14 @@ Sản phẩm tập trung vào việc điều phối và giám sát công việc 
 - Giữ khả năng xem tài liệu, kết quả, prompt đã gửi, lịch sử, hoạt động và truy cập phiên terminal/hội thoại.
 - Không thay đổi ý nghĩa trạng thái, cơ chế duyệt hoặc quyền thực thi trong một thay đổi giao diện.
 - Hiển thị provider/agent và model theo dữ liệu có thật; không biến model được yêu cầu thành khẳng định về model thực tế, không tự điền số liệu thiếu.
-- Phạm vi cải thiện được xác nhận trước mắt: màn hình chi tiết task tại `client/src/features/task/TaskScreen.tsx` và các thành phần phục vụ màn hình đó. Chưa chỉnh giao diện toàn ứng dụng; không mở rộng sang sidebar, tổng quan, danh sách task hoặc cấu hình nếu chưa có yêu cầu riêng.
-- Giao diện hiện tại chưa đáp ứng mong muốn của người dùng; không coi cách trình bày hiện có là hướng thiết kế đã được chấp thuận.
+- Client đang được dựng lại toàn bộ (người dùng xác nhận 2026-10-28): toàn bộ màn hình thuộc phạm vi, theo DESIGN.md và các yêu cầu từ critique impeccable ghi trong đó. Cấu hình CLI có hai chế độ: UI chỉ xem và Raw sửa trực tiếp file.
+- Giao diện của client cũ không phải hướng thiết kế đã được chấp thuận.
 
 ## Brand Commitments
 
 - Giữ tên sản phẩm TaskPilot và tên các coding agent chính xác.
 - Định hướng người dùng xác nhận: công cụ làm việc chuyên nghiệp, gọn, phân cấp thông tin rõ, dễ đọc khi sử dụng lâu.
-- Hướng nhận diện đã xác nhận: điềm tĩnh, chuyên nghiệp, hỗ trợ cả sáng và tối. Nền trung tính ấm, xanh ngọc cho tương tác và logo SVG riêng gợi các luồng công việc hội tụ; chi tiết token và quy tắc nằm trong DESIGN.md.
+- Hướng nhận diện đã xác nhận (2026-10-28, theo ui-ux-pro-max cho developer tool): điềm tĩnh, chuyên nghiệp, ưu tiên giao diện tối, hỗ trợ cả sáng. Nền slate, xanh lá cho tương tác, font IBM Plex Sans và JetBrains Mono, logo SVG gợi các luồng công việc hội tụ; chi tiết token và quy tắc nằm trong DESIGN.md.
 
 ## Evidence on Hand
 

@@ -17,7 +17,7 @@ export function StatusBar() {
         {t("status.sessionsRunning", { count: running })}
       </span>
       {asking.length > 0 && (
-        <Link to="/tasks/$key" params={{ key: asking[0].key }} className="flex items-center gap-1 font-medium text-attention hover:underline">
+        <Link to="/tasks/$key" params={{ key: asking[0].key }} className="flex min-h-6 items-center gap-1 rounded-sm px-1 font-medium text-attention hover:underline">
           <HandPalm weight="fill" aria-hidden />
           {t("status.asking", { count: asking.length })}
         </Link>

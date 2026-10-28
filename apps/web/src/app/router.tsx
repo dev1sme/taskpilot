@@ -1,11 +1,5 @@
-import { createHashHistory, createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
+import { createHashHistory, createRootRoute, createRoute, createRouter, lazyRouteComponent } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { isNativeSection, NativeConfigPage } from "@/features/config/config-page";
-import { WorkflowPage } from "@/features/config/workflow/workflow-page";
-import { CodegraphPage } from "@/features/config/codegraph-page";
-import { BackupsPage } from "@/features/backups/backups-page";
-import { TaskScreen } from "@/features/task/task-screen";
-import { TasksPage } from "@/features/tasks/tasks-page";
 import { OverviewPage } from "@/features/overview/overview-page";
 import { CONFIG_SECTIONS, configSearch, type ConfigSection } from "./routes";
 import { Shell } from "./shell";
@@ -26,16 +20,13 @@ const overviewRoute = createRoute({
 const tasksRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/tasks",
-  component: TasksPage,
+  component: lazyRouteComponent(() => import("@/features/tasks/tasks-page"), "TasksPage"),
 });
 
 export const taskRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/tasks/$key",
-  component: function Task() {
-    const { key } = taskRoute.useParams();
-    return <TaskScreen taskKey={key} />;
-  },
+  component: lazyRouteComponent(() => import("@/features/task/task-screen"), "TaskRoute"),
 });
 
 export const configRoute = createRoute({
@@ -49,19 +40,14 @@ export const configRoute = createRoute({
     },
     stringify: ({ section }) => ({ section }),
   },
-  component: function Config() {
-    const { section } = configRoute.useParams();
-    const search = configRoute.useSearch();
-    if (isNativeSection(section)) return <NativeConfigPage key={`${section}:${search.cli ?? "claude"}`} section={section} search={search} />;
-    if (section === "workflow" || section === "formats") return <WorkflowPage section={section} search={search} />;
-    return <CodegraphPage />;
-  },
+  // Pages load on first visit: CodeMirror, the diff view and xterm stay out of the start page's bundle.
+  component: lazyRouteComponent(() => import("@/features/config/config-route"), "ConfigRoute"),
 });
 
 const backupsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/backups",
-  component: BackupsPage,
+  component: lazyRouteComponent(() => import("@/features/backups/backups-page"), "BackupsPage"),
 });
 
 const routeTree = rootRoute.addChildren([overviewRoute, tasksRoute, taskRoute, configRoute, backupsRoute]);

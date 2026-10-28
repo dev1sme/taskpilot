@@ -13,7 +13,7 @@ import {
   X,
   type Icon,
 } from "@phosphor-icons/react";
-import { Link } from "@tanstack/react-router";
+import { Link, useParams } from "@tanstack/react-router";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -50,6 +50,12 @@ const PHASE: Record<BadgePhase, { tone: "signal" | "attention" | "done"; icon: I
 };
 
 /** One task: what is happening now (or the review), progress, documents and activity. */
+/** /tasks/$key. */
+export function TaskRoute() {
+  const { key } = useParams({ from: "/tasks/$key" });
+  return <TaskScreen taskKey={key} />;
+}
+
 export function TaskScreen({ taskKey }: { taskKey: string }) {
   const { t } = useTranslation("task");
   const tasks = useTasks();

@@ -4,9 +4,9 @@ import { defineConfig } from "i18next-cli";
 export default defineConfig({
   locales: ["vi"],
   extract: {
-    input: ["client/src/**/*.{ts,tsx}"],
-    ignore: ["client/src/i18n/**"],
-    output: "client/src/i18n/locales/{{language}}/{{namespace}}.json",
+    input: ["apps/web/src/**/*.{ts,tsx}"],
+    ignore: ["apps/web/src/i18n/**"],
+    output: "apps/web/src/i18n/locales/{{language}}/{{namespace}}.json",
     defaultNS: "common",
   },
 });

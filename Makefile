@@ -10,7 +10,7 @@ install:
 dev:
 	@trap 'kill 0' EXIT INT TERM; \
 	npm run dev:server & \
-	npm run dev:client & \
+	npm run dev:web & \
 	wait
 
 build:
@@ -38,7 +38,7 @@ link:
 	npm link
 
 clean:
-	rm -rf dist
+	rm -rf apps/*/dist packages/*/dist apps/server/types
 
 run:
 	taskpilot --open --repo $(REPO)

@@ -142,7 +142,7 @@ The three streams of the brand mark converge into one forward path: coordination
 
 ## Colors
 
-Frontmatter keys prefixed `dark-` describe the default root palette; `light-` keys describe the overrides of `html[data-theme="light"]`. The source of implementation truth is `client/src/styles/tokens.css`; Tailwind's theme (`client/src/styles/app.css`) only names those variables. Do not add a second token API or raw hex values in components. The terminal background stays dark in both appearances.
+Frontmatter keys prefixed `dark-` describe the default root palette; `light-` keys describe the overrides of `html[data-theme="light"]`. The source of implementation truth is `apps/web/src/styles/tokens.css`; Tailwind's theme (`apps/web/src/styles/app.css`) only names those variables. Do not add a second token API or raw hex values in components. The terminal background stays dark in both appearances.
 
 ### Primary
 
@@ -189,7 +189,7 @@ Small radius on controls, medium and large on containers; pills and provider bad
 
 ## Components
 
-Components are shadcn-style wrappers over Radix primitives in `client/src/components/ui/` (button, input, label, dialog, dropdown menu, tabs, tooltip, badge, sheet, command, toaster). Pages compose these; they do not restyle Radix primitives ad hoc.
+Components are shadcn-style wrappers over Radix primitives in `apps/web/src/components/ui/` (button, input, label, dialog, dropdown menu, tabs, tooltip, badge, sheet, command, toaster). Pages compose these; they do not restyle Radix primitives ad hoc.
 
 ### Buttons
 
@@ -209,7 +209,7 @@ Sidebar groups (Workspace, Cấu hình agent, Tích hợp) in three modes: full 
 
 ### Brand Mark
 
-Use `BrandMark` from `client/src/components/brand-mark.tsx`: the approved converging-stream path on the green tile. It is decorative and hidden from assistive technology.
+Use `BrandMark` from `apps/web/src/components/brand-mark.tsx`: the approved converging-stream path on the green tile. It is decorative and hidden from assistive technology.
 
 ## Do's and Don'ts
 
@@ -230,4 +230,4 @@ Use `BrandMark` from `client/src/components/brand-mark.tsx`: the approved conver
 
 ## Theme selection
 
-The sidebar offers system, light and dark, stored in localStorage under `taskpilot.theme`. The resolved theme is set on `html[data-theme]` before the first paint (inline script in `client/index.html`). System mode follows live OS changes; the terminal stays dark.
+The sidebar offers system, light and dark, stored in localStorage under `taskpilot.theme`. The resolved theme is set on `html[data-theme]` before the first paint (inline script in `apps/web/index.html`). System mode follows live OS changes; the terminal stays dark.

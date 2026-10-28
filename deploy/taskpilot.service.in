@@ -12,7 +12,7 @@ Type=simple
 # Not the app dir: a cwd with .claude/tasks would override the last repo opened.
 WorkingDirectory=%h
 Environment=PATH=@PATH@
-ExecStart=@NODE@ @APP_DIR@/dist/server/index.js
+ExecStart=@NODE@ @APP_DIR@/apps/server/dist/index.js
 Restart=on-failure
 RestartSec=5
 

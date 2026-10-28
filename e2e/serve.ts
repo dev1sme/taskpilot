@@ -12,11 +12,11 @@ const targets = {
     rmSync(TMP, { recursive: true, force: true });
     mkdirSync(SERVER_ENV.TASKPILOT_HOME, { recursive: true });
     mkdirSync(SERVER_ENV.TASKPILOT_CLAUDE_HOME, { recursive: true });
-    return spawn(bin("tsx"), ["server/src/index.ts"], { cwd: ROOT, stdio: "inherit", env: { ...process.env, ...SERVER_ENV } });
+    return spawn(bin("tsx"), ["apps/server/src/index.ts"], { cwd: ROOT, stdio: "inherit", env: { ...process.env, ...SERVER_ENV } });
   },
   client: () =>
     spawn(bin("vite"), ["--port", String(CLIENT_PORT), "--strictPort"], {
-      cwd: ROOT,
+      cwd: path.join(ROOT, "apps/web"),
       stdio: "inherit",
       env: { ...process.env, ...CLIENT_ENV },
     }),

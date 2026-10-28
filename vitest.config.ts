@@ -7,7 +7,7 @@ import { defineConfig } from "vitest/config";
 // Copilot sessions install their hooks under COPILOT_HOME: keep tests out of the real ~/.copilot.
 export default defineConfig({
   test: {
-    include: ["server/test/**/*.test.ts"],
+    include: ["apps/server/test/**/*.test.ts"],
     // The suite is being rebuilt: an empty run is not a failure.
     passWithNoTests: true,
     env: {

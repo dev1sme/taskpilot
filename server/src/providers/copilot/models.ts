@@ -28,7 +28,3 @@ export function copilotModels(): Promise<CopilotModel[]> {
   })().finally(() => (inflight = null));
   return inflight;
 }
-
-export function resetCopilotModelsCache(): void {
-  cache = null;
-}

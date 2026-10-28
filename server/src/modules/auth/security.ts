@@ -21,10 +21,6 @@ export function hostnameOf(host: string): string {
 }
 
 /** Blocks DNS rebinding: a page on evil.example resolving to 127.0.0.1 still sends Host: evil.example. */
-export function isLoopbackHost(host: string | undefined): boolean {
-  return isAllowedHost(host, LOOPBACK_HOSTNAMES);
-}
-
 export function isAllowedHost(host: string | undefined, allowed: ReadonlySet<string>): boolean {
   return host !== undefined && allowed.has(hostnameOf(host));
 }

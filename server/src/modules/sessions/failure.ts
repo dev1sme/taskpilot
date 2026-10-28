@@ -1,6 +1,7 @@
 import { t } from "../../core/i18n.js";
 
-export type FailureReason = "quota" | "auth" | "model" | "cli" | "network" | "unknown";
+/** TaskPilot does not classify failures yet: every one is "unknown". */
+export type FailureReason = "unknown";
 
 /** An allowlist projection: backend prose, stderr and account details never enter this DTO. */
 export interface SessionFailure {

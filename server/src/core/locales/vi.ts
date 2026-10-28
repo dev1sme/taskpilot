@@ -4,11 +4,6 @@
  */
 export default {
   failure: {
-    quota: "Backend báo lượt chạy đã hết hạn mức sử dụng.",
-    auth: "Backend báo chưa đăng nhập hoặc xác thực không hợp lệ.",
-    model: "Model đã chọn không có trong inventory backend trả về.",
-    cli: "Không tìm thấy CLI trong môi trường chạy.",
-    network: "Backend báo kết nối bị gián đoạn.",
     unknown: "Chưa xác định được nguyên nhân; vẫn có thể bàn giao thủ công.",
   },
   preflight: {
@@ -172,7 +167,6 @@ export default {
     stepNotFound: "Không có bước {{step}}",
     noOnReject: "Bước {{step}} không có prompt on-reject",
     unknownMode: "Không có cách chạy {{mode}}",
-    modeNotUsable: "Repo không có override cũ nên không chọn được cách chạy custom",
     overrideNotLegacy: "Override của repo không phải dạng toàn bộ (không extends); không cần chuyển",
     migrateBase: "Không chuyển được: cách chạy cơ sở {{base}} không tồn tại",
     migrateUnreadable: "Không đọc được workflow.yml của override hoặc của cách chạy cơ sở",

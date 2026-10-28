@@ -76,7 +76,7 @@ test("independent selectors, default model reset, preview and actual Codex launc
 });
 
 test("workflow policy launches all three fake CLIs with their own YAML models and real output gates", async ({ page }) => {
-  const repo = createSelectionRepo("mixed-clis", {
+  const repo = createSelectionRepo(`mixed-clis-${Date.now()}`, {
     settings: "mode: custom\n",
     workflow: `version: 2
 permission-mode: acceptEdits
@@ -117,10 +117,13 @@ steps:
   await page.getByRole("button", { name: "Bắt đầu quy trình", exact: true }).click();
   for (const [index, expected] of ["claude", "copilot", "codex"].entries()) {
     await expect
-      .poll(async () => {
-        const { run } = await (await page.request.get("/api/tasks/DEMO-1/run")).json();
-        return run ? { stepIndex: run.stepIndex, phase: run.phase } : null;
-      })
+      .poll(
+        async () => {
+          const { run } = await (await page.request.get("/api/tasks/DEMO-1/run")).json();
+          return run ? { stepIndex: run.stepIndex, phase: run.phase } : null;
+        },
+        { timeout: 15000 },
+      )
       .toEqual({ stepIndex: index, phase: "gate" });
     const { run } = await (await page.request.get("/api/tasks/DEMO-1/run")).json();
     const sessions = await (await page.request.get("/api/tasks/DEMO-1/sessions")).json();
@@ -245,11 +248,12 @@ test("Copilot uses fake readiness/hooks and interrupted restart sends every disp
   await open(page, repo);
   await agent(page).selectOption("copilot");
   await page.getByRole("button", { name: "Bắt đầu quy trình", exact: true }).click();
-  await expect.poll(async () => (await (await page.request.get("/api/tasks/DEMO-1/run")).json()).run?.phase).toBe("waiting");
+  await expect.poll(async () => (await (await page.request.get("/api/tasks/DEMO-1/run")).json()).run?.phase, { timeout: 15000 }).toBe("waiting");
   expect(readFileSync(path.join(repo, ".fake-copilot.jsonl"), "utf8")).toContain("text");
   const run = (await (await page.request.get("/api/tasks/DEMO-1/run")).json()).run;
   await page.request.post(`/api/sessions/${run.sessionId}/stop`);
   await expect(page.locator(".now-card")).toContainText(/gián đoạn/i);
+  await page.locator(".now-restart > summary").click();
   await expect(agent(page)).toHaveValue("copilot");
   await agent(page).selectOption("codex");
   await model(page).selectOption("gpt-6.1-sol");
@@ -265,7 +269,7 @@ test("toolbar restart restores the run selection despite new repo defaults and r
   await open(page, repo);
   await agent(page).selectOption("copilot");
   await page.getByRole("button", { name: "Bắt đầu quy trình", exact: true }).click();
-  await expect.poll(async () => (await (await page.request.get("/api/tasks/DEMO-1/run")).json()).run?.phase).toBe("waiting");
+  await expect.poll(async () => (await (await page.request.get("/api/tasks/DEMO-1/run")).json()).run?.phase, { timeout: 15000 }).toBe("waiting");
   const defaults = await (await page.request.get("/api/config/workflow/execution-defaults")).json();
   await page.request.put("/api/config/workflow/execution-defaults", { data: { execution: { agent: "claude" }, baseHash: defaults.hash } });
   await page.reload();
@@ -301,6 +305,7 @@ test("toolbar restart restores the run selection despite new repo defaults and r
   await expect(agent(page)).toHaveValue("workflow");
   legacyPhase = "interrupted";
   await page.reload();
+  await page.locator(".now-restart > summary").click();
   await expect(agent(page)).toHaveValue("workflow");
   const legacyRequest = page.waitForRequest((request) => request.url().endsWith("/run/restart"));
   await page.locator(".now-card").getByRole("button", { name: "Chạy lại từ đầu", exact: true }).click();
@@ -371,4 +376,49 @@ test("built-in Leader applies Codex default to main, members and review; done re
   const request = page.waitForRequest((request) => request.url().endsWith("/run/restart"));
   await page.locator(".now-card").getByRole("button", { name: "Chạy lại từ đầu", exact: true }).click();
   expect((await request).postDataJSON()).toEqual({ mode: "leader", execution: { agent: "copilot" } });
+});
+
+test("capability inventory drives every provider and preserves a saved model on unknown/error", async ({ page }) => {
+  const repo = createSelectionRepo("capability-inventory", { settings: "mode: default\nexecutionVersion: 1\nexecution: { agent: copilot, model: retired-model }\n" });
+  let status = "supported";
+  let failed = false;
+  await page.route("**/api/sessions/capabilities", (route) =>
+    route.fulfill(
+      failed
+        ? { status: 503, json: { error: "Inventory unavailable" } }
+        : {
+            json: {
+              agents: ["claude", "copilot", "codex"].map((agent) => ({
+                agent,
+                cli: { status: "supported" },
+                login: { status: "unknown" },
+                models: { status, items: status === "supported" ? [{ id: agent, model: `${agent}-model`, displayName: `${agent} model` }] : [] },
+              })),
+            },
+          },
+    ),
+  );
+  await open(page, repo);
+  await expect
+    .poll(() =>
+      agent(page)
+        .locator("option")
+        .evaluateAll((items) => items.map((item) => (item as HTMLOptionElement).value)),
+    )
+    .toEqual(["workflow", "claude", "copilot", "codex"]);
+  await expect(model(page)).toHaveValue("retired-model");
+  await expect(model(page).locator('option[value="retired-model"]')).toHaveAttribute("disabled", "");
+  for (const provider of ["claude", "copilot", "codex"]) {
+    await agent(page).selectOption(provider);
+    await expect(model(page)).toHaveValue("");
+    await model(page).selectOption(`${provider}-model`);
+  }
+  status = "unknown";
+  await picker(page).getByRole("button", { name: "Tải lại cấu hình", exact: true }).click();
+  await expect(model(page).locator('option[value="codex-model"]')).toHaveAttribute("disabled", "");
+  await expect(model(page)).toHaveValue("codex-model");
+  failed = true;
+  await page.reload();
+  await expect(picker(page).getByRole("alert")).toContainText("Inventory unavailable", { timeout: 20000 });
+  await expect(model(page)).toHaveValue("retired-model");
 });

@@ -52,7 +52,10 @@ test("each agent shows whether a TaskPilot workflow can use it", async ({ page }
   // A repo agent is there, so no banner.
   await expect(page.getByRole("region", { name: "Repo chưa có subagent" })).toHaveCount(0);
 
-  await page.getByRole("tablist", { name: "Thư mục agents" }).getByRole("tab", { name: "~/.claude/agents" }).click();
+  const agents = (await (await page.request.get("/api/config/agents?cli=claude")).json()) as Array<{ scope: string; path: string; rel: string }>;
+  const userAgent = agents.find((item) => item.scope === "user")!;
+  const userDirectory = userAgent.path.slice(0, -userAgent.rel.length).replace(/\/$/, "");
+  await page.getByRole("tablist", { name: "Thư mục agents" }).getByRole("tab").filter({ hasText: userDirectory }).click();
   await expect(list.locator(".check-pill")).toHaveText("không dùng được");
   await expect(check).toContainText("Không giao được cho leader hay việc con.");
 });

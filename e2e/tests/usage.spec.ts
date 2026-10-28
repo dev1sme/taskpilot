@@ -160,7 +160,10 @@ const fullUsage = (now: number) => ({
   sevenDay: { usedPercentage: 18, resetsAt: now + 86_400_000 },
   spend: { usedPercentage: 7 },
   updatedAt: now,
-  agents: { copilot: { usedPercentage: 9, unlimited: false, unit: "premium_requests", used: 27, entitlement: 300, resetsAt: now + 86_400_000, updatedAt: now } },
+  agents: {
+    copilot: { usedPercentage: 9, unlimited: false, unit: "premium_requests", used: 27, entitlement: 300, resetsAt: now + 86_400_000, updatedAt: now },
+    codex: { fiveHour: { usedPercentage: 30, resetsAt: now + 3_600_000 }, updatedAt: now },
+  },
 });
 
 test("the footer stays on one line at 1440px", async ({ page }) => {
@@ -185,10 +188,88 @@ test('on a phone the usage button is just "Usage" and the popover shows every ag
 
   await button.click();
   const dialog = usageDialog(page);
-  await expect(dialog.locator(".usage-meter-value")).toHaveText(["42%", "18%", "7%", "9%"]);
+  await expect(dialog.locator(".usage-meter-value")).toHaveText(["42%", "18%", "7%", "9%", "30%"]);
   const box = (await dialog.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(390);
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
+
+test("missing copilot figures are distinct from an unlimited entitlement", async ({ page }) => {
+  await page.route("**/api/usage", (route) =>
+    route.fulfill({
+      json: {
+        agents: { copilot: { usedPercentage: null, unlimited: false, unit: "ai_credits", used: null, entitlement: null, resetsAt: null, updatedAt: Date.now() } },
+      },
+    }),
+  );
+  await page.goto("/#/");
+  await usageButton(page).click();
+  const copilot = usageDialog(page)
+    .locator(".usage-agent")
+    .filter({ has: page.getByRole("heading", { name: "Copilot", exact: true }) });
+  await expect(copilot.locator(".usage-meter-value")).toHaveText("Chưa có số liệu");
+  await expect(copilot.locator(".usage-bar")).toHaveCount(0);
+  await expect(copilot).not.toContainText("Không giới hạn");
+  await expect(usageButton(page)).not.toHaveClass(/is-warn/);
+});
+
+test("mixed providers keep native units, freshness and versions from their own sources", async ({ page }) => {
+  const now = Date.now();
+  await page.route("**/api/info", (route) => route.fulfill({ json: { claudeVersion: "legacy", versions: { claude: "claude-map", copilot: "copilot-map", codex: "codex-map" } } }));
+  await page.route("**/api/usage", (route) =>
+    route.fulfill({
+      json: {
+        fiveHour: { usedPercentage: 0, resetsAt: now - 3_600_000 },
+        updatedAt: now - 7_200_000,
+        agents: {
+          copilot: { usedPercentage: null, unlimited: true, unit: "ai_credits", used: null, entitlement: null, resetsAt: null, updatedAt: now },
+          codex: { sevenDay: { usedPercentage: 86, resetsAt: now + 86_400_000 }, credits: { unlimited: true, hasCredits: true, balance: null }, updatedAt: now },
+        },
+      },
+    }),
+  );
+  await page.goto("/#/");
+  await usageButton(page).click();
+  const groups = usageDialog(page).locator(".usage-agent");
+  await expect(groups.locator(".usage-meter-value")).toHaveText(["0%", "∞", "86%"]);
+  await expect(groups.locator(".usage-version")).toHaveText(["claude claude-map", "copilot copilot-map", "codex codex-map"]);
+  await expect(groups.nth(0)).toContainText("có thể đã cũ");
+  await expect(groups.nth(1)).not.toContainText("có thể đã cũ");
+  await expect(groups.nth(2)).not.toContainText("5h");
+  await expect(groups.nth(2)).toContainText("Credits không giới hạn");
+  await expect(page.locator(".account-versions span")).toHaveText(["claude claude-map", "copilot copilot-map", "codex codex-map"]);
+});
+
+test("explicit missing Claude version wins over the legacy version and other provider counts stay absent", async ({ page }) => {
+  await page.route("**/api/info", (route) => route.fulfill({ json: { claudeVersion: "legacy", versions: { claude: null, copilot: "copilot-only" } } }));
+  await page.goto("/#/");
+  await expect(page.locator(".account-versions span")).toHaveText(["chưa có claude", "copilot copilot-only"]);
+  for (const cli of ["copilot", "codex"]) {
+    await page.goto(`/#/memory?cli=${cli}`);
+    for (const section of ["hooks", "agents", "mcp"]) {
+      const link = page.locator(`#sidebar a[href="#/${section}?cli=${cli}"]`);
+      await expect(link).toHaveCount(1);
+      await expect(link.locator(".nav-badge")).toHaveCount(0);
+    }
+  }
+});
+
+for (const width of [1440, 390]) {
+  for (const theme of ["light", "dark"]) {
+    test(`usage visual check ${width}px ${theme}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+      await page.addInitScript((value) => localStorage.setItem("taskpilot.theme", value), theme);
+      await page.route("**/api/usage", (route) => route.fulfill({ json: fullUsage(Date.now()) }));
+      await page.goto("/#/");
+      await usageButton(page).click();
+      await expect(usageDialog(page)).toBeVisible();
+      const box = (await usageDialog(page).boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      await page.screenshot({ path: `/tmp/taskpilot-usage-${width}-${theme}.png`, animations: "disabled" });
+    });
+  }
+}

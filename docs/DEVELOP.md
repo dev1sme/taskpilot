@@ -137,3 +137,24 @@ Thêm ngôn ngữ bằng bộ tài nguyên tương ứng cho mỗi namespace. Ki
 Xem [Kiến trúc](SPEC.md) để hiểu luồng phiên CLI và workflow. Khi đổi hành vi, cập nhật tài liệu phụ trách nội dung đó rồi dẫn link từ nơi khác, tránh sao chép lại toàn bộ.
 
 Tên file tích hợp: `cli-launcher.ts` dựng lệnh CLI, `account-usage.ts` đọc hạn mức native, `modules/usage/*-poller.ts` điều phối cập nhật store. Xem [ranh giới provider](../server/src/providers/README.md).
+
+## Ranh giới client và thêm provider
+
+- `client/src/shared/providers.ts` là inventory ID/nhãn sản phẩm phía client; không import server vào bundle. `shared` không import feature. Shell dùng public API qua `features/<feature>/index.ts`, không chứa chính sách định dạng native.
+- Workflow dùng `useAgentCapabilities` và `ExecutionFields` cho provider/model chung. Capability server quyết định lựa chọn; giữ model đã lưu/unknown và phân biệt requested/actual. Preview, consent, quyền workflow và quota retry/handoff vẫn thuộc orchestration hiện có, không tự fallback provider.
+- Config dùng registry `features/config/shared/provider-adapters.ts` và `library/provider-adapters.ts` cho copy, dispatch editor, template/extension và precedence native. Available/scopes lấy từ capability server; không sao chép ma trận quyền vào client. Giữ native editor, baseHash, preview/confirm, backup và draft key theo provider; đổi CLI/repo phải đóng editor cũ và bỏ response đến muộn. Ưu tiên đường dẫn nguồn server, identity theo path đầy đủ, nguồn inherited giữ read-only.
+- Usage chuyển `UsageView` thành nhóm/meter trong `features/usage/presentation.ts`; shell chỉ render và quản lý popover/focus. Claude lấy số liệu top-level, Copilot/Codex lấy đúng `agents` tương ứng. Giữ đơn vị native, reset/freshness và timestamp riêng; null là thiếu số liệu, chỉ `unlimited` xác nhận mới hiển thị ∞. Codex chưa có window vẫn ẩn, không tạo 0%. Version ưu tiên map `info.versions`; chỉ fallback `claudeVersion` khi thiếu key Claude, không ghi đè null rõ ràng. Sidebar inventory hiện chỉ mô tả Claude nên không dùng làm badge Copilot/Codex; chưa có dữ liệu đúng provider thì ẩn count.
+
+Khi thêm provider: cập nhật contract và capability thực ở server trước, rồi inventory client và các registry typed `Record<ProviderId, ...>` (execution/config/usage/version) có liên quan. Khai báo adapter native riêng cho template, format, precedence, đơn vị usage và nguồn timestamp; provider chưa có capability giữ unavailable. Không thêm chuỗi điều kiện theo tên provider trong renderer chung hoặc mở rộng quyền workflow để làm UI hoạt động.
+
+Ma trận kiểm tra hẹp khi sửa client:
+
+| Vùng | Lệnh / bằng chứng cần có |
+| --- | --- |
+| Kiểu và build tích hợp | `npm run typecheck`, `npm run build`, `npm --prefix e2e run typecheck` |
+| Execution | `npm --prefix e2e test -- tests/run-selection.spec.ts tests/handoff.spec.ts` — inventory, model cũ/unknown/error, đổi provider, preview/consent |
+| Config | `npm --prefix e2e test -- tests/config-tabs.spec.ts tests/config-state.spec.ts` — capability loading/error/unavailable, scopes, draft và response muộn, payload native |
+| Shell usage | `npm --prefix e2e test -- tests/usage.spec.ts` — hỗn hợp provider, missing/unlimited, stale/reset, version/count, keyboard, mobile |
+| Kiểm nhìn | Sáng/tối tại 1440px và 390px; đọc nhãn/đơn vị, kiểm popover trong viewport và Escape trả focus. Chỉ dùng fixture/CLI giả |
+
+Leader chạy verify đầy đủ khi rà soát (`npm run lint`, `npm run i18n:lint`, `npm test`, `npm --prefix e2e test`, gồm project codex). Member chạy test hẹp trong phạm vi được giao và báo lỗi môi trường/regression ngoài phạm vi riêng; không coi các lượt hẹp là toàn suite đã đạt.

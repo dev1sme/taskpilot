@@ -103,3 +103,24 @@ test("the prompt sent to the task opens from the toolbar", async ({ page }) => {
   await expect(viewer).toContainText("Prompt đã gửi · Điều tra & lên kế hoạch");
   await expect(viewer.locator(".viewer-text")).toHaveText("## Bối cảnh\n\nBạn đang làm task PROJ-1");
 });
+
+test("mobile task keeps progress and toolbar actions accessible without horizontal overflow", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await fakeRun(page, "gate");
+  await page.goto("/#/tasks/PROJ-1");
+
+  const progress = page.locator(".task-progress");
+  await expect(progress.locator(".stepper")).toBeHidden();
+  await progress.locator("summary").click();
+  await expect(progress.locator(".stepper")).toBeVisible();
+
+  await page.locator(".gate-decide").getByRole("button", { name: "Đọc 02-plan.md" }).click();
+  await expect(page.getByRole("dialog")).toContainText("02-plan.md");
+  await page.keyboard.press("Escape");
+
+  const tools = page.locator(".task-tools");
+  await tools.locator("summary").click();
+  await tools.getByRole("button", { name: "Prompt đã gửi" }).click();
+  await expect(page.getByRole("dialog")).toContainText("Prompt đã gửi · Điều tra & lên kế hoạch");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});

@@ -140,3 +140,95 @@ test("instruction drafts use the selected CLI and never preview another CLI's fi
   const claude = (await (await page.request.get("/api/config/memory/project/raw")).json()) as { content: string };
   expect(claude.content).not.toContain("Draft ");
 });
+
+test("switching CLI drops a pending preview and restores only that provider's draft", async ({ page }) => {
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  let requested = false;
+  const previews: string[] = [];
+  const saves: string[] = [];
+  await page.route("**/api/config/memory/project/preview?*", async (route) => {
+    previews.push(new URL(route.request().url()).searchParams.get("cli")!);
+    if (previews.length === 1) { requested = true; await pending; }
+    await route.fulfill({ json: { diff: "--- CLAUDE.md\n+++ CLAUDE.md\n@@ -0,0 +1 @@\n+draft claude", changed: true, stale: false } });
+  });
+  await page.route("**/api/config/memory/project?*", (route) => {
+    saves.push(new URL(route.request().url()).searchParams.get("cli")!);
+    return route.fulfill({ json: { hash: "saved", backup: {} } });
+  });
+  await page.goto("/#/memory");
+  await toolbar(page).getByRole("button", { name: "Sửa", exact: true }).click();
+  await page.locator(".cm-content").fill("# draft claude");
+  await toolbar(page).getByRole("button", { name: "Xem thay đổi & lưu" }).click();
+  await expect.poll(() => requested).toBe(true);
+  await page.evaluate(() => { location.hash = "#/memory?cli=codex"; });
+  await expect(page.locator(".code-head")).toContainText("AGENTS.md");
+  release();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator(".cm-content")).toHaveCount(0);
+  await page.evaluate(() => { location.hash = "#/memory"; });
+  await expect(page.locator(".cm-content")).toContainText("draft claude");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await toolbar(page).getByRole("button", { name: "Xem thay đổi & lưu" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("draft claude");
+  await dialog.getByRole("button", { name: "Lưu file", exact: true }).click();
+  await expect.poll(() => saves).toEqual(["claude"]);
+  expect(previews).toEqual(["claude", "claude"]);
+});
+
+test("an editor-opening response from the previous CLI cannot create a draft after switching", async ({ page }) => {
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  let requested = false;
+  let returned = false;
+  await page.route("**/api/config/memory/project/raw?cli=claude", async (route) => {
+    const response = await route.fetch();
+    requested = true;
+    await pending;
+    await route.fulfill({ response });
+    returned = true;
+  });
+  await page.goto("/#/memory");
+  await toolbar(page).getByRole("button", { name: "Sửa", exact: true }).click();
+  await expect.poll(() => requested).toBe(true);
+  await page.evaluate(() => { location.hash = "#/memory?cli=copilot"; });
+  await expect(page.locator(".code-head")).toContainText("copilot-instructions.md");
+  release();
+  await expect.poll(() => returned).toBe(true);
+  await page.evaluate(() => { location.hash = "#/memory"; });
+  await expect(toolbar(page).getByRole("button", { name: "Sửa", exact: true })).toBeVisible();
+  await expect(page.locator(".cm-content")).toHaveCount(0);
+});
+
+for (const [cli, extension, directory] of [["claude", ".md", ".claude/agents"], ["copilot", ".agent.md", ".github/agents"], ["codex", ".toml", ".codex/agents"]] as const) {
+  test(`${cli} library creates and saves its native template in the selected provider`, async ({ page }) => {
+    const rel = `adapter-regression${extension}`;
+    const path = `${directory}/${rel}`;
+    let previewBody: { content: string; rel: string; baseHash: string } | undefined;
+    let saved = false;
+    await page.route(`**/api/config/library/agents/project/raw?cli=${cli}&*`, (route) => route.fulfill({ json: { path, content: "", hash: "empty-native", exists: false } }));
+    await page.route(`**/api/config/library/agents/project/preview?cli=${cli}`, async (route) => {
+      previewBody = route.request().postDataJSON();
+      await route.fulfill({ json: { diff: `--- ${path}\n+++ ${path}\n@@ -0,0 +1 @@\n+native template`, changed: true, stale: false } });
+    });
+    await page.route(`**/api/config/library/agents/project?cli=${cli}`, async (route) => {
+      expect(route.request().postDataJSON()).toEqual(previewBody);
+      saved = true;
+      await route.fulfill({ json: { hash: "saved", backup: {} } });
+    });
+    await page.goto(`/#/agents?cli=${cli}`);
+    await toolbar(page).getByRole("button", { name: "Thêm", exact: true }).click();
+    await page.getByRole("dialog").getByRole("textbox").fill("adapter-regression");
+    await page.getByRole("dialog").getByRole("button", { name: "Tạo và mở editor", exact: true }).click();
+    await expect(page.locator(".lib-editor h2")).toHaveText(path);
+    await toolbar(page).getByRole("button", { name: "Xem thay đổi & lưu" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText("native template");
+    expect(previewBody).toMatchObject({ rel, baseHash: "empty-native" });
+    expect(previewBody!.content).toContain(cli === "codex" ? 'developer_instructions = ' : "---\n");
+    expect(previewBody!.content.includes("model: sonnet")).toBe(cli === "claude");
+    await dialog.getByRole("button", { name: "Tạo file", exact: true }).click();
+    await expect.poll(() => saved).toBe(true);
+  });
+}

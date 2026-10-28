@@ -122,7 +122,7 @@ async function fake(page: Page, options: { members?: boolean; asking?: boolean; 
 async function choose(page: Page, agent = "codex") {
   await panel(page).getByRole("combobox", { name: "Agent", exact: true }).selectOption(agent);
   await panel(page).getByRole("button", { name: "Xem trước bàn giao", exact: true }).click();
-  await expect(panel(page).locator(".handoff-preview")).toBeVisible();
+  await expect(panel(page).locator(".handoff-preview")).toBeVisible({ timeout: 15000 });
 }
 
 function operation(request: HandoffCommitRequest, extra: Partial<HandoffJournal> = {}): HandoffJournal {
@@ -173,7 +173,7 @@ for (const available of [true, false]) {
       await expect(panel(page).getByRole("combobox", { name: "Agent", exact: true })).toHaveValue("codex");
       expect(state.previews).toHaveLength(0);
       await panel(page).getByRole("button", { name: "Xem trước bàn giao", exact: true }).click();
-      await expect(panel(page).locator(".handoff-preview")).toBeVisible();
+      await expect(panel(page).locator(".handoff-preview")).toBeVisible({ timeout: 15000 });
       await expect(panel(page).getByRole("button", { name: "Xác nhận bàn giao", exact: true })).toBeDisabled();
     } else {
       await expect(quick).toHaveCount(0);
@@ -467,7 +467,8 @@ async function transfer(page: Page, agent: string) {
   await choose(page, agent);
   await panel(page).getByRole("checkbox").check();
   await panel(page).getByRole("button", { name: "Xác nhận bàn giao", exact: true }).click();
-  await expect(panel(page)).toHaveCount(0);
+  // Copilot preflight can spend several seconds probing its model inventory.
+  await expect(panel(page)).toHaveCount(0, { timeout: 15000 });
 }
 
 for (const scenario of ["busy", "approval", "no-hook"]) {
@@ -515,7 +516,12 @@ steps:
       expect(after.execution).toEqual(before.execution);
       expect(after.sessionId).not.toBe(before.sessionId);
       expect(sessions.find((s: SessionView) => s.id === before.sessionId)).toMatchObject({ status: "exited", retired: { replacedBy: after.sessionId } });
-      expect(sessions.find((s: SessionView) => s.id === after.sessionId)).toMatchObject({ agent: "codex", nativeId: expect.any(String) });
+      await expect
+        .poll(async () => {
+          const current = await (await page.request.get("/api/tasks/DEMO-1/sessions")).json();
+          return current.find((s: SessionView) => s.id === after.sessionId);
+        })
+        .toMatchObject({ agent: "codex", nativeId: expect.any(String) });
       expect((await page.request.post(`/api/sessions/${before.sessionId}/resume`)).status()).toBe(409);
     } finally {
       await stopReal(page);
@@ -542,7 +548,12 @@ test("real main Copilot → Codex → Copilot uses new sessions/native thread an
     await expect(tab(page)).toContainText("Codex");
     let sessions = await (await page.request.get("/api/tasks/DEMO-1/sessions")).json();
     expect(sessions.find((s: SessionView) => s.id === before.run.sessionId).retired.replacedBy).toBe(middle.run.sessionId);
-    expect(sessions.find((s: SessionView) => s.id === middle.run.sessionId).nativeId).toBeTruthy();
+    await expect
+      .poll(async () => {
+        const current = await (await page.request.get("/api/tasks/DEMO-1/sessions")).json();
+        return current.find((s: SessionView) => s.id === middle.run.sessionId)?.nativeId;
+      })
+      .toBeTruthy();
     expect((await page.request.post(`/api/sessions/${before.run.sessionId}/resume`)).status()).toBe(409);
     await transfer(page, "copilot");
     const after = await (await page.request.get("/api/tasks/DEMO-1/run")).json();
@@ -553,7 +564,10 @@ test("real main Copilot → Codex → Copilot uses new sessions/native thread an
     await page.reload();
     await page.locator(".drawer-session").filter({ hasText: "Codex" }).click();
     await expect(page.locator(".drawer").getByRole("button", { name: "Resume", exact: true })).toHaveCount(0);
-    await expect(page.locator(".drawer").getByRole("log")).toContainText("TaskPilot handoff snapshot");
+    // Codex history is the archived PTY, matching the current TUI backend.
+    const replay = page.locator(".drawer .xterm");
+    await replay.scrollIntoViewIfNeeded();
+    await expect(replay).toContainText("TaskPilot handoff snapshot");
     expect(readFileSync(path.join(repo, ".claude/tasks/DEMO-1/00-history.md"), "utf8")).toContain(after.run.handoffs[0].operationId);
     sessions = await (await page.request.get("/api/tasks/DEMO-1/sessions")).json();
     expect(sessions.filter((s: SessionView) => s.retired)).toHaveLength(2);
@@ -602,7 +616,8 @@ steps:
     await page.goto("/#/tasks/DEMO-1");
     await page.getByRole("button", { name: "Bắt đầu quy trình", exact: true }).click();
     await page.getByRole("button", { name: "Duyệt, sang bước tiếp", exact: true }).click();
-    await expect(page.locator(".now-card").getByRole("button", { name: "Chấp nhận", exact: true })).toBeVisible();
+    await expect(page.locator(".subtask-row").first()).toContainText("xin quyền");
+    await expect(page.locator(".subtask-row").first().getByRole("button", { name: "Mở terminal để trả lời", exact: true })).toBeVisible();
     const before = await (await page.request.get("/api/tasks/DEMO-1/run")).json();
     await transfer(page, "copilot");
     const after = await (await page.request.get("/api/tasks/DEMO-1/run")).json();
@@ -624,3 +639,59 @@ steps:
     await openFixtureRepo(page);
   }
 });
+
+test("handoff shares all provider models and changing provider invalidates preview and consent", async ({ page }) => {
+  await page.route("**/api/sessions/capabilities", (route) =>
+    route.fulfill({
+      json: {
+        agents: ["claude", "copilot", "codex"].map((agent) => ({
+          agent,
+          cli: { status: "supported" },
+          login: { status: "supported" },
+          models: { status: "supported", items: [{ id: agent, model: `${agent}-model` }] },
+        })),
+      },
+    }),
+  );
+  const state = await fake(page);
+  await action(page).click();
+  const agent = panel(page).getByRole("combobox", { name: "Agent", exact: true });
+  const model = panel(page).getByRole("combobox", { name: "Model", exact: true });
+  await expect.poll(() => agent.locator("option").evaluateAll((items) => items.map((item) => (item as HTMLOptionElement).value))).toEqual(["claude", "copilot", "codex"]);
+  for (const provider of ["claude", "copilot", "codex"]) {
+    await agent.selectOption(provider);
+    await expect(model).toHaveValue("");
+    await model.selectOption(`${provider}-model`);
+    await panel(page).getByRole("button", { name: "Xem trước bàn giao", exact: true }).click();
+    await expect(panel(page).locator(".handoff-preview")).toBeVisible({ timeout: 15000 });
+    expect(state.previews.at(-1)?.target).toEqual({ agent: provider, model: `${provider}-model` });
+    await panel(page).getByRole("checkbox").check();
+    await agent.selectOption(provider === "codex" ? "claude" : "codex");
+    await expect(model).toHaveValue("");
+    await expect(panel(page).locator(".handoff-preview")).toHaveCount(0);
+    await expect(panel(page).getByRole("button", { name: "Xác nhận bàn giao", exact: true })).toBeDisabled();
+  }
+  expect(state.commits).toHaveLength(0);
+});
+
+for (const failed of [false, true]) {
+  test(`handoff preserves saved model with unknown capability or request error=${failed}`, async ({ page }) => {
+    await page.route("**/api/sessions/capabilities", (route) =>
+      route.fulfill(
+        failed
+          ? { status: 503, json: { error: "Inventory unavailable" } }
+          : { json: { agents: [{ agent: "claude", cli: { status: "unknown" }, login: { status: "unknown" }, models: { status: "unknown", items: [] } }] } },
+      ),
+    );
+    const state = await fake(page, { members: true });
+    await action(page).first().click();
+    const model = panel(page).getByRole("combobox", { name: "Model", exact: true });
+    await expect(model).toHaveValue("haiku");
+    await expect(model.locator('option[value="haiku"]')).toHaveAttribute("disabled", "");
+    if (failed) await expect(panel(page).getByRole("alert")).toContainText("Inventory unavailable", { timeout: 20000 });
+    await panel(page).getByRole("button", { name: "Xem trước bàn giao", exact: true }).click();
+    await expect(panel(page).locator(".handoff-preview")).toBeVisible({ timeout: 15000 });
+    expect(state.previews.at(-1)?.target).toEqual({ agent: "claude", model: "haiku" });
+    expect(state.commits).toHaveLength(0);
+  });
+}

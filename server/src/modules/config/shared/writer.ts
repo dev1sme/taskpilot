@@ -50,9 +50,9 @@ export async function readCurrent(abs: string): Promise<string | null> {
   }
 }
 
-/** Unified diff shown to the user before a save. */
-export function diffText(display: string, before: string | null, after: string | null): string {
-  return createTwoFilesPatch(display, display, before ?? "", after ?? "", t("diff.before"), t("diff.after"), { context: 3 });
+/** Unified diff shown to the user before a save (or between two versions, with their `labels`). */
+export function diffText(display: string, before: string | null, after: string | null, labels: [string, string] = [t("diff.before"), t("diff.after")]): string {
+  return createTwoFilesPatch(display, display, before ?? "", after ?? "", labels[0], labels[1], { context: 3 });
 }
 
 /**

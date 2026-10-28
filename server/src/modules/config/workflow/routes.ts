@@ -291,7 +291,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
    * removes the files identical to the base's, each backed up. Every step in between is a valid
    * workflow that runs the same, so a failure part-way leaves nothing broken.
    */
-  app.post("/api/config/workflow/override/migrate", async (req) => {
+  app.post("/api/config/workflow/override/migrate", async (req): Promise<MigrationPreview> => {
     const repo = requireRepo();
     const info = await readOverride(repo);
     if (info.kind !== "legacy") throw new HttpError(409, t("errors.overrideNotLegacy"));
@@ -403,7 +403,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     const target = workflowTarget(repo, req.query.name ?? "");
     const ours = await readCurrent(target.abs);
     const builtIn = await readCurrent(path.join(baseOf(await readOverride(repo)), path.basename(target.abs)));
-    return { diff: diffText(target.display, builtIn, ours), same: ours === builtIn };
+    return { diff: diffText(target.display, builtIn, ours, [t("diff.builtIn"), t("diff.override")]), same: ours === builtIn };
   });
 
   /**
@@ -505,4 +505,13 @@ export interface RenderedPrompt {
   source: ExecutionSelectionSource;
   effective: EffectiveExecution;
   text: string;
+}
+
+/** Turning a complete (legacy) override into `extends`: the diff, and the errors that stop it. */
+export interface MigrationPreview {
+  base: string;
+  errors: string[];
+  diff: string;
+  remove: string[];
+  applied: boolean;
 }

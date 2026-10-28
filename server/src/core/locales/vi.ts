@@ -209,5 +209,7 @@ export default {
   diff: {
     before: "hiện tại",
     after: "sau khi lưu",
+    builtIn: "bản của TaskPilot",
+    override: "bản của repo",
   },
 } as const;

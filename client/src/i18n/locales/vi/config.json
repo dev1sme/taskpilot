@@ -82,5 +82,75 @@
     "fromTaskPilot": "TaskPilot cấp: {{list}}",
     "notEditable": "Chỉ xem",
     "check": "Kiểm tra kết nối"
+  },
+  "workflow": {
+    "title": "Workflow",
+    "formats": "Định dạng tài liệu",
+    "mode": "Cách chạy",
+    "origin": {
+      "default": "Mặc định của TaskPilot · chỉ xem",
+      "repo": "Override của repo · {{dir}}"
+    },
+    "selected": "Mặc định của repo",
+    "makeDefault": "Dùng làm mặc định repo",
+    "madeDefault": "Repo sẽ chạy {{name}} theo mặc định",
+    "createOverride": "Tạo override để sửa",
+    "createHint": "Override chỉ ghi phần khác với cách chạy này vào {{dir}}; phần còn lại vẫn theo bản của TaskPilot.",
+    "created": "Đã tạo override với {{count}} file",
+    "otherOverride": "Repo đang có override cho cách chạy {{base}}; cách chạy này hiện không dùng nó.",
+    "reset": "Xoá override",
+    "resetConfirm": "Xoá toàn bộ override trong {{dir}}? Các file được backup trước khi xoá; repo quay về bản mặc định của TaskPilot.",
+    "resetDone": "Đã xoá override",
+    "migrate": "Chuyển override cũ sang dạng extends",
+    "migrateHint": "Override cũ chép toàn bộ workflow. Chuyển sang dạng extends để chỉ giữ phần khác với cách chạy gốc.",
+    "migrateApply": "Chuyển đổi",
+    "migrateDone": "Đã chuyển override sang dạng extends",
+    "errors": "Lỗi trong workflow",
+    "warnings": "Cảnh báo",
+    "files": "File",
+    "usedBy": "Dùng ở: {{list}}",
+    "sameAsDefault": "giống mặc định",
+    "changed": "đã sửa",
+    "added": "thêm mới",
+    "newFile": "File prompt mới",
+    "newFileName": "Tên file (vd. review.md)",
+    "create": "Tạo",
+    "compare": "So với mặc định",
+    "compareTitle": "{{file}} so với bản mặc định",
+    "same": "Giống hệt bản mặc định.",
+    "deleteFile": "Xoá file",
+    "deleteConfirm": "Xoá {{file}} khỏi override? Bản cũ được backup.",
+    "steps": "Các bước",
+    "step": {
+      "agent": "Agent",
+      "gate": "Duyệt",
+      "done": "Xong khi có",
+      "outputs": "Tài liệu",
+      "prompt": "Prompt",
+      "dispatch": "Chia việc con · tối đa {{parallel}} song song"
+    },
+    "gateApprove": "ba duyệt",
+    "gateNone": "tự sang bước sau",
+    "settings": {
+      "history": "Nhật ký quyết định",
+      "language": "Ngôn ngữ",
+      "permission": "Quyền mặc định",
+      "rules": "Quy tắc chung"
+    },
+    "preview": {
+      "title": "Xem trước prompt",
+      "step": "Bước",
+      "kind": "Loại",
+      "prompt": "Prompt của bước",
+      "onReject": "Khi ba góp ý",
+      "subtask": "Việc con",
+      "restart": "Như sau Chạy lại từ đầu",
+      "render": "Hiện prompt",
+      "sample": "Với task mẫu {{key}}"
+    },
+    "readOnlyHint": "Bản của TaskPilot chỉ xem; tạo override để sửa."
+  },
+  "codegraph": {
+    "title": "Codegraph"
   }
 }

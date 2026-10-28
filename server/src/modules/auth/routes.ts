@@ -16,7 +16,7 @@ export function registerAuthRoutes(app: FastifyInstance, opts: AuthRoutesOptions
   // Keyed by the peer address: behind a proxy every browser shares it, so the limit is global there.
   const limiter = new LoginLimiter();
 
-  app.get("/api/auth", async (req) => ({ mode, authenticated: opts.sessions.valid(sessionCookie(req)) }));
+  app.get("/api/auth", async (req): Promise<AuthStatus> => ({ mode, authenticated: opts.sessions.valid(sessionCookie(req)) }));
 
   app.post<{ Body: { user?: unknown; password?: unknown; token?: unknown } }>("/api/login", async (req, reply) => {
     const wait = limiter.retryAfter(req.ip);
@@ -42,4 +42,11 @@ export function registerAuthRoutes(app: FastifyInstance, opts: AuthRoutesOptions
     await opts.sessions.revoke(sessionCookie(req));
     return reply.clearCookie(SESSION_COOKIE).send({ ok: true });
   });
+}
+
+/** Whether this browser is logged in, and how it would log in. */
+export interface AuthStatus {
+  /** "password": log in with user and password. "token": open the URL the server printed. */
+  mode: AuthMode;
+  authenticated: boolean;
 }

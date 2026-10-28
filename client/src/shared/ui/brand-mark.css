@@ -1,9 +1,0 @@
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  color: var(--on-signal);
-  background: var(--signal);
-  border-radius: 10px;
-}

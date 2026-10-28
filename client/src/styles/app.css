@@ -1,0 +1,72 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./tokens.css";
+
+/* tokens.css is the single source of the palette (DESIGN.md); Tailwind only names its variables. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-sidebar: var(--sidebar);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-hover: var(--hover);
+  --color-sunken: var(--sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-signal: var(--signal);
+  --color-signal-text: var(--signal-text);
+  --color-on-signal: var(--on-signal);
+  --color-signal-soft: var(--signal-soft);
+  --color-attention: var(--attention);
+  --color-on-attention: var(--on-attention);
+  --color-attention-soft: var(--attention-soft);
+  --color-attention-line: var(--attention-line);
+  --color-done: var(--done);
+  --color-done-soft: var(--done-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-terminal: var(--terminal);
+  --color-cat-read: var(--cat-read);
+  --color-cat-write: var(--cat-write);
+  --color-cat-run: var(--cat-run);
+  --color-cat-search: var(--cat-search);
+  --color-cat-web: var(--cat-web);
+  --color-cat-agent: var(--cat-agent);
+  --color-cat-plan: var(--cat-plan);
+  --color-cat-other: var(--cat-other);
+
+  --font-sans: var(--sans);
+  --font-mono: var(--mono);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --shadow-panel: var(--shadow);
+  --ease-out: var(--ease-out);
+}
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--line);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-bg font-sans text-[15px] leading-normal text-ink antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 2px;
+  }
+  code {
+    @apply rounded-[4px] bg-sunken px-[5px] py-px font-mono text-[0.88em];
+  }
+}

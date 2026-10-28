@@ -45,7 +45,9 @@ async function readClaudeMd(file: string): Promise<Inventory["claudeMd"]> {
     const headings = markdownHeadings(text)
       .filter((h) => h.level === 2)
       .map((h) => h.text.replace(/^\d+\.\s*/, ""));
-    return { exists: true, lines: text.split("\n").length, bytes: s.size, mtime: s.mtimeMs, headings };
+    // A final newline ends the last line; it does not start another.
+    const lines = text === "" ? 0 : text.replace(/\n$/, "").split("\n").length;
+    return { exists: true, lines, bytes: s.size, mtime: s.mtimeMs, headings };
   } catch {
     return { exists: false, lines: 0, bytes: 0, mtime: null, headings: [] };
   }

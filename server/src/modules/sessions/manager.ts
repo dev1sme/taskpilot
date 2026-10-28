@@ -12,7 +12,7 @@ import { backendOf, type AccountUsageReport, type HookState, type ProviderPrompt
 import type { ProviderBackend } from "./backends/types.js";
 import { PtyTransport, attachPty } from "./transports/pty.js";
 import type { SessionMetrics } from "./transports/types.js";
-import { preflightSession, sessionCapabilities, type PreflightRequest } from "./capabilities.js";
+import { preflightSession, sessionCapabilities, type PreflightRequest } from "./preflight.js";
 import type { BackendProbeContext } from "./backends/types.js";
 import { unknownFailure, type SessionFailure } from "./failure.js";
 import type { AccountQuotaEvidence } from "../usage/index.js";

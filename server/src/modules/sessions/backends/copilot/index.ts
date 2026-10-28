@@ -5,10 +5,10 @@ import { copilotModels } from "../../../../providers/copilot/models.js";
 import type { ProviderBackend, ProviderPromptInventory, SubagentCheck } from "../types.js";
 import { probeError, probePty, problem } from "../probe.js";
 import type { ProviderCapability, BackendProbeContext } from "../types.js";
-import { ensureCopilotHooks } from "./hooks-file.js";
+import { ensureCopilotHooks } from "./install-hooks.js";
 import { copilotFinishedTurn, normalizeCopilot } from "./normalize.js";
 
-export { COPILOT_SETTINGS, copilotHooksFile, ensureCopilotHooks, stripComments, userHooksText, withoutTaskPilotHooks } from "./hooks-file.js";
+export { COPILOT_SETTINGS, copilotHooksFile, ensureCopilotHooks, stripComments, userHooksText, withoutTaskPilotHooks } from "./install-hooks.js";
 export { copilotFinishedTurn, normalizeCopilot } from "./normalize.js";
 export { copilotTranscript, lastAssistantMessage } from "./transcript.js";
 

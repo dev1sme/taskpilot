@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { EventHub } from "../../core/events.js";
+import type { EventHub } from "../../core/event-hub.js";
 
 /** Server-sent events the UI listens to (tasks, sessions, run, activity, usage, repo). */
 export function registerEventsRoutes(app: FastifyInstance, opts: { hub: EventHub }) {

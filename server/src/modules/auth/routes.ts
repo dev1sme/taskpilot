@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { credentialsMatch, LoginLimiter, SESSION_COOKIE, sessionCookie, setSessionCookie, type AuthMode, type AuthSessions, type Credentials } from "./sessions.js";
+import { credentialsMatch, LoginLimiter, SESSION_COOKIE, sessionCookie, setSessionCookie, type AuthMode, type AuthSessions, type Credentials } from "./login-sessions.js";
 import { tokenMatches } from "./security.js";
 import { t } from "../../core/i18n.js";
 

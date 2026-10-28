@@ -6,10 +6,10 @@ import { readHooks } from "../settings/read.js";
 import { scopeOf, stringField, type ConfigRouteOptions } from "../shared/http.js";
 import { hookTarget, settingsTarget } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
-import { parseConfigProvider } from "../shared/provider-capabilities.js";
+import { parseConfigProvider } from "../shared/sections.js";
 import { configAdapter } from "../adapters/index.js";
 import type { ProviderId } from "../../../core/providers.js";
-import { applyCopilotHooks, copilotDiffView, listHookFiles, readCopilotHookFile, readCopilotHooks, type FileHooks } from "./copilot.js";
+import { applyCopilotHooks, copilotDiffView, listHookFiles, readCopilotHookFile, readCopilotHooks, type FileHooks } from "./hook-files.js";
 import { applyHooks, parseHookInputs, readHooksBlock, validateCopilotHooks, validateHooks } from "./edit.js";
 
 /** Command hooks of each settings file. */

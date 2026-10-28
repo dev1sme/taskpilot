@@ -17,7 +17,7 @@ import { ACTIVE_RUN_PHASES, agentLabel, dispatching, laneBlocked, laneOf, output
 import type { LoadDef, SessionPort, ClaudeSubagentsOf } from "./ports.js";
 import { assignmentsFor, assignmentProblems } from "./run-checks.js";
 import { ExecutionValidationError, resolveExecution, selectExecution, snapshotExecution } from "./execution.js";
-import { readRepoSettings } from "./settings.js";
+import { readRepoSettings } from "./repo-settings.js";
 import { RunStore } from "./run-store.js";
 import { buildRunView, type RunView } from "./run-view.js";
 import type { Assignment, EffectiveExecution, ExecutionSelection, LaneScope, MetricsSource, RunState, SubtaskMetrics, SubtaskPhase, SubtaskRun, WorkflowDef } from "./types.js";

@@ -1,5 +1,5 @@
 import type { ProviderId } from "../../../core/providers.js";
-import type { ConfigScope, ConfigSection } from "../shared/provider-capabilities.js";
+import type { ConfigScope, ConfigSection } from "../shared/sections.js";
 import type { LibraryKind, LibraryScope } from "../library/read.js";
 import type { McpType } from "../mcp/edit.js";
 import type { AgentTemplateProvider } from "../library/templates.js";

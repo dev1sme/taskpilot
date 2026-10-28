@@ -1,7 +1,7 @@
 import path from "node:path";
 import { t } from "../../../core/i18n.js";
 import { copilotConfigHome } from "../../../providers/copilot/home.js";
-import { AGENT_MD, AGENT_OR_MD, SKILL_REL } from "./names.js";
+import { AGENT_MD, AGENT_OR_MD, SKILL_REL } from "./file-names.js";
 import type { ConfigAdapter } from "./types.js";
 
 const home = (...parts: string[]) => path.join(copilotConfigHome(), ...parts);

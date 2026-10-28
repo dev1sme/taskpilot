@@ -1,11 +1,11 @@
 import path from "node:path";
 import { displayPath } from "./fs.js";
-import { requireConfigScope, type ConfigScope } from "./provider-capabilities.js";
+import { requireConfigScope, type ConfigScope } from "./sections.js";
 import { type ProviderId } from "../../../core/providers.js";
 import { HttpError } from "../../../core/errors.js";
 import { overrideDir, PROMPT_FILE, SETTINGS_FILE, WORKFLOW_FILE } from "../../workflow/index.js";
 import { CONFIG_ADAPTERS, configAdapter, ownsPath } from "../adapters/index.js";
-import { PLAIN_JSON } from "../adapters/names.js";
+import { PLAIN_JSON } from "../adapters/file-names.js";
 import type { LibraryKind, LibraryScope } from "../library/read.js";
 import { t } from "../../../core/i18n.js";
 

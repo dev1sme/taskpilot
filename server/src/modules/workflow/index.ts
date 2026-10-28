@@ -19,7 +19,7 @@ export {
   type OverrideInfo,
   type ParseResult,
 } from "./definition.js";
-export { SETTINGS_FILE, readRepoSettings, parseRepoSettings, patchRepoSettings, settingsPath, settingsText, type RepoSettings, type RepoSettingsPatch } from "./settings.js";
+export { SETTINGS_FILE, readRepoSettings, parseRepoSettings, patchRepoSettings, settingsPath, settingsText, type RepoSettings, type RepoSettingsPatch } from "./repo-settings.js";
 export {
   ExecutionValidationError,
   parseExecution,

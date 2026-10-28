@@ -10,7 +10,7 @@ import { registerMemoryRoutes } from "./memory/routes.js";
 import { registerSettingsRoutes } from "./settings/routes.js";
 import { registerWorkflowConfigRoutes } from "./workflow/routes.js";
 import type { ConfigRouteOptions } from "./shared/http.js";
-import { CONFIG_SECTIONS, configCapabilities, configCapability, parseConfigProvider, type ConfigSection } from "./shared/provider-capabilities.js";
+import { CONFIG_SECTIONS, configCapabilities, configCapability, parseConfigProvider, type ConfigSection } from "./shared/sections.js";
 import { PROVIDER_IDS } from "../../core/providers.js";
 import { HttpError } from "../../core/errors.js";
 

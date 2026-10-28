@@ -1,5 +1,5 @@
 import { HttpError } from "../../core/errors.js";
-import type { EventHub } from "../../core/events.js";
+import type { EventHub } from "../../core/event-hub.js";
 import type { StateStore } from "../../core/state.js";
 import { resolveRepo, type TasksWatcher } from "../tasks/index.js";
 

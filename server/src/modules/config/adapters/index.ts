@@ -1,11 +1,11 @@
 import path from "node:path";
 import { type ProviderId } from "../../../core/providers.js";
-import type { ConfigScope, ConfigSection } from "../shared/provider-capabilities.js";
+import type { ConfigScope, ConfigSection } from "../shared/sections.js";
 import type { LibraryKind } from "../library/read.js";
 import { claudeConfig } from "./claude.js";
 import { codexConfig } from "./codex.js";
 import { copilotConfig } from "./copilot.js";
-import { PLAIN_JSON } from "./names.js";
+import { PLAIN_JSON } from "./file-names.js";
 import type { ConfigAdapter } from "./types.js";
 
 export type * from "./types.js";

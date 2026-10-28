@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { claudeHome } from "../../../providers/claude/home.js";
-import { isMarkdownRel, SKILL_REL } from "./names.js";
+import { isMarkdownRel, SKILL_REL } from "./file-names.js";
 import type { ConfigAdapter, LibraryAdapter } from "./types.js";
 import type { LibraryKind } from "../library/read.js";
 

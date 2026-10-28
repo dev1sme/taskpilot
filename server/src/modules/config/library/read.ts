@@ -7,7 +7,7 @@ import { checkAgent, checkCodexAgent, checkNames, type AgentCheck } from "./chec
 import { readTemplates } from "./templates.js";
 import { tomlMeta } from "./templates.js";
 import { configAdapter, type LibraryAdapter } from "../adapters/index.js";
-import { PLAIN_TOML } from "../adapters/names.js";
+import { PLAIN_TOML } from "../adapters/file-names.js";
 
 export type LibraryKind = "agents" | "commands" | "skills";
 export type LibraryScope = "project" | "user";

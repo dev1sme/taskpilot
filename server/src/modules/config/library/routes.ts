@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { HttpError } from "../../../core/errors.js";
 import { t } from "../../../core/i18n.js";
 import { isObject } from "../shared/fs.js";
-import { parseConfigProvider } from "../shared/provider-capabilities.js";
+import { parseConfigProvider } from "../shared/sections.js";
 import { PROVIDER_IDS, type ProviderId } from "../../../core/providers.js";
 import { configAdapter } from "../adapters/index.js";
 import { stringField, type ConfigRouteOptions } from "../shared/http.js";

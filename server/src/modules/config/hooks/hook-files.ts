@@ -4,13 +4,13 @@ import path from "node:path";
 import { HttpError } from "../../../core/errors.js";
 import { isObject } from "../shared/fs.js";
 import { hookTarget } from "../shared/targets.js";
-import { PLAIN_JSON } from "../adapters/names.js";
+import { PLAIN_JSON } from "../adapters/file-names.js";
 import type { HooksAdapter } from "../adapters/index.js";
 import type { ProviderId } from "../../../core/providers.js";
 
 export type FileHooks = Extract<HooksAdapter, { kind: "files" }>;
 import { readCurrent } from "../shared/writer.js";
-import type { ConfigScope } from "../shared/provider-capabilities.js";
+import type { ConfigScope } from "../shared/sections.js";
 import { isCopilotEvent, type CopilotHookInput } from "./edit.js";
 
 const EDITABLE_FIELDS = new Set(["type", "matcher", "command", "bash", "powershell", "exec", "args", "cwd", "timeoutSec"]);

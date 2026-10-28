@@ -1,7 +1,7 @@
 import path from "node:path";
 import { t } from "../../../core/i18n.js";
 import { codexConfigHome, codexSkillsHome } from "../../../providers/codex/home.js";
-import { PLAIN_TOML, SKILL_REL } from "./names.js";
+import { PLAIN_TOML, SKILL_REL } from "./file-names.js";
 import type { ConfigAdapter } from "./types.js";
 
 const configToml = (repo: string, scope: string) => (scope === "project" ? path.join(repo, ".codex", "config.toml") : path.join(codexConfigHome(), "config.toml"));

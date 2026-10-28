@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { t } from "../../../core/i18n.js";
-import { parseConfigProvider } from "../shared/provider-capabilities.js";
+import { parseConfigProvider } from "../shared/sections.js";
 import { scopeOf, stringField, type ConfigRouteOptions } from "../shared/http.js";
 import { memoryTarget } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";

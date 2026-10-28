@@ -4,14 +4,7 @@ import { projectMemoryFiles } from "../config/index.js";
 import { markdownHeadings } from "../../core/markdown.js";
 import { t } from "../../core/i18n.js";
 import { isObject } from "../../core/values.js";
-
-/** Read-only summary of the repo's Claude Code configuration, for the overview page. */
-export interface Inventory {
-  claudeMd: { exists: boolean; lines: number; bytes: number; mtime: number | null; headings: string[] };
-  claudeLocalMd: boolean;
-  mcp: { exists: boolean; servers: Array<{ name: string; type: string }>; error?: string };
-  claudeDir: { agents: number; commands: number; skills: number; hooks: number; allow: number; deny: number };
-}
+import type { Inventory } from "./types.js";
 
 export async function readInventory(repo: string): Promise<Inventory> {
   const claude = path.join(repo, ".claude");

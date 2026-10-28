@@ -13,15 +13,7 @@ import { laneBlocked, outputBaseline, syncDispatch } from "./lane.js";
 import { laneKey, parseExecution, resolveExecution } from "./execution.js";
 import { promptVars } from "./prompt-vars.js";
 import type { AgentExecution, EffectiveExecution, HandoffJournal, LaneScope, RunState, WorkflowDef } from "./types.js";
-
-export interface HandoffDocument {
-  kind: "spec" | "history" | "approved-plan" | "input" | "dependency-report" | "output";
-  /** Omitted if the path is unsafe or itself contains a secret. Never read by this builder. */
-  path?: string;
-  status: "present" | "missing" | "unknown" | "omitted";
-  /** An existing output is still required; existence does not prove completion for this attempt. */
-  required: boolean;
-}
+import type { HandoffDocument, HandoffRequest, HandoffCommitRequest, HandoffPreview } from "./types.js";
 
 export interface BuildHandoffInput {
   task: { key: string; title: string };
@@ -37,24 +29,6 @@ export interface BuildHandoffInput {
   reason?: string;
   /** Optional metadata only, collected by the caller within its trusted repo boundary. No contents. */
   files?: ReadonlyArray<{ path: string; status: "present" | "missing" }>;
-}
-
-export interface HandoffPreview {
-  version: 1;
-  id: string;
-  /** Lane revision, independent of preview time, reason, target, or unrelated lanes' progress. */
-  fingerprint: string;
-  createdAt: number;
-  scope: LaneScope;
-  sourceSessionId: string;
-  expectedGeneration: number;
-  source: EffectiveExecution;
-  target: EffectiveExecution;
-  documents: HandoffDocument[];
-  reason?: string;
-  /** All copies (API, journal, history, target prompt) must use these already filtered strings. */
-  text: string;
-  prompt: string;
 }
 
 /** Fixed diagnostics: validation must never echo raw prompts, paths, model values or reasons. */
@@ -312,22 +286,6 @@ export function buildHandoff(input: BuildHandoffInput, sanitize: SafeText): Hand
     prompt: text,
   };
   return { ...preview, id: hash(canonical(preview)) };
-}
-
-export interface HandoffRequest {
-  scope: LaneScope;
-  target: AgentExecution;
-  reason?: string;
-}
-
-export interface HandoffCommitRequest extends HandoffRequest {
-  previewId: string;
-  fingerprint: string;
-  sourceSessionId: string;
-  expectedGeneration: number;
-  operationId: string;
-  /** Explicit consent to stop a live source and cancel its pending approvals. */
-  confirmStop?: boolean;
 }
 
 /** Shared by routes and direct engine callers; reject extra fields rather than silently ignoring them. */

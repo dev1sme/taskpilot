@@ -1,33 +1,11 @@
 import type { FastifyInstance } from "fastify";
-import type { AppState, StateStore } from "../../core/state.js";
+import type { StateStore } from "../../core/state.js";
 import type { RepoContext } from "../repo/index.js";
 import type { SessionManager } from "../sessions/index.js";
-import { getTask, listTasks, readTaskFile, type TaskSummary } from "./scan.js";
+import { getTask, listTasks, readTaskFile } from "./scan.js";
+import type { TaskSummary } from "./types.js";
 import { doneOf } from "./status.js";
-
-/** How far a task got, as the repo's workflow reads its documents. */
-export interface TaskStage {
-  done: number;
-  total: number;
-  step: string | null;
-}
-
-/** What the repo's workflow says about task documents; supplied by the app so tasks does not depend on workflow. */
-/** A task with what its workflow makes of its documents. */
-export interface TaskDetail extends TaskSummary {
-  stage: TaskStage;
-  /** The decision log's file name, from the workflow. */
-  historyFile: string;
-  /** Marked done: task.yml says so, or (without the file) the run finished; `at` is unknown then. */
-  done: { at: number | null } | null;
-}
-
-/** A task as the task list shows it: its run and sessions too. */
-export interface TaskListItem extends TaskDetail {
-  run: { phase: AppState["runs"][number]["phase"]; stepIndex: number; stepStartedAt: number } | null;
-  waitingPermission: boolean;
-  sessionsRunning: number;
-}
+import type { TaskStage, TaskDetail, TaskListItem } from "./types.js";
 
 export type DescribeTasks = (repo: string) => Promise<{ stageOf: (files: string[], taskKey: string) => TaskStage; historyFile: string }>;
 

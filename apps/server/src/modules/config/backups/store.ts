@@ -3,18 +3,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { HttpError } from "../../../core/errors.js";
 import { t } from "../../../core/i18n.js";
-
-export interface BackupEntry {
-  id: string;
-  at: number;
-  /** Absolute path of the file that was backed up. */
-  path: string;
-  display: string;
-  reason: string;
-  bytes: number;
-  /** False when the file did not exist yet (the write created it). */
-  existed: boolean;
-}
+import type { BackupEntry } from "./types.js";
 
 const ID = /^\d{13}-[0-9a-f]{6}$/;
 

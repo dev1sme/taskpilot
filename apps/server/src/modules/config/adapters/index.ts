@@ -1,7 +1,7 @@
 import path from "node:path";
 import { type ProviderId } from "@taskpilot/shared";
 import type { ConfigScope, ConfigSection } from "../shared/sections.js";
-import type { LibraryKind } from "../library/read.js";
+import type { LibraryKind } from "../library/types.js";
 import { claudeConfig } from "./claude.js";
 import { codexConfig } from "./codex.js";
 import { copilotConfig } from "./copilot.js";

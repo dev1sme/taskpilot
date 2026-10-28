@@ -3,36 +3,13 @@ import type { Dirent } from "node:fs";
 import path from "node:path";
 import { displayPath, fileInfo, frontmatter, readText, strings } from "../shared/fs.js";
 import { type ProviderId } from "@taskpilot/shared";
-import { checkAgent, checkCodexAgent, checkNames, type AgentCheck } from "./check.js";
+import { checkAgent, checkCodexAgent, checkNames } from "./check.js";
+import type { AgentCheck } from "./types.js";
 import { readTemplates } from "./templates.js";
 import { tomlMeta } from "./templates.js";
 import { configAdapter, type LibraryAdapter } from "../adapters/index.js";
 import { PLAIN_TOML } from "../adapters/file-names.js";
-
-export type LibraryKind = "agents" | "commands" | "skills";
-export type LibraryScope = "project" | "user";
-
-export interface LibraryItem {
-  kind: LibraryKind;
-  scope: LibraryScope;
-  /** agents: frontmatter name or file stem; commands: path-based (git:pr); skills: directory or name. */
-  name: string;
-  path: string;
-  /** Path inside the kind's folder (reviewer.md, git/pr.md, deploy/SKILL.md); identifies the item for edits. */
-  rel: string;
-  description: string;
-  /** Selected frontmatter fields worth showing (tools, model, argument-hint…). */
-  fields: Array<{ key: string; value: string }>;
-  body: string;
-  mtime: number | null;
-  error?: string;
-  /** skills: other files in the skill directory. */
-  files?: string[];
-  /** agents: whether TaskPilot can use it, and as what. */
-  check?: AgentCheck;
-  /** A Copilot agent in .claude/agents is visible to the CLI but cannot be edited as Copilot config. */
-  editable?: boolean;
-}
+import type { LibraryScope, LibraryKind, LibraryItem } from "./types.js";
 
 const SHOWN_FIELDS = ["tools", "allowed-tools", "model", "argument-hint", "color", "disable-model-invocation"];
 

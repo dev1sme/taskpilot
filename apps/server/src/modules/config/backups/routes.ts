@@ -10,15 +10,7 @@ import type { ConfigRouteOptions } from "../shared/http.js";
 import { isAllowedPath } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
 import { isObject } from "../../../core/values.js";
-import type { BackupEntry } from "./store.js";
-
-/** A backup as listed: restorable when its file is one of this repo's config files. */
-export type BackupView = BackupEntry & { restorable: boolean };
-/** What restoring a backup would change: the current file to the backup's content. */
-export interface BackupDiff {
-  diff: string;
-  entry: BackupEntry;
-}
+import type { BackupView, BackupDiff } from "./types.js";
 
 /** Backups of every file TaskPilot wrote: list, diff against the current file, restore. */
 export function registerBackupsRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {

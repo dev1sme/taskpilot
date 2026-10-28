@@ -34,7 +34,6 @@ import {
   templateVars,
   type Composed,
   type ModeInfo,
-  type RepoSettings,
   type OverrideInfo,
 } from "../../workflow/index.js";
 import { displayPath } from "../shared/fs.js";
@@ -43,7 +42,7 @@ import { repoSettingsTarget, workflowTarget } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
 import { subagentsOf } from "../library/read.js";
 import { isObject } from "../../../core/values.js";
-import type { EffectiveExecution, ExecutionSelection, ExecutionSelectionSource } from "../../workflow/types.js";
+import type { ExecutionDefaults, WorkflowModes, WorkflowFileView, WorkflowChecks, WorkflowSavePreview, MigrationPreview, RenderedPrompt } from "./types.js";
 
 /** The mode an existing override belongs to: the one it extends, or "custom" for a complete one. */
 const targetMode = (info: OverrideInfo) => (info.kind === "extends" ? info.extends : CUSTOM_MODE);
@@ -458,60 +457,4 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
       text: renderPrompt(template, promptVars(previewDef, index, PROMPT_TEXT.sampleTask, { feedback, previous, subtask, subtasks: subtask && [subtask], subagents })),
     };
   });
-}
-
-/** The modes a repo can run and the one it chose (`.taskpilot/settings.yml`). */
-export interface WorkflowModes {
-  modes: ModeInfo[];
-  selected: string;
-  override: { kind: OverrideInfo["kind"]; extends: string | null };
-  hash: string;
-  settingsPath: string;
-}
-
-/** The repo's default execution; absent is distinct from an explicit workflow choice, and invalid settings stay visible. */
-export interface ExecutionDefaults {
-  execution: NonNullable<RepoSettings["execution"]> | null;
-  executionVersion: NonNullable<RepoSettings["executionVersion"]> | null;
-  errors: NonNullable<RepoSettings["errors"]>;
-  hash: string;
-  settingsPath: string;
-}
-
-/** One file of the repo's override, with the file it replaces (the mode's) for comparison. */
-export interface WorkflowFileView {
-  path: string;
-  exists: boolean;
-  content: string;
-  hash: string;
-  defaultContent: string | null;
-}
-
-export interface WorkflowChecks {
-  errors: string[];
-  warnings: string[];
-}
-
-export interface WorkflowSavePreview extends Pick<WorkflowChecks, "warnings"> {
-  diff: string;
-  changed: boolean;
-  stale: boolean;
-}
-
-/** The prompt a step would send, for a sample task. */
-export interface RenderedPrompt {
-  task: typeof PROMPT_TEXT.sampleTask;
-  execution: ExecutionSelection;
-  source: ExecutionSelectionSource;
-  effective: EffectiveExecution;
-  text: string;
-}
-
-/** Turning a complete (legacy) override into `extends`: the diff, and the errors that stop it. */
-export interface MigrationPreview {
-  base: string;
-  errors: string[];
-  diff: string;
-  remove: string[];
-  applied: boolean;
 }

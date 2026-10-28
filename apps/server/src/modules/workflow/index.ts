@@ -31,7 +31,8 @@ export {
   snapshotExecution,
   type ResolveExecutionOptions,
 } from "./execution.js";
-export { CUSTOM_MODE, DEFAULT_MODE, isMode, listModes, modeDir, type ModeInfo } from "./modes.js";
+export { CUSTOM_MODE, DEFAULT_MODE, isMode, listModes, modeDir } from "./modes.js";
+export type { ModeInfo } from "./types.js";
 export { guessBase, migrateLegacy, type Migration } from "./migrate.js";
 export { mergeOverride, type Provenance } from "./merge.js";
 export { WorkflowEngine, type LoadDef, type RunOptions } from "./engine.js";
@@ -54,6 +55,8 @@ export type {
   HandoffJournal,
 } from "./types.js";
 export { PROMPT_TEXT } from "./prompt-text.js";
-export { buildHandoff, parseHandoffRequest, type HandoffPreview, type HandoffRequest, type HandoffCommitRequest, type HandoffSanitizer } from "./handoff.js";
-export { parseQuestions, type Question } from "./questions.js";
+export { buildHandoff, parseHandoffRequest, type HandoffSanitizer } from "./handoff.js";
+export type { HandoffPreview, HandoffRequest, HandoffCommitRequest } from "./types.js";
+export { parseQuestions } from "./questions.js";
+export type { Question } from "./types.js";
 export { promptVars, render, renderPrompt, templateVars } from "./prompt-vars.js";

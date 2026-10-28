@@ -3,7 +3,7 @@ import path from "node:path";
 import { claudeHome } from "../../../providers/claude/home.js";
 import { isMarkdownRel, SKILL_REL } from "./file-names.js";
 import type { ConfigAdapter, LibraryAdapter } from "./types.js";
-import type { LibraryKind } from "../library/read.js";
+import type { LibraryKind } from "../library/types.js";
 
 /**
  * The project CLAUDE.md: Claude Code reads both ./CLAUDE.md and ./.claude/CLAUDE.md. TaskPilot

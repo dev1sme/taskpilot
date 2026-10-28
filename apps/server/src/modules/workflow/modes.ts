@@ -3,6 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
+import type { ModeInfo } from "./types.js";
 
 /** <package>/workflows; four levels up from both server/src/modules/workflow and dist/server/modules/workflow. */
 export const WORKFLOWS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../workflows");
@@ -12,12 +13,6 @@ export const DEFAULT_MODE = "default";
 /** The mode of a legacy override (one without `extends`): the repo's own complete workflow. */
 export const CUSTOM_MODE = "custom";
 const MODE_ID = /^[a-z][a-z0-9-]*$/;
-
-export interface ModeInfo {
-  id: string;
-  name: string;
-  description: string;
-}
 
 export function modeDir(id: string): string {
   return path.join(WORKFLOWS_DIR, id);

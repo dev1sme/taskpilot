@@ -2,12 +2,7 @@ import { Lexer, type Token, type Tokens } from "marked";
 import { isProviderId } from "@taskpilot/shared";
 import { modelProblem } from "./models.js";
 import type { Assignment } from "./types.js";
-
-export interface ParsedAssignments {
-  items: Assignment[];
-  /** Why the table cannot be run, in English; empty when `items` is usable. */
-  errors: string[];
-}
+import type { ParsedAssignments } from "./types.js";
 
 /** Subtasks that may run at the same time, at most. */
 export const MAX_PARALLEL = 4;

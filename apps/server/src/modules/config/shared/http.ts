@@ -2,8 +2,8 @@ import { HttpError } from "../../../core/errors.js";
 import { t } from "../../../core/i18n.js";
 import type { StateStore } from "../../../core/state.js";
 import type { BackupStore } from "../backups/store.js";
-import type { MemoryScope } from "../memory/read.js";
-import type { SettingsScope } from "../settings/read.js";
+import type { MemoryScope } from "../memory/types.js";
+import type { SettingsScope } from "../settings/types.js";
 
 /** What every config route group needs from the app. */
 export interface ConfigRouteOptions {

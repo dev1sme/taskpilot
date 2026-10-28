@@ -8,22 +8,10 @@ import { HttpError } from "../../core/errors.js";
 import { tasksRoot } from "../tasks/index.js";
 import type { RepoContext } from "./context.js";
 import { readInventory } from "./inventory.js";
+import type { RepoInfo, ServerInfo } from "./types.js";
 
 /** Version of each agent's command; null when it is not installed. */
 const VERSIONS: Record<ProviderId, () => Promise<string | null>> = { claude: claudeVersion, copilot: copilotVersion, codex: codexVersion };
-
-/** The repo the UI works on; nulls before one is chosen. */
-export interface RepoInfo {
-  path: string | null;
-  tasksDir: string | null;
-  tasksDirExists: boolean;
-}
-
-/** Version of each agent's command; null when it is not installed. */
-export interface ServerInfo {
-  claudeVersion: string | null;
-  versions: Record<ProviderId, string | null>;
-}
 
 /** The selected repo, its config inventory and the agents' versions. */
 export function registerRepoRoutes(app: FastifyInstance, opts: { repo: RepoContext }) {

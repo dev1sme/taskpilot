@@ -1,18 +1,13 @@
 import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
+import type { TaskStatus } from "./types.js";
 
 /**
  * Whether a task is finished, kept in the task directory. Not a `.md` file, so it is no task
  * document: it is not listed in the docs panel, not archived on a restart and not in prompts.
  */
 export const TASK_STATUS_FILE = "task.yml";
-
-export interface TaskStatus {
-  status: "open" | "done";
-  /** When it was marked done (ms); null when open or the file has no valid date. */
-  doneAt: number | null;
-}
 
 /** The task's `task.yml`; null when it is missing or not a valid status, so callers fall back to the run. */
 export async function readTaskStatus(taskDir: string): Promise<TaskStatus | null> {

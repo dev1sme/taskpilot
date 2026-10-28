@@ -1,11 +1,4 @@
-/** A question Claude left for the reviewer, with the answer it proposes. */
-export interface Question {
-  /** The number Claude gave it. */
-  n: number;
-  text: string;
-  proposal?: string;
-}
-
+import type { Question } from "./types.js";
 const NUMBERED = /^\s*(\d+)[.)]\s+(.*)$/;
 const HEADING = /^\s*(#{1,6})\s+(.*)$/;
 /** "**Câu hỏi còn chờ reviewer:**" stands for a heading in the decision log's skeleton. */

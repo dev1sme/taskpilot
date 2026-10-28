@@ -1,7 +1,8 @@
 import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { HttpError } from "../../core/errors.js";
-import { readTaskStatus, type TaskStatus } from "./status.js";
+import { readTaskStatus } from "./status.js";
+import type { TaskFile, TaskSummary } from "./types.js";
 
 export const TASKS_DIR = path.join(".claude", "tasks");
 export const SPEC_DIR = "spec";
@@ -10,23 +11,6 @@ const TASK_KEY = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 /** Session key of the repo terminal (sessions without a task). Never matches TASK_KEY, so no task can clash. */
 export const REPO_SESSION_KEY = "@repo";
-
-export interface TaskFile {
-  /** Relative to the task directory, always with forward slashes. */
-  path: string;
-  size: number;
-  mtime: number;
-}
-
-export interface TaskSummary {
-  key: string;
-  title: string;
-  specFiles: TaskFile[];
-  outputFiles: TaskFile[];
-  updatedAt: number;
-  /** The task's `task.yml`, when it has a valid one. */
-  status: TaskStatus | null;
-}
 
 export async function resolveRepo(input: string): Promise<string> {
   const trimmed = input.trim();

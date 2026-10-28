@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { checkForParallel, checkSubtaskLimit, parseAssignments, type ParsedAssignments } from "./assignments.js";
+import { checkForParallel, checkSubtaskLimit, parseAssignments } from "./assignments.js";
+import type { ParsedAssignments } from "./types.js";
 import { taskAbsoluteDir } from "./lane.js";
 import type { SessionPort, ClaudeSubagentsOf } from "./ports.js";
 import type { Assignment, RunState, WorkflowDef } from "./types.js";

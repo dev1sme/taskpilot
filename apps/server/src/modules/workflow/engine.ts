@@ -19,16 +19,18 @@ import { assignmentsFor, assignmentProblems } from "./run-checks.js";
 import { ExecutionValidationError, resolveExecution, selectExecution, snapshotExecution } from "./execution.js";
 import { readRepoSettings } from "./repo-settings.js";
 import { RunStore } from "./run-store.js";
-import { buildRunView, type RunView } from "./run-view.js";
+import { buildRunView } from "./run-view.js";
+import type { RunView } from "./types.js";
 import type { Assignment, EffectiveExecution, ExecutionSelection, LaneScope, MetricsSource, RunState, SubtaskMetrics, SubtaskPhase, SubtaskRun, WorkflowDef } from "./types.js";
 import { promptVars, renderPrompt } from "./prompt-vars.js";
 import { t } from "../../core/i18n.js";
 import { createSafeText } from "../../core/safe-text.js";
-import { HandoffCoordinator, type HandoffCommitRequest, type HandoffRequest, type HandoffSanitizer } from "./handoff.js";
+import { HandoffCoordinator, type HandoffSanitizer } from "./handoff.js";
+import type { HandoffCommitRequest, HandoffRequest } from "./types.js";
 import { SerialQueue } from "../../core/serial.js";
 
 export type { LoadDef, ClaudeSubagentsOf, SessionPort } from "./ports.js";
-export type { RunView } from "./run-view.js";
+export type { RunView } from "./types.js";
 
 /** How long a Copilot session may stay without any hook after its prompt before the run says so. */
 const NO_HOOK_WARN_MS = 60_000;

@@ -6,24 +6,7 @@ import { join, relative, isAbsolute } from "node:path";
 import { parseEnv } from "node:util";
 import { HttpError } from "../../../core/errors.js";
 import { t } from "../../../core/i18n.js";
-
-export interface CodegraphSummary {
-  files: number;
-  nodes: number;
-  edges: number;
-  dbSize: string;
-  /** null when the output says neither "up to date" nor "out of date". */
-  upToDate: boolean | null;
-}
-
-export interface CodegraphStatus {
-  supported: boolean;
-  indexed: boolean;
-  detail: string | null;
-  /** Key numbers parsed from `detail`; null when the output has no recognisable shape (raw `detail` still returned). */
-  summary: CodegraphSummary | null;
-  error: string | null;
-}
+import type { CodegraphSummary, CodegraphStatus } from "./types.js";
 
 function run(cmd: string, args: string[], timeoutMs: number): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {

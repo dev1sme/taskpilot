@@ -310,11 +310,111 @@ export interface RunState {
   sessionMetrics?: SessionMetricSnapshot[];
   handoffs?: HandoffJournal[];
   /** Sanitized snapshots only; excluded from the ordinary run view. */
-  handoffPreviews?: import("./handoff.js").HandoffPreview[];
+  handoffPreviews?: HandoffPreview[];
   /** The subtasks of a dispatch step, once the run reached it. Absent for a static workflow. */
   subtasks?: SubtaskRun[];
   /** Documents archived by "Chạy lại từ đầu" right before this run; `dir` is relative to the task dir. */
   previous?: { dir: string; files: string[] };
   startedAt: number;
   updatedAt: number;
+}
+
+export interface RunView {
+  /** The saved run's mode, including after done/cancelled; independent of new-run repo defaults. */
+  runMode: NonNullable<WorkflowDef["mode"]> | null;
+  workflow: {
+    source: string;
+    origin: WorkflowDef["origin"];
+    /** The mode the run follows; `override`: the repo's override is part of it. */
+    mode: NonNullable<WorkflowDef["mode"]>;
+    historyFile: string;
+    steps: Array<{
+      id: string;
+      title: string;
+      agent: ProviderId;
+      model?: string;
+      effective: EffectiveExecution;
+      gate: StepDef["gate"];
+      doneFile: string | null;
+      outputs: Array<{ id: string; file: string }>;
+      /** Set on a dispatch step. */
+      dispatch: { from: string; report: string; parallel: number; maxSubtasks?: number } | null;
+    }>;
+    /** The run follows the workflow as it was when it started, which has been edited since. */
+    outdated: boolean;
+  };
+  /** Without the workflow/preview snapshots and internal prompt/output fences. Recovery errors remain visible. */
+  run: Omit<RunState, "workflow" | "handoffPreviews"> | null;
+  /** Claude's numbered questions for the reviewer, at a gate or while it waits for an answer. */
+  questions: Question[];
+  /** At a gate whose next step is a dispatch step: the subtasks the plan's table gives, or why it is not usable. */
+  assignments: ParsedAssignments | null;
+  /** Questions of each subtask that waits for an answer, by subtask number. */
+  subtaskQuestions: Record<number, Question[]>;
+  /** Session cumulative counters, deduplicated across steps and resume attempts. */
+  usage: MetricsSummary | null;
+  subtaskUsage: Record<number, MetricsSummary>;
+}
+
+/** A question Claude left for the reviewer, with the answer it proposes. */
+export interface Question {
+  /** The number Claude gave it. */
+  n: number;
+  text: string;
+  proposal?: string;
+}
+
+export interface ParsedAssignments {
+  items: Assignment[];
+  /** Why the table cannot be run, in English; empty when `items` is usable. */
+  errors: string[];
+}
+
+export interface HandoffDocument {
+  kind: "spec" | "history" | "approved-plan" | "input" | "dependency-report" | "output";
+  /** Omitted if the path is unsafe or itself contains a secret. Never read by this builder. */
+  path?: string;
+  status: "present" | "missing" | "unknown" | "omitted";
+  /** An existing output is still required; existence does not prove completion for this attempt. */
+  required: boolean;
+}
+
+export interface HandoffRequest {
+  scope: LaneScope;
+  target: AgentExecution;
+  reason?: string;
+}
+
+export interface HandoffCommitRequest extends HandoffRequest {
+  previewId: string;
+  fingerprint: string;
+  sourceSessionId: string;
+  expectedGeneration: number;
+  operationId: string;
+  /** Explicit consent to stop a live source and cancel its pending approvals. */
+  confirmStop?: boolean;
+}
+
+export interface HandoffPreview {
+  version: 1;
+  id: string;
+  /** Lane revision, independent of preview time, reason, target, or unrelated lanes' progress. */
+  fingerprint: string;
+  createdAt: number;
+  scope: LaneScope;
+  sourceSessionId: string;
+  expectedGeneration: number;
+  source: EffectiveExecution;
+  target: EffectiveExecution;
+  documents: HandoffDocument[];
+  reason?: string;
+  /** All copies (API, journal, history, target prompt) must use these already filtered strings. */
+  text: string;
+  prompt: string;
+}
+
+export interface ModeInfo {
+  id: string;
+  name: string;
+  description: string;
 }

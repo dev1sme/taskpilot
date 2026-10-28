@@ -3,7 +3,8 @@ import { chmod, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/pr
 import path from "node:path";
 import { createTwoFilesPatch } from "diff";
 import { HttpError } from "../../../core/errors.js";
-import type { BackupEntry, BackupStore } from "../backups/store.js";
+import type { BackupStore } from "../backups/store.js";
+import type { BackupEntry } from "../backups/types.js";
 import { CONFIG_ADAPTERS } from "../adapters/index.js";
 import { isAllowedPath, type FileTarget } from "./targets.js";
 import { t } from "../../../core/i18n.js";

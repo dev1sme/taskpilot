@@ -15,20 +15,10 @@ import { PtyTransport, attachPty } from "./transports/pty.js";
 import type { SessionMetrics } from "./transports/types.js";
 import { preflightSession, sessionCapabilities, type PreflightRequest } from "./preflight.js";
 import type { BackendProbeContext } from "./backends/types.js";
-import { unknownFailure, type SessionFailure } from "./failure.js";
+import { unknownFailure } from "./failure.js";
+import type { SessionFailure } from "./types.js";
 import type { AccountQuotaEvidence } from "../usage/index.js";
-
-export type SessionStatus = "running" | "exited";
-
-export interface SessionView extends SessionMeta {
-  agent: ProviderId;
-  status: SessionStatus;
-  exitCode: number | null;
-  /** null while the session is not running. */
-  activity: Activity | null;
-  failure?: SessionFailure;
-  accountQuota?: AccountQuotaEvidence;
-}
+import type { SessionView } from "./types.js";
 
 export interface SessionCreateOptions {
   permissionMode?: string;

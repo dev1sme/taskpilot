@@ -1,6 +1,6 @@
 import type { ProviderId } from "@taskpilot/shared";
 import type { ConfigScope, ConfigSection } from "../shared/sections.js";
-import type { LibraryKind, LibraryScope } from "../library/read.js";
+import type { LibraryKind, LibraryScope } from "../library/types.js";
 import type { AgentTemplateProvider } from "../library/templates.js";
 
 /** The CLI's instruction files (CLAUDE.md, AGENTS.md, copilot-instructions.md). */

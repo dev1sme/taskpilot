@@ -7,36 +7,7 @@ import { memoryTarget } from "../shared/targets.js";
 import { configAdapter } from "../adapters/index.js";
 import { t } from "../../../core/i18n.js";
 import { isObject } from "../../../core/values.js";
-
-export type MemoryScope = "project" | "local" | "user";
-
-export interface MemoryImport {
-  ref: string;
-  path: string;
-  exists: boolean;
-  bytes: number;
-  depth: number;
-  line: number;
-}
-
-export interface MemoryCheck {
-  level: "ok" | "warn";
-  message: string;
-  line?: number;
-}
-
-export interface MemoryFile {
-  scope: MemoryScope;
-  path: string;
-  exists: boolean;
-  content: string;
-  lines: number;
-  bytes: number;
-  mtime: number | null;
-  headings: Array<{ level: number; text: string; line: number }>;
-  imports: MemoryImport[];
-  checks: MemoryCheck[];
-}
+import type { MemoryScope, MemoryImport, MemoryFile, MemoryCheck } from "./types.js";
 
 const MAX_IMPORT_DEPTH = 4;
 

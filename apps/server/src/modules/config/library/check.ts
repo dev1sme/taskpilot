@@ -2,21 +2,8 @@ import { t } from "../../../core/i18n.js";
 import { isClaudeModel } from "../../../providers/claude/models.js";
 import { parse as parseToml } from "smol-toml";
 import { strings } from "../shared/fs.js";
-import type { LibraryScope } from "./read.js";
-
-/**
- * How a subagent can serve a TaskPilot workflow. `leader`: called by the leader through the Task
- * tool. `member`: runs a whole subtask session (`claude --agent`), so it must write its report.
- */
-export type AgentRole = "leader" | "member";
-
-export interface AgentCheck {
-  status: "ok" | "warn" | "error";
-  roles: AgentRole[];
-  problems: string[];
-  /** Same name as a TaskPilot template: whether the file still matches it. */
-  template?: "same" | "modified";
-}
+import type { LibraryScope } from "./types.js";
+import type { AgentRole, AgentCheck } from "./types.js";
 
 /** Tools that write files; without one a member cannot write its report. */
 const WRITE_TOOLS = ["Write", "Edit", "MultiEdit"];

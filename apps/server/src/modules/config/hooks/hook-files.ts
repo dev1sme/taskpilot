@@ -10,21 +10,8 @@ import type { ProviderId } from "@taskpilot/shared";
 
 export type FileHooks = Extract<HooksAdapter, { kind: "files" }>;
 import { readCurrent } from "../shared/writer.js";
-import type { ConfigScope } from "../shared/sections.js";
 import { isObject } from "../../../core/values.js";
-
-/** A Copilot command hook as the UI shows it; other hook types and fields are not shown. */
-export interface CopilotHookEntry {
-  event: string;
-  matcher?: string;
-  command?: string;
-  bash?: string;
-  powershell?: string;
-  exec?: string;
-  args?: string[];
-  cwd?: string;
-  timeoutSec?: number;
-}
+import type { CopilotHookEntry, HookFile } from "./types.js";
 
 const COPILOT_EVENTS = new Set([
   "agentStop",
@@ -109,15 +96,6 @@ export async function readCopilotHookFile(repo: string, abs: string, hooks: File
     }
   }
   return readCurrent(abs);
-}
-
-/** One hook file of a CLI that keeps hooks in files of their own, with its editable command hooks. */
-export interface HookFile {
-  scope: ConfigScope;
-  name: string;
-  path: string;
-  hooks: CopilotHookEntry[];
-  error?: string;
 }
 
 export async function listHookFiles(repo: string, cli: ProviderId, hooks: FileHooks): Promise<HookFile[]> {

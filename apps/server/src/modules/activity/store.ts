@@ -3,28 +3,11 @@ import path from "node:path";
 import { EventEmitter } from "node:events";
 import type { SessionEvent } from "../sessions/index.js";
 import type { SessionMeta } from "../../core/state.js";
-import { describeTool, firstLine, type ToolCategory } from "./describe.js";
+import { describeTool, firstLine } from "./describe.js";
 import { t } from "../../core/i18n.js";
 import { PROVIDER_LABELS, DEFAULT_PROVIDER } from "@taskpilot/shared";
 import { SerialQueue } from "../../core/serial.js";
-
-export type ActivityKind = "session" | "prompt" | "tool" | "permission" | "stop";
-
-export interface ActivityItem {
-  id: string;
-  sessionId: string;
-  taskKey: string;
-  at: number;
-  kind: ActivityKind;
-  summary: string;
-  /** permission: what Claude asks to do, the summary without its "asks for permission" prefix. */
-  action?: string;
-  detail?: string;
-  tool?: string;
-  category?: ToolCategory;
-  status?: "running" | "done" | "error";
-  durationMs?: number;
-}
+import type { ActivityItem } from "./types.js";
 
 /** Items kept per session in memory (and returned by the API). */
 const KEEP = 400;

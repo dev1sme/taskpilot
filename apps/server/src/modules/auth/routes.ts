@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { credentialsMatch, LoginLimiter, SESSION_COOKIE, sessionCookie, setSessionCookie, type AuthMode, type AuthSessions, type Credentials } from "./login-sessions.js";
 import { tokenMatches } from "./security.js";
 import { t } from "../../core/i18n.js";
+import type { AuthStatus } from "./types.js";
 
 export interface AuthRoutesOptions {
   sessions: AuthSessions;
@@ -42,11 +43,4 @@ export function registerAuthRoutes(app: FastifyInstance, opts: AuthRoutesOptions
     await opts.sessions.revoke(sessionCookie(req));
     return reply.clearCookie(SESSION_COOKIE).send({ ok: true });
   });
-}
-
-/** Whether this browser is logged in, and how it would log in. */
-export interface AuthStatus {
-  /** "password": log in with user and password. "token": open the URL the server printed. */
-  mode: AuthMode;
-  authenticated: boolean;
 }

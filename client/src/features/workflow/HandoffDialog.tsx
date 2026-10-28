@@ -1,11 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { PROVIDER_IDS, PROVIDER_LABELS, type ProviderId } from "../../shared/providers";
+import { PROVIDER_LABELS } from "../../shared/providers";
 import { formatDuration } from "../../shared/ui/Elapsed";
 import { Button } from "../../shared/ui/Button";
-import { useWorkspace } from "../workspace";
+import { ExecutionCapabilityNotice, ExecutionFields } from "./ExecutionFields";
+import { useAgentCapabilities } from "./useAgentCapabilities";
 import { workflowApi } from "./api";
 import type { AgentExecution, EffectiveExecution, HandoffCommitRequest, HandoffPreviewResult, LaneScope, MetricsSummary, RunState, SubtaskRun } from "./types";
 import "../../shared/ui/dialog.css";
@@ -51,10 +51,9 @@ export function HandoffAction(props: ActionProps & { onRequest: (target: Handoff
 
 export function HandoffDialog({ taskKey, scope, execution, onChanged, onClose }: ActionProps & { onClose: () => void }) {
   const { t } = useTranslation("workflow");
-  const { repo } = useWorkspace();
   const dialog = useRef<HTMLDialogElement>(null);
   const id = useId();
-  const [target, setTarget] = useState<AgentExecution>(execution);
+  const [target, setTarget] = useState<AgentExecution>(() => ({ agent: execution.agent, ...(execution.model ? { model: execution.model } : {}) }));
   const [reason, setReason] = useState("");
   const [reviewed, setReviewed] = useState<HandoffPreviewResult | null>(null);
   const [consent, setConsent] = useState(false);
@@ -62,10 +61,7 @@ export function HandoffDialog({ taskKey, scope, execution, onChanged, onClose }:
   const [error, setError] = useState<string | null>(null);
   // Keep the complete request after an uncertain response: retry must use the same operation id.
   const [request, setRequest] = useState<HandoffCommitRequest | null>(null);
-  const capabilities = useQuery({ queryKey: ["agent-capabilities", repo?.path], queryFn: workflowApi.capabilities });
-  const capability = capabilities.data?.agents.find((item) => item.agent === target.agent);
-  const models = target.agent === "codex" && capability?.models.status === "supported" ? capability.models.items : [];
-  const saved = target.model && !models.some((item) => item.model === target.model) ? target.model : undefined;
+  const capabilities = useAgentCapabilities();
   const scopeLabel = scope.kind === "subtask" ? t("handoff.memberScope", { n: scope.n, step: scope.stepId }) : t("handoff.stepScope", { step: scope.stepId });
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -141,56 +137,18 @@ export function HandoffDialog({ taskKey, scope, execution, onChanged, onClose }:
       <p className="handoff-scope">{scopeLabel}</p>
       <p className="now-sub">{t("handoff.scopeHint")}</p>
       <div className="run-options-controls">
-        <label className="mode-picker">
-          <span>{t("selection.agent")}</span>
-          <select
-            value={target.agent}
-            disabled={locked}
-            onChange={(e) => {
-              reset();
-              setTarget({ agent: e.target.value as ProviderId });
-            }}
-          >
-            {PROVIDER_IDS.map((agent) => (
-              <option key={agent} value={agent}>
-                {PROVIDER_LABELS[agent]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="mode-picker">
-          <span>{t("selection.model")}</span>
-          <select
-            value={target.model ?? ""}
-            disabled={locked}
-            onChange={(e) => {
-              reset();
-              setTarget({ agent: target.agent, ...(e.target.value ? { model: e.target.value } : {}) });
-            }}
-          >
-            <option value="">{t("selection.defaultModel")}</option>
-            {saved && (
-              <option value={saved} disabled>
-                {t("selection.savedModel", { model: saved })}
-              </option>
-            )}
-            {models.map((model) => (
-              <option key={model.id} value={model.model}>
-                {model.displayName ?? model.model}
-              </option>
-            ))}
-          </select>
-        </label>
+        <ExecutionFields
+          value={target}
+          capabilities={capabilities}
+          disabled={locked}
+          onChange={(next) => {
+            if (next.agent === "workflow") return;
+            reset();
+            setTarget(next);
+          }}
+        />
       </div>
-      <p className="now-sub">{t("selection.defaultHint")}</p>
-      {(capability?.models.status !== "supported" || capability?.login.status === "unknown") && (
-        <p className="now-sub">{t("selection.unverified", { agent: PROVIDER_LABELS[target.agent] })}</p>
-      )}
-      {capabilities.error && (
-        <p className="error" role="alert">
-          {capabilities.error.message}
-        </p>
-      )}
+      <ExecutionCapabilityNotice value={target} capabilities={capabilities} />
       <label className="handoff-reason">
         {t("handoff.reason")}
         <textarea

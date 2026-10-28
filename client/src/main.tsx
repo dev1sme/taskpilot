@@ -8,6 +8,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./i18n";
+import "./shared/theme";
 import { queryClient } from "./shared/api/query-client";
 import { App } from "./app/App";
 import "./styles/tokens.css";

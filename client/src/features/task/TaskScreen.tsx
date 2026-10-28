@@ -1,5 +1,5 @@
 import { ArrowCounterClockwise, ArrowUUpLeft, CheckCircle, ChatCircleDots, CircleNotch, Diamond, PlugsConnected, Scroll, X } from "@phosphor-icons/react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { href } from "../../shared/router";
 import { Button } from "../../shared/ui/Button";
@@ -27,6 +27,17 @@ const PHASE_PILL: Record<PillPhase, { tone: string; icon: typeof CheckCircle }> 
   done: { tone: "done", icon: CheckCircle },
 };
 
+function useCompactTools(): boolean {
+  const [compact, setCompact] = useState(() => matchMedia("(max-width: 600px)").matches);
+  useEffect(() => {
+    const query = matchMedia("(max-width: 600px)");
+    const changed = () => setCompact(query.matches);
+    query.addEventListener("change", changed);
+    return () => query.removeEventListener("change", changed);
+  }, []);
+  return compact;
+}
+
 /** One task: progress, what is happening now (or the review), docs and activity; terminal on demand. */
 export function TaskScreen({ task }: { task: TaskSummary }) {
   const { repo } = useWorkspace();
@@ -35,6 +46,7 @@ export function TaskScreen({ task }: { task: TaskSummary }) {
 
 function TaskScreenContent({ task }: { task: TaskSummary }) {
   const { t } = useTranslation(["task", "shell"]);
+  const compactTools = useCompactTools();
   const { view, error, reload } = useRun(task.key);
   const { sessions, reload: reloadSessions } = useSessions(task.key);
   const activity = useActivity(task.key);
@@ -133,7 +145,7 @@ function TaskScreenContent({ task }: { task: TaskSummary }) {
           }
           title={
             <>
-              <span className="title-key">{task.key}</span>
+              <span className={`title-key${task.title !== task.key ? " has-title" : ""}`}>{task.key}</span>
               {task.title !== task.key && task.title}
             </>
           }
@@ -150,81 +162,84 @@ function TaskScreenContent({ task }: { task: TaskSummary }) {
             )
           }
           actions={
-            <>
-              {sent && (
-                <Button icon={Scroll} variant="quiet" title={t("sentPromptTitle")} onClick={() => setShowPrompt(true)}>
-                  {t("sentPrompt")}
-                </Button>
-              )}
-              {restart === "confirm" && <span className="toolbar-hint">{t("restartHint")}</span>}
-              {toolbarRestart &&
-                (restart === "idle" ? (
-                  <Button icon={ArrowCounterClockwise} variant="quiet" title={t("restartTitle")} onClick={() => setRestart("confirm")}>
-                    {t("restart")}
+            <details className="task-tools" open={compactTools ? undefined : true}>
+              <summary>{t("tools")}</summary>
+              <div className="task-tools-menu">
+                {sent && (
+                  <Button icon={Scroll} variant="quiet" title={t("sentPromptTitle")} onClick={() => setShowPrompt(true)}>
+                    {t("sentPrompt")}
                   </Button>
-                ) : (
-                  <>
-                    <RunOptions
-                      taskKey={task.key}
-                      initial={{ mode: view?.runMode?.id ?? view?.workflow.mode?.id, execution: run.execution ?? { agent: "workflow" } }}
-                      disabled={restart === "busy"}
-                    >
-                      {(options, blocked) => (
-                        <Button
-                          icon={ArrowCounterClockwise}
-                          variant="attention"
-                          busy={restart === "busy"}
-                          disabled={blocked}
-                          onClick={() => {
-                            setRestart("busy");
-                            setRestartError(null);
-                            void workflowApi
-                              .restartRun(task.key, options)
-                              .then(() => {
-                                changed();
-                                setRestart("idle");
-                              })
-                              .catch((error: Error) => {
-                                setRestartError(error.message);
-                                setRestart("confirm");
-                              });
-                          }}
-                        >
-                          {t("restartConfirm")}
-                        </Button>
-                      )}
-                    </RunOptions>
-                  </>
-                ))}
-              {view &&
-                !active &&
-                (task.done ? (
-                  <Button icon={ArrowUUpLeft} variant="quiet" busy={busyKey === task.key} title={t("reopenTitle")} onClick={() => void setDone(task.key, false)}>
-                    {t("reopen")}
+                )}
+                {restart === "confirm" && <span className="toolbar-hint">{t("restartHint")}</span>}
+                {toolbarRestart &&
+                  (restart === "idle" ? (
+                    <Button icon={ArrowCounterClockwise} variant="quiet" title={t("restartTitle")} onClick={() => setRestart("confirm")}>
+                      {t("restart")}
+                    </Button>
+                  ) : (
+                    <>
+                      <RunOptions
+                        taskKey={task.key}
+                        initial={{ mode: view?.runMode?.id ?? view?.workflow.mode?.id, execution: run.execution ?? { agent: "workflow" } }}
+                        disabled={restart === "busy"}
+                      >
+                        {(options, blocked) => (
+                          <Button
+                            icon={ArrowCounterClockwise}
+                            variant="attention"
+                            busy={restart === "busy"}
+                            disabled={blocked}
+                            onClick={() => {
+                              setRestart("busy");
+                              setRestartError(null);
+                              void workflowApi
+                                .restartRun(task.key, options)
+                                .then(() => {
+                                  changed();
+                                  setRestart("idle");
+                                })
+                                .catch((error: Error) => {
+                                  setRestartError(error.message);
+                                  setRestart("confirm");
+                                });
+                            }}
+                          >
+                            {t("restartConfirm")}
+                          </Button>
+                        )}
+                      </RunOptions>
+                    </>
+                  ))}
+                {view &&
+                  !active &&
+                  (task.done ? (
+                    <Button icon={ArrowUUpLeft} variant="quiet" busy={busyKey === task.key} title={t("reopenTitle")} onClick={() => void setDone(task.key, false)}>
+                      {t("reopen")}
+                    </Button>
+                  ) : (
+                    <Button icon={CheckCircle} busy={busyKey === task.key} title={t("markDoneTitle")} onClick={() => void setDone(task.key, true)}>
+                      {t("markDone")}
+                    </Button>
+                  ))}
+                {active && (
+                  <Button
+                    icon={X}
+                    variant="quiet"
+                    busy={cancelling}
+                    title={t("cancelTitle")}
+                    onClick={() => {
+                      setCancelling(true);
+                      void workflowApi
+                        .cancelRun(task.key)
+                        .then(changed)
+                        .finally(() => setCancelling(false));
+                    }}
+                  >
+                    {t("cancel")}
                   </Button>
-                ) : (
-                  <Button icon={CheckCircle} busy={busyKey === task.key} title={t("markDoneTitle")} onClick={() => void setDone(task.key, true)}>
-                    {t("markDone")}
-                  </Button>
-                ))}
-              {active && (
-                <Button
-                  icon={X}
-                  variant="quiet"
-                  busy={cancelling}
-                  title={t("cancelTitle")}
-                  onClick={() => {
-                    setCancelling(true);
-                    void workflowApi
-                      .cancelRun(task.key)
-                      .then(changed)
-                      .finally(() => setCancelling(false));
-                  }}
-                >
-                  {t("cancel")}
-                </Button>
-              )}
-            </>
+                )}
+              </div>
+            </details>
           }
         />
 
@@ -237,8 +252,15 @@ function TaskScreenContent({ task }: { task: TaskSummary }) {
         {view && (
           <div className="task-content">
             {dispatches && <SubagentNotice />}
-            <Stepper steps={steps} run={run} />
-            <div className="task-body">
+            <details className="task-progress">
+              <summary>
+                {run && steps[run.stepIndex]
+                  ? t("progressCurrent", { current: run.stepIndex + 1, total: steps.length, step: steps[run.stepIndex].title })
+                  : t("progressAll", { total: steps.length })}
+              </summary>
+              <Stepper steps={steps} run={run} />
+            </details>
+            <div className={`task-body${run?.phase === "gate" ? " is-gate" : ""}`}>
               <div className="task-main">
                 {run?.phase === "gate" ? (
                   <GateCard

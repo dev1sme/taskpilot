@@ -7,8 +7,8 @@
   padding: 0 28px;
   overflow-x: auto;
   overflow-y: hidden;
-  /* The scrollbar is hidden: if the number of tabs can overflow, add a fade with mask-image so users see more tabs. */
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
   box-shadow: inset 0 -1px 0 var(--line);
 }
 

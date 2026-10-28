@@ -4,7 +4,7 @@
   "needs": {
     "title": "việc đang chờ ba",
     "calmTitle": "Không có việc nào chờ ba",
-    "calmBody": "Khi agent (Claude, Copilot) cần ba duyệt, trả lời hoặc cho phép, việc đó sẽ hiện ở đây đầu tiên.",
+    "calmBody": "Khi agent cần ba duyệt, trả lời hoặc cho phép, việc đó sẽ hiện ở đây đầu tiên.",
     "open": "Mở",
     "all": "Xem tất cả {{count}} việc chờ",
     "cta": {
@@ -43,5 +43,13 @@
     "none": "Không có task nào đang chạy. Mở một task và bấm \"Bắt đầu quy trình\".",
     "starting": "Agent đang khởi động…",
     "pulse": "{{count}} thao tác trong 12 phút qua"
+  },
+  "providers": {
+    "title": "Coding providers",
+    "installed": "Đã tìm thấy CLI",
+    "missing": "Chưa tìm thấy CLI",
+    "unknown": "Chưa có thông tin CLI",
+    "instructions": "Hướng dẫn",
+    "settings": "Cấu hình"
   }
 }

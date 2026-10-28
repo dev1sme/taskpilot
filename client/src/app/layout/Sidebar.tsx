@@ -24,7 +24,10 @@ import { useWorkspace } from "../../features/workspace";
 import { useDrafts } from "../../features/config";
 import { statusOf } from "../../features/tasks";
 import { logout, useAuthMode } from "../../features/auth";
-import "../../shared/ui/brand-mark.css";
+import { PROVIDER_IDS } from "../../shared/providers";
+import { providerVersions } from "../../features/usage";
+import { ThemeSelector } from "../../shared/ui/ThemeSelector";
+import { BrandMark } from "../../shared/ui/BrandMark";
 import "./sidebar.css";
 
 interface NavItem {
@@ -101,7 +104,7 @@ export function Sidebar({
   const dirty = (prefix: string) => drafts.some((k) => k.startsWith(`${cli}:${prefix}`));
   const waiting = tasks.filter((x) => statusOf(x).tone === "attention").length;
   const inTasks = route.page === "tasks" || route.page === "task";
-  const libraryCount = cli === "claude" ? (inventory?.claudeDir.agents ?? 0) + (inventory?.claudeDir.commands ?? 0) + (inventory?.claudeDir.skills ?? 0) : 0;
+  const libraryCount = cli === "claude" && inventory ? inventory.claudeDir.agents + inventory.claudeDir.commands + inventory.claudeDir.skills : undefined;
   const rail = mode === "rail";
   const repoName = repo?.path?.split(/[\\/]/).filter(Boolean).pop() ?? t("common:noRepo");
 
@@ -114,11 +117,18 @@ export function Sidebar({
       items: [
         { label: t("nav.overview"), icon: ChartLineUp, route: { page: "overview" } },
         { label: t("nav.tasks"), icon: ListChecks, route: { page: "tasks" }, badge: waiting || undefined, warn: waiting > 0 },
+        {
+          label: t("nav.workflow"),
+          icon: FlowArrow,
+          route: { page: "config", section: "workflow" },
+          sections: ["workflow", "formats"],
+          dirty: drafts.some((k) => k.startsWith("workflow:")),
+        },
       ],
     },
     {
       id: "config",
-      label: t("navGroup.config", { cli: t(`cli.${cli}`) }),
+      label: t("navGroup.config"),
       foldable: true,
       items: [
         { label: t("nav.memory"), icon: BookOpenText, route: { page: "config", section: "memory", cli }, dirty: dirty("memory:") },
@@ -137,13 +147,6 @@ export function Sidebar({
           sections: ["agents", "commands", "skills"],
           badge: libraryCount || undefined,
           dirty: dirty("library:"),
-        },
-        {
-          label: t("nav.workflow"),
-          icon: FlowArrow,
-          route: { page: "config", section: "workflow" },
-          sections: ["workflow", "formats"],
-          dirty: drafts.some((k) => k.startsWith("workflow:")),
         },
       ],
     },
@@ -185,11 +188,10 @@ export function Sidebar({
 
   const toggle = (id: GroupId) => setCollapsed((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
 
-  const claude = info?.claudeVersion ? t("account.claudeVersion", { version: info.claudeVersion }) : t("account.claudeMissing");
-  // Copilot is optional: shown only when installed.
-  const copilot = info?.versions?.copilot ? t("account.copilotVersion", { version: info.versions.copilot }) : null;
-  const codex = info?.versions?.codex ? `Codex ${info.versions.codex}` : null;
-  const versions = [claude, copilot, codex].filter(Boolean).join("\n");
+  const versionLabels = providerVersions(info, t);
+  const versions = PROVIDER_IDS.map((id) => versionLabels[id])
+    .filter(Boolean)
+    .join("\n");
   const toggleLabel = mode === "drawer" ? t("sidebar.close") : rail ? t("sidebar.expand") : t("sidebar.collapse");
 
   const renderItem = (it: NavItem) => {
@@ -213,11 +215,7 @@ export function Sidebar({
       <div className="sidebar-head">
         <div className="brand-row">
           <a className="brand" href={href({ page: "overview" })} onClick={onNavigate} title={rail ? t("common:appName") : undefined}>
-            <span className="brand-mark" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round">
-                <path d="M3 12l18-8-8 18-2-8-8-2z" />
-              </svg>
-            </span>
+            <BrandMark />
             <span className="brand-name">{t("common:appName")}</span>
           </a>
           <button
@@ -273,11 +271,10 @@ export function Sidebar({
         <ul className="nav-utility">{renderItem(backups)}</ul>
       </div>
 
+      <ThemeSelector />
       <div className="sidebar-account">
         <div className="account-versions" title={versions}>
-          <span>{claude}</span>
-          {copilot && <span>{copilot}</span>}
-          {codex && <span>{codex}</span>}
+          {PROVIDER_IDS.map((id) => versionLabels[id] && <span key={id}>{versionLabels[id]}</span>)}
         </div>
         {authMode === "password" && (
           <button type="button" className="account-logout" onClick={() => void logout()} title={rail ? t("account.logout") : undefined}>

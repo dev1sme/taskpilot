@@ -1,6 +1,6 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import type { ProviderId } from "../../../shared/providers";
+import { PROVIDER_IDS, type ProviderId } from "../../../shared/providers";
 import { href, type ConfigSection } from "../../../shared/router";
 import { LoadError } from "./ConfigChrome";
 import { scopeLabel } from "./ScopeControls";
@@ -17,10 +17,31 @@ export interface SectionCapability {
   reason?: string;
 }
 
+export interface ConfigCapabilities {
+  section: ConfigSection;
+  sections: Partial<Record<ConfigSection, SectionCapability>>;
+}
+export const ConfigCapabilitiesContext = createContext<ConfigCapabilities>({ section: "memory", sections: {} });
+export const useConfigCapabilities = () => useContext(ConfigCapabilitiesContext);
+export function useConfigScopes(): Scope[] {
+  const { section, sections } = useConfigCapabilities();
+  return sections[section]?.scopes ?? [];
+}
+
+/** Ignore editor-opening responses after navigation has disposed this page. */
+export function useConfigLifetime() {
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => { active.current = false; };
+  }, []);
+  return () => active.current;
+}
+
 /** The CLI stays in the hash while moving among native configuration pages. */
 export function CliSelector({ cli, section }: { cli: ProviderId; section: ConfigSection }) {
   const { t } = useTranslation("shell");
-  const clis: ProviderId[] = ["claude", "copilot", "codex"];
+  const clis = PROVIDER_IDS;
   return (
     <nav className="page-tabs" aria-label={t("configSelector.label")}>
       {clis.map((candidate) => (

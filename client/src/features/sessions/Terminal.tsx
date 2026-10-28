@@ -23,7 +23,7 @@ export function Terminal({ sessionId, onExit }: { sessionId: string; onExit: (co
       fontSize: 13,
       scrollback: 10_000,
       // Matches --terminal in styles/tokens.css; the terminal stays dark in both themes.
-      theme: { background: "#0f1114", foreground: "#eceef1", cursor: "#7c8cff" },
+      theme: { background: "#141517", foreground: "#e6e7eb", cursor: "#85c7b2" },
     });
     const fit = new FitAddon();
     term.loadAddon(fit);

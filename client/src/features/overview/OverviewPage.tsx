@@ -1,6 +1,7 @@
-import { ArrowRight, BookOpenText, CheckCircle, Command, Lightning, Plugs, Robot, ShieldCheck, Sparkle } from "@phosphor-icons/react";
+import { ArrowRight, CheckCircle } from "@phosphor-icons/react";
 import { motion } from "motion/react";
 import { Trans, useTranslation } from "react-i18next";
+import { PROVIDER_IDS, PROVIDER_LABELS } from "../../shared/providers";
 import { href } from "../../shared/router";
 import { useWorkspace, type TaskSummary } from "../workspace";
 import { Elapsed } from "../../shared/ui/Elapsed";
@@ -18,10 +19,10 @@ import "./responsive.css";
 /** Waiting tasks listed in the hero; the rest are one click away on the task list. */
 const NEEDS_SHOWN = 5;
 
-/** Repo dashboard: what needs the user, what is running, and the shape of the Claude config. */
+/** Repo dashboard: what needs the user, what is running, and available coding providers. */
 export function OverviewPage() {
   const { t } = useTranslation(["overview", "shell", "config", "common"]);
-  const { repo, tasks, inventory } = useWorkspace();
+  const { repo, tasks, info } = useWorkspace();
   const sorted = sortTasks(tasks);
   const needs = sorted.filter((task) => statusOf(task).tone === "attention");
   const running = sorted.filter((task) => statusOf(task).tone === "active");
@@ -44,159 +45,102 @@ export function OverviewPage() {
         }
       />
 
-      <div className="bento" aria-label={t("label", { repo: repoName })}>
-        {/* needs you */}
-        <motion.section
-          className={`tile tile-hero${needs.length ? " has-needs" : ""}`}
-          aria-labelledby="needs-title"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-        >
-          {needs.length > 0 ? (
-            <>
-              <div className="hero-count">
-                <span className="hero-number">{needs.length}</span>
-                <h2 id="needs-title">{t("needs.title")}</h2>
-              </div>
-              <ul className="needs">
-                {needs.slice(0, NEEDS_SHOWN).map((task, i) => {
-                  const s = statusOf(task);
-                  return (
-                    <motion.li key={task.key} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 * i + 0.1 }}>
-                      <span className="need-glyph" aria-hidden="true">
-                        {s.glyph}
-                      </span>
-                      <span className="need-text">
-                        <span className="need-title" title={task.title !== task.key ? `${task.key} · ${task.title}` : task.key}>
-                          <span className="mono">{task.key}</span>
-                          {task.title !== task.key && ` · ${task.title}`}
+      <div className="overview-layout" aria-label={t("label", { repo: repoName })}>
+        <div className="overview-work">
+          {/* needs you */}
+          <motion.section
+            className={`tile tile-hero${needs.length ? " has-needs" : ""}`}
+            aria-labelledby="needs-title"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {needs.length > 0 ? (
+              <>
+                <div className="hero-count">
+                  <span className="hero-number">{needs.length}</span>
+                  <h2 id="needs-title">{t("needs.title")}</h2>
+                </div>
+                <ul className="needs">
+                  {needs.slice(0, NEEDS_SHOWN).map((task, i) => {
+                    const s = statusOf(task);
+                    return (
+                      <motion.li key={task.key} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 * i + 0.1 }}>
+                        <span className="need-glyph" aria-hidden="true">
+                          {s.glyph}
                         </span>
-                        <span className="need-sub">{isAttention(s.kind) ? t(`needs.detail.${s.kind}`) : s.label}</span>
-                      </span>
-                      <a className="btn btn-attention" href={href({ page: "task", key: task.key })}>
-                        <span>{isAttention(s.kind) ? t(`needs.cta.${s.kind}`) : t("needs.open")}</span>
-                      </a>
-                    </motion.li>
-                  );
-                })}
-              </ul>
-              {needs.length > NEEDS_SHOWN && (
-                <a className="tile-link needs-all" href={href({ page: "tasks" })}>
-                  {t("needs.all", { count: needs.length })} <ArrowRight aria-hidden="true" />
-                </a>
-              )}
-            </>
-          ) : (
-            <div className="hero-calm">
-              <CheckCircle weight="fill" aria-hidden="true" />
-              <h2 id="needs-title">{t("needs.calmTitle")}</h2>
-              <p>{t("needs.calmBody")}</p>
-            </div>
-          )}
-        </motion.section>
-
-        <RunningTile tasks={running} />
-
-        {/* tasks */}
-        <section className="tile" aria-labelledby="tasks-title">
-          <h2 id="tasks-title" className="tile-title">
-            {t("shell:nav.tasks")}
-          </h2>
-          <div className="big-number">{tasks.length}</div>
-          {tasks.length > 0 && (
-            <div className="stack-bar" aria-hidden="true">
-              {counts.done > 0 && <span style={{ flex: counts.done, background: "var(--done)" }} />}
-              {counts.active > 0 && <span style={{ flex: counts.active, background: "var(--signal)" }} />}
-              {counts.attention > 0 && <span style={{ flex: counts.attention, background: "var(--attention)" }} />}
-              {counts.idle > 0 && <span style={{ flex: counts.idle, background: "var(--line-strong)" }} />}
-            </div>
-          )}
-          <p className="tile-note">{t("tasks.counts", counts)}</p>
-        </section>
-
-        {/* CLAUDE.md */}
-        <section className="tile" aria-labelledby="mem-title">
-          <h2 id="mem-title" className="tile-title">
-            <BookOpenText aria-hidden="true" /> {t("shell:nav.memory")}
-          </h2>
-          {inventory?.claudeMd.exists ? (
-            <>
-              <p className="tile-mono">{t("memory.size", { lines: inventory.claudeMd.lines, tokens: formatTokens(inventory.claudeMd.bytes / 4) })}</p>
-              <div className="chips">
-                {inventory.claudeMd.headings.slice(0, 3).map((h) => (
-                  <span key={h} className="chip">
-                    {h}
-                  </span>
-                ))}
-                {inventory.claudeMd.headings.length > 3 && <span className="chip">+{inventory.claudeMd.headings.length - 3}</span>}
+                        <span className="need-text">
+                          <span className="need-title" title={task.title !== task.key ? `${task.key} · ${task.title}` : task.key}>
+                            <span className="mono">{task.key}</span>
+                            {task.title !== task.key && ` · ${task.title}`}
+                          </span>
+                          <span className="need-sub">{isAttention(s.kind) ? t(`needs.detail.${s.kind}`) : s.label}</span>
+                        </span>
+                        <a className="btn btn-attention" href={href({ page: "task", key: task.key })}>
+                          <span>{isAttention(s.kind) ? t(`needs.cta.${s.kind}`) : t("needs.open")}</span>
+                        </a>
+                      </motion.li>
+                    );
+                  })}
+                </ul>
+                {needs.length > NEEDS_SHOWN && (
+                  <a className="tile-link needs-all" href={href({ page: "tasks" })}>
+                    {t("needs.all", { count: needs.length })} <ArrowRight aria-hidden="true" />
+                  </a>
+                )}
+              </>
+            ) : (
+              <div className="hero-calm">
+                <CheckCircle weight="fill" aria-hidden="true" />
+                <h2 id="needs-title">{t("needs.calmTitle")}</h2>
+                <p>{t("needs.calmBody")}</p>
               </div>
-            </>
-          ) : (
-            <p className="tile-note">{t("memory.missing")}</p>
-          )}
-          <a className="tile-link" href={href({ page: "config", section: "memory" })}>
-            {t("memory.open")} <ArrowRight aria-hidden="true" />
-          </a>
-        </section>
+            )}
+          </motion.section>
 
-        {/* MCP */}
-        <section className="tile tile-wide" aria-labelledby="mcp-title">
-          <div className="tile-head">
-            <h2 id="mcp-title" className="tile-title">
-              <Plugs aria-hidden="true" /> {t("shell:nav.mcp")}
+          <RunningTile tasks={running} />
+
+          {/* tasks */}
+          <section className="tile tile-summary" aria-labelledby="tasks-title">
+            <h2 id="tasks-title" className="tile-title">
+              {t("shell:nav.tasks")}
             </h2>
-            <span className="tile-mono">{t("config:mcp.tab.project")}</span>
-          </div>
-          {inventory?.mcp.error && (
-            <p className="error" role="alert">
-              {inventory.mcp.error}
-            </p>
-          )}
-          {inventory?.mcp.servers.length ? (
-            <ul className="rows">
-              {inventory.mcp.servers.map((s) => (
-                <li key={s.name}>
-                  <span className="mono">{s.name}</span>
-                  <span className="row-meta">{s.type}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            !inventory?.mcp.error && <p className="tile-note">{t("mcp.empty")}</p>
-          )}
-          <a className="tile-link" href={href({ page: "config", section: "mcp" })}>
-            {t("mcp.manage")} <ArrowRight aria-hidden="true" />
-          </a>
-        </section>
-
-        {/* .claude */}
-        <section className="tile tile-wide tile-dir" aria-labelledby="dir-title">
-          <h2 id="dir-title" className="tile-title">
-            {t("dir.title")}
+            <div className="big-number">{tasks.length}</div>
+            {tasks.length > 0 && (
+              <div className="stack-bar" aria-hidden="true">
+                {counts.done > 0 && <span style={{ flex: counts.done, background: "var(--done)" }} />}
+                {counts.active > 0 && <span style={{ flex: counts.active, background: "var(--signal)" }} />}
+                {counts.attention > 0 && <span style={{ flex: counts.attention, background: "var(--attention)" }} />}
+                {counts.idle > 0 && <span style={{ flex: counts.idle, background: "var(--line-strong)" }} />}
+              </div>
+            )}
+            <p className="tile-note">{t("tasks.counts", counts)}</p>
+          </section>
+        </div>
+        <section className="overview-providers" aria-labelledby="providers-title">
+          <h2 id="providers-title" className="tile-title">
+            {t("providers.title")}
           </h2>
-          <div className="inventory">
-            <InvLink icon={Robot} n={inventory?.claudeDir.agents} label={t("shell:nav.agents")} section="agents" />
-            <InvLink icon={Command} n={inventory?.claudeDir.commands} label={t("shell:nav.commands")} section="commands" />
-            <InvLink icon={Sparkle} n={inventory?.claudeDir.skills} label={t("shell:nav.skills")} section="skills" />
-            <InvLink icon={Lightning} n={inventory?.claudeDir.hooks} label={t("shell:nav.hooks")} section="hooks" />
+          <div className="overview-config">
+            {PROVIDER_IDS.map((provider) => {
+              const version = info?.versions?.[provider] ?? (provider === "claude" ? info?.claudeVersion : undefined);
+              const knownMissing = info !== null && (info.versions?.[provider] === null || (provider === "claude" && info.claudeVersion === null));
+              return (
+                <a className="provider-item" key={provider} href={href({ page: "config", section: "settings", cli: provider })}>
+                  <span className={`provider-status${version ? " is-installed" : ""}`} aria-hidden="true" />
+                  <span className="provider-identity">
+                    <strong>{PROVIDER_LABELS[provider]}</strong>
+                    <span className="tile-note">{version ? t("providers.installed") : knownMissing ? t("providers.missing") : t("providers.unknown")}</span>
+                  </span>
+                  {version && <span className="tile-mono provider-version">{version}</span>}
+                  <ArrowRight className="provider-arrow" aria-hidden="true" />
+                </a>
+              );
+            })}
           </div>
-          <a className="tile-link" href={href({ page: "config", section: "settings" })}>
-            <ShieldCheck aria-hidden="true" /> {t("dir.permissions", { allow: inventory?.claudeDir.allow ?? 0, deny: inventory?.claudeDir.deny ?? 0 })}
-          </a>
         </section>
       </div>
     </div>
-  );
-}
-
-function InvLink(props: { icon: typeof Robot; n: number | undefined; label: string; section: "agents" | "commands" | "skills" | "hooks" }) {
-  return (
-    <a className="inv" href={href({ page: "config", section: props.section })}>
-      <props.icon aria-hidden="true" />
-      <span className="inv-n">{props.n ?? "–"}</span>
-      <span className="inv-label">{props.label}</span>
-    </a>
   );
 }
 
@@ -274,9 +218,4 @@ function Pulse({ items }: { items: ActivityItem[] }) {
       ))}
     </div>
   );
-}
-
-/** Rough size for a prompt file (about 4 bytes per token). */
-function formatTokens(n: number): string {
-  return n < 1000 ? String(Math.round(n / 10) * 10) : `${(n / 1000).toFixed(1)}k`;
 }

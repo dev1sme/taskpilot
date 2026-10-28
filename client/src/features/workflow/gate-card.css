@@ -2,11 +2,37 @@
 
 .gate-card {
   display: grid;
-  gap: 16px;
-  padding: 22px;
+  gap: 18px;
+  padding: 24px;
   background: var(--attention-soft);
   border: 1px solid var(--attention-line);
   border-radius: var(--r-lg);
+}
+
+.gate-overview {
+  display: grid;
+  gap: 12px;
+}
+
+.gate-overview > .now-sub {
+  margin: 0;
+}
+
+.gate-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(290px, 340px);
+  align-items: start;
+  gap: 18px;
+}
+
+.gate-evidence,
+.gate-decide {
+  min-width: 0;
+}
+
+.gate-evidence {
+  display: grid;
+  gap: 14px;
 }
 
 .gate-head {
@@ -15,7 +41,7 @@
   align-items: flex-start;
 }
 
-.gate-head h3 {
+.gate-head h2 {
   margin: 0;
   font-size: 19px;
   letter-spacing: -0.01em;
@@ -40,21 +66,32 @@
 
 .gate-claude {
   margin: 0;
-  padding: 14px 16px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-}
-
-.gate-claude figcaption {
-  margin-bottom: 4px;
-  font-size: 13px;
-  font-weight: 600;
   color: var(--muted);
 }
 
-.gate-claude .markdown {
+.gate-overview .gate-claude {
+  max-width: 76ch;
+}
+
+.gate-claude > summary {
+  width: fit-content;
   font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gate-claude > summary:hover,
+.gate-claude > summary:focus-visible {
+  color: var(--ink);
+}
+
+.gate-claude .markdown {
+  margin-top: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--surface);
+  border-radius: var(--r-sm);
 }
 
 .gate-doc {
@@ -84,10 +121,20 @@
 .gate-decide {
   display: grid;
   gap: 14px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--attention-line);
+  border-radius: var(--r-md);
+  position: sticky;
+  top: 16px;
 }
 
 .gate-decide > .btn {
   justify-self: start;
+}
+
+.gate-mobile-doc {
+  display: none;
 }
 
 .gate-hint {
@@ -119,4 +166,51 @@
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   resize: vertical;
+}
+
+@media (max-width: 900px) {
+  .gate-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gate-decide {
+    order: -1;
+    position: static;
+  }
+
+  .gate-mobile-doc.btn {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 600px) {
+  .gate-card {
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .gate-head {
+    gap: 10px;
+  }
+
+  .gate-badge {
+    width: 34px;
+    height: 34px;
+    font-size: 18px;
+  }
+
+  .gate-decide {
+    gap: 8px;
+    padding: 14px;
+  }
+
+  .gate-decide > .btn,
+  .gate-feedback-row .btn {
+    min-height: 44px;
+    white-space: normal;
+  }
+
+  .gate-doc-body {
+    max-height: 220px;
+  }
 }

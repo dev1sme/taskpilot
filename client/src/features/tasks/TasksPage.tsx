@@ -12,7 +12,7 @@ import { useTaskDone } from "./useTaskDone";
 import "../../shared/ui/table.css";
 import "./tasks.css";
 
-const FILTERS: TaskFilter[] = ["open", "done", "all"];
+const FILTERS: TaskFilter[] = ["open", "attention", "running", "done", "all"];
 const FILTER_KEY = "taskpilot.tasks.filter";
 
 /** The filter last picked in this browser; "open" when none is stored or storage is blocked. */
@@ -25,7 +25,7 @@ function storedFilter(): TaskFilter {
   }
 }
 
-/** Every task of the repo as a table; needs-you first, done last. The decision log is not counted among Claude's documents. */
+/** Every task of the repo as a table; needs-you first, done last.  */
 export function TasksPage() {
   const { t } = useTranslation("tasks");
   const { tasks, repo } = useWorkspace();
@@ -48,13 +48,15 @@ export function TasksPage() {
       {repo?.tasksDirExists && (
         <Toolbar
           start={
-            <div className="task-filter" role="group" aria-label={t("page.filter.label")}>
-              {FILTERS.map((f) => (
-                <button key={f} type="button" aria-pressed={filter === f} onClick={() => pick(f)}>
-                  {t(`page.filter.${f}`)}
-                  <span className="task-filter-count">{tasks.filter((task) => matchesFilter(task, f)).length}</span>
-                </button>
-              ))}
+            <div className="task-list-controls">
+              <div className="task-filter" role="group" aria-label={t("page.filter.label")}>
+                {FILTERS.map((f) => (
+                  <button key={f} type="button" aria-pressed={filter === f} onClick={() => pick(f)}>
+                    {t(`page.filter.${f}`)}
+                    <span className="task-filter-count">{tasks.filter((task) => matchesFilter(task, f)).length}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           }
         />
@@ -79,38 +81,44 @@ export function TasksPage() {
           </div>
         ) : (
           <div className="task-table-wrap">
-            <table className="task-table">
-              <thead>
-                <tr>
-                  <th scope="col">{t("page.col.status")}</th>
-                  <th scope="col">{t("page.col.task")}</th>
-                  <th scope="col">{t("page.col.docs")}</th>
-                  <th scope="col">{t("page.col.updated")}</th>
-                  <th scope="col">
+            <table className="task-table task-list-table" role="table">
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th scope="col" role="columnheader">
+                    {t("page.col.status")}
+                  </th>
+                  <th scope="col" role="columnheader">
+                    {t("page.col.task")}
+                  </th>
+                  <th scope="col" role="columnheader">
+                    {t("page.col.updated")}
+                  </th>
+                  <th scope="col" role="columnheader">
                     <span className="sr-only">{t("page.col.actions")}</span>
                   </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody role="rowgroup">
                 {shown.map((task) => {
                   const s = statusOf(task);
                   return (
-                    <tr key={task.key} className={`tone-${s.tone}`}>
-                      <td>
+                    <tr key={task.key} role="row" className={`tone-${s.tone}`}>
+                      <td role="cell">
                         <span className="status-chip" title={s.title}>
                           <span aria-hidden="true">{s.glyph}</span>
                           {s.label}
                         </span>
                       </td>
-                      <td>
+                      <td role="cell">
                         <a href={href({ page: "task", key: task.key })} className="task-link">
                           <span className="mono">{task.key}</span>
                           {task.title !== task.key && <span className="task-link-title">{task.title}</span>}
                         </a>
                       </td>
-                      <td className="muted">{t("page.docs", { spec: task.specFiles.length, written: task.outputFiles.filter((f) => f.path !== task.historyFile).length })}</td>
-                      <td className="muted mono">{clockTime(task.updatedAt)}</td>
-                      <td className="task-action" title={runActive(task) ? t("page.action.blocked") : undefined}>
+                      <td role="cell" className="muted mono">
+                        {clockTime(task.updatedAt)}
+                      </td>
+                      <td role="cell" className="task-action" title={runActive(task) ? t("page.action.blocked") : undefined}>
                         <DoneButton task={task} done={s.kind === "done"} busy={busyKey === task.key} onSet={(done) => void setDone(task.key, done)} />
                       </td>
                     </tr>

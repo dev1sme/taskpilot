@@ -1,3 +1,7 @@
+.overview-work .tile-running {
+  grid-column: auto;
+}
+
 /* ------------------------------------------------------------------ running */
 
 .live-dot {

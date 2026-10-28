@@ -34,23 +34,29 @@ export function ScopeTabs<S extends Scope>(props: {
 }) {
   const { t } = useTranslation("common");
   return (
-    <div className="segmented scope-tabs" role="tablist" aria-label={props.label}>
-      {(props.scopes ?? (SCOPES as S[])).map((s) => (
-        <button
-          key={s}
-          type="button"
-          role="tab"
-          aria-selected={s === props.value}
-          title={scopeHint(s)}
-          aria-label={props.count && `${props.labels[s]} (${props.count(s)})`}
-          onClick={() => props.onChange(s)}
-          className={props.isMissing?.(s) ? "is-missing" : undefined}
-        >
-          {props.labels[s]}
-          {props.count && <span className="tab-count">{props.count(s)}</span>}
-          {props.isDirty?.(s) && <span className="tab-dirty" aria-label={t("unsaved")} />}
-        </button>
-      ))}
+    <div className="scope-control">
+      <div className="segmented scope-tabs" role="tablist" aria-label={props.label}>
+        {(props.scopes ?? (SCOPES as S[])).map((s) => (
+          <button
+            key={s}
+            type="button"
+            role="tab"
+            aria-selected={s === props.value}
+            title={`${props.labels[s]} — ${scopeHint(s)}`}
+            aria-label={`${scopeLabel(s)}: ${props.labels[s]}${props.count ? ` (${props.count(s)})` : ""}`}
+            onClick={() => props.onChange(s)}
+            className={props.isMissing?.(s) ? "is-missing" : undefined}
+          >
+            <span className="scope-file-label">{props.labels[s]}</span>
+            <span className="scope-short-label" aria-hidden="true">
+              {scopeLabel(s)}
+            </span>
+            {props.count && <span className="tab-count">{props.count(s)}</span>}
+            {props.isDirty?.(s) && <span className="tab-dirty" aria-label={t("unsaved")} />}
+          </button>
+        ))}
+      </div>
+      <p className="scope-selected-file">{props.labels[props.value]}</p>
     </div>
   );
 }

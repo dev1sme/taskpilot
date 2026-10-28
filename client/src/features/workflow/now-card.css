@@ -49,7 +49,7 @@
   background: var(--done-soft);
 }
 
-.now-body h3 {
+.now-body h2 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
@@ -99,8 +99,8 @@
   font-size: 14px;
   color: var(--muted);
   background: var(--raised);
-  border-left: 3px solid var(--attention);
-  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  border-left: 1px solid var(--attention);
+  border-radius: var(--r-sm);
 }
 
 .now-counts {
@@ -128,6 +128,29 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  margin-top: 14px;
+}
+
+.now-restart {
+  flex: 1 1 100%;
+  min-width: 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.now-restart > summary {
+  width: fit-content;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.now-restart > summary:hover,
+.now-restart > summary:focus-visible {
+  color: var(--ink);
+}
+
+.now-restart .run-options {
   margin-top: 14px;
 }
 
@@ -348,6 +371,21 @@
 }
 
 @media (max-width: 600px) {
+  .now-card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding: 16px;
+  }
+
+  .now-card > .now-icon {
+    display: none;
+  }
+
+  .now-actions .btn,
+  .now-restart > summary {
+    min-height: 40px;
+  }
+
   .handoff-dialog {
     padding: 14px;
     width: calc(100% - 24px);

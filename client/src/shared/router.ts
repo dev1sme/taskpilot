@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { ProviderId } from "./providers";
+import { isProviderId, type ProviderId } from "./providers";
 
 export type Route =
   { page: "overview" } | { page: "tasks" } | { page: "task"; key: string } | { page: "config"; section: ConfigSection; file?: string; cli?: ProviderId } | { page: "backups" };
@@ -8,7 +8,6 @@ export type ConfigSection = "memory" | "settings" | "hooks" | "agents" | "comman
 
 const CONFIG: ConfigSection[] = ["memory", "settings", "hooks", "agents", "commands", "skills", "workflow", "formats", "mcp", "codegraph"];
 const SHARED: ConfigSection[] = ["workflow", "formats", "codegraph"];
-const CLIS: ProviderId[] = ["claude", "copilot", "codex"];
 let selectedCli: ProviderId = "claude";
 
 export const isCliConfigSection = (section: ConfigSection): boolean => !SHARED.includes(section);
@@ -19,7 +18,7 @@ export function parseRoute(hash: string): Route {
   const [path, search = ""] = hash.replace(/^#\/?/, "").split("?", 2);
   const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
   const rawCli = new URLSearchParams(search).get("cli");
-  const cli = CLIS.find((value) => value === rawCli) ?? "claude";
+  const cli = isProviderId(rawCli) ? rawCli : "claude";
   if (parts[0] === "tasks") return parts[1] ? { page: "task", key: parts[1] } : { page: "tasks" };
   if (parts[0] === "backups") return { page: "backups" };
   if (parts[0] === "workflow" && parts[1]) return { page: "config", section: "workflow", file: parts[1] };

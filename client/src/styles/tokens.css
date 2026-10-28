@@ -1,49 +1,49 @@
 /*
- * "Instrument panel" tokens. Dark (graphite) is the primary theme; light is supported.
- * One brand accent (indigo) for interaction, amber only for "needs you", green for done.
+ * TaskPilot: neutral charcoal dark surfaces and warm light surfaces with a jade interaction accent; light and dark supported.
+ * One brand accent (jade) for interaction, amber only for "needs you", green for done.
  * Every text/background pair used is at least 4.5:1; markers and bands at least 3:1.
  */
 :root {
   color-scheme: dark;
 
-  --bg: #111316;
-  --sidebar: #15171b;
-  --surface: #17191d;
-  --raised: #1b1e23;
-  --hover: #22252b;
-  --sunken: #0f1114;
-  --line: #262a31;
-  --line-strong: #3a3f48;
+  --bg: #18191b;
+  --sidebar: #1c1d20;
+  --surface: #212225;
+  --raised: #27282c;
+  --hover: #303136;
+  --sunken: #141517;
+  --line: #34353b;
+  --line-strong: #50525b;
 
-  --ink: #eceef1;
-  --muted: #9ba1ab;
-  --faint: #7d848f;
+  --ink: #e6e7eb;
+  --muted: #afb1bb;
+  --faint: #9598a4;
 
-  --signal: #7c8cff;
-  --signal-text: #9aa6ff;
-  --on-signal: #0d0f14;
-  --signal-soft: rgba(124, 140, 255, 0.16);
+  --signal: #85c7b2;
+  --signal-text: #a1d7c6;
+  --on-signal: #10251d;
+  --signal-soft: rgba(133, 199, 178, 0.12);
 
-  --attention: #f5b544;
+  --attention: #e6b566;
   --on-attention: #1d1404;
-  --attention-soft: #1d1a12;
-  --attention-line: #5a4313;
+  --attention-soft: #29251e;
+  --attention-line: #655338;
 
-  --done: #3dd68c;
-  --done-soft: rgba(61, 214, 140, 0.13);
+  --done: #91c79b;
+  --done-soft: rgba(145, 199, 155, 0.12);
   --danger: #ff8a8a;
   --danger-soft: rgba(255, 107, 107, 0.13);
 
-  --cat-read: #7c8cff;
-  --cat-write: #3dd68c;
+  --cat-read: #85c7b2;
+  --cat-write: #91c79b;
   --cat-run: #b48cf2;
   --cat-search: #3fc1c9;
   --cat-web: #f08a5d;
   --cat-agent: #e879b0;
   --cat-plan: #d8b44a;
-  --cat-other: #9ba1ab;
+  --cat-other: #afb1bb;
 
-  --terminal: #0f1114;
+  --terminal: #141517;
 
   --sans: "Geist", system-ui, sans-serif;
   --mono: "Geist Mono", ui-monospace, monospace;
@@ -55,47 +55,45 @@
   --fast: 150ms;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color-scheme: light;
+:root[data-theme="light"] {
+  color-scheme: light;
 
-    --bg: #f6f7f9;
-    --sidebar: #eef0f3;
-    --surface: #ffffff;
-    --raised: #f8f9fb;
-    --hover: #e2e6ec;
-    --sunken: #f1f3f6;
-    --line: #e1e4e9;
-    --line-strong: #c9ced6;
+  --bg: #f5f6f1;
+  --sidebar: #ebeee6;
+  --surface: #ffffff;
+  --raised: #f7f9f3;
+  --hover: #e3e9dd;
+  --sunken: #eef1e8;
+  --line: #dce2d5;
+  --line-strong: #bac6b7;
 
-    --ink: #15171b;
-    --muted: #59606b;
-    --faint: #737a85;
+  --ink: #181d1b;
+  --muted: #536451;
+  --faint: #586a53;
 
-    --signal: #4f5bd5;
-    --signal-text: #3f4bc4;
-    --on-signal: #ffffff;
-    --signal-soft: rgba(79, 91, 213, 0.1);
+  --signal: #226d53;
+  --signal-text: #195e46;
+  --on-signal: #ffffff;
+  --signal-soft: rgba(34, 109, 83, 0.1);
 
-    --attention: #8a5c00;
-    --on-attention: #ffffff;
-    --attention-soft: #fff7e8;
-    --attention-line: #f0d29a;
+  --attention: #8a5c00;
+  --on-attention: #ffffff;
+  --attention-soft: #fff7e8;
+  --attention-line: #f0d29a;
 
-    --done: #1f7a4c;
-    --done-soft: rgba(31, 122, 76, 0.1);
-    --danger: #c0362c;
-    --danger-soft: rgba(192, 54, 44, 0.08);
+  --done: #426d27;
+  --done-soft: rgba(66, 109, 39, 0.1);
+  --danger: #c0362c;
+  --danger-soft: rgba(192, 54, 44, 0.08);
 
-    --cat-read: #4f5bd5;
-    --cat-write: #1f7a4c;
-    --cat-run: #7046c2;
-    --cat-search: #0d7f87;
-    --cat-web: #b4501f;
-    --cat-agent: #b3366f;
-    --cat-plan: #8a6a00;
-    --cat-other: #59606b;
+  --cat-read: #226d53;
+  --cat-write: #426d27;
+  --cat-run: #7046c2;
+  --cat-search: #0d7f87;
+  --cat-web: #b4501f;
+  --cat-agent: #b3366f;
+  --cat-plan: #8a6a00;
+  --cat-other: #536451;
 
-    --shadow: 0 8px 24px rgba(21, 23, 27, 0.08);
-  }
+  --shadow: 0 8px 24px rgba(21, 23, 27, 0.08);
 }

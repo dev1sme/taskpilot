@@ -19,16 +19,16 @@
     "col": {
       "status": "Trạng thái",
       "task": "Task",
-      "docs": "Tài liệu",
       "updated": "Cập nhật",
       "actions": "Thao tác"
     },
-    "docs": "{{spec}} spec · {{written}} Claude viết",
     "filter": {
       "label": "Lọc task",
       "open": "Đang làm",
       "done": "Hoàn thành",
-      "all": "Tất cả"
+      "all": "Tất cả",
+      "attention": "Cần xử lý",
+      "running": "Đang chạy"
     },
     "filterEmpty": {
       "open": {
@@ -42,6 +42,14 @@
       "all": {
         "title": "Repo chưa có task",
         "body": "Tạo thư mục spec/ trong .claude/tasks/<mã task>/ để bắt đầu."
+      },
+      "attention": {
+        "title": "Không có task cần xử lý",
+        "body": "Các yêu cầu duyệt, trả lời, cấp quyền và task gián đoạn sẽ xuất hiện ở đây."
+      },
+      "running": {
+        "title": "Không có task đang chạy",
+        "body": "Task đang khởi động hoặc thực thi sẽ xuất hiện ở đây."
       }
     },
     "action": {

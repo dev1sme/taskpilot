@@ -9,7 +9,8 @@ import { ConfigHeader, ConfigToolbar, LoadError, RuleChip } from "../shared/Conf
 import { DraftControls, ScopeTabs, ScopeTag, scopeHint } from "../shared/ScopeControls";
 import { PermissionsEditor, permissionsKey, usePermissionsSave, type PermissionsDraft } from "./PermissionsEditor";
 import { useConfig } from "../shared/useConfig";
-import { useConfigCli } from "../shared/CliContext";
+import { configAdapters } from "../shared/provider-adapters";
+import { useConfigCli, useConfigScopes, useConfigLifetime } from "../shared/CliContext";
 import { settingsApi } from "./api";
 import { NativeSettingsPage } from "./NativeSettingsPage";
 import type { SettingsFile } from "./types";
@@ -23,13 +24,19 @@ const knownMode = (m: string): m is (typeof MODES)[number] => (MODES as readonly
 /** Permission rules and env of each settings scope, one file at a time. Deny beats ask beats allow in Claude Code. */
 export function SettingsPage() {
   const cli = useConfigCli();
-  return cli === "claude" ? <ClaudeSettingsPage /> : <NativeSettingsPage key={cli} cli={cli} />;
+  const editors = {
+    claude: () => <ClaudeSettingsPage />,
+    native: () => cli !== "claude" ? <NativeSettingsPage cli={cli} /> : null,
+  };
+  return editors[configAdapters[cli].settingsEditor]();
 }
 
 function ClaudeSettingsPage() {
   const { t } = useTranslation("config");
   const { data, error, loading, reload } = useConfig(["settings"], settingsApi.settings);
-  const [scope, setScope] = useState<Scope>("project");
+  const isActive = useConfigLifetime();
+  const scopes = useConfigScopes();
+  const [scope, setScope] = useState<Scope>(scopes[0] ?? "project");
   const [opening, setOpening] = useState(false);
   useDrafts();
   const draft = getDraft<PermissionsDraft>(permissionsKey(scope));
@@ -41,6 +48,7 @@ function ClaudeSettingsPage() {
     setOpening(true);
     try {
       const p = await settingsApi.permissions(scope);
+      if (!isActive()) return;
       setDraft(permissionsKey(scope), {
         permissions: { allow: p.allow, ask: p.ask, deny: p.deny, defaultMode: p.defaultMode },
         baseHash: p.hash,
@@ -84,8 +92,9 @@ function ClaudeSettingsPage() {
       <ConfigToolbar
         start={
           <ScopeTabs
+            scopes={scopes}
             value={scope}
-            onChange={setScope}
+            onChange={(next) => { flow.dialog.onClose(); setScope(next); }}
             label={t("settings.tabsLabel")}
             labels={{ project: t("settings.tab.project"), local: t("settings.tab.local"), user: t("settings.tab.user") }}
             isMissing={(s) => files.find((f) => f.scope === s)?.exists === false && !getDraft(permissionsKey(s))}

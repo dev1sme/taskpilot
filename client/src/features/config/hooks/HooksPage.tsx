@@ -8,7 +8,8 @@ import { getDraft, isDirty, setDraft, useDrafts } from "../shared/drafts";
 import { EMPTY_HOOK, HooksEditor, hooksKey, useHooksSave, type HooksDraft } from "./HooksEditor";
 import { ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "../shared/ConfigChrome";
 import { DraftControls, ScopeTabs } from "../shared/ScopeControls";
-import { useConfigCli } from "../shared/CliContext";
+import { configAdapters } from "../shared/provider-adapters";
+import { useConfigCli, useConfigScopes, useConfigLifetime } from "../shared/CliContext";
 import { useConfig } from "../shared/useConfig";
 import { CopilotHooksPage } from "./CopilotHooksPage";
 import { hooksApi } from "./api";
@@ -39,9 +40,9 @@ const EVENT_LINE = /^ {2}"([^"]+)": \[/;
 /** Hooks of one settings file at a time, shown as the JSON block written in the file; edited as rows. */
 export function HooksPage() {
   const cli = useConfigCli();
-  if (cli === "copilot") return <CopilotHooksPage />;
-  if (cli === "codex") return <UnsupportedHooksPage />;
-  return <ClaudeHooksPage />;
+  const editors = { claude: ClaudeHooksPage, copilot: CopilotHooksPage, unsupported: UnsupportedHooksPage };
+  const Editor = editors[configAdapters[cli].hooksEditor];
+  return <Editor />;
 }
 
 function UnsupportedHooksPage() {
@@ -59,7 +60,9 @@ function UnsupportedHooksPage() {
 function ClaudeHooksPage() {
   const { t } = useTranslation("config");
   const tabLabel = (s: Scope) => t(`settings.tab.${s}`);
-  const [scope, setScope] = useState<Scope>("project");
+  const isActive = useConfigLifetime();
+  const scopes = useConfigScopes();
+  const [scope, setScope] = useState<Scope>(scopes[0] ?? "project");
   const { data, error, loading, reload } = useConfig(["hooks-file", scope], () => hooksApi.hooksFile(scope));
   const [opening, setOpening] = useState(false);
   useDrafts();
@@ -70,6 +73,7 @@ function ClaudeHooksPage() {
     setOpening(true);
     try {
       const f = await hooksApi.hooksFile(scope);
+      if (!isActive()) return;
       const base: HooksDraft = { scope, hooks: f.hooks, baseHash: f.hash, path: f.path };
       // A file without command hooks opens with one empty row to fill in; that row alone is not a change.
       setDraft(hooksKey(scope), f.hooks.length ? base : { ...base, hooks: [EMPTY_HOOK] });
@@ -109,8 +113,9 @@ function ClaudeHooksPage() {
       <ConfigToolbar
         start={
           <ScopeTabs
+            scopes={scopes}
             value={scope}
-            onChange={setScope}
+            onChange={(next) => { flow.dialog.onClose(); setScope(next); }}
             label={t("settings.tabsLabel")}
             labels={{ project: tabLabel("project"), local: tabLabel("local"), user: tabLabel("user") }}
             isDirty={(s) => isDirty(hooksKey(s))}

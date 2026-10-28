@@ -3,7 +3,7 @@ import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "../../shared/ui/Button";
 // .brand-mark
-import "../../shared/ui/brand-mark.css";
+import { BrandMark } from "../../shared/ui/BrandMark";
 import { authApi } from "./api";
 
 export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
@@ -33,11 +33,7 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
         }}
       >
         <div className="login-brand">
-          <span className="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round">
-              <path d="M3 12l18-8-8 18-2-8-8-2z" />
-            </svg>
-          </span>
+          <BrandMark />
           <h1 id={`${id}-title`}>{t("common:appName")}</h1>
         </div>
 

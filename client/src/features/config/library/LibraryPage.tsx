@@ -5,14 +5,15 @@ import { useTranslation } from "react-i18next";
 import { useWorkspace } from "../../workspace";
 import { Button } from "../../../shared/ui/Button";
 import { DiffDialog } from "../../../shared/ui/DiffDialog";
-import i18n from "../../../i18n";
+import { configAdapters } from "../shared/provider-adapters";
+import { libraryAdapters, sourceDirectory } from "./provider-adapters";
 import type { ProviderId } from "../../../shared/providers";
 import { Markdown } from "../../../shared/ui/Markdown";
 import { toast } from "../../../shared/ui/Toast";
 import { clearDraft, configDraftKey, getDraft, setDraft, useDrafts } from "../shared/drafts";
 import { backupToast, ConfigHeader, ConfigToolbar, EmptyCard, LoadError, PageTabs } from "../shared/ConfigChrome";
 import { DraftControls, ScopeTabs, ScopeTag } from "../shared/ScopeControls";
-import { useConfigCli } from "../shared/CliContext";
+import { useConfigCapabilities, useConfigCli, useConfigScopes, useConfigLifetime } from "../shared/CliContext";
 import { shadowedBy } from "../shared/precedence";
 import { useConfig } from "../shared/useConfig";
 import { useSaveFlow } from "../shared/useSaveFlow";
@@ -40,33 +41,6 @@ function useCopy(kind: LibraryKind) {
 }
 
 type LibraryScope = LibraryItem["scope"];
-const libraryScopes = (cli: ProviderId, kind: LibraryKind): readonly LibraryScope[] => (cli === "codex" && kind === "agents" ? ["project"] : ["project", "user"]);
-
-/** Folder of `kind` in `scope`, as the tab and the new-item dialog show it. */
-const scopeDir = (cli: ProviderId, kind: LibraryKind, scope: LibraryScope) => {
-  if (cli === "claude") return scope === "project" ? `.claude/${kind}` : `~/.claude/${kind}`;
-  if (cli === "codex") return kind === "agents" ? ".codex/agents" : scope === "project" ? ".agents/skills" : "~/.agents/skills";
-  if (kind === "agents") return scope === "project" ? ".github/agents" : "~/.copilot/agents";
-  return scope === "project" ? ".github/skills" : "~/.copilot/skills";
-};
-
-/** Starting content for a new item; the user edits it before the first save. Placeholders follow the UI language. */
-function template(cli: ProviderId, kind: LibraryKind, name: string): string {
-  const base = name.split("/").pop() ?? name;
-  const t = i18n.getFixedT(null, "config", "library.template");
-  if (kind === "agents") {
-    if (cli === "codex")
-      return `name = ${JSON.stringify(base)}\ndescription = ${JSON.stringify(t("agentDescription"))}\ndeveloper_instructions = ${JSON.stringify(t("agentBody", { name: base }))}\n`;
-    if (cli === "copilot") return `---\ndescription: ${t("agentDescription")}\n---\n\n${t("agentBody", { name: base })}\n`;
-    return `---\nname: ${base}\ndescription: ${t("agentDescription")}\ntools: Read, Grep, Glob\nmodel: sonnet\n---\n\n${t("agentBody", { name: base })}\n`;
-  }
-  if (kind === "commands") return `---\ndescription: ${t("commandDescription")}\nargument-hint: ${t("commandArgumentHint")}\n---\n\n${t("commandBody")}\n`;
-  return `---\nname: ${base}\ndescription: ${t("skillDescription")}\n---\n\n# ${base}\n\n${t("skillBody")}\n`;
-}
-
-function relFor(cli: ProviderId, kind: LibraryKind, name: string): string {
-  return kind === "skills" ? `${name}/SKILL.md` : cli === "codex" ? `${name}.toml` : cli === "copilot" ? `${name}.agent.md` : `${name}.md`;
-}
 
 interface LibraryDraft {
   kind: LibraryKind;
@@ -85,7 +59,8 @@ const KINDS: readonly LibraryKind[] = ["agents", "commands", "skills"];
 /** Switches between the three library sections; each tab is the section's own route. */
 function KindTabs({ cli, kind }: { cli: ProviderId; kind: LibraryKind }) {
   const { t } = useTranslation("config");
-  const tabs = KINDS.filter((k) => cli === "claude" || k !== "commands").map((k) => ({
+  const capabilities = useConfigCapabilities();
+  const tabs = KINDS.filter((k) => capabilities.sections[k]?.available && capabilities.sections[k]?.supported).map((k) => ({
     route: { page: "config", section: k, cli } as const,
     label: t(`library.kind.${k}.title`),
     current: k === kind,
@@ -103,26 +78,20 @@ function LibraryPageForCli({ cli, kind }: { cli: ProviderId; kind: LibraryKind }
   const { t } = useTranslation("config");
   const { data, error, loading, reload } = useConfig(["library", cli, kind], () => libraryApi.library(cli, kind));
   const { reloadInventory } = useWorkspace();
-  const [scope, setScope] = useState<LibraryScope>("project");
+  const isActive = useConfigLifetime();
+  const scopes = useConfigScopes().filter((s): s is LibraryScope => s !== "local");
+  const adapter = libraryAdapters[cli];
+  const [scope, setScope] = useState<LibraryScope>(scopes[0] ?? "project");
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [installing, setInstalling] = useState(false);
   useDrafts();
   const draft = getDraft<LibraryDraft>(draftKey(cli, kind));
+  const directory = (s: LibraryScope) => sourceDirectory(data ?? [], s) ?? adapter.directory(kind, s);
   const copy = useCopy(kind);
-  const subtitle =
-    cli === "claude" || kind === "commands"
-      ? copy.subtitle
-      : cli === "codex"
-        ? t(kind === "agents" ? "library.cli.codex.agents.subtitle" : "library.cli.codex.skills.subtitle")
-        : t(kind === "agents" ? "library.cli.copilot.agents.subtitle" : "library.cli.copilot.skills.subtitle");
-  const empty =
-    cli === "claude" || kind === "commands"
-      ? t(`library.kind.${kind}.empty`)
-      : cli === "codex"
-        ? t(kind === "agents" ? "library.cli.codex.agents.empty" : "library.cli.codex.skills.empty")
-        : t(kind === "agents" ? "library.cli.copilot.agents.empty" : "library.cli.copilot.skills.empty");
+  const subtitle = t(adapter.copyKey(kind, "subtitle"));
+  const empty = t(adapter.copyKey(kind, "empty"));
 
   const inScope = useMemo(() => (data ?? []).filter((i) => i.scope === scope), [data, scope]);
   const items = useMemo(() => {
@@ -131,7 +100,7 @@ function LibraryPageForCli({ cli, kind }: { cli: ProviderId; kind: LibraryKind }
   }, [inScope, query]);
 
   // "The repo has no subagent" is about .claude/agents only; user agents are the user's own.
-  const templatesAvailable = kind === "agents" && cli !== "copilot";
+  const templatesAvailable = kind === "agents" && adapter.templates;
   const noRepoAgents = templatesAvailable && data !== null && !data.some((i) => i.scope === "project");
 
   // Copilot can list the same relative name from .github/agents and .claude/agents.
@@ -148,6 +117,7 @@ function LibraryPageForCli({ cli, kind }: { cli: ProviderId; kind: LibraryKind }
     preview: () => libraryApi.libraryPreview(cli, kind, draft!.scope, draft!.rel, draft!.content, draft!.baseHash),
     save: () => libraryApi.librarySave(cli, kind, draft!.scope, draft!.rel, draft!.content, draft!.baseHash),
     onSaved: () => {
+      if (!isActive()) return;
       if (draft!.isNew) toast(t("library.created", { path: draft!.path }));
       else backupToast(t("library.saved", { path: draft!.path }));
       clearDraft(draftKey(cli, kind));
@@ -160,6 +130,7 @@ function LibraryPageForCli({ cli, kind }: { cli: ProviderId; kind: LibraryKind }
   const startEdit = async (item: LibraryItem) => {
     try {
       const raw = await libraryApi.libraryRaw(cli, kind, item.scope, item.rel);
+      if (!isActive()) return;
       setDraft(draftKey(cli, kind), { kind, scope: item.scope, rel: item.rel, path: raw.path, content: raw.content, baseHash: raw.hash, isNew: false } satisfies LibraryDraft);
     } catch (e) {
       toast((e as Error).message, { error: true });
@@ -177,8 +148,8 @@ function LibraryPageForCli({ cli, kind }: { cli: ProviderId; kind: LibraryKind }
               value={scope}
               onChange={setScope}
               label={t("library.scopeTabs", { kind: copy.title.toLowerCase() })}
-              labels={{ project: scopeDir(cli, kind, "project"), user: scopeDir(cli, kind, "user") }}
-              scopes={libraryScopes(cli, kind)}
+              labels={{ project: directory("project"), user: directory("user") }}
+              scopes={scopes}
               count={(s) => (data ?? []).filter((i) => i.scope === s).length}
             />
           )
@@ -196,11 +167,11 @@ function LibraryPageForCli({ cli, kind }: { cli: ProviderId; kind: LibraryKind }
           ) : (
             <>
               {templatesAvailable && (
-                <Button icon={Robot} variant="quiet" title={t(cli === "codex" ? "library.templates.codex.buttonTitle" : "library.templates.buttonTitle")} onClick={() => setInstalling(true)}>
+                <Button icon={Robot} variant="quiet" title={t(adapter.templatesTitle)} onClick={() => setInstalling(true)}>
                   {t("library.templates.button")}
                 </Button>
               )}
-              <Button icon={Plus} variant="primary" title={t("library.addTitle", { one: copy.one, dir: scopeDir(cli, kind, scope) })} onClick={() => setCreating(true)}>
+              <Button icon={Plus} variant="primary" title={t("library.addTitle", { one: copy.one, dir: directory(scope) })} onClick={() => setCreating(true)}>
                 {t("action.add")}
               </Button>
             </>
@@ -213,7 +184,7 @@ function LibraryPageForCli({ cli, kind }: { cli: ProviderId; kind: LibraryKind }
         {draft ? (
           <LibraryEditor cli={cli} draft={draft} />
         ) : data && inScope.length === 0 ? (
-          <EmptyCard title={t("library.emptyTitle", { one: copy.one, dir: scopeDir(cli, kind, scope) })}>{empty}</EmptyCard>
+          <EmptyCard title={t("library.emptyTitle", { one: copy.one, dir: directory(scope) })}>{empty}</EmptyCard>
         ) : (
           <div className="library">
             <div className="library-list">
@@ -224,7 +195,7 @@ function LibraryPageForCli({ cli, kind }: { cli: ProviderId; kind: LibraryKind }
               </label>
               <ul>
                 {items.map((i) => {
-                  const hidden = cli === "claude" ? shadowedBy(kind, i, data ?? []) : null;
+                  const hidden = configAdapters[cli].libraryPrecedence ? shadowedBy(kind, i, data ?? []) : null;
                   return (
                     <li key={keyOf(i)}>
                       <button type="button" className="lib-item" aria-current={current && keyOf(current) === keyOf(i) ? "true" : undefined} onClick={() => setPicked(keyOf(i))}>
@@ -260,12 +231,14 @@ function LibraryPageForCli({ cli, kind }: { cli: ProviderId; kind: LibraryKind }
         kind={kind}
         cli={cli}
         scope={scope}
+        directory={directory(scope)}
         onClose={() => setCreating(false)}
         onCreate={async (name) => {
-          const rel = relFor(cli, kind, name);
+          const rel = adapter.relativePath(kind, name);
           const raw = await libraryApi.libraryRaw(cli, kind, scope, rel);
+          if (!isActive()) return;
           if (raw.exists) throw new Error(t("library.exists", { path: raw.path }));
-          setDraft(draftKey(cli, kind), { kind, scope, rel, path: raw.path, content: template(cli, kind, name), baseHash: raw.hash, isNew: true } satisfies LibraryDraft, null);
+          setDraft(draftKey(cli, kind), { kind, scope, rel, path: raw.path, content: adapter.template(kind, name), baseHash: raw.hash, isNew: true } satisfies LibraryDraft, null);
           setCreating(false);
         }}
       />
@@ -374,7 +347,7 @@ function LibraryDetail({ cli, item, prefix, onEdit, onDeleted }: { cli: Provider
   );
 }
 
-function NewItemDialog(props: { open: boolean; cli: ProviderId; kind: LibraryKind; scope: LibraryScope; onClose: () => void; onCreate: (name: string) => Promise<void> }) {
+function NewItemDialog(props: { open: boolean; cli: ProviderId; kind: LibraryKind; scope: LibraryScope; directory: string; onClose: () => void; onCreate: (name: string) => Promise<void> }) {
   const { t } = useTranslation(["config", "common"]);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -420,11 +393,11 @@ function NewItemDialog(props: { open: boolean; cli: ProviderId; kind: LibraryKin
               <label htmlFor={nameId}>{t("library.new.name")}</label>
               <input id={nameId} value={name} onChange={(e) => setName(e.target.value)} placeholder={props.kind === "commands" ? "git/pr" : "reviewer"} autoFocus spellCheck={false} />
               <span className="field-help">
-                {props.kind === "commands" ? t("library.new.commandHelp") : t("library.new.help", { file: relFor(props.cli, props.kind, name || t("library.new.namePlaceholder")) })}
+                {props.kind === "commands" ? t("library.new.commandHelp") : t("library.new.help", { file: libraryAdapters[props.cli].relativePath(props.kind, name || t("library.new.namePlaceholder")) })}
               </span>
               <span>{t("library.new.where")}</span>
               <span className="mono">
-                {scopeDir(props.cli, props.kind, props.scope)} ({props.scope === "project" ? t("library.new.thisRepo") : t("library.new.allRepos")})
+                {props.directory} ({props.scope === "project" ? t("library.new.thisRepo") : t("library.new.allRepos")})
               </span>
             </div>
             {error && (

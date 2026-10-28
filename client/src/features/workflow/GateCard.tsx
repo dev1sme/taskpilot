@@ -27,6 +27,7 @@ export function GateCard(props: {
   assignments: ParsedAssignments | null;
   /** Concurrency of that dispatch step. */
   parallel: number;
+  /** Cap on the total subtasks of that dispatch step; absent = no limit. */
   maxSubtasks?: number;
   isLast: boolean;
   docVersion: number;
@@ -81,77 +82,85 @@ export function GateCard(props: {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 380, damping: 30 }}
     >
-      <header className="gate-head">
-        <span className="gate-badge" aria-hidden="true">
-          <Diamond weight="fill" />
-        </span>
-        <div>
-          <h3 id={`${feedbackId}-title`}>
-            {t("gate.title")} <AgentBadge agent={effective.agent} />
-          </h3>
-          <p>
-            <Trans t={t} i18nKey="gate.body" values={{ step: step.title }} components={{ strong: <strong /> }} />
-            {props.isLast ? t("gate.bodyLast") : t("gate.bodyNext")}
-          </p>
-        </div>
-      </header>
-      <p className="now-sub">{t("selection.effective", { agent, model: effective.model ?? t("selection.defaultModel") })}</p>
-
-      {props.run.lastMessage && (
-        <figure className="gate-claude">
-          <figcaption>{t("gate.summary", { agent })}</figcaption>
-          <Markdown source={props.run.lastMessage} />
-        </figure>
-      )}
-
-      {step.doneFile && (
-        <div className="gate-doc">
-          <div className="gate-doc-head">
-            <code>{step.doneFile}</code>
-            <Button icon={ArrowsOut} variant="quiet" onClick={() => props.onOpenDoc(step.doneFile!)}>
-              {t("gate.readAll")}
-            </Button>
+      <div className="gate-overview">
+        <header className="gate-head">
+          <span className="gate-badge" aria-hidden="true">
+            <Diamond weight="fill" />
+          </span>
+          <div>
+            <h2 id={`${feedbackId}-title`}>
+              {t("gate.title")} <AgentBadge agent={effective.agent} />
+            </h2>
+            <p>
+              <Trans t={t} i18nKey="gate.body" values={{ step: step.title }} components={{ strong: <strong /> }} />
+              {props.isLast ? t("gate.bodyLast") : t("gate.bodyNext")}
+            </p>
           </div>
-          <div className="gate-doc-body">{doc !== null ? <Markdown source={doc} /> : <p className="hint">{t("gate.loading")}</p>}</div>
+        </header>
+        <p className="now-sub">{t("selection.effective", { agent, model: effective.model ?? t("selection.defaultModel") })}</p>
+        {props.run.lastMessage && (
+          <details className="gate-claude">
+            <summary>{t("gate.summary", { agent })}</summary>
+            <Markdown source={props.run.lastMessage} />
+          </details>
+        )}
+      </div>
+
+      <div className="gate-workspace">
+        <div className="gate-evidence">
+          {step.doneFile && (
+            <div className="gate-doc">
+              <div className="gate-doc-head">
+                <code>{step.doneFile}</code>
+                <Button icon={ArrowsOut} variant="quiet" onClick={() => props.onOpenDoc(step.doneFile!)}>
+                  {t("gate.readAll")}
+                </Button>
+              </div>
+              <div className="gate-doc-body">{doc !== null ? <Markdown source={doc} /> : <p className="hint">{t("gate.loading")}</p>}</div>
+            </div>
+          )}
+          {props.assignments && <AssignmentPreview assignments={props.assignments} parallel={props.parallel} maxSubtasks={props.maxSubtasks} />}
         </div>
-      )}
 
-      {props.assignments && <AssignmentPreview assignments={props.assignments} parallel={props.parallel} maxSubtasks={props.maxSubtasks} />}
-
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-
-      <div className="gate-decide">
-        {props.questions.length > 0 && <QuestionForm agent={agent} questions={props.questions} answers={answers} onChange={setAnswers} disabled={busy !== null} />}
-        {answered && <p className="gate-hint">{t("questions.approveHint")}</p>}
-        <Button
-          icon={Check}
-          variant="attention"
-          size="lg"
-          busy={busy === "approve"}
-          disabled={busy !== null || (props.assignments?.errors.length ?? 0) > 0}
-          onClick={() => void act("approve", () => workflowApi.approve(taskKey, answered))}
-        >
-          {answered ? (props.isLast ? t("gate.approveLastAnswered") : t("gate.approveNextAnswered")) : props.isLast ? t("gate.approveLast") : t("gate.approveNext")}
-        </Button>
-        <form
-          className="gate-feedback"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void act("feedback", () => workflowApi.feedback(taskKey, feedbackText));
-          }}
-        >
-          <label htmlFor={feedbackId}>{answered ? t("gate.feedbackLabelAnswered", { agent }) : t("gate.feedbackLabel", { agent })}</label>
-          <div className="gate-feedback-row">
-            <textarea id={feedbackId} value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder={t("gate.feedbackPlaceholder")} rows={2} />
-            <Button type="submit" icon={ChatText} busy={busy === "feedback"} disabled={busy !== null || !feedbackText}>
-              {t("gate.sendFeedback")}
+        <div className="gate-decide">
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          {step.doneFile && (
+            <Button className="gate-mobile-doc" icon={ArrowsOut} variant="quiet" onClick={() => props.onOpenDoc(step.doneFile!)}>
+              {t("now.readDoc", { file: step.doneFile })}
             </Button>
-          </div>
-        </form>
+          )}
+          {props.questions.length > 0 && <QuestionForm agent={agent} questions={props.questions} answers={answers} onChange={setAnswers} disabled={busy !== null} />}
+          {answered && <p className="gate-hint">{t("questions.approveHint")}</p>}
+          <Button
+            icon={Check}
+            variant="attention"
+            size="lg"
+            busy={busy === "approve"}
+            disabled={busy !== null || (props.assignments?.errors.length ?? 0) > 0}
+            onClick={() => void act("approve", () => workflowApi.approve(taskKey, answered))}
+          >
+            {answered ? (props.isLast ? t("gate.approveLastAnswered") : t("gate.approveNextAnswered")) : props.isLast ? t("gate.approveLast") : t("gate.approveNext")}
+          </Button>
+          <form
+            className="gate-feedback"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void act("feedback", () => workflowApi.feedback(taskKey, feedbackText));
+            }}
+          >
+            <label htmlFor={feedbackId}>{answered ? t("gate.feedbackLabelAnswered", { agent }) : t("gate.feedbackLabel", { agent })}</label>
+            <div className="gate-feedback-row">
+              <textarea id={feedbackId} value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder={t("gate.feedbackPlaceholder")} rows={2} />
+              <Button type="submit" icon={ChatText} busy={busy === "feedback"} disabled={busy !== null || !feedbackText}>
+                {t("gate.sendFeedback")}
+              </Button>
+            </div>
+          </form>
+        </div>
       </div>
     </motion.section>
   );

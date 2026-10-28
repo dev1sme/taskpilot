@@ -1,12 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { PROVIDER_IDS, PROVIDER_LABELS, type ProviderId } from "../../shared/providers";
+import { PROVIDER_LABELS } from "../../shared/providers";
 import { Button } from "../../shared/ui/Button";
 import { useWorkspace } from "../workspace";
 import { workflowApi } from "./api";
+import { ExecutionCapabilityNotice, ExecutionFields } from "./ExecutionFields";
+import { useAgentCapabilities } from "./useAgentCapabilities";
 import { ModePicker } from "./ModePicker";
-import type { ExecutionSelection, RunOptionsValue } from "./types";
+import type { RunOptionsValue } from "./types";
 import "./now-card.css";
 
 interface Props {
@@ -33,7 +35,7 @@ function OptionsForm({ taskKey, initial, disabled, children }: Props) {
   const [previewFor, setPreviewFor] = useState<string | null>(null);
   const defaults = useQuery({ queryKey: ["execution-defaults", repo?.path], queryFn: workflowApi.defaults, enabled: !!repo?.path });
   const modes = useQuery({ queryKey: ["workflow-modes", repo?.path], queryFn: workflowApi.modes, enabled: !!repo?.path });
-  const capabilities = useQuery({ queryKey: ["agent-capabilities", repo?.path], queryFn: workflowApi.capabilities, enabled: !!repo?.path });
+  const capabilities = useAgentCapabilities();
   const execution = value.execution ?? defaults.data?.execution ?? { agent: "workflow" as const };
   // Submit the resolved values shown on screen, even if defaults change before the request arrives.
   const options = { mode: value.mode ?? modes.data?.selected, execution };
@@ -44,9 +46,6 @@ function OptionsForm({ taskKey, initial, disabled, children }: Props) {
     enabled: previewFor === signature,
   });
   const shown = previewFor === signature ? preview.data : undefined;
-  const capability = capabilities.data?.agents.find((item) => item.agent === execution.agent);
-  const models = (execution.agent === "codex" || execution.agent === "copilot") && capability?.models.status === "supported" ? capability.models.items : [];
-  const savedModel = execution.model && !models.some((item) => item.model === execution.model) ? execution.model : undefined;
   const dataError = defaults.error ?? modes.error;
   const diagnostics = defaults.data?.errors ?? [];
   const missingMode = modes.data && !modes.data.modes.some((mode) => mode.id === options.mode);
@@ -89,61 +88,19 @@ function OptionsForm({ taskKey, initial, disabled, children }: Props) {
     <div className="run-options" aria-label={t("selection.label")}>
       <div className="run-options-controls">
         <ModePicker value={options.mode} onChange={(mode) => change({ ...value, mode })} disabled={lock} />
-        <label className="mode-picker">
-          <span>{t("selection.agent")}</span>
-          <select
-            value={execution.agent}
-            disabled={lock || !defaults.data}
-            onChange={(event) => change({ ...value, execution: { agent: event.target.value as ProviderId | "workflow" } as ExecutionSelection })}
-          >
-            <option value="workflow">{t("selection.workflow")}</option>
-            {PROVIDER_IDS.map((agent) => (
-              <option key={agent} value={agent}>
-                {PROVIDER_LABELS[agent]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="mode-picker">
-          <span>{t("selection.model")}</span>
-          <select
-            value={execution.model ?? ""}
-            disabled={lock || execution.agent === "workflow"}
-            onChange={(event) => {
-              if (execution.agent !== "workflow") change({ ...value, execution: { agent: execution.agent, ...(event.target.value ? { model: event.target.value } : {}) } });
-            }}
-          >
-            <option value="">{t(execution.agent === "workflow" ? "selection.workflowModel" : "selection.defaultModel")}</option>
-            {savedModel && (
-              <option value={savedModel} disabled>
-                {t("selection.savedModel", { model: savedModel })}
-              </option>
-            )}
-            {models.map((item) => (
-              <option key={item.id} value={item.model}>
-                {item.displayName ?? item.model}
-              </option>
-            ))}
-          </select>
-        </label>
+        <ExecutionFields
+          value={execution}
+          capabilities={capabilities}
+          allowWorkflow
+          disabled={lock}
+          providerDisabled={!defaults.data}
+          onChange={(execution) => change({ ...value, execution })}
+        />
       </div>
       <p className="now-sub">
         <span>{t("selection.source", { source: t(`selection.sources.${source}`) })}</span> <span>{t("selection.scope")}</span>
       </p>
-      {execution.agent !== "workflow" && <p className="now-sub">{t("selection.defaultHint")}</p>}
-      {execution.agent !== "workflow" && (capability?.models.status !== "supported" || capability?.login.status === "unknown") && (
-        <p className="now-sub">{t("selection.unverified", { agent: PROVIDER_LABELS[execution.agent] })}</p>
-      )}
-      {capability?.cli.error && (
-        <p className="error" role="alert">
-          {capability.cli.error.message}
-        </p>
-      )}
-      {capabilities.error && (
-        <p className="error" role="alert">
-          {capabilities.error.message}
-        </p>
-      )}
+      <ExecutionCapabilityNotice value={execution} capabilities={capabilities} />
       {dataError && (
         <p className="error" role="alert">
           {dataError.message}

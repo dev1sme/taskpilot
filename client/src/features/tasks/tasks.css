@@ -115,27 +115,115 @@
   overflow-x: auto;
 }
 
-/* Phones: the action keeps its icon and aria-label, the text goes; the time goes too (docs already did). */
-@media (max-width: 700px) {
-  .status-chip {
-    white-space: normal;
-  }
+/* Keep secondary columns intrinsic so the task name gets the remaining width. */
+.task-list-table th:first-child,
+.task-list-table td:first-child,
+.task-list-table th:nth-child(3),
+.task-list-table td:nth-child(3) {
+  width: 1%;
+  white-space: nowrap;
+}
 
+.task-link {
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.task-link .mono {
+  white-space: normal;
+}
+
+@media (max-width: 1100px) {
   .task-action .btn > span {
     display: none;
   }
 
   .task-action .btn {
-    padding: 6px 10px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 10px;
+  }
+}
+
+/* Each phone row gives the task full width, with status and action below it. */
+@media (max-width: 700px) {
+  .task-filter button {
+    min-height: 44px;
   }
 
-  .task-table th:nth-child(4),
-  .task-table td:nth-child(4) {
+  .task-list-table {
+    display: block;
+  }
+
+  .task-list-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .task-list-table tbody {
+    display: block;
+  }
+
+  .task-list-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 4px 12px;
+    padding: 12px 16px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .task-list-table tbody tr:last-child {
+    border-bottom: none;
+  }
+
+  .task-list-table td {
+    padding: 0;
+    border: none;
+  }
+
+  .task-list-table td:first-child {
+    width: auto;
+    min-width: 0;
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .task-list-table td:nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .task-list-table td:nth-child(3) {
     display: none;
   }
 
-  .task-table th,
-  .task-table td {
-    padding-inline: 10px;
+  .task-list-table .task-action {
+    grid-column: 2;
+    grid-row: 2;
+    width: auto;
   }
+
+  .status-chip {
+    white-space: normal;
+  }
+
+  .task-link {
+    padding-block: 4px;
+  }
+}
+
+.task-list-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
 }

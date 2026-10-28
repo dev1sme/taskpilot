@@ -1,22 +1,30 @@
 @media (max-width: 1100px) {
-  .bento {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .overview-config {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .tile-hero {
-    grid-row: auto;
+  .overview-config .tile-dir {
+    grid-column: 1 / -1;
   }
 }
 
 @media (max-width: 700px) {
-  .bento {
-    grid-template-columns: minmax(0, 1fr);
+  .overview-layout {
     padding: 16px;
   }
 
-  .tile-wide,
-  .tile-hero {
+  .overview-work,
+  .overview-config {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tile-hero,
+  .overview-config .tile-dir {
     grid-column: auto;
+  }
+
+  .tile-hero {
+    padding: 16px;
   }
 
   .inventory {

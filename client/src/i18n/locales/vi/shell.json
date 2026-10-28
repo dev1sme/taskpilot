@@ -29,7 +29,7 @@
   },
   "navGroup": {
     "workspace": "Workspace",
-    "config": "Cấu hình {{cli}}",
+    "config": "Cấu hình agent",
     "integrations": "Tích hợp"
   },
   "cli": {
@@ -81,6 +81,7 @@
     "usageReset": "{{window}} reset lúc {{time}}",
     "usageStale": "có thể đã cũ",
     "usageUpdated": "Cập nhật lúc {{time}}",
+    "usageUnknown": "Chưa có số liệu",
     "usageEmpty": "Chưa có số liệu: hiện sau phản hồi đầu tiên của một session Claude.",
     "copilotUsageTitle": "Ngân sách Copilot đã dùng (toàn tài khoản, {{unit}})",
     "copilotUsageUnlimited": "Không giới hạn ở mức tài khoản ({{unit}})",
@@ -93,5 +94,11 @@
     "codexCreditsNone": "Hết credits",
     "copilotUnitAiCredits": "AI credits",
     "copilotUnitPremiumRequests": "premium requests"
+  },
+  "theme": {
+    "label": "Giao diện",
+    "system": "Theo hệ thống",
+    "light": "Sáng",
+    "dark": "Tối"
   }
 }

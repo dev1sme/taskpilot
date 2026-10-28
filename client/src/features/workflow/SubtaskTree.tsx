@@ -1,7 +1,7 @@
 import { ArrowClockwise, CheckCircle, Circle, FileText, HandPalm, PlugsConnected, TerminalWindow } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useAgentCapabilities } from "./useAgentCapabilities";
 import { PROVIDER_LABELS } from "../../shared/providers";
 import { AgentBadge } from "../../shared/ui/AgentBadge";
 import { Button } from "../../shared/ui/Button";
@@ -257,7 +257,7 @@ export function QuotaNotice(props: { taskKey: string; sessionId: string; unknown
   }, [validUntil, account?.observedAt]);
   const accountFresh = account?.freshness === "fresh" && now >= account.observedAt && now <= validUntil;
   const quota = failure?.reason === "quota" || (!!accountFresh && !!account?.exhausted);
-  const capabilities = useQuery({ queryKey: ["agent-capabilities", repo?.path], queryFn: workflowApi.capabilities, enabled: quota });
+  const capabilities = useAgentCapabilities(quota);
   const codex = capabilities.data?.agents.find((item) => item.agent === "codex");
   const [dismissed, setDismissed] = useState<string | null>(null);
   const identity = `${repo?.path}:${props.sessionId}:${failure?.observedAt ?? ""}:${account?.observedAt ?? ""}`;

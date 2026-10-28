@@ -65,9 +65,11 @@ export function sortTasks(tasks: TaskSummary[]): TaskSummary[] {
   return [...tasks].sort((a, b) => urgency(b) - urgency(a) || b.updatedAt - a.updatedAt);
 }
 
-export type TaskFilter = "open" | "done" | "all";
+export type TaskFilter = "open" | "attention" | "running" | "done" | "all";
 
 export function matchesFilter(task: TaskSummary, filter: TaskFilter): boolean {
   if (filter === "all") return true;
+  if (filter === "attention") return statusOf(task).tone === "attention";
+  if (filter === "running") return statusOf(task).tone === "active";
   return (statusOf(task).kind === "done") === (filter === "done");
 }

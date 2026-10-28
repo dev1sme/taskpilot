@@ -70,18 +70,27 @@ export function NowCard(props: Props) {
   );
 
   const retry = (
-    <Button icon={ArrowClockwise} variant="attention" busy={busy} disabled={blocked} onClick={() => void act(() => workflowApi.retry(props.taskKey))}>
+    <Button
+      icon={ArrowClockwise}
+      variant={run?.phase === "interrupted" ? "attention" : "quiet"}
+      busy={busy}
+      disabled={blocked}
+      onClick={() => void act(() => workflowApi.retry(props.taskKey))}
+    >
       {t("now.retry")}
     </Button>
   );
   const restart = (
-    <RunOptions taskKey={props.taskKey} initial={initialOptions} disabled={busy}>
-      {(options, blocked) => (
-        <Button icon={ArrowCounterClockwise} variant="quiet" busy={busy} disabled={blocked} onClick={() => void act(() => workflowApi.restartRun(props.taskKey, options))}>
-          {t("now.restart")}
-        </Button>
-      )}
-    </RunOptions>
+    <details className="now-restart">
+      <summary>{t("now.restartOptions")}</summary>
+      <RunOptions taskKey={props.taskKey} initial={initialOptions} disabled={busy}>
+        {(options, blocked) => (
+          <Button icon={ArrowCounterClockwise} variant="quiet" busy={busy} disabled={blocked} onClick={() => void act(() => workflowApi.restartRun(props.taskKey, options))}>
+            {t("now.restart")}
+          </Button>
+        )}
+      </RunOptions>
+    </details>
   );
   const openTerminal = (
     <Button icon={TerminalWindow} onClick={() => props.onOpenTerminal()}>
@@ -118,7 +127,7 @@ export function NowCard(props: Props) {
     const lastDoc = [...props.steps].reverse().find((s) => s.doneFile)?.doneFile;
     return (
       <Card tone={done ? "done" : "idle"} icon={done ? <CheckCircle weight="fill" /> : <Play weight="fill" />}>
-        <h3>{done ? t("now.doneTitle") : run ? t("now.cancelledTitle") : t("now.readyTitle")}</h3>
+        <h2>{done ? t("now.doneTitle") : run ? t("now.cancelledTitle") : t("now.readyTitle")}</h2>
         <p className="now-text">
           {done ? <Trans t={t} i18nKey="now.doneBody" values={{ duration: formatDuration(run.updatedAt - run.startedAt) }} components={{ strong: <strong /> }} /> : t("selection.readyBody")}
         </p>
@@ -155,7 +164,7 @@ export function NowCard(props: Props) {
     return (
       <Card tone={attention ? "attention" : "signal"} icon={attention ? <ChatCircleDots weight="fill" /> : <span className="radar" aria-hidden="true" />}>
         <div className="now-head">
-          <h3>{t("subtasks.title", { step: step.title, done, total: run.subtasks.length })}</h3>
+          <h2>{t("subtasks.title", { step: step.title, done, total: run.subtasks.length })}</h2>
           <span className="now-timer">
             <Elapsed since={run.stepStartedAt} />
           </span>
@@ -184,7 +193,7 @@ export function NowCard(props: Props) {
   if (blocked) {
     return (
       <Card tone="attention" icon={<PlugsConnected weight="fill" />}>
-        <h3>{t("handoff.blocked")}</h3>
+        <h2>{t("handoff.blocked")}</h2>
         {effectiveLine}
         <p className="now-text">{run.message}</p>
         <div className="now-actions">
@@ -199,7 +208,7 @@ export function NowCard(props: Props) {
     const ask = [...props.activity].reverse().find((i) => i.kind === "permission");
     return (
       <Card tone="attention" icon={<HandPalm weight="fill" />}>
-        <h3>{t("now.permissionTitle", { agent })}</h3>
+        <h2>{t("now.permissionTitle", { agent })}</h2>
         {effectiveLine}
         <p className="now-text">{ask?.action ?? t("now.permissionFallback", { agent })}</p>
         <p className="now-sub">{t("now.permissionHint")}</p>
@@ -216,7 +225,7 @@ export function NowCard(props: Props) {
   if (run.phase === "waiting") {
     return (
       <Card tone="attention" icon={<ChatCircleDots weight="fill" />}>
-        <h3>{t("now.waitingTitle", { agent })}</h3>
+        <h2>{t("now.waitingTitle", { agent })}</h2>
         {effectiveLine}
         <p className="now-text">{run.message}</p>
         {run.lastMessage && props.questions.length === 0 && <blockquote className="now-quote">{lastParagraph(run.lastMessage)}</blockquote>}
@@ -235,14 +244,14 @@ export function NowCard(props: Props) {
   if (run.phase === "interrupted") {
     return (
       <Card tone="attention" icon={<PlugsConnected weight="fill" />}>
-        <h3>{t("now.interruptedTitle", { step: step?.title })}</h3>
+        <h2>{t("now.interruptedTitle", { step: step?.title })}</h2>
         {effectiveLine}
         <p className="now-text">{run.message}</p>
         {errorLine}
         <div className="now-actions">
           {retry}
-          {restart}
           {handoff}
+          {restart}
         </div>
       </Card>
     );
@@ -254,7 +263,7 @@ export function NowCard(props: Props) {
   return (
     <Card tone="signal" icon={<span className="radar" aria-hidden="true" />}>
       <div className="now-head">
-        <h3>{run.phase === "starting" ? t("now.startingTitle", { agent }) : t("now.runningTitle", { agent, step: step?.title })}</h3>
+        <h2>{run.phase === "starting" ? t("now.startingTitle", { agent }) : t("now.runningTitle", { agent, step: step?.title })}</h2>
         <span className="now-timer">
           <Elapsed since={run.phase === "starting" ? run.updatedAt : run.stepStartedAt} />
         </span>

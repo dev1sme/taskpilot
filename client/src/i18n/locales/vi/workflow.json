@@ -23,6 +23,7 @@
     "label": "Trạng thái hiện tại",
     "retry": "Gửi lại bước",
     "restart": "Chạy lại từ đầu",
+    "restartOptions": "Tuỳ chọn chạy lại từ đầu",
     "openTerminal": "Mở terminal",
     "doneTitle": "Quy trình hoàn tất",
     "cancelledTitle": "Quy trình đã huỷ",

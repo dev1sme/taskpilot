@@ -9,7 +9,8 @@ import type { ProviderId } from "../../../shared/providers";
 import { clearDraft, configDraftKey, getDraft, isDirty, setDraft, useDrafts } from "../shared/drafts";
 import { backupToast, ConfigHeader, ConfigToolbar, EmptyCard, LoadError } from "../shared/ConfigChrome";
 import { DraftControls, ScopeTabs } from "../shared/ScopeControls";
-import { useConfigCli } from "../shared/CliContext";
+import { configAdapters } from "../shared/provider-adapters";
+import { useConfigCli, useConfigScopes, useConfigLifetime } from "../shared/CliContext";
 import { useConfig } from "../shared/useConfig";
 import { useSaveFlow } from "../shared/useSaveFlow";
 import { memoryApi } from "./api";
@@ -40,7 +41,9 @@ export function MemoryPage() {
 function MemoryPageForCli({ cli }: { cli: ProviderId }) {
   const { t } = useTranslation("config");
   const { data, error, loading, reload } = useConfig(["memory", cli], () => memoryApi.memory(cli));
-  const [scope, setScope] = useState<Scope>("project");
+  const isActive = useConfigLifetime();
+  const scopes = useConfigScopes();
+  const [scope, setScope] = useState<Scope>(scopes[0] ?? "project");
   const [opening, setOpening] = useState(false);
   useDrafts();
   const tabLabel = (s: Scope) => data?.find((f) => f.scope === s)?.path ?? t(`memory.tab.${s}`);
@@ -51,6 +54,7 @@ function MemoryPageForCli({ cli }: { cli: ProviderId }) {
     setOpening(true);
     try {
       const raw = await memoryApi.memoryRaw(cli, scope);
+      if (!isActive()) return;
       setDraft(draftKey(cli, scope), { content: raw.content, baseHash: raw.hash, path: raw.path } satisfies MemoryDraft);
     } catch (e) {
       toast((e as Error).message, { error: true });
@@ -64,6 +68,7 @@ function MemoryPageForCli({ cli }: { cli: ProviderId }) {
     preview: () => memoryApi.memoryPreview(cli, scope, draft!.content, draft!.baseHash),
     save: () => memoryApi.memorySave(cli, scope, draft!.content, draft!.baseHash),
     onSaved: () => {
+      if (!isActive()) return;
       backupToast(t("memory.saved", { path: draft?.path }));
       clearDraft(draftKey(cli, scope));
       void reload();
@@ -93,7 +98,7 @@ function MemoryPageForCli({ cli }: { cli: ProviderId }) {
 
   return (
     <div className="page">
-      <ConfigHeader title={t(cli === "claude" ? "memory.title" : `memory.cli.${cli}.title`)} subtitle={t(cli === "claude" ? "memory.subtitle" : `memory.cli.${cli}.subtitle`)} />
+      <ConfigHeader title={t(configAdapters[cli].memory.title)} subtitle={t(configAdapters[cli].memory.subtitle)} />
       <ConfigToolbar
         start={
           <ScopeTabs
@@ -104,7 +109,7 @@ function MemoryPageForCli({ cli }: { cli: ProviderId }) {
             }}
             label={t("memory.tabsLabel")}
             labels={{ project: tabLabel("project"), local: tabLabel("local"), user: tabLabel("user") }}
-            scopes={data?.map((f) => f.scope) ?? []}
+            scopes={scopes}
             isMissing={(s) => data?.find((x) => x.scope === s)?.exists === false && !getDraft(draftKey(cli, s))}
             isDirty={(s) => isDirty(draftKey(cli, s))}
           />
@@ -206,7 +211,7 @@ function MemoryView({ file, cli }: { file: MemoryFile; cli: ProviderId }) {
 
       <aside className="memory-side">
         <section className="card">
-          <h2 className="card-title">{t(cli === "claude" ? "memory.loads" : "memory.loadsEstimate")}</h2>
+          <h2 className="card-title">{t(configAdapters[cli].memory.loads)}</h2>
           <div className="big-stat">
             ~{formatTokens(total / 4)} <span>{t("memory.tokenUnit")}</span>
           </div>

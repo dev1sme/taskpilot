@@ -37,3 +37,22 @@ provider-specific payloads themselves. `SessionLauncher` is the session injectio
 boundary (including optional provider extensions); public API/state fields stay
 unchanged. Custom session launcher injections should use this type instead of
 core's common-only `Launcher` when they need provider fields.
+
+## Internal event contract (migration preparation)
+
+`modules/sessions/events.ts` defines TaskPilot's discriminated `SessionEvent` union:
+`session.started`, `prompt.submitted`, `tool.started`, `permission.requested`,
+`tool.completed`, `tool.failed`, `turn.completed`, and `turn.interrupted`.
+
+The compatibility bridge `sessionEventFromHook` receives an already normalized
+hook and trusted TaskPilot session/provider identity. Native session ids do not
+override that identity. Backend normalization still owns suppressed events, tool
+correlation and Codex interruption detection. Never map a suppressed null hook.
+Tool names currently retain adapter-normalized names; tool vocabulary and raw
+result/error schemas are not standardized in this step. Output, input and errors
+remain unknown rather than asserting an unverified common schema.
+
+The bridge has no runtime subscribers or emissions yet. HTTP hook names, current
+hook consumers, workflow behavior, state and API formats remain unchanged. Migrate
+consumers in a later step after verifying all fields they require; do not emit
+both streams into the same workflow consumer or normalize a payload twice.

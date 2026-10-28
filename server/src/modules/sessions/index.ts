@@ -8,3 +8,4 @@ export { SessionPreflightError, requirePreflight } from "./capabilities.js";
 export type { ProviderCapability, CapabilityCheck, CapabilityStatus, PreflightErrorCode, PreflightProblem, PreflightRequest, PreflightResult } from "./capabilities.js";
 
 export type { SessionLauncher, SessionLaunchOptions } from "./backends/types.js";
+export { sessionEventFromHook, type SessionEvent } from "./events.js";

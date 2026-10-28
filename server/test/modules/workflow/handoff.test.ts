@@ -353,7 +353,7 @@ describe("handoff crash recovery and lane fences", () => {
       await vi.waitFor(async () => expect((await f.read()).phase).toBe("waiting"));
     }
     const { preview } = await f.engine.previewHandoff(f.repo, "DEMO-1", f.request);
-    f.manager.removeAllListeners("hook");
+    f.manager.removeAllListeners("event");
     f.manager.removeAllListeners("exit");
     const operation: HandoffJournal = {
       operationId: "crash-operation",

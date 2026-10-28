@@ -5,7 +5,7 @@ import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { WebSocket } from "ws";
 import { buildApp } from "../../../src/app.js";
-import { SessionManager } from "../../../src/modules/sessions/index.js";
+import { SessionManager, type SessionEvent } from "../../../src/modules/sessions/index.js";
 import { type Launcher } from "../../../src/core/launch.js";
 import { StateStore, type SessionMeta } from "../../../src/core/state.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
@@ -424,8 +424,8 @@ describe("copilot sessions", () => {
       const repo = await makeRepo();
       const manager = new SessionManager(state, { launchers: { copilot: hooklessCopilot }, transcriptPollMs: 30, transcriptIdleMs: 250 });
       managers.push(manager);
-      const stops: Array<Record<string, unknown>> = [];
-      manager.on("hook", (_meta, event, payload) => event === "Stop" && stops.push(payload));
+      const stops: SessionEvent[] = [];
+      manager.on("event", (_meta, event) => event.type.startsWith("turn.") && stops.push(event));
       const { id } = await manager.create(repo, "DEMO-1", { agent: "copilot" });
       for (let i = 0; i < 100 && !(await waitReady(id)); i++) await new Promise((r) => setTimeout(r, 30));
       return { manager, stops, id };
@@ -440,7 +440,7 @@ describe("copilot sessions", () => {
       expect(stops).toHaveLength(0);
       for (let i = 0; i < 100 && stops.length === 0; i++) await sleep(30);
       expect(stops).toHaveLength(1);
-      expect(stops[0]).toMatchObject({ session_id: id, source: "transcript" });
+      expect(stops[0]).toMatchObject({ type: "turn.completed", sessionId: id, source: "transcript" });
       await sleep(400);
       expect(stops).toHaveLength(1);
     });

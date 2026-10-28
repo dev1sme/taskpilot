@@ -38,7 +38,7 @@ boundary (including optional provider extensions); public API/state fields stay
 unchanged. Custom session launcher injections should use this type instead of
 core's common-only `Launcher` when they need provider fields.
 
-## Internal event contract (migration preparation)
+## Internal event contract
 
 `modules/sessions/events.ts` defines TaskPilot's discriminated `SessionEvent` union:
 `session.started`, `prompt.submitted`, `tool.started`, `permission.requested`,
@@ -53,11 +53,12 @@ Tool names currently retain adapter-normalized names; tool vocabulary and raw
 result/error schemas are not standardized in this step. Output, input and errors
 remain unknown rather than asserting an unverified common schema.
 
-SessionManager emits the neutral `event` stream after identity validation, backend
-normalization and permission gating. ActivityStore, the Copilot quota refresh and
-the workflow engine consume only that stream. No production code subscribes to
-the legacy `hook` stream any more; tests still observe it. Resume, transcript
-provenance, tool duration and failed turns (`turn.failed`) are carried
-explicitly to preserve their previous behavior. HTTP hook names, state and API
-formats remain unchanged. Never subscribe a consumer to both streams or
-normalize twice.
+Hook names and payload keys stop at the session boundary: HTTP ingress, backend
+`normalize`/`turnMetrics` and transport callbacks. SessionManager converts each
+hook (and each transcript-detected stop) to a `SessionEvent` once, then runs its
+own permission gating, activity and failure tracking on that event and emits it
+as the only `event` stream. ActivityStore, the Copilot quota refresh and the
+workflow engine consume that stream. Resume, transcript provenance, tool
+duration and failed turns (`turn.failed`) are carried explicitly to preserve
+their previous behavior. HTTP hook names, state and API formats remain
+unchanged.

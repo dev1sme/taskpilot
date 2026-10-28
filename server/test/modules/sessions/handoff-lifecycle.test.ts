@@ -87,9 +87,9 @@ describe("session handoff lifecycle", () => {
     expect(created.id).toBe(recordedId);
     expect(created.generation).toBe(1);
     expect((await manager.waitForReady(created.id)).id).toBe(recordedId);
-    // The thread id comes with a hook of the TUI; the hook's session_id is the agent's own id, not ours.
+    // The thread id comes with a hook of the TUI; the hook's session_id is the agent's own id, not ours: events carry ours.
     const seen: unknown[] = [];
-    manager.on("hook", (_meta, _event, payload) => seen.push(payload.session_id));
+    manager.on("event", (_meta, event) => seen.push(event.sessionId));
     expect(await manager.handleHook(token(manager, created.id), "UserPromptSubmit", { session_id: "thread-1", model: "gpt-6.1-sol" })).toBe(true);
     expect(seen).toEqual([recordedId]);
     expect(await manager.get(created.id)).toMatchObject({ nativeId: "thread-1", actualModel: "gpt-6.1-sol" });

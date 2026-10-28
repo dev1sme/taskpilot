@@ -1,5 +1,5 @@
 import type { ProviderId } from "../../core/providers.js";
-import type { HookEvent } from "./hooks.js";
+import type { Activity, HookEvent } from "./hooks.js";
 
 /** TaskPilot vocabulary; independent of provider hook names and wire payload keys. */
 interface EventContext {
@@ -72,5 +72,23 @@ export function sessionEventFromHook(context: EventContext, event: HookEvent, pa
         ...(payload.source === "transcript" ? { source: "transcript" as const } : {}),
         ...(text("last_assistant_message") !== undefined ? { message: text("last_assistant_message") } : {}),
       };
+  }
+}
+
+/** Next activity after an event. A permission prompt is cleared once a tool runs or the turn ends. */
+export function nextActivity(event: SessionEvent): Activity {
+  switch (event.type) {
+    case "session.started":
+    case "turn.completed":
+    case "turn.interrupted":
+    case "turn.failed":
+      return "idle";
+    case "permission.requested":
+      return "permission";
+    case "prompt.submitted":
+    case "tool.started":
+    case "tool.completed":
+    case "tool.failed":
+      return "busy";
   }
 }

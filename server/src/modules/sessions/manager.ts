@@ -4,8 +4,8 @@ import { EventEmitter } from "node:events";
 import type { WebSocket } from "ws";
 import { HttpError } from "../../core/errors.js";
 import type { SessionMeta, StateStore } from "../../core/state.js";
-import { nextActivity, type Activity, type HookEvent } from "./hooks.js";
-import { sessionEventFromHook, type SessionEvent } from "./events.js";
+import type { Activity, HookEvent } from "./hooks.js";
+import { nextActivity, sessionEventFromHook, type SessionEvent } from "./events.js";
 import type { SessionLauncher as Launcher } from "./backends/types.js";
 import { DEFAULT_PROVIDER, type ProviderId } from "../../core/providers.js";
 import { backendOf, type HookState, type ProviderPromptInventory } from "./backends/index.js";
@@ -92,8 +92,8 @@ export interface SessionEvents {
   metrics: [meta: SessionMeta, data: SessionMetrics];
   /** Status or activity changed; for UI refresh. */
   change: [meta: SessionMeta];
+  /** What the agent did, in TaskPilot's vocabulary; the only stream of hook-derived events. */
   event: [meta: SessionMeta, event: SessionEvent];
-  hook: [meta: SessionMeta, event: HookEvent, payload: Record<string, unknown>];
   /** Input of the session's status line (plan usage, cost). */
   statusline: [meta: SessionMeta, payload: Record<string, unknown>];
   exit: [meta: SessionMeta];
@@ -475,7 +475,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     // A hook, an exit or a new prompt may have come while the file was read.
     if (!payload || !live.transport.running || live.stopping || live.lastHookAt !== null || !live.transcriptTimer) return;
     this.stopWatching(live);
-    this.apply(meta, live, "Stop", payload);
+    this.apply(meta, live, toSessionEvent(meta, "Stop", payload));
   }
 
   private stopWatching(live: Live): void {
@@ -507,8 +507,9 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       if (this.live.get(id) !== live || live.stopping || live.hookToken !== token) return false;
       if (data) this.emit("metrics", meta, data);
     }
-    if (backend.permissionGraceMs) this.graced(meta, live, event, payload, backend.permissionGraceMs);
-    else this.apply(meta, live, event, payload);
+    const sessionEvent = toSessionEvent(meta, event, payload);
+    if (backend.permissionGraceMs) this.graced(meta, live, sessionEvent, backend.permissionGraceMs);
+    else this.apply(meta, live, sessionEvent);
     return true;
   }
 
@@ -534,50 +535,49 @@ export class SessionManager extends EventEmitter<SessionEvents> {
    * request is held back and dropped when the tool finishes within `graceMs` (hooks can also arrive
    * in the other order, so a tool that just finished drops it at once).
    */
-  private graced(meta: SessionMeta, live: Live, event: HookEvent, payload: Record<string, unknown>, graceMs: number): void {
+  private graced(meta: SessionMeta, live: Live, event: SessionEvent, graceMs: number): void {
     const { finishedAt, heldPermissions: held } = live.hookState;
-    const tool = toolCallKey(payload);
-    if (event === "PermissionRequest") {
+    const tool = toolCallKey("tool" in event ? event.tool : {});
+    if (event.type === "permission.requested") {
       if (Date.now() - (finishedAt.get(tool) ?? 0) < graceMs) return;
       clearTimeout(held.get(tool));
       held.set(
         tool,
         setTimeout(() => {
           held.delete(tool);
-          if (live.transport.running) this.apply(meta, live, event, payload);
+          if (live.transport.running) this.apply(meta, live, event);
         }, graceMs),
       );
       return;
     }
-    if (event === "PostToolUse" || event === "PostToolUseFailure") {
+    if (event.type === "tool.completed" || event.type === "tool.failed") {
       finishedAt.set(tool, Date.now());
       clearTimeout(held.get(tool));
       held.delete(tool);
-    } else if (event === "Stop") {
+    } else if (event.type === "turn.completed" || event.type === "turn.interrupted" || event.type === "turn.failed") {
       for (const timer of held.values()) clearTimeout(timer);
       held.clear();
     }
-    this.apply(meta, live, event, payload);
+    this.apply(meta, live, event);
   }
 
-  private apply(meta: SessionMeta, live: Live, event: HookEvent, payload: Record<string, unknown>): void {
+  private apply(meta: SessionMeta, live: Live, event: SessionEvent): void {
     if (this.live.get(meta.id) !== live || live.stopping) return;
-    if (event === "UserPromptSubmit") {
+    if (event.type === "prompt.submitted") {
       live.failure = undefined;
       this.emit("change", meta);
     }
-    if (event === "Stop" && payload.failed === true && !live.failure) {
+    if (event.type === "turn.failed" && !live.failure) {
       live.failure = { ...unknownFailure(), generation: meta.generation };
       this.emit("change", meta);
     }
-    if (event === "SessionStart") live.ready.resolve();
+    if (event.type === "session.started") live.ready.resolve();
     const activity = nextActivity(event);
     if (activity !== live.activity) {
       live.activity = activity;
       this.emit("change", meta);
     }
-    this.emit("event", meta, sessionEventFromHook({ sessionId: meta.id, provider: meta.agent ?? DEFAULT_PROVIDER }, event, payload));
-    this.emit("hook", meta, event, payload);
+    this.emit("event", meta, event);
   }
 
   /** Whether the running process of this session has sent a hook of its own yet. */
@@ -708,7 +708,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
           ready: () => {
             if (!live.stopping) live.ready.resolve();
           },
-          hook: (event, payload) => this.apply(meta, live, event, payload),
+          hook: (event, payload) => this.apply(meta, live, toSessionEvent(meta, event, payload)),
           metrics: (data) => {
             if (this.live.get(meta.id) === live && !live.stopping) this.emit("metrics", meta, data);
           },
@@ -789,11 +789,16 @@ export class SessionManager extends EventEmitter<SessionEvents> {
   }
 }
 
+/** Hooks, the transport's own events and transcript stops enter TaskPilot's vocabulary here, once. */
+function toSessionEvent(meta: SessionMeta, event: HookEvent, payload: Record<string, unknown>): SessionEvent {
+  return sessionEventFromHook({ sessionId: meta.id, provider: meta.agent ?? DEFAULT_PROVIDER }, event, payload);
+}
+
 /** Tool name and what it acts on: tells two calls of the same tool apart (inputs differ in extras like `description`). */
-function toolCallKey(payload: Record<string, unknown>): string {
-  const input = typeof payload.tool_input === "object" && payload.tool_input !== null ? (payload.tool_input as Record<string, unknown>) : {};
+function toolCallKey(tool: { name?: string; input?: unknown }): string {
+  const input = typeof tool.input === "object" && tool.input !== null ? (tool.input as Record<string, unknown>) : {};
   const subject = ["command", "file_path", "path", "url", "query", "pattern"].map((k) => input[k]).find((v) => typeof v === "string");
-  return `${typeof payload.tool_name === "string" ? payload.tool_name : ""}\0${subject ?? ""}`;
+  return `${tool.name ?? ""}\0${subject ?? ""}`;
 }
 
 function emptyHookState(): HookState {

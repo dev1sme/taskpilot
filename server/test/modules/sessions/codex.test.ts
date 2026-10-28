@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import type { WebSocket } from "ws";
 import { StateStore } from "../../../src/core/state.js";
-import { SessionManager, type HookEvent } from "../../../src/modules/sessions/index.js";
+import { SessionManager, type SessionEvent } from "../../../src/modules/sessions/index.js";
 import { codexTuiLauncher, startHookServer, type HookServer } from "../../helpers/codex-tui.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
@@ -44,10 +44,7 @@ class Socket extends EventEmitter {
   }
 }
 
-interface Seen {
-  event: HookEvent;
-  payload: Record<string, unknown>;
-}
+type TurnEnd = Extract<SessionEvent, { type: "turn.completed" | "turn.interrupted" | "turn.failed" }>;
 
 async function setup(env: Record<string, string> = {}) {
   const repo = await makeRepo();
@@ -58,14 +55,15 @@ async function setup(env: Record<string, string> = {}) {
   const manager = new SessionManager(state, { launchers: { codex: codexTuiLauncher({ FAKE_CODEX_LOG: log, ...env }) }, hookUrl: hooks.url });
   hooks.attach(manager);
   managers.push(manager);
-  const seen: Seen[] = [];
-  manager.on("hook", (_meta, event, payload) => seen.push({ event, payload }));
+  const seen: SessionEvent[] = [];
+  manager.on("event", (_meta, event) => seen.push(event));
   const records = async (): Promise<Array<{ method: string; params: { threadId: string; model?: string; args: string[]; input: Array<{ text: string }> } }>> =>
     (await readFile(log, "utf8").catch(() => ""))
       .split("\n")
       .filter(Boolean)
       .map((line) => JSON.parse(line));
-  const events = (name: HookEvent) => seen.filter((s) => s.event === name);
+  const events = (type: SessionEvent["type"]) => seen.filter((s) => s.type === type);
+  const stops = () => seen.filter((s): s is TurnEnd => s.type.startsWith("turn."));
   const activity = async (id: string) => (await manager.get(id)).activity;
   const terminal = async (id: string) => {
     const socket = new Socket();
@@ -73,7 +71,7 @@ async function setup(env: Record<string, string> = {}) {
     socket.resize();
     return socket;
   };
-  return { repo, state, manager, hooks, seen, events, records, activity, terminal };
+  return { repo, state, manager, hooks, seen, events, stops, records, activity, terminal };
 }
 
 describe("Codex session in a PTY", () => {
@@ -104,20 +102,20 @@ describe("Codex session in a PTY", () => {
   });
 
   it("types a multi-line prompt as one paste, follows the hooks and takes the thread id from the first one", async () => {
-    const { manager, repo, records, seen, events, activity } = await setup();
+    const { manager, repo, records, seen, events, stops, activity } = await setup();
     const created = await manager.create(repo, "DEMO-1", { agent: "codex" });
     await manager.waitForReady(created.id);
     const prompt = "PELICAN-42\nSecond line";
     manager.paste(created.id, prompt);
-    await vi.waitFor(async () => expect(events("Stop")).toHaveLength(1));
+    await vi.waitFor(async () => expect(stops()).toHaveLength(1));
     // The newline did not submit the first line alone: one turn with the whole text.
     expect((await records()).filter((r) => r.method === "turn/start").map((r) => r.params.input[0].text)).toEqual([prompt]);
     expect(await activity(created.id)).toBe("idle");
     // Only the one the manager made at the input box: Codex's own SessionStart comes with the first prompt and is dropped.
-    expect(events("SessionStart")).toHaveLength(1);
-    expect(seen.findIndex((s) => s.event === "SessionStart")).toBeLessThan(seen.findIndex((s) => s.event === "UserPromptSubmit"));
-    expect(events("UserPromptSubmit")).toHaveLength(1);
-    expect(events("PostToolUse")).toHaveLength(1);
+    expect(events("session.started")).toHaveLength(1);
+    expect(seen.findIndex((s) => s.type === "session.started")).toBeLessThan(seen.findIndex((s) => s.type === "prompt.submitted"));
+    expect(events("prompt.submitted")).toHaveLength(1);
+    expect(events("tool.completed")).toHaveLength(1);
     const view = await manager.get(created.id);
     const threadId = (await records())[0].params.threadId;
     expect(view.nativeId).toBe(threadId);
@@ -125,34 +123,33 @@ describe("Codex session in a PTY", () => {
     expect(view.actualModel).toBe("gpt-6.1-sol");
     expect(view.model).toBeUndefined();
     // Listeners see TaskPilot's id, never the thread's.
-    for (const { payload } of events("Stop")) expect(payload).toMatchObject({ session_id: created.id, last_assistant_message: "DONE" });
-    expect(events("Stop")[0].payload.interrupted).toBeUndefined();
+    for (const stop of stops()) expect(stop).toMatchObject({ type: "turn.completed", sessionId: created.id, message: "DONE" });
   });
 
   it("emits the thread's token total and model as metrics before the Stop hook of the turn", async () => {
-    const { manager, repo, events } = await setup();
+    const { manager, repo, stops } = await setup();
     const order: string[] = [];
     const metrics: unknown[] = [];
     manager.on("metrics", (_meta, data) => {
       order.push("metrics");
       metrics.push(data);
     });
-    manager.on("hook", (_meta, event) => order.push(event));
+    manager.on("event", (_meta, event) => order.push(event.type));
     const created = await manager.create(repo, "DEMO-1", { agent: "codex" });
     await manager.waitForReady(created.id);
     manager.paste(created.id, "count tokens");
-    await vi.waitFor(async () => expect(events("Stop")).toHaveLength(1));
+    await vi.waitFor(async () => expect(stops()).toHaveLength(1));
     expect(order.indexOf("metrics")).toBeGreaterThan(-1);
-    expect(order.indexOf("metrics")).toBeLessThan(order.indexOf("Stop"));
+    expect(order.indexOf("metrics")).toBeLessThan(order.indexOf("turn.completed"));
     expect(metrics).toEqual([{ source: "codex-thread", inputTokens: 100, outputTokens: 20, model: "gpt-6.1-sol" }]);
   });
 
   it("resumes a default-model session without a model flag although the TUI reported its model", async () => {
-    const { manager, repo, records, events, state } = await setup();
+    const { manager, repo, records, stops, state } = await setup();
     const created = await manager.create(repo, "DEMO-1", { agent: "codex" });
     await manager.waitForReady(created.id);
     manager.paste(created.id, "first");
-    await vi.waitFor(async () => expect(events("Stop")).toHaveLength(1));
+    await vi.waitFor(async () => expect(stops()).toHaveLength(1));
     await manager.stopAndWait(created.id);
     expect((await new StateStore(state.dir).load()).sessions[0]).toMatchObject({ actualModel: "gpt-6.1-sol" });
     expect((await new StateStore(state.dir).load()).sessions[0].model).toBeUndefined();
@@ -177,11 +174,11 @@ describe("Codex session in a PTY", () => {
   });
 
   it("resumes the same thread with `codex resume <thread id>` and the same settings", async () => {
-    const { manager, repo, records, events } = await setup();
+    const { manager, repo, records, stops } = await setup();
     const created = await manager.create(repo, "DEMO-1", { agent: "codex", permissionMode: "acceptEdits", model: "gpt-6.1-sol" });
     await manager.waitForReady(created.id);
     manager.paste(created.id, "REMEMBER-ME\nsecond line");
-    await vi.waitFor(async () => expect(events("Stop")).toHaveLength(1));
+    await vi.waitFor(async () => expect(stops()).toHaveLength(1));
     const nativeId = (await manager.get(created.id)).nativeId!;
     await manager.stopAndWait(created.id);
 
@@ -194,9 +191,9 @@ describe("Codex session in a PTY", () => {
     expect(resume.params.args).toEqual(expect.arrayContaining(["-s", "workspace-write", "-a", "on-request", "-m", "gpt-6.1-sol"]));
 
     manager.paste(created.id, "RECALL");
-    await vi.waitFor(async () => expect(events("Stop")).toHaveLength(2));
+    await vi.waitFor(async () => expect(stops()).toHaveLength(2));
     // The resumed thread remembers the first prompt, and TaskPilot kept the id of the thread.
-    expect(events("Stop")[1].payload.last_assistant_message).toBe("REMEMBER-ME\nsecond line");
+    expect(stops()[1].message).toBe("REMEMBER-ME\nsecond line");
     expect((await manager.get(created.id)).nativeId).toBe(nativeId);
   });
 
@@ -210,7 +207,7 @@ describe("Codex session in a PTY", () => {
   });
 
   it("shows an approval in the terminal as permission activity and continues after the answer typed there", async () => {
-    const { manager, repo, events, activity, terminal } = await setup();
+    const { manager, repo, stops, activity, terminal } = await setup();
     const created = await manager.create(repo, "DEMO-1", { agent: "codex" });
     await manager.waitForReady(created.id);
     const socket = await terminal(created.id);
@@ -218,33 +215,33 @@ describe("Codex session in a PTY", () => {
     await vi.waitFor(async () => expect(await activity(created.id)).toBe("permission"));
     await vi.waitFor(() => expect(socket.output).toContain("Would you like to run the following command?"));
     socket.input("y");
-    await vi.waitFor(async () => expect(events("Stop")).toHaveLength(1));
-    expect(events("Stop")[0].payload.last_assistant_message).toBe("APPROVED");
+    await vi.waitFor(async () => expect(stops()).toHaveLength(1));
+    expect(stops()[0].message).toBe("APPROVED");
     expect(await activity(created.id)).toBe("idle");
 
     manager.paste(created.id, "APPROVAL");
     await vi.waitFor(async () => expect(await activity(created.id)).toBe("permission"));
     socket.input("\x1b");
-    await vi.waitFor(async () => expect(events("Stop")).toHaveLength(2));
-    expect(events("Stop")[1].payload.last_assistant_message).toBe("DECLINED");
+    await vi.waitFor(async () => expect(stops()).toHaveLength(2));
+    expect(stops()[1].message).toBe("DECLINED");
   });
 
   it("reports Esc during a running tool as an interrupted Stop and accepts the next prompt", async () => {
-    const { manager, repo, events, activity, terminal } = await setup();
+    const { manager, repo, stops, activity, terminal } = await setup();
     const created = await manager.create(repo, "DEMO-1", { agent: "codex" });
     await manager.waitForReady(created.id);
     const socket = await terminal(created.id);
     manager.paste(created.id, "SLOW");
     await vi.waitFor(async () => expect(await activity(created.id)).toBe("busy"));
     socket.input("\x1b");
-    await vi.waitFor(async () => expect(events("Stop")).toHaveLength(1));
+    await vi.waitFor(async () => expect(stops()).toHaveLength(1));
     // Codex fires Interrupt, not Stop, and no answer comes with it.
-    expect(events("Stop")[0].payload).toMatchObject({ interrupted: true, session_id: created.id });
-    expect(events("Stop")[0].payload.last_assistant_message).toBeUndefined();
+    expect(stops()[0]).toMatchObject({ type: "turn.interrupted", sessionId: created.id });
+    expect(stops()[0].message).toBeUndefined();
     expect(await activity(created.id)).toBe("idle");
     manager.paste(created.id, "after the interrupt");
-    await vi.waitFor(async () => expect(events("Stop")).toHaveLength(2));
-    expect(events("Stop")[1].payload.last_assistant_message).toBe("DONE");
+    await vi.waitFor(async () => expect(stops()).toHaveLength(2));
+    expect(stops()[1].message).toBe("DONE");
   });
 
   it("runs hooks only for a Codex that TaskPilot started", async () => {
@@ -256,7 +253,7 @@ describe("Codex session in a PTY", () => {
     await vi.waitFor(async () => expect((await records()).some((r) => r.method === "turn/start")).toBe(true));
     await new Promise((done) => setTimeout(done, 500));
     // Nothing but the ready marker's SessionStart, which the manager makes itself.
-    expect(seen.map((s) => s.event)).toEqual(["SessionStart"]);
+    expect(seen.map((s) => s.type)).toEqual(["session.started"]);
     expect((await manager.get(created.id)).nativeId).toBeUndefined();
     expect(await activity(created.id)).toBe("idle");
   });

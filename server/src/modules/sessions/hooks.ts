@@ -77,19 +77,3 @@ const STATUS_LINE_COMMAND =
   `input=$(cat); printf '%s' "$input" | curl -sS -m 2 -o /dev/null -X POST -H "x-taskpilot-hook-token: $TASKPILOT_HOOK_TOKEN" ` +
   `-H "content-type: application/json" --data-binary @- "$TASKPILOT_HOOK_URL/statusline" >/dev/null 2>&1 & ` +
   `if [ -n "$TASKPILOT_STATUSLINE_CMD" ]; then printf '%s' "$input" | sh -c "$TASKPILOT_STATUSLINE_CMD"; fi`;
-
-/** Next activity after a hook event. A permission prompt is cleared once a tool runs or the turn ends. */
-export function nextActivity(event: HookEvent): Activity {
-  switch (event) {
-    case "SessionStart":
-    case "Stop":
-      return "idle";
-    case "PermissionRequest":
-      return "permission";
-    case "UserPromptSubmit":
-    case "PreToolUse":
-    case "PostToolUse":
-    case "PostToolUseFailure":
-      return "busy";
-  }
-}

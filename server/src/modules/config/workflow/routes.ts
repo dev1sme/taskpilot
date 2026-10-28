@@ -43,6 +43,7 @@ import { repoSettingsTarget, workflowTarget } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
 import { subagentsOf } from "../library/read.js";
 import { isObject } from "../../../core/values.js";
+import type { EffectiveExecution, ExecutionSelection, ExecutionSelectionSource } from "../../workflow/types.js";
 
 /** The mode an existing override belongs to: the one it extends, or "custom" for a complete one. */
 const targetMode = (info: OverrideInfo) => (info.kind === "extends" ? info.extends : CUSTOM_MODE);
@@ -59,6 +60,98 @@ version: 2
 extends: ${mode}
 `;
 
+/** The mode the repo chose, from its .taskpilot/settings.yml. */
+const selectedOf = async (repo: string) => (await readRepoSettings(repo)).mode;
+
+/** A mode the repo can run: a workflows/ directory, or "custom" while it has a complete override. */
+const requireMode = (info: OverrideInfo, mode: string) => {
+  if (mode === CUSTOM_MODE ? info.kind !== "legacy" : !isMode(mode)) throw new HttpError(400, t("errors.unknownMode", { mode }));
+};
+
+/** The modes to offer: the built-in ones, and "custom" while the repo has a complete override. */
+const modesOf = async (info: OverrideInfo): Promise<ModeInfo[]> => [
+  ...(await listModes()),
+  ...(info.kind === "legacy" ? [{ id: CUSTOM_MODE, name: t("workflow.customMode"), description: "" }] : []),
+];
+
+/** The workflow files the override is compared with: its mode's, or the default mode's for a complete override. */
+const baseOf = (info: OverrideInfo) => modeDir(info.kind === "extends" ? info.extends : DEFAULT_MODE);
+
+/** The workflow page's view of one mode: its files (the repo's override when it applies), parsed definition and checks. */
+async function readWorkflowConfig(repo: string, mode: string | undefined) {
+  const info = await readOverride(repo);
+  const selected = resolveMode(info, await selectedOf(repo));
+  const modeId = mode || selected;
+  requireMode(info, modeId);
+  const composed = await composeWorkflow(repo, modeId, info);
+  const { def, errors, warnings } = composed.parsed;
+  // An override that applies to this mode is shown (and edited) as the repo wrote it; any other mode as TaskPilot ships it.
+  const applies = composed.mode.override;
+  const origin = applies ? "repo" : "default";
+  const dir = applies ? overrideDir(repo) : modeDir(modeId);
+  const files = applies ? info.files : composed.files;
+  const defaults = applies ? await readWorkflowDir(baseOf(info)) : files;
+  /** Where a file is used: step titles for prompts, document files for skeletons, the history file. */
+  const usedBy = (name: string) => [
+    ...(def?.steps.filter((s) => s.promptFile === name || s.onRejectFile === name || s.dispatch?.promptFile === name).map((s) => s.title) ?? []),
+    ...(def?.steps
+      .flatMap((s) => s.outputs)
+      .filter((o) => o.format === name)
+      .map((o) => o.file) ?? []),
+    ...(def?.steps.filter((s) => s.dispatch?.format === name).map((s) => s.dispatch!.report) ?? []),
+    ...(def?.history.format === name ? [def.history.file] : []),
+  ];
+  return {
+    origin,
+    mode: composed.mode,
+    modes: await modesOf(info),
+    selected,
+    overrideKind: info.kind,
+    overrideExtends: info.kind === "extends" ? info.extends : null,
+    provenance: composed.provenance ?? null,
+    overrideDir: OVERRIDE_DIR.split(path.sep).join("/"),
+    settingsPath: repoSettingsTarget(repo).display,
+    dir: displayPath(dir, repo),
+    errors,
+    warnings,
+    variables: templateVars,
+    newPrompt: PROMPT_TEXT.newPrompt,
+    def: def && {
+      agent: def.agent,
+      permissionMode: def.permissionMode ?? null,
+      history: { file: def.history.file, entry: def.history.entry, format: def.history.format ?? null },
+      language: def.language,
+      rules: def.rules,
+      restart: def.restart ?? null,
+      steps: def.steps.map((s) => ({
+        id: s.id,
+        title: s.title,
+        agent: s.agent,
+        gate: s.gate,
+        doneWhen: s.doneWhen?.output ?? null,
+        outputs: s.outputs.map((o) => ({ id: o.id, file: o.file, content: o.content, format: o.format ?? null })),
+        promptFile: s.promptFile,
+        onRejectFile: s.onRejectFile ?? null,
+        dispatch: s.dispatch && { from: s.dispatch.from, promptFile: s.dispatch.promptFile, report: s.dispatch.report, format: s.dispatch.format ?? null, parallel: s.dispatch.parallel },
+      })),
+    },
+    /** Every file of the workflow as it runs (the mode's, with the override laid over it). */
+    resolved: Object.fromEntries(composed.files),
+    files: [...files].map(([name, content]) => ({
+      name,
+      path: displayPath(path.join(dir, name), repo),
+      content,
+      hash: hashOf(content),
+      usedBy: name === WORKFLOW_FILE ? [] : usedBy(name),
+      sameAsDefault: defaults.has(name) ? defaults.get(name) === content : null,
+      provenance: applies && info.kind === "extends" ? (composed.provenance?.files[name] ?? null) : null,
+    })),
+  };
+}
+
+/** GET /api/config/workflow. */
+export type WorkflowConfigView = Awaited<ReturnType<typeof readWorkflowConfig>>;
+
 /**
  * The workflow page: TaskPilot's modes (workflows/<id>/, read only), and the repo's override in
  * .taskpilot/ — `extends: <mode>` with only what differs from that mode, or a complete (legacy)
@@ -66,9 +159,6 @@ extends: ${mode}
  */
 export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {
   const { requireRepo, backups } = opts;
-
-  /** The mode the repo chose, from its .taskpilot/settings.yml. */
-  const selectedOf = async (repo: string) => (await readRepoSettings(repo)).mode;
 
   /** The override's files with `drafts` laid over them (null removes a file). */
   const withDrafts = (info: OverrideInfo, drafts: Record<string, string | null>): OverrideInfo => {
@@ -98,20 +188,6 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
   const requireOverride = async (repo: string) => {
     if ((await readOverride(repo)).kind === "none") throw new HttpError(409, t("errors.noOverride"));
   };
-
-  /** A mode the repo can run: a workflows/ directory, or "custom" while it has a complete override. */
-  const requireMode = (info: OverrideInfo, mode: string) => {
-    if (mode === CUSTOM_MODE ? info.kind !== "legacy" : !isMode(mode)) throw new HttpError(400, t("errors.unknownMode", { mode }));
-  };
-
-  /** The modes to offer: the built-in ones, and "custom" while the repo has a complete override. */
-  const modesOf = async (info: OverrideInfo): Promise<ModeInfo[]> => [
-    ...(await listModes()),
-    ...(info.kind === "legacy" ? [{ id: CUSTOM_MODE, name: t("workflow.customMode"), description: "" }] : []),
-  ];
-
-  /** The workflow files the override is compared with: its mode's, or the default mode's for a complete override. */
-  const baseOf = (info: OverrideInfo) => modeDir(info.kind === "extends" ? info.extends : DEFAULT_MODE);
 
   app.get("/api/config/workflow/modes", async (): Promise<WorkflowModes> => {
     const repo = requireRepo();
@@ -176,79 +252,9 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     return { ...executionDefaults(repo, next), ...(written ? { backup: written.backup } : {}) };
   });
 
-  app.get<{ Querystring: { mode?: string } }>("/api/config/workflow", async (req) => {
-    const repo = requireRepo();
-    const info = await readOverride(repo);
-    const selected = resolveMode(info, await selectedOf(repo));
-    const modeId = req.query.mode || selected;
-    requireMode(info, modeId);
-    const composed = await composeWorkflow(repo, modeId, info);
-    const { def, errors, warnings } = composed.parsed;
-    // An override that applies to this mode is shown (and edited) as the repo wrote it; any other mode as TaskPilot ships it.
-    const applies = composed.mode.override;
-    const origin = applies ? "repo" : "default";
-    const dir = applies ? overrideDir(repo) : modeDir(modeId);
-    const files = applies ? info.files : composed.files;
-    const defaults = applies ? await readWorkflowDir(baseOf(info)) : files;
-    /** Where a file is used: step titles for prompts, document files for skeletons, the history file. */
-    const usedBy = (name: string) => [
-      ...(def?.steps.filter((s) => s.promptFile === name || s.onRejectFile === name || s.dispatch?.promptFile === name).map((s) => s.title) ?? []),
-      ...(def?.steps
-        .flatMap((s) => s.outputs)
-        .filter((o) => o.format === name)
-        .map((o) => o.file) ?? []),
-      ...(def?.steps.filter((s) => s.dispatch?.format === name).map((s) => s.dispatch!.report) ?? []),
-      ...(def?.history.format === name ? [def.history.file] : []),
-    ];
-    return {
-      origin,
-      mode: composed.mode,
-      modes: await modesOf(info),
-      selected,
-      overrideKind: info.kind,
-      overrideExtends: info.kind === "extends" ? info.extends : null,
-      provenance: composed.provenance ?? null,
-      overrideDir: OVERRIDE_DIR.split(path.sep).join("/"),
-      settingsPath: repoSettingsTarget(repo).display,
-      dir: displayPath(dir, repo),
-      errors,
-      warnings,
-      variables: templateVars,
-      newPrompt: PROMPT_TEXT.newPrompt,
-      def: def && {
-        agent: def.agent,
-        permissionMode: def.permissionMode ?? null,
-        history: { file: def.history.file, entry: def.history.entry, format: def.history.format ?? null },
-        language: def.language,
-        rules: def.rules,
-        restart: def.restart ?? null,
-        steps: def.steps.map((s) => ({
-          id: s.id,
-          title: s.title,
-          agent: s.agent,
-          gate: s.gate,
-          doneWhen: s.doneWhen?.output ?? null,
-          outputs: s.outputs.map((o) => ({ id: o.id, file: o.file, content: o.content, format: o.format ?? null })),
-          promptFile: s.promptFile,
-          onRejectFile: s.onRejectFile ?? null,
-          dispatch: s.dispatch && { from: s.dispatch.from, promptFile: s.dispatch.promptFile, report: s.dispatch.report, format: s.dispatch.format ?? null, parallel: s.dispatch.parallel },
-        })),
-      },
-      /** Every file of the workflow as it runs (the mode's, with the override laid over it). */
-      resolved: Object.fromEntries(composed.files),
-      files: [...files].map(([name, content]) => ({
-        name,
-        path: displayPath(path.join(dir, name), repo),
-        content,
-        hash: hashOf(content),
-        usedBy: name === WORKFLOW_FILE ? [] : usedBy(name),
-        sameAsDefault: defaults.has(name) ? defaults.get(name) === content : null,
-        provenance: applies && info.kind === "extends" ? (composed.provenance?.files[name] ?? null) : null,
-      })),
-    };
-  });
+  app.get<{ Querystring: { mode?: string } }>("/api/config/workflow", async (req) => readWorkflowConfig(requireRepo(), req.query.mode));
 
-  app.get<{ Querystring: { name?: string } }>("/api/config/workflow/file", async (req) => {
+  app.get<{ Querystring: { name?: string } }>("/api/config/workflow/file", async (req): Promise<WorkflowFileView> => {
     const repo = requireRepo();
     const name = req.query.name ?? "";
     const target = workflowTarget(repo, name);
@@ -340,7 +346,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     return { files: names };
   });
 
-  app.post("/api/config/workflow/validate", async (req) => {
+  app.post("/api/config/workflow/validate", async (req): Promise<WorkflowChecks> => {
     const repo = requireRepo();
     await requireOverride(repo);
     const name = stringField(req.body, "name");
@@ -349,7 +355,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
     return { errors: after.errors, warnings: after.warnings };
   });
 
-  app.post("/api/config/workflow/preview", async (req) => {
+  app.post("/api/config/workflow/preview", async (req): Promise<WorkflowSavePreview> => {
     const repo = requireRepo();
     await requireOverride(repo);
     const name = stringField(req.body, "name");
@@ -405,7 +411,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
    * absent) with unsaved `drafts` laid over the override. `restart` adds what a run after "Chạy lại từ
    * đầu" is told, with every document archived.
    */
-  app.post("/api/config/workflow/render", async (req) => {
+  app.post("/api/config/workflow/render", async (req): Promise<RenderedPrompt> => {
     const repo = requireRepo();
     const body = (req.body ?? {}) as { drafts?: unknown; feedback?: unknown; restart?: unknown; mode?: unknown; execution?: unknown };
     const stepId = stringField(req.body, "stepId");
@@ -470,4 +476,33 @@ export interface ExecutionDefaults {
   errors: NonNullable<RepoSettings["errors"]>;
   hash: string;
   settingsPath: string;
+}
+
+/** One file of the repo's override, with the file it replaces (the mode's) for comparison. */
+export interface WorkflowFileView {
+  path: string;
+  exists: boolean;
+  content: string;
+  hash: string;
+  defaultContent: string | null;
+}
+
+export interface WorkflowChecks {
+  errors: string[];
+  warnings: string[];
+}
+
+export interface WorkflowSavePreview extends Pick<WorkflowChecks, "warnings"> {
+  diff: string;
+  changed: boolean;
+  stale: boolean;
+}
+
+/** The prompt a step would send, for a sample task. */
+export interface RenderedPrompt {
+  task: typeof PROMPT_TEXT.sampleTask;
+  execution: ExecutionSelection;
+  source: ExecutionSelectionSource;
+  effective: EffectiveExecution;
+  text: string;
 }

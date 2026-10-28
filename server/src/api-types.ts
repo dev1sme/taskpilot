@@ -36,3 +36,4 @@ export type { CopilotHookEntry, HookFile } from "./modules/config/hooks/hook-fil
 export type { LibraryItem, LibraryKind } from "./modules/config/library/read.js";
 export type { AgentCheck } from "./modules/config/library/check.js";
 export type { McpConfig, McpServer } from "./modules/config/mcp/read.js";
+export type { RenderedPrompt, WorkflowChecks, WorkflowConfigView, WorkflowFileView, WorkflowSavePreview } from "./modules/config/workflow/routes.js";

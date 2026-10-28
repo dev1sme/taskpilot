@@ -120,11 +120,7 @@ export interface HookFile {
   error?: string;
 }
 
-export async function listHookFiles(
-  repo: string,
-  cli: ProviderId,
-  hooks: FileHooks,
-): Promise<HookFile[]> {
+export async function listHookFiles(repo: string, cli: ProviderId, hooks: FileHooks): Promise<HookFile[]> {
   const out: HookFile[] = [];
   for (const scope of hooks.scopes) {
     const root = hooks.dir(repo, scope);

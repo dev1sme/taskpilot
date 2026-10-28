@@ -1,0 +1,19 @@
+{
+  "title": "Hoạt động",
+  "count": "{{count}} thao tác",
+  "empty": "Chưa có hoạt động. Khi agent đọc file, chạy lệnh hay ghi tài liệu, mọi thứ hiện ở đây.",
+  "more": "Xem thêm {{count}} hoạt động cũ hơn",
+  "stop": "Agent kết thúc lượt",
+  "running": "đang chạy",
+  "error": "lỗi",
+  "category": {
+    "read": "Đọc",
+    "write": "Ghi",
+    "run": "Lệnh",
+    "search": "Tìm",
+    "web": "Web",
+    "agent": "Subagent",
+    "plan": "Kế hoạch",
+    "other": "Công cụ"
+  }
+}

@@ -1,5 +1,6 @@
 import { createHashHistory, createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { TaskScreen } from "@/features/task/task-screen";
 import { TasksPage } from "@/features/tasks/tasks-page";
 import { Pending } from "./pending";
 import { CONFIG_SECTIONS, configSearch, type ConfigSection } from "./routes";
@@ -32,7 +33,7 @@ export const taskRoute = createRoute({
   path: "/tasks/$key",
   component: function Task() {
     const { key } = taskRoute.useParams();
-    return <Pending title={key} />;
+    return <TaskScreen taskKey={key} />;
   },
 });
 

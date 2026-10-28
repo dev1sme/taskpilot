@@ -55,6 +55,7 @@
     "@hookform/resolvers": "^6.0.1",
     "@lezer/highlight": "^1.2.5",
     "@phosphor-icons/react": "^2.1.10",
+    "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-router": "^1.170.46",
     "@types/node": "^24.19.2",

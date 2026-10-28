@@ -1,0 +1,227 @@
+{
+  "mode": {
+    "label": "Cách chạy"
+  },
+  "stepper": {
+    "label": "Các bước của quy trình",
+    "gate": "Ba duyệt",
+    "dispatchCount": "{{label}} ({{done}}/{{total}})",
+    "state": {
+      "step": {
+        "done": "đã xong",
+        "current": "đang làm",
+        "pending": "chưa tới"
+      },
+      "gate": {
+        "done": "đã duyệt",
+        "current": "đang chờ ba duyệt",
+        "pending": "chưa tới"
+      }
+    }
+  },
+  "now": {
+    "label": "Trạng thái hiện tại",
+    "retry": "Gửi lại bước",
+    "restart": "Chạy lại từ đầu",
+    "restartOptions": "Tuỳ chọn chạy lại từ đầu",
+    "openTerminal": "Mở terminal",
+    "doneTitle": "Quy trình hoàn tất",
+    "cancelledTitle": "Quy trình đã huỷ",
+    "readyTitle": "Sẵn sàng chạy quy trình",
+    "doneBody": "Xong sau <strong>{{duration}}</strong>. Mọi bước đã được ba duyệt.",
+    "readyBody": "TaskPilot sẽ mở một session {{agent}} mới, gửi lần lượt {{count}} bước và dừng ở mỗi chỗ cần ba duyệt.",
+    "readDoc": "Đọc {{file}}",
+    "start": "Bắt đầu quy trình",
+    "permissionTitle": "{{agent}} xin quyền",
+    "permissionFallback": "{{agent}} đang chờ ba cho phép một thao tác.",
+    "permissionHint": "Trả lời trong terminal: cho phép, cho phép cả session, hoặc từ chối.",
+    "permissionAnswer": "Mở terminal để trả lời",
+    "waitingTitle": "{{agent}} đang chờ ba",
+    "interruptedTitle": "Bước \"{{step}}\" bị gián đoạn",
+    "startingTitle": "Đang khởi động {{agent}}",
+    "runningTitle": "{{agent}} đang làm: {{step}}",
+    "startingHint": "Nếu {{agent}} hỏi có tin tưởng thư mục này không, hãy trả lời trong terminal.",
+    "thinking": "{{agent}} đang suy nghĩ…",
+    "countsLabel": "Thao tác trong bước này",
+    "counts": {
+      "read": "<strong>{{count}}</strong> file đã đọc",
+      "write": "<strong>{{count}}</strong> file đã ghi",
+      "run": "<strong>{{count}}</strong> lệnh đã chạy",
+      "error": "<strong>{{count}}</strong> lỗi"
+    },
+    "replyLabel": "Trả lời {{agent}}",
+    "replyMore": "Thêm ý (không bắt buộc)",
+    "replyPlaceholder": "Gửi thẳng vào session, như gõ trong terminal",
+    "replySend": "Gửi trả lời"
+  },
+  "gate": {
+    "title": "Đến lượt ba duyệt",
+    "body": "Bước <strong>{{step}}</strong> đã xong.",
+    "bodyLast": " Duyệt để hoàn tất quy trình.",
+    "bodyNext": " Duyệt để sang bước tiếp theo.",
+    "summary": "{{agent}} tóm tắt",
+    "readAll": "Đọc toàn bộ",
+    "loading": "Đang tải…",
+    "approveLast": "Duyệt và hoàn tất",
+    "approveNext": "Duyệt, sang bước tiếp",
+    "feedbackLabel": "Hoặc góp ý để {{agent}} sửa lại",
+    "feedbackPlaceholder": "Ví dụ: thêm test cho trường hợp danh sách rỗng",
+    "sendFeedback": "Gửi góp ý",
+    "approveNextAnswered": "Duyệt kèm trả lời, sang bước tiếp",
+    "approveLastAnswered": "Duyệt kèm trả lời và hoàn tất",
+    "feedbackLabelAnswered": "Hoặc gửi các câu trả lời như góp ý để {{agent}} sửa lại (thêm ý nếu cần)"
+  },
+  "subtasks": {
+    "title": "{{step}}: {{done}}/{{total}} việc xong",
+    "progress": "{{done}}/{{total}} việc xong",
+    "previewLabel": "Các việc con của kế hoạch",
+    "previewTitle_one": "Duyệt xong, Claude giao {{count}} việc con (chạy tối đa {{parallel}} việc cùng lúc)",
+    "previewTitle_other": "Duyệt xong, Claude giao {{count}} việc con (chạy tối đa {{parallel}} việc cùng lúc)",
+    "previewTitleLimited_one": "Duyệt xong, Claude giao {{count}} / {{max}} việc con tối đa (chạy tối đa {{parallel}} việc cùng lúc)",
+    "previewTitleLimited_other": "Duyệt xong, Claude giao {{count}} / {{max}} việc con tối đa (chạy tối đa {{parallel}} việc cùng lúc)",
+    "invalid": "Bảng phân công trong kế hoạch chưa chạy được. Gửi góp ý để Claude sửa lại:",
+    "after": "sau việc {{list}}",
+    "permission": "xin quyền",
+    "readReport": "Đọc {{file}}",
+    "retry": "Gửi lại việc",
+    "noHook": "{{agent}} không gửi hook",
+    "subagent": "subagent",
+    "model": "model",
+    "metricsLabel": "Số liệu: model, thời gian, chi phí",
+    "noModel": "model không rõ",
+    "noCost": "chi phí không có",
+    "phase": {
+      "pending": "chờ tới lượt",
+      "starting": "đang khởi động",
+      "running": "đang làm",
+      "waiting": "đang chờ ba",
+      "done": "xong",
+      "interrupted": "bị gián đoạn"
+    },
+    "inputTokens": "{{count}} token vào",
+    "outputTokens": "{{count}} token ra"
+  },
+  "markDone": {
+    "button": "Đánh dấu xong",
+    "hint": "Chỉ khi agent đã ghi xong tài liệu của bước này.",
+    "confirm": "Xác nhận: xong",
+    "cancel": "Huỷ"
+  },
+  "questions": {
+    "title_one": "{{agent}} hỏi {{count}} câu",
+    "title_other": "{{agent}} hỏi {{count}} câu",
+    "choices": "Trả lời câu {{n}}",
+    "agree": "Theo đề xuất",
+    "other": "Trả lời khác",
+    "skip": "Chưa trả lời",
+    "answerLabel": "Câu trả lời cho câu {{n}}",
+    "answerPlaceholder": "Câu trả lời của ba",
+    "approveHint": "Khi duyệt, câu trả lời được ghi vào nhật ký quyết định; bước sau đọc nhật ký trước tiên."
+  },
+  "selection": {
+    "label": "Lựa chọn cho lần chạy mới",
+    "agent": "Agent",
+    "model": "Model",
+    "workflow": "Theo cấu hình workflow",
+    "workflowModel": "Theo từng bước / bảng Phân công",
+    "defaultModel": "Mặc định của agent",
+    "savedModel": "{{model}} (đã lưu, chưa xác minh)",
+    "source": "Nguồn agent/model: {{source}}.",
+    "sources": {
+      "run": "lựa chọn của run trước",
+      "request": "lựa chọn trong form",
+      "repo": "mặc định repo",
+      "workflow": "cấu hình workflow"
+    },
+    "scope": "Agent cụ thể áp dụng mọi bước, việc con và review; quyền giữ theo workflow.",
+    "defaultHint": "Mặc định của agent nghĩa là không truyền model; model thực tế chỉ biết khi backend báo.",
+    "unverified": "{{agent}}: chưa xác minh đầy đủ đăng nhập hoặc danh sách model theo tài khoản.",
+    "preview": "Xem trước cấu hình hiệu lực",
+    "save": "Dùng agent/model làm mặc định repo",
+    "saveMode": "Dùng cách chạy làm mặc định repo",
+    "refresh": "Tải lại cấu hình",
+    "saved": "Đã lưu agent/model cho run mới của repo. Run đang chạy giữ lựa chọn cũ.",
+    "modeSaved": "Đã lưu cách chạy cho run mới của repo.",
+    "previewSource": "{{mode}} · nguồn: {{source}} · cấu hình gốc → cấu hình yêu cầu hiệu lực",
+    "permission": "quyền: {{value}}",
+    "prompt": "Prompt sẽ gửi",
+    "previewUnknown": "Một số kiểm tra đăng nhập/model chưa được backend xác minh; đây là cấu hình yêu cầu, không phải cam kết model thực tế.",
+    "effective": "Cấu hình yêu cầu hiệu lực: {{agent}} · {{model}}",
+    "missingMode": "Cách chạy {{mode}} không còn khả dụng. Chọn cách chạy khác trước khi chạy lại.",
+    "readyBody": "Chọn cách chạy, agent và model bên dưới. Xem trước cấu hình hiệu lực trước khi bắt đầu; quy trình dừng ở từng chỗ cần ba duyệt."
+  },
+  "handoff": {
+    "action": "Tiếp tục bằng…",
+    "title": "Bàn giao cho agent khác",
+    "close": "Đóng",
+    "stepScope": "Bước chính: {{step}}",
+    "memberScope": "Việc {{n}} · bước {{step}}",
+    "scopeHint": "Chỉ thay agent cho lane này. Giữ bước, phạm vi file, phụ thuộc, quyền và các gate; các lane khác và bước tiếp theo theo cấu hình hiện tại. Tạo session mới, giữ phiên nguồn trong lịch sử.",
+    "reason": "Lý do bàn giao (tuỳ chọn)",
+    "preview": "Xem trước bàn giao",
+    "confirm": "Xác nhận bàn giao",
+    "consent": "Tôi đồng ý dừng phiên nguồn đang chạy và hủy các yêu cầu quyền đang chờ của phiên đó.",
+    "previewError": "Chưa bàn giao. Có thể sửa cấu hình hoặc tải lại preview; phiên nguồn chưa bị thay.",
+    "uncertain": "Cần kiểm tra kết quả trong lịch sử bàn giao. Không tự gửi lại prompt hoặc resume phiên cũ. Gửi lại xác nhận dùng cùng mã thao tác; nếu đã commit, thử lại đúng lane đích khi cần.",
+    "retryCommit": "Kiểm tra / gửi lại xác nhận",
+    "blocked": "Lane đang bàn giao hoặc chưa xác minh được tiến trình đã dừng. Thao tác tiếp tục bị khóa; kiểm tra lỗi khôi phục và tiến trình trước khi thử lại.",
+    "history": "Lịch sử bàn giao",
+    "content": "Nội dung đã bàn giao",
+    "attempts": "Các lần thực thi",
+    "generation": "Lượt tiến trình {{value}}",
+    "target": "Cấu hình yêu cầu: {{agent}} · {{model}}",
+    "sourceSession": "Xem phiên nguồn",
+    "targetSession": "Xem phiên đích",
+    "recoverSource": "Bàn giao chưa commit. Phiên nguồn vẫn là lane hiện hành; bấm Thử lại ở đúng bước/việc để trở về agent nguồn, hoặc mở preview mới sau khi đã dọn tiến trình đích.",
+    "recoverTarget": "Đã commit sang phiên đích. Bấm Thử lại ở đúng bước/việc để tiếp tục agent đích; không resume phiên nguồn đã được thay.",
+    "delivered": "Đã gửi prompt sang phiên đích.",
+    "stages": {
+      "prepared": "Đã chuẩn bị",
+      "source-stopped": "Đã dừng nguồn",
+      "target-created": "Đã tạo đích",
+      "committed": "Đã commit",
+      "failed": "Thất bại"
+    },
+    "usage": "Số liệu từ {{count}} session",
+    "cumulative": "Số liệu cumulative theo session/thread, không phải phần dùng riêng từng lượt/bước. Session dùng lại chỉ tính một lần; phần thiếu không suy thành 0 hay chi phí ước tính.",
+    "missing": "Chưa có số đo",
+    "coverage": "Có số đo {{known}}/{{total}} session",
+    "actualModel": "Model thực tế: {{model}}",
+    "nativeId": "Thread/native id: {{id}}",
+    "missingTime": "Chưa rõ thời điểm đo",
+    "counters": {
+      "costUsd": "Chi phí (USD)",
+      "inputTokens": "Token vào",
+      "outputTokens": "Token ra"
+    },
+    "sources": {
+      "claude-statusline": "Nguồn: Claude statusline",
+      "codex-thread": "Nguồn: Codex thread",
+      "legacy": "Nguồn: dữ liệu cũ, provenance chưa xác minh"
+    },
+    "attemptConfig": "Cấu hình yêu cầu: {{agent}} · {{requested}}; model thực tế: {{actual}}"
+  },
+  "quota": {
+    "label": "Hạn mức và hướng xử lý",
+    "reasons": {
+      "quota": "Backend báo lượt chạy đã hết hạn mức sử dụng.",
+      "auth": "Backend báo lỗi đăng nhập hoặc xác thực. Kiểm tra đăng nhập rồi thử lại.",
+      "model": "Model đã chọn không khả dụng theo inventory. Chọn model khác khi bàn giao.",
+      "cli": "Không tìm thấy CLI trong môi trường chạy.",
+      "network": "Backend báo kết nối bị gián đoạn. Kiểm tra mạng rồi thử lại.",
+      "unknown": "Chưa xác định được nguyên nhân. Bạn vẫn có thể tiếp tục bằng agent khác."
+    },
+    "account": "Hạn mức tài khoản · {{source}} · {{time}} · {{freshness}}. Đây không phải bằng chứng nguyên nhân lỗi của lượt chạy.",
+    "sources": {
+      "claude-statusline": "Claude status line",
+      "copilot-quota": "Copilot quota"
+    },
+    "fresh": "còn mới",
+    "stale": "đã cũ hoặc đã qua thời điểm đặt lại",
+    "turnTime": "Lỗi lượt chạy được ghi nhận lúc {{time}}.",
+    "retry": "Thử lại",
+    "codex": "Tiếp tục bằng Codex",
+    "choose": "Chọn agent khác",
+    "later": "Để sau"
+  }
+}

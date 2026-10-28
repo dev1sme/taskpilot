@@ -36,6 +36,20 @@ describe("session failure integration", () => {
     await manager.stopAndWait(session.id);
   });
 
+  it("sends a status line's model and cost out as metrics, before the raw status line", async () => {
+    const repo = await makeRepo();
+    const state = new StateStore(await tempDir("statusline-state-"));
+    const manager = new SessionManager(state, { launcher: () => ({ file: "/bin/sh", args: ["-c", "while read -r line; do :; done"] }) });
+    managers.push(manager);
+    const session = await manager.create(repo, "DEMO-1");
+    const seen: unknown[] = [];
+    manager.on("metrics", (_meta, data) => seen.push(data));
+    manager.on("statusline", () => seen.push("statusline"));
+    expect(await manager.handleStatusLine(token(manager, session.id), { session_id: session.id, model: { id: "claude-x" }, cost: { total_cost_usd: 0.25 } })).toBe(true);
+    expect(seen).toEqual([{ source: "claude-statusline", model: "claude-x", costUsd: 0.25 }, "statusline"]);
+    await manager.stopAndWait(session.id);
+  });
+
   it("does not invent a failure from account usage or after a manager restart", async () => {
     const repo = await makeRepo();
     const state = new StateStore(await tempDir("failure-restart-"));

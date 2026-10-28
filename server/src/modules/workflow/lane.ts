@@ -5,7 +5,7 @@ import { PROVIDER_LABELS, DEFAULT_PROVIDER, type ProviderId } from "../../core/p
 import { TASKS_DIR } from "../tasks/index.js";
 import { t } from "../../core/i18n.js";
 import { resolveExecution } from "./execution.js";
-import type { OutputBaseline, RunPhase, RunState, SubtaskMetrics, SubtaskPhase, WorkflowDef } from "./types.js";
+import type { OutputBaseline, RunPhase, RunState, SubtaskPhase, WorkflowDef } from "./types.js";
 
 /**
  * What the engine drives in one session: the run itself (the leader) or one of its subtasks. Both
@@ -53,16 +53,6 @@ export function agentLabel(run: RunState): string {
 
 export function taskAbsoluteDir(run: RunState): string {
   return path.join(run.repo, TASKS_DIR, run.taskKey);
-}
-
-/** The model id and session cost in a Claude status line payload; fields it lacks are left out. */
-export function statusLineMetrics(payload: Record<string, unknown>): Pick<SubtaskMetrics, "model" | "costUsd"> {
-  const model = payload.model as { id?: unknown } | undefined;
-  const cost = payload.cost as { total_cost_usd?: unknown } | undefined;
-  return {
-    ...(typeof model?.id === "string" && model.id ? { model: model.id } : {}),
-    ...(typeof cost?.total_cost_usd === "number" && Number.isFinite(cost.total_cost_usd) ? { costUsd: cost.total_cost_usd } : {}),
-  };
 }
 
 /** An agent with the model its session runs, for the decision log: "Claude (opus)", or "Claude" for its default. */

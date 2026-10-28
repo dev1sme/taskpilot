@@ -101,8 +101,8 @@ export interface ProviderTraits {
 }
 
 /**
- * How TaskPilot runs one coding agent in a session. Everything past this interface (engine,
- * activity feed, hook routes) works with Claude Code's hook names and payload fields.
+ * How TaskPilot runs one coding agent in a session. Hooks reach it in Claude Code's names and
+ * payload fields; past SessionManager, consumers see only `SessionEvent` and `SessionMetrics`.
  */
 export interface ProviderBackend extends ProviderTraits {
   id: ProviderId;
@@ -136,6 +136,8 @@ export interface ProviderBackend extends ProviderTraits {
   promptInventory?(repo: string): Promise<ProviderPromptInventory>;
   /** Cumulative measurements this turn's hook carries (Codex: the rollout's last `token_count`); null = none. Called with the normalized payload, before the hook is emitted. */
   turnMetrics?(event: HookEvent, payload: Record<string, unknown>): Promise<SessionMetrics | null>;
+  /** Cumulative measurements in a status line callback (Claude: model and session cost); absent = the agent reports none there. */
+  statusLineMetrics?(payload: Record<string, unknown>): SessionMetrics;
   /** The payload as Claude Code would send it; null drops the event. */
   normalize?(event: HookEvent, payload: Record<string, unknown>, state: HookState): Promise<Record<string, unknown> | null>;
 }

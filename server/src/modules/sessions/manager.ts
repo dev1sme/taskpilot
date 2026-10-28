@@ -94,7 +94,7 @@ export interface SessionEvents {
   change: [meta: SessionMeta];
   /** What the agent did, in TaskPilot's vocabulary; the only stream of hook-derived events. */
   event: [meta: SessionMeta, event: SessionEvent];
-  /** Input of the session's status line (plan usage, cost). */
+  /** Input of the session's status line (account plan usage); its model and cost also go out as `metrics`. */
   statusline: [meta: SessionMeta, payload: Record<string, unknown>];
   exit: [meta: SessionMeta];
   /** Something went wrong that does not stop the session, e.g. writing an agent's hook file. */
@@ -593,6 +593,8 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     const live = this.live.get(id);
     const meta = await this.find(id);
     if (!live || live.stopping || this.live.get(id) !== live || live.hookToken !== token) return false;
+    const metrics = backendOf(meta.agent).statusLineMetrics?.(payload);
+    if (metrics) this.emit("metrics", meta, metrics);
     this.emit("statusline", meta, payload);
     return true;
   }

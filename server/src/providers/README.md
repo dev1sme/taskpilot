@@ -62,3 +62,10 @@ workflow engine consume that stream. Resume, transcript provenance, tool
 duration and failed turns (`turn.failed`) are carried explicitly to preserve
 their previous behavior. HTTP hook names, state and API formats remain
 unchanged.
+
+Status line input follows the same rule. A backend's `statusLineMetrics` reads
+the provider's payload (Claude: `providers/claude/status-line.ts`) and
+SessionManager emits the result on the `metrics` stream, which the workflow
+engine consumes. Only `claude-statusline` metrics may carry a cost. The raw
+`statusline` stream remains only for account plan usage, gated by the
+`reportsStatusLine` trait.

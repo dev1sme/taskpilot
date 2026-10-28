@@ -53,4 +53,5 @@ export interface SessionMetrics {
   model?: string;
   inputTokens?: number;
   outputTokens?: number;
+  costUsd?: number;
 }

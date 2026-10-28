@@ -39,6 +39,17 @@ describe("backends", () => {
     expect(providerTraits("claude").metricsSource).toBeUndefined();
   });
 
+  it("reads model and cost from Claude's status line only", () => {
+    expect(BACKENDS.claude.statusLineMetrics!({ model: { id: "claude-x" }, cost: { total_cost_usd: 1.5 }, rate_limits: {} })).toEqual({
+      source: "claude-statusline",
+      model: "claude-x",
+      costUsd: 1.5,
+    });
+    expect(BACKENDS.claude.statusLineMetrics!({ model: { id: "" }, cost: { total_cost_usd: Number.NaN } })).toEqual({ source: "claude-statusline" });
+    expect(BACKENDS.codex.statusLineMetrics).toBeUndefined();
+    expect(BACKENDS.copilot.statusLineMetrics).toBeUndefined();
+  });
+
   it("applies the Claude model rule only to Claude", () => {
     const rule = providerTraits("claude").modelProblem!;
     expect(rule("sonnet")).toBeNull();

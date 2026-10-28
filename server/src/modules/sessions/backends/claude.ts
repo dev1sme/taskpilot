@@ -1,5 +1,6 @@
 import { claudeLauncher } from "../../../providers/claude/cli-launcher.js";
 import { claudeModelProblem } from "../../../providers/claude/models.js";
+import { claudeStatusLineMetrics } from "../../../providers/claude/status-line.js";
 import { hookSettings } from "../hooks.js";
 import type { ProviderBackend } from "./types.js";
 import { probePty } from "./probe.js";
@@ -17,4 +18,5 @@ export const claudeBackend: ProviderBackend = {
   modelProblem: claudeModelProblem,
   probe: (context) => probePty(claudeBackend, context),
   launcher: claudeLauncher,
+  statusLineMetrics: (payload) => ({ source: "claude-statusline", ...claudeStatusLineMetrics(payload) }),
 };

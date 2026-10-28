@@ -13,20 +13,7 @@ import { launchModel } from "./models.js";
 import { archiveOutputs } from "./archive.js";
 import { HISTORY_TEXT, measuredMetrics, mergeCumulative, summarizeMetrics } from "./history.js";
 import { PROMPT_TEXT } from "./prompt-text.js";
-import {
-  ACTIVE_RUN_PHASES,
-  agentLabel,
-  dispatching,
-  laneBlocked,
-  laneOf,
-  outputBaseline,
-  sessionLabel,
-  statusLineMetrics,
-  syncDispatch,
-  taskAbsoluteDir,
-  writtenSince,
-  type Lane,
-} from "./lane.js";
+import { ACTIVE_RUN_PHASES, agentLabel, dispatching, laneBlocked, laneOf, outputBaseline, sessionLabel, syncDispatch, taskAbsoluteDir, writtenSince, type Lane } from "./lane.js";
 import type { LoadDef, SessionPort, ClaudeSubagentsOf } from "./ports.js";
 import { assignmentsFor, assignmentProblems } from "./run-checks.js";
 import { ExecutionValidationError, resolveExecution, selectExecution, snapshotExecution } from "./execution.js";
@@ -523,19 +510,6 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
   }
 
   /** Backend observations for both leader and members; generation/lane fences apply first. */
-  onStatusLine(meta: SessionMeta, payload: Record<string, unknown>): Promise<void> {
-    meta = structuredClone(meta);
-    const fence = this.eventFence(meta.id);
-    return this.serial(async () => {
-      if ((meta.agent ?? DEFAULT_PROVIDER) !== "claude") return;
-      const run = await this.store.bySession(meta.id);
-      if (run && !(await this.acceptEvent(run, meta, await fence))) return;
-      if (!run) return;
-      this.recordMetrics(run, meta, statusLineMetrics(payload), "claude-statusline");
-      await this.store.save(run, {});
-    });
-  }
-
   onMetrics(meta: SessionMeta, data: SessionMetrics): Promise<void> {
     meta = structuredClone(meta);
     const fence = this.eventFence(meta.id);
@@ -543,7 +517,9 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       const run = await this.store.bySession(meta.id);
       if (run && !(await this.acceptEvent(run, meta, await fence))) return;
       if (!run) return;
-      this.recordMetrics(run, meta, { model: data.model, inputTokens: data.inputTokens, outputTokens: data.outputTokens }, data.source ?? "legacy");
+      // Only a status line reports what the session cost; token notifications never carry a cost.
+      const costUsd = data.source === "claude-statusline" ? { costUsd: data.costUsd } : {};
+      this.recordMetrics(run, meta, { model: data.model, inputTokens: data.inputTokens, outputTokens: data.outputTokens, ...costUsd }, data.source ?? "legacy");
       await this.store.save(run, {});
     });
   }

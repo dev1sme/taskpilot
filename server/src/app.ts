@@ -21,7 +21,7 @@ import { registerEnvRoutes, EnvStore } from "./modules/env/index.js";
 import { registerEventsRoutes } from "./modules/events/index.js";
 import { registerHooksRoutes } from "./modules/hooks/index.js";
 import { createRepoContext, registerRepoRoutes } from "./modules/repo/index.js";
-import { SessionManager, registerSessionsRoutes } from "./modules/sessions/index.js";
+import { SessionManager, providerTraits, registerSessionsRoutes } from "./modules/sessions/index.js";
 import { registerTasksRoutes, TasksWatcher } from "./modules/tasks/index.js";
 import { createClaudePoller, createCodexPoller, createCopilotPoller, registerUsageRoutes, UsageStore } from "./modules/usage/index.js";
 import { ExecutionValidationError, WorkflowEngine, loadWorkflow, readRepoSettings, type LoadDef, registerWorkflowRoutes, stageOf } from "./modules/workflow/index.js";
@@ -124,12 +124,9 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   // it works and when a turn ends. The poller limits reads to one a minute.
   const claudeUsage = createClaudePoller(usage, opts.claudeUsage, logError);
   sessions.on("statusline", (meta, payload) => {
-    if ((meta.agent ?? "claude") === "claude") {
-      void usage.apply(payload).catch(logError);
-      claudeUsage.request();
-    }
-    // A subtask's model and cost, for the leader's review of the subtasks.
-    void engine.onStatusLine(meta, payload).catch(logError);
+    if (!providerTraits(meta.agent).reportsStatusLine) return;
+    void usage.apply(payload).catch(logError);
+    claudeUsage.request();
   });
   const copilotQuota = createCopilotPoller(usage, opts.copilotQuota, logError);
   const quotaEvents = new Set(["session.started", "tool.completed", "turn.completed", "turn.interrupted", "turn.failed"]);

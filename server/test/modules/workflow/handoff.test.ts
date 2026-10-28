@@ -11,7 +11,7 @@ import { SessionManager } from "../../../src/modules/sessions/index.js";
 import { WorkflowEngine } from "../../../src/modules/workflow/engine.js";
 import { codexTuiLauncher, seedCodexThread, startHookServer, type HookServer } from "../../helpers/codex-tui.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
-import { fireHook } from "../../helpers/session-events.js";
+import { fireHook, fireStatusLine } from "../../helpers/session-events.js";
 
 const safe = createSafeText([]);
 
@@ -211,7 +211,7 @@ describe("metrics provenance across handoff", () => {
     const f = await transactionFixture(kind, "Continue the current work", initialAgent);
     const sourceId = kind === "step" ? (await f.read()).sessionId : (await f.read()).subtasks![1].sessionId!;
     const source = await f.manager.get(sourceId);
-    if (initialAgent === "claude") await f.engine.onStatusLine(source, { model: { id: "claude-measured" }, cost: { total_cost_usd: 0.42 } });
+    if (initialAgent === "claude") await fireStatusLine(f.engine, source, { model: { id: "claude-measured" }, cost: { total_cost_usd: 0.42 } });
     else {
       await f.engine.onMetrics(source, { source: "codex-thread", model: "codex-measured", inputTokens: 100, outputTokens: 20 });
       await f.engine.onMetrics(source, { source: "codex-thread", inputTokens: 100, outputTokens: 20 });
@@ -224,9 +224,9 @@ describe("metrics provenance across handoff", () => {
     if (initialAgent === "claude") {
       await f.engine.onMetrics(target, { source: "codex-thread", model: "target-codex", inputTokens: 200, outputTokens: 30 });
       await f.engine.onMetrics(target, { source: "codex-thread", inputTokens: 200, outputTokens: 30 });
-    } else await f.engine.onStatusLine(target, { model: { id: "target-claude" }, cost: { total_cost_usd: 0.9 } });
+    } else await fireStatusLine(f.engine, target, { model: { id: "target-claude" }, cost: { total_cost_usd: 0.9 } });
     const after = structuredClone(await f.read());
-    await f.engine.onStatusLine({ ...source, agent: "claude" }, { cost: { total_cost_usd: 999 } });
+    await fireStatusLine(f.engine, { ...source, agent: "claude" }, { cost: { total_cost_usd: 999 } });
     await f.engine.onMetrics(source, { source: "codex-thread", inputTokens: 999 });
     expect(await f.read()).toEqual(after);
     const summary = summarizeMetrics(after, f.request.scope);
@@ -640,7 +640,7 @@ describe("handoff crash recovery and lane fences", () => {
     await fireHook(f.engine, source, "SessionStart");
     await f.engine.onExit(source);
     await f.engine.onMetrics(source, { source: "codex-thread", inputTokens: 999999 });
-    await f.engine.onStatusLine({ ...source, agent: "claude" }, { cost: { total_cost_usd: 999 } });
+    await fireStatusLine(f.engine, { ...source, agent: "claude" }, { cost: { total_cost_usd: 999 } });
     expect(await f.read()).toEqual(before);
     expect((await f.manager.get(operation.targetSessionId!)).reservation).toBeUndefined();
   });

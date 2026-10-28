@@ -12,7 +12,7 @@ import type { ClaudeSubagentInfo } from "../../../src/modules/workflow/prompt-va
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 import { modeDir } from "../../../src/modules/workflow/modes.js";
 import { readTaskStatus } from "../../../src/modules/tasks/status.js";
-import { fireHook } from "../../helpers/session-events.js";
+import { fireHook, fireStatusLine } from "../../helpers/session-events.js";
 import type { HookEvent } from "../../../src/modules/sessions/index.js";
 
 const LEADER_WORKFLOW_DIR = modeDir("leader");
@@ -573,7 +573,7 @@ describe("workflow engine", () => {
       await fireHook(engine, stale, "Stop", { last_assistant_message: "stale process" });
       await engine.onExit(stale);
       await engine.onMetrics(stale, { inputTokens: 999 });
-      await engine.onStatusLine(stale, { cost: { total_cost_usd: 999 } });
+      await fireStatusLine(engine, stale, { cost: { total_cost_usd: 999 } });
       expect((await state.load()).runs[0]).toEqual(before);
       expect(await hook("Stop")).toMatchObject({ phase: "gate" });
     } finally {
@@ -820,9 +820,9 @@ describe("workflow engine: dispatch", () => {
     const first = r.subtasks![0].sessionId!;
     await hookOn(first, "SessionStart");
     const status = { model: { id: "claude-haiku-4-5", display_name: "Haiku 4.5" }, cost: { total_cost_usd: 0.4213, total_duration_ms: 9000 } };
-    await engine.onStatusLine(fake.meta(first), status);
+    await fireStatusLine(engine, fake.meta(first), status);
     // The leader's own status line is not a subtask's.
-    await engine.onStatusLine(fake.meta(leader), status);
+    await fireStatusLine(engine, fake.meta(leader), status);
     r = await run();
     expect(r.subtasks![0].metrics).toEqual({ model: "claude-haiku-4-5", costUsd: 0.4213 });
     expect(r.subtasks![0].startedAt).toBeGreaterThan(0);
@@ -830,13 +830,13 @@ describe("workflow engine: dispatch", () => {
     r = await finish(1);
     expect(r.subtasks![0]).toMatchObject({ phase: "done", finishedAt: expect.any(Number), metrics: { model: "claude-haiku-4-5", costUsd: 0.4213, durationMs: expect.any(Number) } });
     // Once done, the numbers stay those the log got.
-    await engine.onStatusLine(fake.meta(first), { cost: { total_cost_usd: 9 } });
+    await fireStatusLine(engine, fake.meta(first), { cost: { total_cost_usd: 9 } });
     expect((await run()).subtasks![0].metrics!.costUsd).toBe(0.4213);
 
     // Copilot reports no cost; its status line, if any, is not read.
     const second = (await run()).subtasks![1].sessionId!;
     await hookOn(second, "SessionStart");
-    await engine.onStatusLine(fake.meta(second), status);
+    await fireStatusLine(engine, fake.meta(second), status);
     r = await finish(2);
     expect(r.subtasks![1].metrics).toEqual({ durationMs: expect.any(Number) });
 
@@ -1009,13 +1009,13 @@ describe("workflow engine: dispatch", () => {
       await hookOn(source, "SessionStart");
       const before = structuredClone(await run());
       await engine.onMetrics(old, { inputTokens: 999, outputTokens: 999, model: "old-model" });
-      await engine.onStatusLine(old, { cost: { total_cost_usd: 999 }, model: { id: "old-model" } });
+      await fireStatusLine(engine, old, { cost: { total_cost_usd: 999 }, model: { id: "old-model" } });
       await engine.onExit(old);
       await fireHook(engine, old, "Stop", { last_assistant_message: "old message" });
       expect(await run()).toEqual(before);
       const current = fake.meta(source);
       await engine.onMetrics(current, { inputTokens: 100, outputTokens: 20 });
-      await engine.onStatusLine(current, { cost: { total_cost_usd: 1.25 }, model: { id: "current-model" } });
+      await fireStatusLine(engine, current, { cost: { total_cost_usd: 1.25 }, model: { id: "current-model" } });
       expect((await run()).subtasks![0].metrics).toEqual({ inputTokens: 100, outputTokens: 20, costUsd: 1.25, model: "current-model" });
     } finally {
       resumed.mockRestore();

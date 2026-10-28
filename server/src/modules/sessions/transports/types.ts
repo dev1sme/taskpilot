@@ -1,4 +1,4 @@
-import type { Launcher } from "../../../core/launch.js";
+import type { SessionLauncher } from "../backends/types.js";
 import type { SessionMeta } from "../../../core/state.js";
 import type { ProviderBackend } from "../backends/types.js";
 import type { HookEvent } from "../hooks.js";
@@ -8,7 +8,7 @@ export interface TransportLaunch {
   meta: SessionMeta;
   resume: boolean;
   backend: ProviderBackend;
-  launcher: Launcher;
+  launcher: SessionLauncher;
   /** Environment set before the launcher's own (TaskPilot's env store). */
   extraEnv: Record<string, string>;
   /** Environment set after the launcher's own (hook URL and token). */

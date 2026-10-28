@@ -7,6 +7,7 @@ import { probePty } from "./probe.js";
 /** Claude Code: hooks and status line go in with --settings; payloads are already in the shape TaskPilot reads. */
 export const claudeBackend: ProviderBackend = {
   id: "claude",
+  launchOptions: (_meta, options) => ({ ...options, settings: hookSettings() }),
   permissionModes: ["default", "acceptEdits", "plan", "auto"],
   supportsSubagents: true,
   requiresLogin: false,
@@ -16,5 +17,4 @@ export const claudeBackend: ProviderBackend = {
   modelProblem: claudeModelProblem,
   probe: (context) => probePty(claudeBackend, context),
   launcher: claudeLauncher,
-  launchSettings: hookSettings,
 };

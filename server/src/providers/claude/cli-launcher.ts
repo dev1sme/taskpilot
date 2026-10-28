@@ -1,6 +1,11 @@
-import { agentArgs, type Launcher } from "../../core/launch.js";
+import { agentArgs, type LaunchOptions, type Launcher } from "../../core/launch.js";
 
-export const claudeLauncher: Launcher = (sessionId, opts) => ({
+export interface ClaudeCliOptions extends LaunchOptions {
+  /** Per-session hook configuration passed through --settings. */
+  settings?: string;
+}
+
+export const claudeLauncher: Launcher<ClaudeCliOptions> = (sessionId, opts) => ({
   file: process.env.TASKPILOT_CLAUDE ?? "claude",
   args: [
     // --resume keeps the original session id unless --fork-session is given (claude 2.1.x).

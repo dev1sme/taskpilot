@@ -23,6 +23,7 @@ const READY_MARKER = "/ commands";
  */
 export const copilotBackend: ProviderBackend = {
   id: "copilot",
+  launchOptions: (_meta, options) => ({ ...options }),
   permissionModes: ["default", "acceptEdits", "plan", "auto"],
   supportsSubagents: true,
   // Login and the model list are not verifiable here: the probe leaves them unknown and never blocks on them.

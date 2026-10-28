@@ -38,16 +38,16 @@ export class PtyTransport implements SessionTransport {
       file,
       args,
       env: launchEnv,
-    } = launcher(meta.id, {
-      resume,
-      settings: backend.launchSettings?.(),
-      permissionMode: meta.permissionMode,
-      model: meta.model,
-      subagent: meta.subagent,
-      repo: meta.repo,
-      nativeId: meta.nativeId,
-      codex: meta.codex,
-    });
+    } = launcher(
+      meta.id,
+      backend.launchOptions(meta, {
+        resume,
+        permissionMode: meta.permissionMode,
+        model: meta.model,
+        subagent: meta.subagent,
+        repo: meta.repo,
+      }),
+    );
     const proc = pty.spawn(file, args, {
       name: "xterm-256color",
       cwd: meta.repo,

@@ -23,3 +23,17 @@ Naming:
 
 Tests mirror providers under `server/test/providers/`. Architecture tests enforce
 layer boundaries; keep public module exports as the route between use cases.
+
+## Launch option boundary
+
+`core/launch.ts` defines only common `LaunchOptions` and a generic `Launcher`.
+Claude's `settings` belongs to `ClaudeCliOptions`; Codex's hook settings, native
+thread id and approval/network overrides belong to `CodexCliOptions`. Copilot
+uses common options directly and installs hooks on disk.
+
+Each session backend maps persisted session metadata through `launchOptions`.
+PTY and preflight pass common options to that mapping, rather than building
+provider-specific payloads themselves. `SessionLauncher` is the session injection
+boundary (including optional provider extensions); public API/state fields stay
+unchanged. Custom session launcher injections should use this type instead of
+core's common-only `Launcher` when they need provider fields.

@@ -35,15 +35,27 @@ async function setup(env: Record<string, string> = {}) {
   const hooks = await startHookServer();
   const sessions = new SessionManager(state, { launchers, hookUrl: hooks.url });
   hooks.attach(sessions);
-  close.push(
-    () => sessions.closeAll(),
-    () => hooks.close(),
-  );
   const load = async (r: string, mode?: string) => loadWorkflow(r, mode, (await readRepoSettings(r)).mode);
   let engine = new WorkflowEngine(state, sessions, load);
   const failures: unknown[] = [];
-  sessions.on("hook", (meta, event, payload) => void engine.onHook(meta, event, payload).catch((e) => failures.push(e)));
-  sessions.on("exit", (meta) => void engine.onExit(meta).catch((e) => failures.push(e)));
+  const pending = new Set<Promise<void>>();
+  const track = (work: Promise<void>) => {
+    const settled = work.catch((error) => {
+      failures.push(error);
+    });
+    pending.add(settled);
+    void settled.then(() => pending.delete(settled));
+  };
+  sessions.on("hook", (meta, event, payload) => track(engine.onHook(meta, event, payload)));
+  sessions.on("exit", (meta) => track(engine.onExit(meta)));
+  close.push(async () => {
+    // closeAll only signals termination. Keep the hook server alive until children exit,
+    // then drain workflow callbacks before cleanup removes files they may still write.
+    sessions.closeAll();
+    await Promise.all((await state.load()).sessions.map((session) => sessions.stopAndWait(session.id)));
+    await hooks.close();
+    while (pending.size) await Promise.all([...pending]);
+  });
   const run = async () => (await state.load()).runs[0];
   const gate = async (index: number) => waitFor(async () => expect(await run()).toMatchObject({ phase: "gate", stepIndex: index }));
   const records = async (): Promise<Array<{ method: string; params: { model?: string; input?: Array<{ text: string }> } }>> =>

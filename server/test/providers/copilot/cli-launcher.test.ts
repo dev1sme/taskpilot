@@ -35,6 +35,6 @@ describe("copilotLauncher", () => {
   });
 
   it("ignores --settings, which copilot does not have", () => {
-    expect(copilotLauncher("s1", { resume: false, settings: "{}" }).args).not.toContain("--settings");
+    expect(copilotLauncher("s1", { resume: false }).args).not.toContain("--settings");
   });
 });

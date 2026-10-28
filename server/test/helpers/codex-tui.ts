@@ -2,7 +2,7 @@ import http from "node:http";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { codexLauncher } from "../../src/providers/codex/cli-launcher.js";
-import type { Launcher } from "../../src/core/launch.js";
+import type { SessionLauncher as Launcher } from "../../src/modules/sessions/backends/types.js";
 import type { HookEvent, SessionManager } from "../../src/modules/sessions/index.js";
 
 /** fake-codex.mjs: `app-server` in argv is the probe's app-server, anything else the TUI stand-in. */

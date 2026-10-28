@@ -33,8 +33,8 @@ export const CODEX_READY_MARKER = /·\s*[~/]/;
  */
 export const codexBackend: ProviderBackend = {
   id: "codex",
+  launchOptions: (meta, options) => ({ ...options, settings: codexHookSettings(), nativeId: meta.nativeId, codex: meta.codex }),
   launcher: codexLauncher,
-  launchSettings: codexHookSettings,
   permissionModes: ["default", "acceptEdits", "auto"],
   supportsSubagents: true,
   // Codex answers `account/read` and `model/list` through the App Server, so both can block.

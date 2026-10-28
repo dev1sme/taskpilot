@@ -1,18 +1,12 @@
 export interface LaunchOptions {
   resume: boolean;
-  /** JSON with the hooks: claude takes it as --settings, codex turns it into -c hooks.*; other agents get their hooks from a file instead. */
-  settings?: string;
   permissionMode?: string;
   /** --model; absent = the subagent's model, else the user's default. */
   model?: string;
-  /** --agent: the whole session runs as this subagent (its prompt, tools and model). */
+  /** Custom agent for the whole session. */
   subagent?: string;
-  /** Working directory of the session; Codex reads its custom agents (`<repo>/.codex/agents`) from it. */
+  /** Working directory of the session. */
   repo?: string;
-  /** The agent's own id of the conversation, when it names sessions itself (Codex: thread id); `resume` needs it. */
-  nativeId?: string;
-  /** Codex only: approval reviewer and sandbox network, from `codex:` in workflow.yml. */
-  codex?: { approvalsReviewer?: "user" | "auto_review"; networkAccess?: boolean };
 }
 
 export interface LaunchSpec {
@@ -23,7 +17,7 @@ export interface LaunchSpec {
 }
 
 /** Builds the command for a session; injectable so tests can run a plain shell instead of the agent CLI. */
-export type Launcher = (sessionId: string, opts: LaunchOptions) => LaunchSpec;
+export type Launcher<Options extends LaunchOptions = LaunchOptions> = (sessionId: string, opts: Options) => LaunchSpec;
 
 /** --agent / --model, which claude and copilot spell the same way. */
 export function agentArgs(opts: Pick<LaunchOptions, "model" | "subagent">): string[] {

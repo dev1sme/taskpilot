@@ -58,7 +58,7 @@ export function codexHookCommand(event: HookEvent): string {
 }
 
 /**
- * Hooks for the Codex launcher (`LaunchOptions.settings`): Codex event name → command. Codex's
+ * Hooks for the Codex launcher (`CodexCliOptions.settings`): Codex event name → command. Codex's
  * `Interrupt` (Esc, no `Stop` follows) is posted as `Stop`; its payload keeps `hook_event_name`, which
  * `normalizeCodex` reads to tell the two apart.
  */

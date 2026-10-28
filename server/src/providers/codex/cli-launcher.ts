@@ -1,4 +1,4 @@
-import type { Launcher } from "../../core/launch.js";
+import type { Launcher, LaunchOptions } from "../../core/launch.js";
 import { readCodexAgent } from "./agents.js";
 import { CodexError } from "./errors.js";
 import { codexHookArgs, tomlValue } from "./hooks.js";
@@ -61,7 +61,13 @@ const HOOK_AGENT_ENV = { TASKPILOT_HOOK_AGENT: "codex" };
  *   `codex resume <id>` needs it again together with every setting, since a resume keeps none.
  * The launcher with the id "preflight" is the probe's: it returns the app-server command.
  */
-export const codexLauncher: Launcher = (sessionId, opts) => {
+export interface CodexCliOptions extends LaunchOptions {
+  settings?: string;
+  nativeId?: string;
+  codex?: { approvalsReviewer?: CodexApprovalsReviewer; networkAccess?: boolean };
+}
+
+export const codexLauncher: Launcher<CodexCliOptions> = (sessionId, opts) => {
   if (sessionId === "preflight") return { ...codexAppServerCommand(), env: HOOK_AGENT_ENV };
   if (opts.resume && !opts.nativeId) throw new CodexError("noThread", "session has no Codex thread id to resume");
   const params = codexLaunchSettings({

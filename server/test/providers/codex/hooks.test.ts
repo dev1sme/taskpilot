@@ -76,7 +76,7 @@ describe("codexHookSettings", () => {
   });
 
   it("is the backend's launch settings, and PostToolUseFailure stays a hook route", () => {
-    expect(codexBackend.launchSettings?.()).toBe(codexHookSettings());
+    expect(codexBackend.launchOptions({}, { resume: false }).settings).toBe(codexHookSettings());
     expect(HOOK_EVENTS).toContain("PostToolUseFailure");
   });
 });

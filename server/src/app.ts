@@ -5,7 +5,7 @@ import Fastify, { LogController, type FastifyInstance } from "fastify";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { ProviderId } from "./core/providers.js";
-import type { Launcher } from "./core/launch.js";
+import type { SessionLauncher as Launcher } from "./modules/sessions/index.js";
 import type { ClaudeUsageFields } from "./providers/claude/account-usage.js";
 import type { CodexUsageFields } from "./providers/codex/account-usage.js";
 import type { CopilotQuotaResult } from "./providers/copilot/quota.js";

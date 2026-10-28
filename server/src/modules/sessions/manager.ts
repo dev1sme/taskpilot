@@ -5,7 +5,7 @@ import type { WebSocket } from "ws";
 import { HttpError } from "../../core/errors.js";
 import type { SessionMeta, StateStore } from "../../core/state.js";
 import { nextActivity, type Activity, type HookEvent } from "./hooks.js";
-import type { Launcher } from "../../core/launch.js";
+import type { SessionLauncher as Launcher } from "./backends/types.js";
 import { DEFAULT_PROVIDER, type ProviderId } from "../../core/providers.js";
 import { backendOf, type HookState, type ProviderPromptInventory } from "./backends/index.js";
 import type { ProviderBackend } from "./backends/types.js";
@@ -146,7 +146,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     const launcher = this.launchers[request.agent] ?? backend.launcher;
     return {
       repo,
-      command: launcher("preflight", { resume: false, settings: backend.launchSettings?.(), permissionMode: request.permissionMode, model: request.model, subagent: request.subagent, repo }),
+      command: launcher("preflight", backend.launchOptions({}, { resume: false, permissionMode: request.permissionMode, model: request.model, subagent: request.subagent, repo })),
       extraEnv: await this.extraEnv(repo),
       timeoutMs: this.preflightTimeoutMs,
     };

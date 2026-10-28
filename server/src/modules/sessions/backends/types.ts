@@ -1,5 +1,13 @@
+import type { SessionMeta } from "../../../core/state.js";
+import type { ClaudeCliOptions } from "../../../providers/claude/cli-launcher.js";
+import type { CodexCliOptions } from "../../../providers/codex/cli-launcher.js";
+
+/** Injection boundary: provider extensions stay out of the shared process contract. */
+export type SessionLaunchOptions = ClaudeCliOptions & CodexCliOptions;
+export type SessionLauncher = Launcher<SessionLaunchOptions>;
+
 import type { ProviderId } from "../../../core/providers.js";
-import type { Launcher, LaunchSpec } from "../../../core/launch.js";
+import type { LaunchOptions, Launcher, LaunchSpec } from "../../../core/launch.js";
 import type { HookEvent } from "../hooks.js";
 import type { SessionMetrics, SessionMetricsSource } from "../transports/types.js";
 
@@ -99,9 +107,8 @@ export interface ProviderTraits {
 export interface ProviderBackend extends ProviderTraits {
   id: ProviderId;
   probe(context: BackendProbeContext): Promise<ProviderCapability>;
-  launcher: Launcher;
-  /** JSON for the agent's --settings flag, when it takes its hooks on the command line. */
-  launchSettings?(): string;
+  launcher: SessionLauncher;
+  launchOptions(meta: Pick<SessionMeta, "nativeId" | "codex">, options: LaunchOptions): SessionLaunchOptions;
   /** Writes the hook configuration the agent reads from disk; runs before every spawn. */
   prepare?(repo: string): Promise<void>;
   /**

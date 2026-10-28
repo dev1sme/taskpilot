@@ -132,8 +132,9 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     void engine.onStatusLine(meta, payload).catch(logError);
   });
   const copilotQuota = createCopilotPoller(usage, opts.copilotQuota, logError);
-  sessions.on("hook", (meta, event) => {
-    if (meta.agent === "copilot" && (event === "SessionStart" || event === "PostToolUse" || event === "Stop")) copilotQuota.request();
+  const quotaEvents = new Set(["session.started", "tool.completed", "turn.completed", "turn.interrupted"]);
+  sessions.on("event", (meta, event) => {
+    if (meta.agent === "copilot" && quotaEvents.has(event.type)) copilotQuota.request();
   });
   // Codex's account numbers come from its read-only app-server; a TUI session reports none.
   const codexQuota = createCodexPoller(usage, opts.codexUsage, logError);

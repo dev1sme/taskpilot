@@ -53,8 +53,8 @@ result/error schemas are not standardized in this step. Output, input and errors
 remain unknown rather than asserting an unverified common schema.
 
 SessionManager emits the neutral `event` stream after identity validation, backend
-normalization and permission gating. ActivityStore consumes only that stream. The
-legacy `hook` stream remains for workflow and quota consumers; they are not migrated
-yet. Resume, transcript provenance and tool duration are carried explicitly to
-preserve activity output. HTTP hook names, workflow behavior, state and API formats
+normalization and permission gating. ActivityStore and the Copilot quota refresh
+consume only that stream. The legacy `hook` stream remains for the workflow engine;
+it is not migrated yet. Resume, transcript provenance and tool duration are
+carried explicitly to preserve activity output. HTTP hook names, workflow behavior, state and API formats
 remain unchanged. Never subscribe a consumer to both streams or normalize twice.

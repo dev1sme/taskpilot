@@ -1,5 +1,6 @@
 import type { UsageWindow } from "../../core/usage-types.js";
 import type { CodexRpc } from "./app-server.js";
+import { isObject } from "../../core/values.js";
 
 export interface CodexCredits {
   hasCredits: boolean;
@@ -82,8 +83,4 @@ function parseWindow(raw: unknown): { minutes: number; window: UsageWindow } | n
 function parseCredits(raw: unknown): CodexCredits | null {
   if (!isObject(raw) || typeof raw.hasCredits !== "boolean" || typeof raw.unlimited !== "boolean") return null;
   return { hasCredits: raw.hasCredits, unlimited: raw.unlimited, balance: typeof raw.balance === "string" ? raw.balance : null };
-}
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
 }

@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import os from "node:os";
 import { childEnv } from "../../core/launch.js";
+import { isObject } from "../../core/values.js";
 
 const TIMEOUT_MS = 15_000;
 
@@ -59,10 +60,6 @@ function parseWindow(limit: Record<string, unknown>): ClaudeUsageWindow | null {
   if (typeof percent !== "number" || !Number.isFinite(percent) || percent < 0 || percent > 100) return null;
   const at = typeof limit.resets_at === "string" ? Date.parse(limit.resets_at) : NaN;
   return { usedPercentage: percent, resetsAt: Number.isFinite(at) ? at : null };
-}
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
 /**

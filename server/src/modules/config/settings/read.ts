@@ -1,10 +1,11 @@
 import { t } from "../../../core/i18n.js";
-import { displayPath, isObject, maskValue, readJsonFile, strings } from "../shared/fs.js";
+import { displayPath, maskValue, readJsonFile, strings } from "../shared/fs.js";
 import type { ConfigScope } from "../shared/sections.js";
 import { settingsTarget } from "../shared/targets.js";
 import { readCurrent } from "../shared/writer.js";
 import { nativeKeys, readNativeFields, type NativeFields, type NativeSettings } from "./native.js";
 import { configAdapter } from "../adapters/index.js";
+import { isObject } from "../../../core/values.js";
 
 export type SettingsScope = "project" | "local" | "user";
 

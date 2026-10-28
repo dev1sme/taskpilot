@@ -1,10 +1,11 @@
 import { HttpError } from "../../../core/errors.js";
-import { isObject, maskValue } from "../shared/fs.js";
+import { maskValue } from "../shared/fs.js";
 import { hideUrlCredentials, maskMcpArg, maskMcpCommand } from "./read.js";
 import { t } from "../../../core/i18n.js";
 import { stringify as stringifyToml } from "smol-toml";
 import { formEntry, nativeMcp, nativeMcpDocument, nativeMcpServers } from "./read.js";
 import type { ProviderId } from "../../../core/providers.js";
+import { isObject } from "../../../core/values.js";
 
 export interface ValueInput {
   key: string;

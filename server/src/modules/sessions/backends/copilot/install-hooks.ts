@@ -2,8 +2,9 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { HOOK_EVENTS, copilotHookCommand } from "../../hooks.js";
 import { copilotHome } from "../../../../providers/copilot/home.js";
+import { SerialQueue } from "../../../../core/serial.js";
 
-let writing: Promise<unknown> = Promise.resolve();
+const writes = new SerialQueue();
 
 /** The user-level hooks file TaskPilot owns (no one else writes taskpilot.json). */
 function copilotHooksFile(): string {
@@ -18,9 +19,7 @@ function copilotHooksFile(): string {
  * start. Sessions starting together write one at a time, and only when the content changes.
  */
 export function ensureCopilotHooks(): Promise<void> {
-  const next = writing.then(() => writeIfChanged(copilotHooksFile(), userHooksText()));
-  writing = next.catch(() => undefined);
-  return next;
+  return writes.run(() => writeIfChanged(copilotHooksFile(), userHooksText()));
 }
 
 async function writeIfChanged(file: string, text: string): Promise<void> {

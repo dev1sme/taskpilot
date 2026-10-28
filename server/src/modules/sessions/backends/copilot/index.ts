@@ -6,6 +6,7 @@ import type { ProviderBackend, ProviderPromptInventory, SubagentCheck } from "..
 import { probeError, probePty, problem } from "../probe.js";
 import type { ProviderCapability, BackendProbeContext } from "../types.js";
 import { ensureCopilotHooks } from "./install-hooks.js";
+import { withTimeout } from "../../../../core/timeout.js";
 import { copilotFinishedTurn, normalizeCopilot } from "./normalize.js";
 
 /**
@@ -62,14 +63,8 @@ async function copilotPromptInventory(repo: string): Promise<ProviderPromptInven
 async function probeCopilot(context: BackendProbeContext): Promise<ProviderCapability> {
   const capability = await probePty(copilotBackend, context);
   if (capability.cli.status !== "supported") return capability;
-  let timer: NodeJS.Timeout | undefined;
   try {
-    const models = await Promise.race([
-      copilotModels(),
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(Object.assign(new Error("timeout"), { code: "timeout" })), context.timeoutMs);
-      }),
-    ]);
+    const models = await withTimeout(copilotModels(), context.timeoutMs, () => Object.assign(new Error("timeout"), { code: "timeout" }));
     capability.models = { status: "supported", source: "model/list", items: models.map((m) => ({ id: m.model, model: m.model, displayName: m.displayName, isDefault: m.isDefault })) };
   } catch (error) {
     const code = error instanceof CopilotError ? error.code : (error as { code?: string }).code;
@@ -82,8 +77,6 @@ async function probeCopilot(context: BackendProbeContext): Promise<ProviderCapab
             ? problem("copilot", "missing_cli", "model")
             : probeError("copilot", error, "model");
     capability.models = { status: "unknown", source: "model/list", items: [], error: issue };
-  } finally {
-    clearTimeout(timer);
   }
   return capability;
 }

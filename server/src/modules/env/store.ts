@@ -2,6 +2,7 @@ import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { HttpError } from "../../core/errors.js";
 import { t } from "../../core/i18n.js";
+import { SerialQueue } from "../../core/serial.js";
 
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -13,7 +14,7 @@ const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
  */
 export class EnvStore {
   private cache: Record<string, Record<string, string>> | null = null;
-  private queue: Promise<unknown> = Promise.resolve();
+  private readonly queue = new SerialQueue();
   private readonly file: string;
 
   constructor(dir: string) {
@@ -52,7 +53,7 @@ export class EnvStore {
   }
 
   private update(change: (all: Record<string, Record<string, string>>) => void): Promise<void> {
-    const next = this.queue.then(async () => {
+    return this.queue.run(async () => {
       const all = await this.load();
       change(all);
       await mkdir(path.dirname(this.file), { recursive: true });
@@ -61,7 +62,5 @@ export class EnvStore {
       await chmod(tmp, 0o600);
       await rename(tmp, this.file);
     });
-    this.queue = next.catch(() => undefined);
-    return next;
   }
 }

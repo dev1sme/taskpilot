@@ -3,6 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
 import { t } from "../../../core/i18n.js";
+import { isObject } from "../../../core/values.js";
 
 export async function readText(file: string): Promise<string | null> {
   try {
@@ -43,10 +44,6 @@ export function frontmatter(text: string): { meta: Record<string, unknown>; body
   } catch (e) {
     return { meta: {}, body: text.slice(m[0].length), error: t("errors.frontmatter", { error: (e as Error).message }) };
   }
-}
-
-export function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
 export function strings(v: unknown): string[] {

@@ -25,6 +25,7 @@ import { promptVars, renderPrompt } from "./prompt-vars.js";
 import { t } from "../../core/i18n.js";
 import { createSafeText } from "../../core/safe-text.js";
 import { HandoffCoordinator, type HandoffCommitRequest, type HandoffRequest, type HandoffSanitizer } from "./handoff.js";
+import { SerialQueue } from "../../core/serial.js";
 
 export type { LoadDef, ClaudeSubagentsOf, SessionPort } from "./ports.js";
 export type { RunView } from "./run-view.js";
@@ -42,7 +43,7 @@ export interface RunOptions {
  * advances on the Stop hook when the step's done-when file was written, and stops at gates.
  */
 export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warning: [error: unknown] }> {
-  private queue: Promise<unknown> = Promise.resolve();
+  private readonly queue = new SerialQueue();
 
   private readonly store: RunStore;
   private readonly handoff: HandoffCoordinator;
@@ -945,9 +946,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
 
   /** Engine operations and hook handling run one at a time, so a Stop hook cannot race a click. */
   private serial<T>(fn: () => Promise<T>): Promise<T> {
-    const next = this.queue.then(fn);
-    this.queue = next.catch(() => undefined);
-    return next;
+    return this.queue.run(fn);
   }
 }
 

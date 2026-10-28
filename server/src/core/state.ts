@@ -6,6 +6,7 @@ import type { CodexUsage } from "../providers/codex/account-usage.js";
 import type { CopilotQuota } from "../providers/copilot/quota.js";
 import type { ClaudeUsage } from "../modules/usage/index.js";
 import type { RunState } from "../modules/workflow/index.js";
+import { SerialQueue } from "./serial.js";
 
 export interface SessionMeta {
   /** TaskPilot's own id; also the agent's session id (`--session-id` / `--resume`) when nativeId is absent. */
@@ -67,7 +68,7 @@ export class StateStore {
   readonly file: string;
   private cache: AppState | null = null;
   private loading: Promise<AppState> | null = null;
-  private queue: Promise<unknown> = Promise.resolve();
+  private readonly queue = new SerialQueue();
 
   constructor(dir = process.env.TASKPILOT_HOME ?? path.join(os.homedir(), ".taskpilot")) {
     this.dir = dir;
@@ -95,15 +96,13 @@ export class StateStore {
   }
 
   update(change: (state: AppState) => void): Promise<void> {
-    const next = this.queue.then(async () => {
+    return this.queue.run(async () => {
       const nextState = structuredClone(await this.load());
       change(nextState);
       await this.write(nextState);
       // Readers and queued callbacks only observe committed generations/reservations/journals.
       this.cache = nextState;
     });
-    this.queue = next.catch(() => undefined);
-    return next;
   }
 
   private async write(state: AppState): Promise<void> {

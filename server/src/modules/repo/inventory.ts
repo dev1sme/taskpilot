@@ -3,6 +3,7 @@ import path from "node:path";
 import { projectMemoryFiles } from "../config/index.js";
 import { markdownHeadings } from "../../core/markdown.js";
 import { t } from "../../core/i18n.js";
+import { isObject } from "../../core/values.js";
 
 /** Read-only summary of the repo's Claude Code configuration, for the overview page. */
 export interface Inventory {
@@ -129,8 +130,4 @@ async function exists(file: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
 }

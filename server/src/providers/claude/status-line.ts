@@ -1,4 +1,5 @@
 import type { UsageWindow } from "../../core/usage-types.js";
+import { isObject } from "../../core/values.js";
 
 /** Account plan usage in a status line: claude.ai Pro/Max windows, or a gateway's spend cap. */
 export interface ClaudeStatusLineUsage {
@@ -41,8 +42,4 @@ function parseWindow(raw: unknown): UsageWindow | null {
 
 function isPercentage(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 100;
-}
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
 }

@@ -3,6 +3,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { EventEmitter } from "node:events";
 import type { WebSocket } from "ws";
 import { HttpError } from "../../core/errors.js";
+import { withTimeout } from "../../core/timeout.js";
 import type { SessionMeta, StateStore } from "../../core/state.js";
 import type { Activity, HookEvent } from "./hooks.js";
 import { nextActivity, sessionEventFromHook, type SessionEvent } from "./events.js";
@@ -310,7 +311,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     await this.find(id);
     const live = this.live.get(id);
     if (!live) throw new HttpError(409, "Session has no process");
-    await deadline(
+    await withTimeout(
       Promise.race([
         Promise.all([live.started.promise, live.ready.promise]),
         live.exited.promise.then(() => {
@@ -318,7 +319,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
         }),
       ]),
       opts.timeoutMs ?? 30_000,
-      "Session did not become ready",
+      () => new HttpError(409, "Session did not become ready"),
     );
     if (live.startupError) throw live.startupError;
     if (live.stopping || this.live.get(id) !== live || !live.transport.running) throw new HttpError(409, "Session is no longer ready");
@@ -332,9 +333,9 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     const meta = structuredClone(await this.find(id));
     const until = Date.now() + (opts.timeoutMs ?? 5000);
     const pending = this.pendingLaunches.get(id);
-    if (pending) await deadline(pending.promise, Math.max(1, until - Date.now()), "Session startup did not stop");
+    if (pending) await withTimeout(pending.promise, Math.max(1, until - Date.now()), () => new HttpError(409, "Session startup did not stop"));
     const live = this.live.get(id);
-    if (live) await deadline(live.exited.promise, Math.max(1, until - Date.now()), "Session did not exit");
+    if (live) await withTimeout(live.exited.promise, Math.max(1, until - Date.now()), () => new HttpError(409, "Session did not exit"));
     const owner = live?.owner ?? meta.processOwner;
     if (process.platform !== "linux" && !live?.generation && !owner && meta.generation && meta.exitedGeneration !== meta.generation)
       throw new HttpError(409, "Cannot verify session process ownership");
@@ -825,20 +826,6 @@ function signal(): Signal {
   };
   return result;
 }
-async function deadline<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new HttpError(409, message)), timeoutMs);
-      }),
-    ]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 async function processStat(pid: number): Promise<{ state: string; groupId: number; start: string } | undefined> {
   try {
     const raw = await readFile(`/proc/${pid}/stat`, "utf8");

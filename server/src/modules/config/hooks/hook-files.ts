@@ -2,7 +2,7 @@ import { t } from "../../../core/i18n.js";
 import { readdir, lstat } from "node:fs/promises";
 import path from "node:path";
 import { HttpError } from "../../../core/errors.js";
-import { isObject } from "../shared/fs.js";
+
 import { hookTarget } from "../shared/targets.js";
 import { PLAIN_JSON } from "../adapters/file-names.js";
 import type { HooksAdapter } from "../adapters/index.js";
@@ -12,6 +12,7 @@ export type FileHooks = Extract<HooksAdapter, { kind: "files" }>;
 import { readCurrent } from "../shared/writer.js";
 import type { ConfigScope } from "../shared/sections.js";
 import { isCopilotEvent, type CopilotHookInput } from "./edit.js";
+import { isObject } from "../../../core/values.js";
 
 const EDITABLE_FIELDS = new Set(["type", "matcher", "command", "bash", "powershell", "exec", "args", "cwd", "timeoutSec"]);
 

@@ -1,11 +1,12 @@
 import { claudeJson } from "../../../providers/claude/home.js";
-import { displayPath, envRefs, isObject, maskValue, readJsonFile, strings } from "../shared/fs.js";
+import { displayPath, envRefs, maskValue, readJsonFile, strings } from "../shared/fs.js";
 import { t } from "../../../core/i18n.js";
 import { parse as parseToml } from "smol-toml";
 import { readText } from "../shared/fs.js";
 import { type ProviderId } from "../../../core/providers.js";
 import { HttpError } from "../../../core/errors.js";
 import { configAdapter, type NativeMcpAdapter } from "../adapters/index.js";
+import { isObject } from "../../../core/values.js";
 
 export type McpScope = "project" | "local" | "user";
 

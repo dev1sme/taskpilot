@@ -9,11 +9,12 @@ import { nativeSettingsOf, readNativeFields } from "../settings/native.js";
 import { CONFIG_ADAPTERS } from "../adapters/index.js";
 import type { ProviderId } from "../../../core/providers.js";
 import { claudeJson } from "../../../providers/claude/home.js";
-import { isObject } from "../shared/fs.js";
+
 import { NAME } from "../mcp/edit.js";
 import type { ConfigRouteOptions } from "../shared/http.js";
 import { isAllowedPath } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
+import { isObject } from "../../../core/values.js";
 
 /** Backups of every file TaskPilot wrote: list, diff against the current file, restore. */
 export function registerBackupsRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {

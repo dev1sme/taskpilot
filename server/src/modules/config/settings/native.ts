@@ -1,10 +1,11 @@
 import { t } from "../../../core/i18n.js";
 import { parse as parseToml } from "smol-toml";
 import { HttpError } from "../../../core/errors.js";
-import { isObject } from "../shared/fs.js";
+
 import type { ConfigScope } from "../shared/sections.js";
 import { type ProviderId } from "../../../core/providers.js";
 import { configAdapter } from "../adapters/index.js";
+import { isObject } from "../../../core/values.js";
 
 /** A CLI whose settings TaskPilot edits as a few native fields. */
 export interface NativeSettings {

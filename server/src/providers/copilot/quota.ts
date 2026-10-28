@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { childEnv } from "../../core/launch.js";
+import { isObject } from "../../core/values.js";
 
 /** Account quota of Copilot (`premium_interactions` of `account.getQuota`). */
 export interface CopilotQuota {
@@ -145,8 +146,4 @@ function readMessages(stream: NodeJS.ReadableStream, onMessage: (msg: Record<str
 
 function finite(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
 }

@@ -1,11 +1,12 @@
 import os from "node:os";
 import path from "node:path";
 import { markdownHeadings } from "../../../core/markdown.js";
-import { displayPath, fileInfo, readJsonFile, readText, isObject } from "../shared/fs.js";
+import { displayPath, fileInfo, readJsonFile, readText } from "../shared/fs.js";
 import { type ProviderId } from "../../../core/providers.js";
 import { memoryTarget } from "../shared/targets.js";
 import { configAdapter } from "../adapters/index.js";
 import { t } from "../../../core/i18n.js";
+import { isObject } from "../../../core/values.js";
 
 export type MemoryScope = "project" | "local" | "user";
 

@@ -2,7 +2,7 @@ import { readdir } from "node:fs/promises";
 import type { FastifyInstance } from "fastify";
 import { HttpError } from "../../../core/errors.js";
 import { t } from "../../../core/i18n.js";
-import { isObject } from "../shared/fs.js";
+
 import { parseConfigProvider } from "../shared/sections.js";
 import { PROVIDER_IDS, type ProviderId } from "../../../core/providers.js";
 import { configAdapter } from "../adapters/index.js";
@@ -12,6 +12,7 @@ import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer
 import { readLibrary, type LibraryKind, type LibraryScope } from "./read.js";
 import { checkCodexAgent } from "./check.js";
 import { readTemplates, tomlMeta, type AgentTemplateProvider, type AgentTemplate } from "./templates.js";
+import { isObject } from "../../../core/values.js";
 
 /** Agents, commands and skills. */
 export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {

@@ -12,6 +12,7 @@ import { CUSTOM_MODE, DEFAULT_MODE, WORKFLOW_FILE, isMode, listModes, modeDir } 
 import { launchModel, modelProblem } from "./models.js";
 import type { CodexOptions, DispatchDef, OutputDef, StepDef, WorkflowDef } from "./types.js";
 import { templateVars } from "./prompt-vars.js";
+import { isObject } from "../../core/values.js";
 
 /** <package>/workflows/default: the "Mặc định" mode. */
 export const DEFAULT_WORKFLOW_DIR = modeDir(DEFAULT_MODE);
@@ -494,8 +495,4 @@ function checkTemplates(steps: StepDef[], rules: string[], history: WorkflowDef[
 function mergeCodex(base?: CodexOptions, own?: CodexOptions): CodexOptions | undefined {
   const merged = { ...base, ...own };
   return Object.keys(merged).length > 0 ? merged : undefined;
-}
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
 }

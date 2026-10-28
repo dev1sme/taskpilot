@@ -6,6 +6,7 @@ import type { SessionMeta } from "../../core/state.js";
 import { describeTool, firstLine, type ToolCategory } from "./describe.js";
 import { t } from "../../core/i18n.js";
 import { PROVIDER_LABELS, DEFAULT_PROVIDER } from "../../core/providers.js";
+import { SerialQueue } from "../../core/serial.js";
 
 export type ActivityKind = "session" | "prompt" | "tool" | "permission" | "stop";
 
@@ -36,7 +37,7 @@ const KEEP = 400;
 export class ActivityStore extends EventEmitter<{ item: [item: ActivityItem] }> {
   private readonly cache = new Map<string, ActivityItem[]>();
   private seq = 0;
-  private queue: Promise<unknown> = Promise.resolve();
+  private readonly queue = new SerialQueue();
 
   constructor(private readonly dir: string) {
     super();
@@ -49,9 +50,7 @@ export class ActivityStore extends EventEmitter<{ item: [item: ActivityItem] }> 
 
   /** Hooks arrive in quick succession (PreToolUse, PostToolUse…); apply them one at a time. */
   record(meta: SessionMeta, event: SessionEvent): Promise<void> {
-    const next = this.queue.then(() => this.apply(meta, event));
-    this.queue = next.catch(() => undefined);
-    return next;
+    return this.queue.run(() => this.apply(meta, event));
   }
 
   private async apply(meta: SessionMeta, event: SessionEvent): Promise<void> {

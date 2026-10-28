@@ -36,11 +36,12 @@ import {
   type ModeInfo,
   type OverrideInfo,
 } from "../../workflow/index.js";
-import { displayPath, isObject } from "../shared/fs.js";
+import { displayPath } from "../shared/fs.js";
 import { stringField, type ConfigRouteOptions } from "../shared/http.js";
 import { repoSettingsTarget, workflowTarget } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
 import { subagentsOf } from "../library/read.js";
+import { isObject } from "../../../core/values.js";
 
 /** The mode an existing override belongs to: the one it extends, or "custom" for a complete one. */
 const targetMode = (info: OverrideInfo) => (info.kind === "extends" ? info.extends : CUSTOM_MODE);

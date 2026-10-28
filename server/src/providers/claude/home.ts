@@ -1,10 +1,6 @@
 import os from "node:os";
 import path from "node:path";
-
-/** An env value counts only when it is non-empty: an empty string means "not set". */
-function envPath(name: string): string | undefined {
-  return process.env[name] || undefined;
-}
+import { envPath } from "../../core/values.js";
 
 /** The user's Claude Code home; TASKPILOT_CLAUDE_HOME overrides where TaskPilot reads config (tests). */
 export function claudeHome(): string {

@@ -4,7 +4,7 @@ import type { EnvStore } from "../../env/index.js";
 import type { BackupStore } from "../backups/store.js";
 import { checkMcp, runClaude } from "../../../providers/claude/commands.js";
 import { claudeJson } from "../../../providers/claude/home.js";
-import { displayPath, isObject, maskValue } from "../shared/fs.js";
+import { displayPath, maskValue } from "../shared/fs.js";
 import { claudeJsonEntry, formEntry, nativeMcpDocument, nativeMcpServers, readMcp } from "./read.js";
 import { buildEntry, maskEntry, NAME, nativeEntry, patchNativeMcp, validateEntry } from "./edit.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
@@ -13,6 +13,7 @@ import { parseConfigProvider, requireConfigScope } from "../shared/sections.js";
 import { configAdapter } from "../adapters/index.js";
 import { type ProviderId } from "../../../core/providers.js";
 import { mcpTarget } from "../shared/targets.js";
+import { isObject } from "../../../core/values.js";
 
 type McpScope = "project" | "local" | "user";
 

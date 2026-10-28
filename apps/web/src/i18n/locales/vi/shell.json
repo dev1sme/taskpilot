@@ -1,6 +1,5 @@
 {
   "skipNav": "Bỏ qua điều hướng",
-  "pending": "Màn hình này đang được dựng lại.",
   "taskNotFound": {
     "title": "Không thấy task {{key}}",
     "body": "Task có thể đã bị xoá hoặc đổi tên trong .claude/tasks."
@@ -55,5 +54,64 @@
     "terminal": "Terminal",
     "terminalTitle": "Claude, Copilot hoặc Codex trong repo, không cần task",
     "waitingPermission": "chờ quyền"
+  },
+  "usage": {
+    "button": "Hạn mức",
+    "buttonTitle": "Hạn mức tài khoản của các agent",
+    "title": "Hạn mức tài khoản",
+    "hint": "Số liệu của cả tài khoản, không riêng TaskPilot. Claude cập nhật qua status line của session.",
+    "none": "Chưa có số liệu. Claude báo hạn mức khi một session chạy; Copilot và Codex được hỏi định kỳ khi đã cài.",
+    "fiveHour": "5 giờ",
+    "sevenDay": "7 ngày",
+    "spend": "Chi tiêu gateway",
+    "quota": "Hạn mức tháng",
+    "unlimited": "Không giới hạn",
+    "used": "{{used}} / {{total}} {{unit}}",
+    "unit": {
+      "ai_credits": "AI credits",
+      "premium_requests": "premium requests"
+    },
+    "credits": "Credits: {{balance}}",
+    "creditsUnlimited": "Credits không giới hạn",
+    "plan": "Gói {{plan}}",
+    "limitReached": "Đã chạm giới hạn: {{type}}",
+    "resets": "đặt lại {{time}}",
+    "updated": "cập nhật {{time}}",
+    "percent": "{{value}}%",
+    "exhausted": "hết hạn mức"
+  },
+  "overview": {
+    "subtitle": "{{path}}",
+    "noRepo": "Chọn một repo để bắt đầu.",
+    "attention": "Cần ba xử lý",
+    "attentionEmpty": "Không có gì đang chờ ba.",
+    "running": "Đang chạy",
+    "runningEmpty": "Không có run nào đang chạy.",
+    "recent": "Đang làm dở",
+    "recentEmpty": "Không còn task đang làm dở.",
+    "allTasks": "Tất cả task",
+    "open": "Mở",
+    "step": "Bước {{n}}",
+    "sessions": "{{count}} session",
+    "counts": {
+      "attention": "Cần xử lý",
+      "running": "Đang chạy",
+      "open": "Đang làm",
+      "done": "Đã xong"
+    },
+    "repo": "Cấu hình repo",
+    "memory": "CLAUDE.md",
+    "memoryLines": "{{count}} dòng",
+    "memoryMissing": "chưa có",
+    "localMemory": "CLAUDE.local.md",
+    "mcp": "MCP servers",
+    "mcpError": "lỗi đọc .mcp.json",
+    "agents": "Agents",
+    "commands": "Commands",
+    "skills": "Skills",
+    "hooks": "Hooks",
+    "permissions": "Quyền",
+    "allowDeny": "{{allow}} cho phép · {{deny}} chặn",
+    "usage": "Hạn mức"
   }
 }

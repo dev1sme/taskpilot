@@ -2,6 +2,7 @@ import { HandPalm, TerminalWindow } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useRepoSessions } from "@/features/sessions/queries";
+import { UsageButton } from "@/features/usage/usage-panel";
 import { useTasks } from "@/features/workspace/queries";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +40,8 @@ export function StatusBar({ terminalOpen, onToggleTerminal }: { terminalOpen: bo
         <span aria-hidden className={cn("size-2 rounded-full bg-line-strong", running > 0 && "animate-pulse bg-done")} />
         {t("status.sessionsRunning", { count: running })}
       </span>
+      <span className="ml-auto" />
+      <UsageButton />
       {asking.length > 0 && (
         <Link to="/tasks/$key" params={{ key: asking[0].key }} className="flex min-h-6 items-center gap-1 rounded-sm px-1 font-medium text-attention hover:underline">
           <HandPalm weight="fill" aria-hidden />

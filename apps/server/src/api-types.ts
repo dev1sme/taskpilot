@@ -39,3 +39,4 @@ export type { McpConfig, McpServer } from "./modules/config/mcp/read.js";
 export type { MigrationPreview, RenderedPrompt, WorkflowChecks, WorkflowConfigView, WorkflowFileView, WorkflowSavePreview } from "./modules/config/workflow/routes.js";
 export type { BackupDiff, BackupView } from "./modules/config/backups/routes.js";
 export type { CodegraphStatus, CodegraphSummary } from "./modules/config/codegraph/status.js";
+export type { UsageView, UsageWindow } from "./modules/usage/store.js";

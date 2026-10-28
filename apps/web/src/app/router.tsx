@@ -6,7 +6,7 @@ import { CodegraphPage } from "@/features/config/codegraph-page";
 import { BackupsPage } from "@/features/backups/backups-page";
 import { TaskScreen } from "@/features/task/task-screen";
 import { TasksPage } from "@/features/tasks/tasks-page";
-import { Pending } from "./pending";
+import { OverviewPage } from "@/features/overview/overview-page";
 import { CONFIG_SECTIONS, configSearch, type ConfigSection } from "./routes";
 import { Shell } from "./shell";
 
@@ -20,10 +20,7 @@ const rootRoute = createRootRoute({ component: Shell, notFoundComponent: NotFoun
 const overviewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: function Overview() {
-    const { t } = useTranslation("shell");
-    return <Pending title={t("nav.overview")} />;
-  },
+  component: OverviewPage,
 });
 
 const tasksRoute = createRoute({

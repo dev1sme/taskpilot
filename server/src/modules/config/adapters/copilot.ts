@@ -1,5 +1,4 @@
 import path from "node:path";
-import { t } from "../../../core/i18n.js";
 import { copilotConfigHome } from "../../../providers/copilot/home.js";
 import { AGENT_MD, AGENT_OR_MD, SKILL_REL } from "./file-names.js";
 import type { ConfigAdapter } from "./types.js";
@@ -54,8 +53,6 @@ export const copilotConfig: ConfigAdapter = {
     kind: "native",
     scopes: ["project", "user"],
     format: "json",
-    types: ["stdio", "http", "sse"],
-    typeError: () => t("configMessages.mcp_edit_02"),
     file: (repo, scope) => (scope === "project" ? path.join(repo, ".github", "mcp.json") : home("mcp-config.json")),
     // Copilot also reads the repo's .mcp.json; shown, but edited as Claude config.
     sources: (repo) => [

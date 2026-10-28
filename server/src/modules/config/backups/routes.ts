@@ -2,15 +2,10 @@ import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { HttpError } from "../../../core/errors.js";
 import { locale, t } from "../../../core/i18n.js";
-import { maskEntry } from "../mcp/edit.js";
-import { claudeJsonEntry, nativeMcpDocument, nativeMcpServers } from "../mcp/read.js";
-import { restoreMcpEntry } from "../mcp/routes.js";
+import { maskEntry, nativeMcpDocument, nativeMcpServers } from "../mcp/read.js";
 import { nativeSettingsOf, readNativeFields } from "../settings/native.js";
 import { CONFIG_ADAPTERS } from "../adapters/index.js";
 import type { ProviderId } from "../../../core/providers.js";
-import { claudeJson } from "../../../providers/claude/home.js";
-
-import { NAME } from "../mcp/edit.js";
 import type { ConfigRouteOptions } from "../shared/http.js";
 import { isAllowedPath } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
@@ -20,8 +15,7 @@ import { isObject } from "../../../core/values.js";
 export function registerBackupsRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {
   const { requireRepo, backups } = opts;
 
-  const restorable = (b: { path: string; mcp?: { scope: string; name: string; repo: string } }, repo: string) =>
-    b.mcp ? b.path === claudeJson() && NAME.test(b.mcp.name) && (b.mcp.scope === "user" || (b.mcp.scope === "local" && b.mcp.repo === repo)) : isAllowedPath(b.path, repo);
+  const restorable = (b: { path: string }, repo: string) => isAllowedPath(b.path, repo);
 
   app.get("/api/backups", async () => {
     const repo = requireRepo();
@@ -32,11 +26,6 @@ export function registerBackupsRoutes(app: FastifyInstance, opts: ConfigRouteOpt
     const repo = requireRepo();
     const { entry, content } = await backups.get(req.params.id);
     if (!restorable(entry, repo)) throw new HttpError(403, t("errors.otherRepoBackup"));
-    if (entry.mcp) {
-      const show = (s: string | null) => safeEntry(s);
-      const now = await currentMcpEntry(entry.mcp);
-      return { diff: diffText(entry.display, show(now), show(content)), entry };
-    }
     const current = await readCurrent(entry.path);
     return { diff: diffText(entry.display, safeFile(entry.path, current), safeFile(entry.path, content)), entry };
   });
@@ -45,11 +34,6 @@ export function registerBackupsRoutes(app: FastifyInstance, opts: ConfigRouteOpt
     const repo = requireRepo();
     const { entry, content } = await backups.get(req.params.id);
     if (!restorable(entry, repo)) throw new HttpError(403, t("errors.otherRepoBackup"));
-    if (entry.mcp) {
-      if (content !== null && safeEntry(content) === t("configMessages.backups_routes_01")) throw new HttpError(409, t("configMessages.backups_routes_02"));
-      await restoreMcpEntry({ mcp: entry.mcp }, content, backups);
-      return { ok: true };
-    }
     const current = await readCurrent(entry.path);
     validateRestore(entry.path, content);
     return writeWithBackup({
@@ -61,17 +45,6 @@ export function registerBackupsRoutes(app: FastifyInstance, opts: ConfigRouteOpt
       backups,
     });
   });
-}
-
-function safeEntry(text: string | null): string | null {
-  if (text === null) return null;
-  try {
-    const masked = maskEntry(JSON.parse(text));
-    if (!masked) throw new Error("entry");
-    return `${JSON.stringify(masked, null, 2)}\n`;
-  } catch {
-    return t("configMessages.backups_routes_03");
-  }
 }
 
 /** The CLI whose TOML config file (settings and MCP servers in one file) has this name. */
@@ -122,11 +95,6 @@ function validateRestore(file: string, content: string | null): void {
       throw new HttpError(409, t("configMessages.backups_routes_06"));
     }
   }
-}
-
-async function currentMcpEntry(m: { scope: "local" | "user"; name: string; repo: string }): Promise<string | null> {
-  const entry = await claudeJsonEntry(m.scope, m.repo, m.name);
-  return entry ? JSON.stringify(entry, null, 2) : null;
 }
 
 /** .mcp.json with every server's secrets masked (for backup diffs). */

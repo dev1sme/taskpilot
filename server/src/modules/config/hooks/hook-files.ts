@@ -11,8 +11,43 @@ import type { ProviderId } from "../../../core/providers.js";
 export type FileHooks = Extract<HooksAdapter, { kind: "files" }>;
 import { readCurrent } from "../shared/writer.js";
 import type { ConfigScope } from "../shared/sections.js";
-import { isCopilotEvent, type CopilotHookInput } from "./edit.js";
 import { isObject } from "../../../core/values.js";
+
+/** A Copilot command hook as the UI shows it; other hook types and fields are not shown. */
+export interface CopilotHookEntry {
+  event: string;
+  matcher?: string;
+  command?: string;
+  bash?: string;
+  powershell?: string;
+  exec?: string;
+  args?: string[];
+  cwd?: string;
+  timeoutSec?: number;
+}
+
+const COPILOT_EVENTS = new Set([
+  "agentStop",
+  "errorOccurred",
+  "notification",
+  "permissionRequest",
+  "postToolUse",
+  "postToolUseFailure",
+  "preCompact",
+  "preToolUse",
+  "sessionEnd",
+  "sessionStart",
+  "subagentStart",
+  "subagentStop",
+  "userPromptSubmitted",
+  "userPromptTransformed",
+]);
+const COPILOT_EVENT_ALIASES = new Set(["Stop", "UserPromptSubmit"]);
+
+function isCopilotEvent(event: string): boolean {
+  const canonical = event[0]?.toLowerCase() + event.slice(1);
+  return COPILOT_EVENTS.has(canonical) || COPILOT_EVENT_ALIASES.has(event);
+}
 
 const EDITABLE_FIELDS = new Set(["type", "matcher", "command", "bash", "powershell", "exec", "args", "cwd", "timeoutSec"]);
 
@@ -41,48 +76,17 @@ function editable(event: string, entry: unknown): entry is Record<string, unknow
 }
 
 /** Only simple command entries are exposed; env, HTTP headers and other private fields stay on disk. */
-export function readCopilotHooks(text: string | null): CopilotHookInput[] {
+export function readCopilotHooks(text: string | null): CopilotHookEntry[] {
   const data = parse(text);
-  const out: CopilotHookInput[] = [];
+  const out: CopilotHookEntry[] = [];
   for (const [event, entries] of Object.entries(data.hooks as Record<string, unknown[]>)) {
     for (const entry of entries) {
       if (!editable(event, entry)) continue;
       const { type: _type, ...fields } = entry;
-      out.push({ event, ...fields } as CopilotHookInput);
+      out.push({ event, ...fields } as CopilotHookEntry);
     }
   }
   return out;
-}
-
-export function applyCopilotHooks(text: string | null, hooks: CopilotHookInput[]): string {
-  const data = parse(text);
-  const current = data.hooks as Record<string, unknown[]>;
-  const merged: Record<string, unknown[]> = {};
-  const replacement = new Map<string, unknown[]>();
-  for (const { event, ...fields } of hooks) {
-    const entries = replacement.get(event) ?? [];
-    entries.push({ type: "command", ...fields });
-    replacement.set(event, entries);
-  }
-  for (const [event, entries] of Object.entries(current)) {
-    const next: unknown[] = [];
-    const pending = replacement.get(event) ?? [];
-    for (const entry of entries) {
-      if (!editable(event, entry)) next.push(entry);
-      else if (pending.length) next.push(pending.shift());
-    }
-    next.push(...pending);
-    replacement.delete(event);
-    if (next.length) merged[event] = next;
-  }
-  for (const [event, entries] of replacement) merged[event] = entries;
-  return `${JSON.stringify({ ...data, hooks: merged }, null, 2)}\n`;
-}
-
-/** Preview only the editable projection so env values, HTTP headers and unknown keys cannot leak. */
-export function copilotDiffView(text: string | null): string | null {
-  if (text === null) return null;
-  return `${JSON.stringify({ version: 1, hooks: readCopilotHooks(text) }, null, 2)}\n`;
 }
 
 /** Refuse reads through hook-directory symlinks as well as file symlinks, up to the repo or the CLI's home. */
@@ -111,8 +115,8 @@ export async function listHookFiles(
   repo: string,
   cli: ProviderId,
   hooks: FileHooks,
-): Promise<Array<{ scope: ConfigScope; name: string; path: string; hooks: CopilotHookInput[]; error?: string }>> {
-  const out: Array<{ scope: ConfigScope; name: string; path: string; hooks: CopilotHookInput[]; error?: string }> = [];
+): Promise<Array<{ scope: ConfigScope; name: string; path: string; hooks: CopilotHookEntry[]; error?: string }>> {
+  const out: Array<{ scope: ConfigScope; name: string; path: string; hooks: CopilotHookEntry[]; error?: string }> = [];
   for (const scope of hooks.scopes) {
     const root = hooks.dir(repo, scope);
     let names: string[];

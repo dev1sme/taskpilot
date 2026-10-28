@@ -1,7 +1,6 @@
 import type { ProviderId } from "../../../core/providers.js";
 import type { ConfigScope, ConfigSection } from "../shared/sections.js";
 import type { LibraryKind, LibraryScope } from "../library/read.js";
-import type { McpType } from "../mcp/edit.js";
 import type { AgentTemplateProvider } from "../library/templates.js";
 
 /** The CLI's instruction files (CLAUDE.md, AGENTS.md, copilot-instructions.md). */
@@ -53,9 +52,6 @@ export interface NativeMcpAdapter {
   scopes: ConfigScope[];
   /** `toml`: `[mcp_servers.<name>]`, type implied by command/url, headers in `http_headers`. `json`: `mcpServers` or a bare map, `local` = stdio. */
   format: "toml" | "json";
-  types: readonly McpType[];
-  /** The error when a type outside `types` is asked for. */
-  typeError: () => string;
   file(repo: string, scope: ConfigScope): string;
   /** Read in this order; the first entry of a name wins. */
   sources(repo: string): Array<{ scope: ConfigScope; file: string; readonly?: boolean }>;

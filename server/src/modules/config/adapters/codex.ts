@@ -1,5 +1,4 @@
 import path from "node:path";
-import { t } from "../../../core/i18n.js";
 import { codexConfigHome, codexSkillsHome } from "../../../providers/codex/home.js";
 import { PLAIN_TOML, SKILL_REL } from "./file-names.js";
 import type { ConfigAdapter } from "./types.js";
@@ -36,8 +35,6 @@ export const codexConfig: ConfigAdapter = {
     kind: "native",
     scopes: ["project", "user"],
     format: "toml",
-    types: ["stdio", "http"],
-    typeError: () => t("configMessages.mcp_edit_01"),
     file: configToml,
     sources: (repo) => [
       { scope: "project", file: configToml(repo, "project") },

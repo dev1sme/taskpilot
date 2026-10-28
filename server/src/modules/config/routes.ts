@@ -9,6 +9,7 @@ import { registerMcpRoutes } from "./mcp/routes.js";
 import { registerMemoryRoutes } from "./memory/routes.js";
 import { registerSettingsRoutes } from "./settings/routes.js";
 import { registerWorkflowConfigRoutes } from "./workflow/routes.js";
+import { registerRawRoutes } from "./raw/routes.js";
 import type { ConfigRouteOptions } from "./shared/http.js";
 import { CONFIG_SECTIONS, configCapabilities, configCapability, parseConfigProvider, type ConfigSection } from "./shared/sections.js";
 import { PROVIDER_IDS } from "../../core/providers.js";
@@ -48,5 +49,6 @@ export function registerConfigRoutes(app: FastifyInstance, opts: ConfigRouteOpti
   registerLibraryRoutes(app, opts);
   registerCodegraphRoutes(app, opts);
   registerWorkflowConfigRoutes(app, opts);
+  registerRawRoutes(app, opts);
   registerBackupsRoutes(app, opts);
 }

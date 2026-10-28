@@ -167,16 +167,21 @@ export function maskMcpCommand(value: string): string {
   return /^[A-Za-z0-9_./\\-]+$/.test(value) ? value : "••••";
 }
 
-/** A local- or user-scope server entry from ~/.claude.json, or null. */
-export async function claudeJsonEntry(scope: "local" | "user", repo: string, name: string): Promise<Record<string, unknown> | null> {
-  const home = await readJsonFile(claudeJson());
-  const data = "data" in home && isObject(home.data) ? home.data : {};
-  let holder: unknown = data;
-  if (scope === "local") {
-    const projects = isObject(data.projects) ? data.projects : {};
-    holder = projects[repo];
+/** Server names: also checked by the routes, so `__proto__` and the like never reach a lookup. */
+export const NAME = /^[A-Za-z0-9][\w.-]{0,63}$/;
+
+/** Entry with env/header values masked and URL credentials hidden (backup diffs). */
+export function maskEntry(entry: unknown): Record<string, unknown> | null {
+  if (!isObject(entry)) return null;
+  // Unknown fields may contain credentials (OAuth and provider extensions in particular).
+  const out: Record<string, unknown> = Object.fromEntries(
+    Object.entries(entry).filter(([key]) => ["type", "command", "args", "url", "env", "headers", "http_headers", "env_http_headers", "tools", "enabled"].includes(key)),
+  );
+  for (const key of ["env", "headers", "http_headers", "env_http_headers"]) {
+    if (isObject(entry[key])) out[key] = Object.fromEntries(Object.entries(entry[key]).map(([k, v]) => [k, maskValue(v).value]));
   }
-  const servers = isObject(holder) && isObject(holder.mcpServers) ? holder.mcpServers : {};
-  const entry = Object.hasOwn(servers, name) ? servers[name] : null;
-  return isObject(entry) ? entry : null;
+  if (Array.isArray(entry.args)) out.args = entry.args.map((a) => (typeof a === "string" ? maskMcpArg(a) : "••••"));
+  if (typeof entry.command === "string") out.command = maskMcpCommand(entry.command);
+  if (typeof entry.url === "string") out.url = hideUrlCredentials(entry.url);
+  return out;
 }

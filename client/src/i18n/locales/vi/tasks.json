@@ -58,6 +58,15 @@
       "reopen": "Mở lại",
       "reopenLabel": "Mở lại {{key}}",
       "blocked": "Quy trình đang chạy. Huỷ quy trình trước, hoặc duyệt ở bước cuối."
+    },
+    "title": "Task",
+    "search": {
+      "label": "Tìm task",
+      "placeholder": "Tìm theo mã hoặc tên task",
+      "emptyTitle": "Không có task khớp \"{{query}}\"",
+      "emptyBody": "Thử mã task, một từ trong tên, hoặc tìm ở bộ lọc Tất cả.",
+      "clear": "Xoá tìm kiếm",
+      "showAll": "Tìm trong tất cả"
     }
   }
 }

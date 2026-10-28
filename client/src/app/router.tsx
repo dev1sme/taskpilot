@@ -1,5 +1,6 @@
 import { createHashHistory, createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { TasksPage } from "@/features/tasks/tasks-page";
 import { Pending } from "./pending";
 import { CONFIG_SECTIONS, configSearch, type ConfigSection } from "./routes";
 import { Shell } from "./shell";
@@ -23,10 +24,7 @@ const overviewRoute = createRoute({
 const tasksRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/tasks",
-  component: function Tasks() {
-    const { t } = useTranslation("shell");
-    return <Pending title={t("nav.tasks")} />;
-  },
+  component: TasksPage,
 });
 
 export const taskRoute = createRoute({

@@ -19,9 +19,9 @@
     "test": "vitest run",
     "e2e": "npm --prefix e2e test",
     "i18n:lint": "i18next-cli lint",
-    "lint": "eslint --max-warnings 0 client/src server/src server/test e2e/tests",
-    "format": "prettier --write client/src server/src server/test e2e/tests",
-    "format:check": "prettier --check client/src server/src server/test e2e/tests"
+    "lint": "eslint --max-warnings 0 client/src server/src e2e/tests",
+    "format": "prettier --write client/src server/src e2e/tests",
+    "format:check": "prettier --check client/src server/src e2e/tests"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.3",

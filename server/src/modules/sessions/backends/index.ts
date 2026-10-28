@@ -4,7 +4,7 @@ import { copilotBackend } from "./copilot/index.js";
 import { codexBackend } from "./codex.js";
 import type { ProviderBackend, ProviderTraits } from "./types.js";
 
-export type { ProviderBackend, HookState, ProviderPromptInventory, ProviderTraits, SubagentCheck } from "./types.js";
+export type { AccountUsageReport, ProviderBackend, HookState, ProviderPromptInventory, ProviderTraits, SubagentCheck } from "./types.js";
 
 /** One backend per agent; a new entry in PROVIDER_IDS fails to compile until it is added here. */
 export const BACKENDS: Record<ProviderId, ProviderBackend> = {

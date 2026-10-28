@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { UsageStore } from "../../../src/modules/usage/store.js";
+import { claudeStatusLineUsage } from "../../../src/providers/claude/status-line.js";
 import { StateStore } from "../../../src/core/state.js";
 import { cleanupTempDirs, tempDir } from "../../helpers/fixtures.js";
 
@@ -16,7 +17,7 @@ describe("UsageStore", () => {
   it("returns timestamped account evidence, never a lane failure, and expires old or reset observations", async () => {
     const store = new UsageStore(new StateStore(await tempDir("taskpilot-evidence-")));
     expect(await store.evidence("claude")).toBeNull();
-    await store.apply({ rate_limits: { five_hour: { used_percentage: 100 } } });
+    await store.applyStatusLine(claudeStatusLineUsage({ rate_limits: { five_hour: { used_percentage: 100 } } }));
     const observedAt = (await store.view())!.updatedAt!;
     expect(await store.evidence("claude", observedAt)).toEqual({
       scope: "account",
@@ -30,7 +31,7 @@ describe("UsageStore", () => {
     expect(await store.evidence("claude", observedAt + 5 * 60_000 + 1)).toMatchObject({ freshness: "stale" });
     expect(await store.evidence("claude", observedAt - 1)).toMatchObject({ freshness: "stale" });
     expect(await store.evidence("codex")).toBeNull();
-    await store.apply({ rate_limits: { five_hour: { used_percentage: 100, resets_at: (observedAt + 1000) / 1000 } } });
+    await store.applyStatusLine(claudeStatusLineUsage({ rate_limits: { five_hour: { used_percentage: 100, resets_at: (observedAt + 1000) / 1000 } } }));
     expect(await store.evidence("claude", observedAt + 1001)).toMatchObject({ freshness: "stale", exhausted: false });
   });
 
@@ -43,7 +44,7 @@ describe("UsageStore", () => {
     expect(await store.evidence("copilot")).toMatchObject({ exhausted: false });
     await store.applyAgent("copilot", { ...COPILOT, usedPercentage: 100, resetsAt: at - 1 });
     expect(await store.evidence("copilot")).toMatchObject({ freshness: "stale", exhausted: false });
-    await store.apply({ rate_limits: { five_hour: { used_percentage: 101 } } });
+    await store.applyStatusLine(claudeStatusLineUsage({ rate_limits: { five_hour: { used_percentage: 101 } } }));
     expect(await store.evidence("claude")).toBeNull();
     await store.applyAgent("copilot", null);
     expect(await store.evidence("copilot")).toBeNull();
@@ -51,14 +52,14 @@ describe("UsageStore", () => {
 
   it("keeps an expired window from making another active window exhausted", async () => {
     const store = new UsageStore(new StateStore(await tempDir("taskpilot-evidence-")));
-    await store.apply({ rate_limits: { five_hour: { used_percentage: 100, resets_at: 1 }, seven_day: { used_percentage: 50 } } });
+    await store.applyStatusLine(claudeStatusLineUsage({ rate_limits: { five_hour: { used_percentage: 100, resets_at: 1 }, seven_day: { used_percentage: 50 } } }));
     expect(await store.evidence("claude")).toMatchObject({ freshness: "fresh", exhausted: false });
   });
   it("keeps the last numbers when input has no rate limits, and ignores bad values", async () => {
     const store = new UsageStore(new StateStore(await tempDir("taskpilot-state-")));
-    await store.apply({ rate_limits: RATE_LIMITS });
-    await store.apply({});
-    await store.apply({ rate_limits: { five_hour: { used_percentage: "90" }, seven_day: { used_percentage: 140 } } });
+    await store.applyStatusLine(claudeStatusLineUsage({ rate_limits: RATE_LIMITS }));
+    await store.applyStatusLine(claudeStatusLineUsage({}));
+    await store.applyStatusLine(claudeStatusLineUsage({ rate_limits: { five_hour: { used_percentage: "90" }, seven_day: { used_percentage: 140 } } }));
     expect(await store.view()).toMatchObject({ fiveHour: { usedPercentage: 85 }, sevenDay: { usedPercentage: 39 } });
   });
 
@@ -66,9 +67,9 @@ describe("UsageStore", () => {
     const store = new UsageStore(new StateStore(await tempDir("taskpilot-state-")));
     const seen: number[] = [];
     store.on("change", (u) => seen.push(u.fiveHour!.usedPercentage));
-    await store.apply({ rate_limits: RATE_LIMITS });
-    await store.apply({ rate_limits: RATE_LIMITS });
-    await store.apply({ rate_limits: { ...RATE_LIMITS, five_hour: { used_percentage: 86, resets_at: 1792477800 } } });
+    await store.applyStatusLine(claudeStatusLineUsage({ rate_limits: RATE_LIMITS }));
+    await store.applyStatusLine(claudeStatusLineUsage({ rate_limits: RATE_LIMITS }));
+    await store.applyStatusLine(claudeStatusLineUsage({ rate_limits: { ...RATE_LIMITS, five_hour: { used_percentage: 86, resets_at: 1792477800 } } }));
     expect(seen).toEqual([85, 86]);
   });
 
@@ -76,7 +77,7 @@ describe("UsageStore", () => {
     const store = new UsageStore(new StateStore(await tempDir("taskpilot-state-")));
     await store.applyAgent("copilot", COPILOT);
     expect(await store.view()).toEqual({ agents: { copilot: { ...COPILOT, updatedAt: expect.any(Number) } } });
-    await store.apply({ rate_limits: RATE_LIMITS });
+    await store.applyStatusLine(claudeStatusLineUsage({ rate_limits: RATE_LIMITS }));
     expect(await store.view()).toMatchObject({ fiveHour: { usedPercentage: 85 }, agents: { copilot: { usedPercentage: 10 } } });
     await store.applyAgent("copilot", null);
     const view = await store.view();
@@ -97,7 +98,7 @@ describe("UsageStore", () => {
 
   it("reads gateway spend", async () => {
     const store = new UsageStore(new StateStore(await tempDir("taskpilot-state-")));
-    await store.apply({ rate_limits: { spend_limit: { used_percentage: 63 } } });
+    await store.applyStatusLine(claudeStatusLineUsage({ rate_limits: { spend_limit: { used_percentage: 63 } } }));
     expect(await store.view()).toMatchObject({ spend: { usedPercentage: 63 } });
   });
 
@@ -120,7 +121,7 @@ describe("UsageStore", () => {
 describe("UsageStore.applyClaude", () => {
   it("merges the windows and keeps spend and the window it lacks", async () => {
     const store = new UsageStore(new StateStore(await tempDir("taskpilot-claude-usage-")));
-    await store.apply({ rate_limits: { ...RATE_LIMITS, spend_limit: { used_percentage: 7 } } });
+    await store.applyStatusLine(claudeStatusLineUsage({ rate_limits: { ...RATE_LIMITS, spend_limit: { used_percentage: 7 } } }));
     await store.applyClaude({ fiveHour: { usedPercentage: 90, resetsAt: null } });
     expect(await store.view()).toMatchObject({
       fiveHour: { usedPercentage: 90, resetsAt: null },

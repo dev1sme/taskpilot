@@ -10,6 +10,7 @@ import type { ProviderId } from "../../../core/providers.js";
 import type { LaunchOptions, Launcher, LaunchSpec } from "../../../core/launch.js";
 import type { HookEvent } from "../hooks.js";
 import type { SessionMetrics, SessionMetricsSource } from "../transports/types.js";
+import type { ClaudeStatusLineUsage } from "../../../providers/claude/status-line.js";
 
 export type CapabilityStatus = "supported" | "unsupported" | "unknown";
 export type PreflightErrorCode =
@@ -82,6 +83,14 @@ export interface HookState {
 }
 
 /** What the workflow may know about a provider without any I/O; the engine reads these instead of comparing agent names. */
+/** Account usage a session reported, tagged with the agent whose account it measures. */
+export type AccountUsageReport = { agent: "claude"; usage: ClaudeStatusLineUsage | null };
+
+export interface StatusLineReading {
+  metrics: SessionMetrics;
+  account: AccountUsageReport;
+}
+
 export interface ProviderTraits {
   permissionModes: readonly string[];
   /** Subagent flags supported by the adapter, not proof of a particular custom agent's tools. */
@@ -90,8 +99,6 @@ export interface ProviderTraits {
   requiresLogin: boolean;
   /** Preflight blocks an explicit model when the model inventory could not be read. */
   requiresModelInventory: boolean;
-  /** The CLI feeds a status line (plan usage, cost) to TaskPilot. */
-  reportsStatusLine: boolean;
   /** A prompt that gets no hook at all is reported to the user: this provider's hooks may silently not fire. */
   warnsWhenNoHook: boolean;
   /** What `turnMetrics` measures; absent = the backend reports no metrics of its own. */
@@ -136,8 +143,8 @@ export interface ProviderBackend extends ProviderTraits {
   promptInventory?(repo: string): Promise<ProviderPromptInventory>;
   /** Cumulative measurements this turn's hook carries (Codex: the rollout's last `token_count`); null = none. Called with the normalized payload, before the hook is emitted. */
   turnMetrics?(event: HookEvent, payload: Record<string, unknown>): Promise<SessionMetrics | null>;
-  /** Cumulative measurements in a status line callback (Claude: model and session cost); absent = the agent reports none there. */
-  statusLineMetrics?(payload: Record<string, unknown>): SessionMetrics;
+  /** What a status line callback reports (Claude: model, session cost, plan usage); absent = the agent has no status line. */
+  readStatusLine?(payload: Record<string, unknown>): StatusLineReading;
   /** The payload as Claude Code would send it; null drops the event. */
   normalize?(event: HookEvent, payload: Record<string, unknown>, state: HookState): Promise<Record<string, unknown> | null>;
 }

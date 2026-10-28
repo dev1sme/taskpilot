@@ -40,7 +40,6 @@ export const codexBackend: ProviderBackend = {
   // Codex answers `account/read` and `model/list` through the App Server, so both can block.
   requiresLogin: true,
   requiresModelInventory: true,
-  reportsStatusLine: false,
   warnsWhenNoHook: false,
   metricsSource: "codex-thread",
   checkSubagent: checkCodexSubagent,

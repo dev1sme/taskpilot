@@ -32,22 +32,29 @@ describe("backends", () => {
   });
 
   it("states what differs between providers as traits, not as names callers compare", () => {
-    expect(providerTraits("codex")).toMatchObject({ requiresLogin: true, requiresModelInventory: true, reportsStatusLine: false, warnsWhenNoHook: false, metricsSource: "codex-thread" });
-    expect(providerTraits("copilot")).toMatchObject({ requiresLogin: false, requiresModelInventory: false, reportsStatusLine: false, warnsWhenNoHook: true });
-    expect(providerTraits("claude")).toMatchObject({ requiresLogin: false, requiresModelInventory: false, reportsStatusLine: true, warnsWhenNoHook: false });
+    expect(providerTraits("codex")).toMatchObject({ requiresLogin: true, requiresModelInventory: true, warnsWhenNoHook: false, metricsSource: "codex-thread" });
+    expect(providerTraits("copilot")).toMatchObject({ requiresLogin: false, requiresModelInventory: false, warnsWhenNoHook: true });
+    expect(providerTraits("claude")).toMatchObject({ requiresLogin: false, requiresModelInventory: false, warnsWhenNoHook: false });
     expect(providerTraits(undefined)).toBe(BACKENDS.claude);
     expect(providerTraits("claude").metricsSource).toBeUndefined();
   });
 
-  it("reads model and cost from Claude's status line only", () => {
-    expect(BACKENDS.claude.statusLineMetrics!({ model: { id: "claude-x" }, cost: { total_cost_usd: 1.5 }, rate_limits: {} })).toEqual({
-      source: "claude-statusline",
-      model: "claude-x",
-      costUsd: 1.5,
+  it("reads model, cost and plan usage from Claude's status line only", () => {
+    const reading = BACKENDS.claude.readStatusLine!({
+      model: { id: "claude-x" },
+      cost: { total_cost_usd: 1.5 },
+      rate_limits: { five_hour: { used_percentage: 85, resets_at: 1792477800 }, spend_limit: { used_percentage: 7 } },
     });
-    expect(BACKENDS.claude.statusLineMetrics!({ model: { id: "" }, cost: { total_cost_usd: Number.NaN } })).toEqual({ source: "claude-statusline" });
-    expect(BACKENDS.codex.statusLineMetrics).toBeUndefined();
-    expect(BACKENDS.copilot.statusLineMetrics).toBeUndefined();
+    expect(reading).toEqual({
+      metrics: { source: "claude-statusline", model: "claude-x", costUsd: 1.5 },
+      account: { agent: "claude", usage: { fiveHour: { usedPercentage: 85, resetsAt: 1792477800_000 }, spend: { usedPercentage: 7 } } },
+    });
+    expect(BACKENDS.claude.readStatusLine!({ model: { id: "" }, cost: { total_cost_usd: Number.NaN }, rate_limits: {} })).toEqual({
+      metrics: { source: "claude-statusline" },
+      account: { agent: "claude", usage: null },
+    });
+    expect(BACKENDS.codex.readStatusLine).toBeUndefined();
+    expect(BACKENDS.copilot.readStatusLine).toBeUndefined();
   });
 
   it("applies the Claude model rule only to Claude", () => {

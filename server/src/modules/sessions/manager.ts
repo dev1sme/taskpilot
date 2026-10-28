@@ -8,7 +8,7 @@ import type { Activity, HookEvent } from "./hooks.js";
 import { nextActivity, sessionEventFromHook, type SessionEvent } from "./events.js";
 import type { SessionLauncher as Launcher } from "./backends/types.js";
 import { DEFAULT_PROVIDER, type ProviderId } from "../../core/providers.js";
-import { backendOf, type HookState, type ProviderPromptInventory } from "./backends/index.js";
+import { backendOf, type AccountUsageReport, type HookState, type ProviderPromptInventory } from "./backends/index.js";
 import type { ProviderBackend } from "./backends/types.js";
 import { PtyTransport, attachPty } from "./transports/pty.js";
 import type { SessionMetrics } from "./transports/types.js";
@@ -94,8 +94,8 @@ export interface SessionEvents {
   change: [meta: SessionMeta];
   /** What the agent did, in TaskPilot's vocabulary; the only stream of hook-derived events. */
   event: [meta: SessionMeta, event: SessionEvent];
-  /** Input of the session's status line (account plan usage); its model and cost also go out as `metrics`. */
-  statusline: [meta: SessionMeta, payload: Record<string, unknown>];
+  /** Account usage a session reported (Claude's status line); null usage = the report had no numbers. */
+  accountUsage: [meta: SessionMeta, report: AccountUsageReport];
   exit: [meta: SessionMeta];
   /** Something went wrong that does not stop the session, e.g. writing an agent's hook file. */
   warning: [error: unknown];
@@ -593,9 +593,10 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     const live = this.live.get(id);
     const meta = await this.find(id);
     if (!live || live.stopping || this.live.get(id) !== live || live.hookToken !== token) return false;
-    const metrics = backendOf(meta.agent).statusLineMetrics?.(payload);
-    if (metrics) this.emit("metrics", meta, metrics);
-    this.emit("statusline", meta, payload);
+    const reading = backendOf(meta.agent).readStatusLine?.(payload);
+    if (!reading) return true;
+    this.emit("metrics", meta, reading.metrics);
+    this.emit("accountUsage", meta, reading.account);
     return true;
   }
 

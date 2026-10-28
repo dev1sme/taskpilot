@@ -101,8 +101,9 @@ Kiểu và helper chung (`Launcher`, `LaunchOptions`, `childEnv`, `agentArgs`) n
 | `readyMarker` (`string` hoặc `RegExp`) | CLI chỉ phát `SessionStart` cùng prompt đầu; `PtyTransport` phát `SessionStart` tổng hợp khi thấy dấu |
 | `nativeIdOf` | CLI tự cấp id phiên; manager lưu `nativeId` từ hook rồi đổi `session_id` của payload về id TaskPilot |
 | `normalize`, `permissionGraceMs`, `finishedTurn` | Payload khác hợp đồng chung, `PermissionRequest` đến muộn, hoặc cần đọc transcript khi thiếu `Stop` |
-| `requiresLogin`, `requiresModelInventory`, `reportsStatusLine`, `warnsWhenNoHook`, `metricsSource`, `modelProblem` (`ProviderTraits`, không I/O) | Preflight, cảnh báo thiếu hook, nguồn số đo và luật model theo provider; engine và `capabilities.ts` đọc qua `providerTraits(id)` thay vì so tên provider |
-| `checkSubagent`, `promptInventory`, `turnMetrics` (port) | Kiểm subagent trước khi chạy, inventory cho `{{subagents}}`, và số đo lượt (Codex đọc rollout; manager phát `metrics` kèm `source` trước event `hook` cùng payload) |
+| `requiresLogin`, `requiresModelInventory`, `warnsWhenNoHook`, `metricsSource`, `modelProblem` (`ProviderTraits`, không I/O) | Preflight, cảnh báo thiếu hook, nguồn số đo và luật model theo provider; engine và `capabilities.ts` đọc qua `providerTraits(id)` thay vì so tên provider |
+| `checkSubagent`, `promptInventory`, `turnMetrics` (port) | Kiểm subagent trước khi chạy, inventory cho `{{subagents}}`, và số đo lượt (Codex đọc rollout; manager phát `metrics` kèm `source` trước `SessionEvent` của cùng hook) |
+| `readStatusLine` | CLI có status line: trả `metrics` (Claude: model, cost) và hạn mức tài khoản; manager phát `metrics` và `accountUsage`, payload thô không ra khỏi manager |
 
 Trước khi nối vào engine, cần kiểm tra bằng CLI thật: tạo/tiếp tục phiên, nhận prompt nhiều dòng, xác nhận tin cậy thư mục và tin cậy hooks, quyền, thứ tự hook, kết thúc lượt và cách đọc transcript. Bài kiểm thử dùng CLI giả không thay thế bước này.
 

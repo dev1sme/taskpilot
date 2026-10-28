@@ -2,6 +2,7 @@ import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { StateStore } from "../../../src/core/state.js";
 import { SessionManager } from "../../../src/modules/sessions/index.js";
 import { UsageStore } from "../../../src/modules/usage/index.js";
+import { claudeStatusLineUsage } from "../../../src/providers/claude/status-line.js";
 import { buildApp } from "../../../src/app.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
@@ -44,9 +45,12 @@ describe("session failure integration", () => {
     const session = await manager.create(repo, "DEMO-1");
     const seen: unknown[] = [];
     manager.on("metrics", (_meta, data) => seen.push(data));
-    manager.on("statusline", () => seen.push("statusline"));
+    manager.on("accountUsage", (_meta, report) => seen.push(report));
     expect(await manager.handleStatusLine(token(manager, session.id), { session_id: session.id, model: { id: "claude-x" }, cost: { total_cost_usd: 0.25 } })).toBe(true);
-    expect(seen).toEqual([{ source: "claude-statusline", model: "claude-x", costUsd: 0.25 }, "statusline"]);
+    expect(seen).toEqual([
+      { source: "claude-statusline", model: "claude-x", costUsd: 0.25 },
+      { agent: "claude", usage: null },
+    ]);
     await manager.stopAndWait(session.id);
   });
 
@@ -57,7 +61,7 @@ describe("session failure integration", () => {
     const manager = new SessionManager(state, { launcher: () => ({ file: "/bin/sh", args: ["-c", "while read -r line; do :; done"] }), accountQuota: (agent) => usage.evidence(agent) });
     managers.push(manager);
     const session = await manager.create(repo, "DEMO-1");
-    await usage.apply({ rate_limits: { five_hour: { used_percentage: 100 } } });
+    await usage.applyStatusLine(claudeStatusLineUsage({ rate_limits: { five_hour: { used_percentage: 100 } } }));
     expect((await manager.get(session.id)).failure).toBeUndefined();
     await manager.handleHook(token(manager, session.id), "Stop", { session_id: session.id, failed: true });
     const restored = new SessionManager(new StateStore(state.dir));
@@ -70,7 +74,7 @@ describe("session failure integration", () => {
     const repo = await makeRepo();
     const state = new StateStore(await tempDir("failure-http-"));
     const usage = new UsageStore(state);
-    await usage.apply({ rate_limits: { five_hour: { used_percentage: 100 } } });
+    await usage.applyStatusLine(claudeStatusLineUsage({ rate_limits: { five_hour: { used_percentage: 100 } } }));
     const observedAt = (await usage.view())!.updatedAt;
     await state.update((saved) => saved.sessions.push({ id: "source", repo, taskKey: "DEMO-1", title: "Source", createdAt: 1 }));
     const app = await buildApp({ state, repo, token: "test-token" });

@@ -2,17 +2,14 @@ import { EventEmitter } from "node:events";
 import type { ProviderId } from "../../core/providers.js";
 import type { CodexUsage, CodexUsageFields } from "../../providers/codex/account-usage.js";
 import type { CopilotQuota } from "../../providers/copilot/quota.js";
+import type { ClaudeStatusLineUsage } from "../../providers/claude/status-line.js";
 import type { StateStore } from "../../core/state.js";
 
 import type { UsageWindow } from "../../core/usage-types.js";
 export type { UsageWindow } from "../../core/usage-types.js";
 
 /** Plan usage as Claude Code last reported it to a session's status line. */
-export interface ClaudeUsage {
-  fiveHour?: UsageWindow;
-  sevenDay?: UsageWindow;
-  /** Spend against a Claude apps gateway cap. */
-  spend?: { usedPercentage: number };
+export interface ClaudeUsage extends ClaudeStatusLineUsage {
   updatedAt: number;
 }
 
@@ -38,8 +35,8 @@ const EVIDENCE_MAX_AGE_MS = 5 * 60_000;
 const REFRESH_MS = 60_000;
 
 /**
- * Keeps the latest `rate_limits` from status line input (claude.ai Pro/Max, or a gateway with
- * spend limits). The numbers are account-wide. Stored in state so they survive a restart.
+ * Keeps the latest account usage of each agent: Claude's from its status line and `/usage`, the
+ * others' from their pollers. The numbers are account-wide. Stored in state so they survive a restart.
  */
 export class UsageStore extends EventEmitter<{ change: [usage: UsageView] }> {
   constructor(private readonly state: StateStore) {
@@ -71,9 +68,8 @@ export class UsageStore extends EventEmitter<{ change: [usage: UsageView] }> {
     };
   }
 
-  /** Input without rate limits (API key sign-in, before the first response) keeps the last numbers. */
-  async apply(payload: Record<string, unknown>): Promise<void> {
-    const next = parseRateLimits(payload.rate_limits);
+  /** A status line's plan usage replaces the stored numbers; null (no rate limits in it) keeps the last ones. */
+  async applyStatusLine(next: ClaudeStatusLineUsage | null): Promise<void> {
     if (!next) return;
     const prev = (await this.state.load()).usage;
     const now = Date.now();
@@ -136,25 +132,6 @@ export class UsageStore extends EventEmitter<{ change: [usage: UsageView] }> {
   }
 }
 
-function parseRateLimits(raw: unknown): Omit<ClaudeUsage, "updatedAt"> | null {
-  if (!isObject(raw)) return null;
-  const usage: Omit<ClaudeUsage, "updatedAt"> = {};
-  const fiveHour = parseWindow(raw.five_hour);
-  const sevenDay = parseWindow(raw.seven_day);
-  if (fiveHour) usage.fiveHour = fiveHour;
-  if (sevenDay) usage.sevenDay = sevenDay;
-  if (isObject(raw.spend_limit) && isPercentage(raw.spend_limit.used_percentage)) {
-    usage.spend = { usedPercentage: raw.spend_limit.used_percentage };
-  }
-  return Object.keys(usage).length > 0 ? usage : null;
-}
-
-function parseWindow(raw: unknown): UsageWindow | null {
-  if (!isObject(raw) || !isPercentage(raw.used_percentage)) return null;
-  const resetsAt = typeof raw.resets_at === "number" && Number.isFinite(raw.resets_at) ? raw.resets_at * 1000 : null;
-  return { usedPercentage: raw.used_percentage, resetsAt };
-}
-
 function sameNumbers(a: Omit<ClaudeUsage, "updatedAt">, b: Omit<ClaudeUsage, "updatedAt">): boolean {
   const key = (u: Omit<ClaudeUsage, "updatedAt">) => JSON.stringify([u.fiveHour, u.sevenDay, u.spend]);
   return key(a) === key(b);
@@ -168,12 +145,4 @@ function sameQuota(a: Omit<CopilotQuota, "updatedAt">, b: Omit<CopilotQuota, "up
 function sameCodex(a: CodexUsageFields, b: CodexUsageFields): boolean {
   const key = (u: CodexUsageFields) => JSON.stringify([u.fiveHour, u.sevenDay, u.credits, u.planType, u.rateLimitReachedType]);
   return key(a) === key(b);
-}
-
-function isPercentage(v: unknown): v is number {
-  return typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 100;
-}
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
 }

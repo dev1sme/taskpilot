@@ -11,6 +11,6 @@ export function fireHook(engine: Pick<WorkflowEngine, "onEvent">, meta: SessionM
 
 /** Delivers a status line to the engine the way SessionManager does: as the backend's metrics, if it reads any there. */
 export async function fireStatusLine(engine: Pick<WorkflowEngine, "onMetrics">, meta: SessionMeta, payload: Record<string, unknown>): Promise<void> {
-  const metrics = backendOf(meta.agent).statusLineMetrics?.(payload);
-  if (metrics) await engine.onMetrics(meta, metrics);
+  const reading = backendOf(meta.agent).readStatusLine?.(payload);
+  if (reading) await engine.onMetrics(meta, reading.metrics);
 }

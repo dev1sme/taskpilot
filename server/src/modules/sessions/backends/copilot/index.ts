@@ -29,7 +29,6 @@ export const copilotBackend: ProviderBackend = {
   // Login and the model list are not verifiable here: the probe leaves them unknown and never blocks on them.
   requiresLogin: false,
   requiresModelInventory: false,
-  reportsStatusLine: false,
   warnsWhenNoHook: true,
   checkSubagent: checkCopilotSubagent,
   promptInventory: copilotPromptInventory,

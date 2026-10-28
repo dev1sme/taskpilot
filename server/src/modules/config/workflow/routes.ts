@@ -34,6 +34,7 @@ import {
   templateVars,
   type Composed,
   type ModeInfo,
+  type RepoSettings,
   type OverrideInfo,
 } from "../../workflow/index.js";
 import { displayPath } from "../shared/fs.js";
@@ -112,7 +113,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
   /** The workflow files the override is compared with: its mode's, or the default mode's for a complete override. */
   const baseOf = (info: OverrideInfo) => modeDir(info.kind === "extends" ? info.extends : DEFAULT_MODE);
 
-  app.get("/api/config/workflow/modes", async () => {
+  app.get("/api/config/workflow/modes", async (): Promise<WorkflowModes> => {
     const repo = requireRepo();
     const info = await readOverride(repo);
     const target = repoSettingsTarget(repo);
@@ -141,7 +142,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
   });
 
   /** Absent defaults are distinct from an explicit workflow choice; invalid settings stay visible. */
-  const executionDefaults = (repo: string, current: string | null) => {
+  const executionDefaults = (repo: string, current: string | null): ExecutionDefaults => {
     const settings = current === null ? {} : parseRepoSettings(current);
     return {
       execution: settings.execution ?? null,
@@ -451,4 +452,22 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
       text: renderPrompt(template, promptVars(previewDef, index, PROMPT_TEXT.sampleTask, { feedback, previous, subtask, subtasks: subtask && [subtask], subagents })),
     };
   });
+}
+
+/** The modes a repo can run and the one it chose (`.taskpilot/settings.yml`). */
+export interface WorkflowModes {
+  modes: ModeInfo[];
+  selected: string;
+  override: { kind: OverrideInfo["kind"]; extends: string | null };
+  hash: string;
+  settingsPath: string;
+}
+
+/** The repo's default execution; absent is distinct from an explicit workflow choice, and invalid settings stay visible. */
+export interface ExecutionDefaults {
+  execution: NonNullable<RepoSettings["execution"]> | null;
+  executionVersion: NonNullable<RepoSettings["executionVersion"]> | null;
+  errors: NonNullable<RepoSettings["errors"]>;
+  hash: string;
+  settingsPath: string;
 }

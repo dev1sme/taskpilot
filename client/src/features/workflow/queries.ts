@@ -1,4 +1,4 @@
-import type { ExecutionSelection, HandoffCommitRequest, HandoffJournal, HandoffPreview, HandoffRequest, RunPreview, RunState, RunView } from "@server/api-types";
+import type { ExecutionSelection, HandoffCommitRequest, HandoffJournal, HandoffPreviewResult, HandoffRequest, RunPreview, RunState, RunView } from "@server/api-types";
 import { useQuery } from "@tanstack/react-query";
 import { call } from "@/lib/api";
 import { useInvalidateOn } from "@/lib/events";
@@ -27,7 +27,7 @@ export const workflowApi = {
   replySubtask: (key: string, n: number, text: string) => call<RunState>("POST", `${run(key)}/subtasks/${n}/reply`, { text }),
   retrySubtask: (key: string, n: number) => call<RunState>("POST", `${run(key)}/subtasks/${n}/retry`),
   completeSubtask: (key: string, n: number) => call<RunState>("POST", `${run(key)}/subtasks/${n}/complete`),
-  previewHandoff: (key: string, request: HandoffRequest) => call<HandoffPreview>("POST", `${run(key)}/handoff/preview`, request),
+  previewHandoff: (key: string, request: HandoffRequest) => call<HandoffPreviewResult>("POST", `${run(key)}/handoff/preview`, request),
   commitHandoff: (key: string, request: HandoffCommitRequest) => call<{ operation: HandoffJournal }>("POST", `${run(key)}/handoff`, request),
 };
 

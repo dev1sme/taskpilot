@@ -19,3 +19,11 @@ export type { ActivityItem } from "./modules/activity/store.js";
 import type { WorkflowEngine } from "./modules/workflow/engine.js";
 /** What a new run would get: workflow, execution and preflight checks (POST /api/tasks/:key/run/preview). */
 export type RunPreview = Awaited<ReturnType<WorkflowEngine["preview"]>>;
+export type { ExecutionDefaults, WorkflowModes } from "./modules/config/workflow/routes.js";
+export type { ModeInfo } from "./modules/workflow/modes.js";
+
+import type { SessionManager } from "./modules/sessions/manager.js";
+/** What each agent CLI can do here: installed, logged in, its models (GET /api/sessions/capabilities). */
+export type AgentCapabilities = Awaited<ReturnType<SessionManager["capabilities"]>>;
+/** A reviewed handoff: the preview, its preflight and whether a running session must be stopped (POST …/run/handoff/preview). */
+export type HandoffPreviewResult = Awaited<ReturnType<WorkflowEngine["previewHandoff"]>>;

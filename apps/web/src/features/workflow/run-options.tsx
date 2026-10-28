@@ -233,7 +233,7 @@ export function RunOptions({
         <ExecutionFields value={execution} allowWorkflow disabled={lock || !defaults.data} onChange={(next) => change({ ...value, execution: next })} />
       </div>
       <p className="text-xs text-muted">
-        {t("selection.source", { source: t(`selection.sources.${source}`) })} {t("selection.scope")}
+        {t("selection.source", { source: t(`selection.sources.${source}`) })}
       </p>
       <ExecutionNotice value={execution} />
       {loadError && <Problem>{loadError.message}</Problem>}

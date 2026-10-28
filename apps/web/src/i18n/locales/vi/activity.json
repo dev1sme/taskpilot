@@ -5,15 +5,5 @@
   "more": "Xem thêm {{count}} hoạt động cũ hơn",
   "stop": "Agent kết thúc lượt",
   "running": "đang chạy",
-  "error": "lỗi",
-  "category": {
-    "read": "Đọc",
-    "write": "Ghi",
-    "run": "Lệnh",
-    "search": "Tìm",
-    "web": "Web",
-    "agent": "Subagent",
-    "plan": "Kế hoạch",
-    "other": "Công cụ"
-  }
+  "error": "lỗi"
 }

@@ -21,7 +21,6 @@
     "delete": "Xoá file",
     "deleteConfirm": "Xoá {{file}}? Bản cũ được backup trước khi xoá.",
     "newFile": "File chưa có; lưu để tạo mới.",
-    "readOnly": "{{reason}}",
     "previewTitle": "Lưu {{file}}",
     "previewHint": "Bản cũ được backup trước khi ghi; xem lại trong Lịch sử thay đổi.",
     "unchanged": "Không có thay đổi so với file hiện tại.",
@@ -42,7 +41,6 @@
   "empty": "Chưa có gì ở đây.",
   "memory": {
     "lines": "{{count}} dòng",
-    "headings": "Mục lục",
     "imports": "File được import",
     "importMissing": "không có",
     "content": "Nội dung"
@@ -55,8 +53,7 @@
     "dirs": "Thư mục bổ sung",
     "env": "Biến môi trường",
     "other": "Khoá khác trong file",
-    "notSet": "chưa đặt",
-    "fields": "Giá trị native"
+    "notSet": "chưa đặt"
   },
   "hooks": {
     "event": "Sự kiện",
@@ -79,9 +76,7 @@
     "servers": "Server",
     "shadowed": "Bị server cùng tên ở nguồn trước che",
     "missingEnv": "Thiếu biến: {{list}}",
-    "fromTaskPilot": "TaskPilot cấp: {{list}}",
-    "notEditable": "Chỉ xem",
-    "check": "Kiểm tra kết nối"
+    "fromTaskPilot": "TaskPilot cấp: {{list}}"
   },
   "workflow": {
     "title": "Workflow",
@@ -109,7 +104,6 @@
     "warnings": "Cảnh báo",
     "files": "File",
     "usedBy": "Dùng ở: {{list}}",
-    "sameAsDefault": "giống mặc định",
     "changed": "đã sửa",
     "added": "thêm mới",
     "newFile": "File prompt mới",
@@ -122,8 +116,6 @@
     "deleteConfirm": "Xoá {{file}} khỏi override? Bản cũ được backup.",
     "steps": "Các bước",
     "step": {
-      "agent": "Agent",
-      "gate": "Duyệt",
       "done": "Xong khi có",
       "outputs": "Tài liệu",
       "prompt": "Prompt",

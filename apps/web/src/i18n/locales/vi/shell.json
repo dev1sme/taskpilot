@@ -1,9 +1,5 @@
 {
   "skipNav": "Bỏ qua điều hướng",
-  "taskNotFound": {
-    "title": "Không thấy task {{key}}",
-    "body": "Task có thể đã bị xoá hoặc đổi tên trong .claude/tasks."
-  },
   "nav": {
     "label": "Điều hướng",
     "overview": "Tổng quan",
@@ -81,7 +77,6 @@
     "exhausted": "hết hạn mức"
   },
   "overview": {
-    "subtitle": "{{path}}",
     "noRepo": "Chọn một repo để bắt đầu.",
     "attention": "Cần ba xử lý",
     "attentionEmpty": "Không có gì đang chờ ba.",
@@ -90,7 +85,6 @@
     "recent": "Đang làm dở",
     "recentEmpty": "Không còn task đang làm dở.",
     "allTasks": "Tất cả task",
-    "open": "Mở",
     "step": "Bước {{n}}",
     "sessions": "{{count}} session",
     "counts": {

@@ -63,13 +63,16 @@
     "readAll": "Đọc toàn bộ",
     "loading": "Đang tải…",
     "approveLast": "Duyệt và hoàn tất",
-    "approveNext": "Duyệt, sang bước tiếp",
+    "approveNext": "Duyệt và tiếp tục",
     "feedbackLabel": "Hoặc góp ý để {{agent}} sửa lại",
     "feedbackPlaceholder": "Ví dụ: thêm test cho trường hợp danh sách rỗng",
     "sendFeedback": "Gửi góp ý",
-    "approveNextAnswered": "Duyệt kèm trả lời, sang bước tiếp",
-    "approveLastAnswered": "Duyệt kèm trả lời và hoàn tất",
-    "feedbackLabelAnswered": "Hoặc gửi các câu trả lời như góp ý để {{agent}} sửa lại (thêm ý nếu cần)"
+    "approveNextAnswered": "Duyệt và tiếp tục",
+    "approveLastAnswered": "Duyệt và hoàn tất",
+    "feedbackLabelAnswered": "Hoặc gửi các câu trả lời như góp ý để {{agent}} sửa lại (thêm ý nếu cần)",
+    "consequenceNext": "Bước sau bắt đầu ngay trong session của quy trình.",
+    "consequenceLast": "Quy trình kết thúc; task chờ ba đánh dấu hoàn thành.",
+    "assignmentsBlock": "Bảng phân công chưa hợp lệ: sửa kế hoạch trước khi duyệt."
   },
   "subtasks": {
     "title": "{{step}}: {{done}}/{{total}} việc xong",

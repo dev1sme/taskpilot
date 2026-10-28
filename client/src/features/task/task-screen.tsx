@@ -1,5 +1,18 @@
 import type { RunView, TaskListItem } from "@server/api-types";
-import { ArrowUUpLeft, CaretDown, CheckCircle, ChatCircleDots, CircleNotch, Diamond, DotsThreeVertical, PlugsConnected, Scroll, X, type Icon } from "@phosphor-icons/react";
+import {
+  ArrowCounterClockwise,
+  ArrowUUpLeft,
+  CaretDown,
+  CheckCircle,
+  ChatCircleDots,
+  CircleNotch,
+  Diamond,
+  DotsThreeVertical,
+  PlugsConnected,
+  Scroll,
+  X,
+  type Icon,
+} from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,8 +27,13 @@ import { DocViewer, TextViewer } from "@/features/docs/doc-viewer";
 import { DocsPanel } from "@/features/docs/docs-panel";
 import { useSetTaskDone } from "@/features/tasks/queries";
 import { ACTIVE_PHASES, type RunPhase } from "@/features/tasks/status";
-import { refreshTask, useRun, workflowApi } from "@/features/workflow/queries";
+import { refreshTask, useRun, workflowApi, type RunOptions as RunOptionsValue } from "@/features/workflow/queries";
+import { GateCard } from "@/features/workflow/gate-card";
+import { HandoffDialog, RunHistory, type HandoffTarget } from "@/features/workflow/handoff";
+import { NowCard } from "@/features/workflow/now-card";
+import { RunOptions } from "@/features/workflow/run-options";
 import { Stepper } from "@/features/workflow/stepper";
+import { useSessions } from "@/features/sessions/queries";
 import { useRepo, useTasks } from "@/features/workspace/queries";
 import { locale } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -70,6 +88,13 @@ function TaskContent({ task }: { task: TaskListItem }) {
   const sent = run?.sentPrompt;
   const badgePhase: BadgePhase | undefined = run && active ? (run.phase as BadgePhase) : task.done ? "done" : undefined;
   const current = run ? steps[run.stepIndex] : undefined;
+  const next = run ? steps[run.stepIndex + 1] : undefined;
+  const sessions = useSessions(task.key).data ?? [];
+  const [handoff, setHandoff] = useState<HandoffTarget | null>(null);
+  const runSession = sessions.find((s) => s.id === run?.sessionId) ?? null;
+  // A session replaced by a committed handoff no longer speaks for its lane.
+  const replaced = new Set(run?.handoffs?.filter((op) => op.stage === "committed").map((op) => op.sourceSessionId));
+  const asking = new Set(sessions.filter((s) => s.activity === "permission" && !s.retired && !s.reservation && !replaced.has(s.id)).map((s) => s.id));
 
   return (
     <div className="flex min-h-full flex-col">
@@ -107,7 +132,23 @@ function TaskContent({ task }: { task: TaskListItem }) {
 
           <div className={cn("grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]", run?.phase === "gate" && "xl:grid-cols-[minmax(0,1fr)_22rem]")}>
             <div className="grid min-w-0 content-start gap-4">
-              <section className="rounded-md border border-dashed border-line p-4 text-sm text-muted">{t("pendingNow")}</section>
+              {run?.phase === "gate" && current ? (
+                <GateCard
+                  taskKey={task.key}
+                  run={run}
+                  step={current}
+                  questions={view.questions}
+                  assignments={next?.dispatch ? view.assignments : null}
+                  parallel={next?.dispatch?.parallel ?? 1}
+                  maxSubtasks={next?.dispatch?.maxSubtasks}
+                  isLast={run.stepIndex === steps.length - 1}
+                  docVersion={task.updatedAt}
+                  onOpenDoc={setDoc}
+                />
+              ) : (
+                <NowCard taskKey={task.key} view={view} run={run} session={runSession} activity={activity} asking={asking} onOpenDoc={setDoc} onHandoff={setHandoff} />
+              )}
+              {run && <RunHistory run={run} usage={view.usage} />}
             </div>
             <aside className="grid content-start gap-6">
               <DocsPanel task={task} steps={steps} reports={run?.subtasks?.map((s) => s.report)} onOpen={setDoc} />
@@ -119,6 +160,7 @@ function TaskContent({ task }: { task: TaskListItem }) {
         </div>
       )}
 
+      <HandoffDialog taskKey={task.key} target={handoff} onClose={() => setHandoff(null)} />
       <DocViewer taskKey={task.key} path={doc} version={task.updatedAt} onClose={closeDoc} />
       <TextViewer
         title={showPrompt && sent ? t("sentPromptHead", { step: steps[sent.stepIndex]?.title ?? sent.stepIndex + 1, time: new Date(sent.at).toLocaleString(locale()) }) : null}
@@ -145,6 +187,23 @@ function TaskTools({ task, view, active, onShowPrompt }: { task: TaskListItem; v
   const { t } = useTranslation(["task", "common"]);
   const setDone = useSetTaskDone();
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+  const [restartBusy, setRestartBusy] = useState(false);
+  const run = view.run;
+  // Interrupted, finished and cancelled runs offer the restart in their card already.
+  const canRestart = run !== null && !["interrupted", "done", "cancelled"].includes(run.phase);
+  const restart = async (options: RunOptionsValue) => {
+    setRestartBusy(true);
+    try {
+      await workflowApi.restart(task.key, options);
+      await refreshTask(task.key);
+      setRestarting(false);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setRestartBusy(false);
+    }
+  };
   const [cancelling, setCancelling] = useState(false);
   const cancel = async () => {
     setCancelling(true);
@@ -188,6 +247,12 @@ function TaskTools({ task, view, active, onShowPrompt }: { task: TaskListItem; v
                 {t("markDone")}
               </DropdownMenuItem>
             ))}
+          {canRestart && (
+            <DropdownMenuItem onSelect={() => setRestarting(true)}>
+              <ArrowCounterClockwise aria-hidden />
+              {t("restart")}
+            </DropdownMenuItem>
+          )}
           {active && (
             <>
               <DropdownMenuSeparator />
@@ -199,6 +264,24 @@ function TaskTools({ task, view, active, onShowPrompt }: { task: TaskListItem; v
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      <Dialog open={restarting} onOpenChange={(open) => !restartBusy && setRestarting(open)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{t("restartTitle")}</DialogTitle>
+            <DialogDescription>{t("restartHint")}</DialogDescription>
+          </DialogHeader>
+          {run && (
+            <RunOptions taskKey={task.key} initial={{ mode: view.runMode?.id ?? view.workflow.mode.id, execution: run.execution ?? { agent: "workflow" } }} disabled={restartBusy}>
+              {(options, blocked) => (
+                <Button variant="attention" busy={restartBusy} disabled={blocked} onClick={() => void restart(options)}>
+                  <ArrowCounterClockwise aria-hidden />
+                  {t("restartConfirm")}
+                </Button>
+              )}
+            </RunOptions>
+          )}
+        </DialogContent>
+      </Dialog>
       <Dialog open={confirmCancel} onOpenChange={setConfirmCancel}>
         <DialogContent>
           <DialogHeader>

@@ -38,6 +38,5 @@
   "progress": "Tiến độ",
   "cancelConfirmTitle": "Huỷ quy trình của {{key}}?",
   "cancelConfirmBody": "Session đang chạy sẽ dừng. Tài liệu đã viết vẫn giữ nguyên; có thể chạy lại sau.",
-  "cancelKeep": "Tiếp tục chạy",
-  "pendingNow": "Phần trạng thái hiện tại đang được dựng lại."
+  "cancelKeep": "Tiếp tục chạy"
 }

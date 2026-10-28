@@ -212,7 +212,7 @@ export function RunOptions({
           <Label htmlFor={`${id}-mode`} className="text-xs text-muted">
             {t("mode.label")}
           </Label>
-          <Select value={options.mode} disabled={lock || !modes.data} onValueChange={(mode) => change({ ...value, mode })}>
+          <Select value={options.mode ?? ""} disabled={lock || !modes.data} onValueChange={(mode) => change({ ...value, mode })}>
             <SelectTrigger id={`${id}-mode`} title={currentMode?.description}>
               <SelectValue />
             </SelectTrigger>

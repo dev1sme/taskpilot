@@ -29,7 +29,7 @@ export interface RunView {
       doneFile: string | null;
       outputs: Array<{ id: string; file: string }>;
       /** Set on a dispatch step. */
-      dispatch: { from: string; report: string; parallel: number } | null;
+      dispatch: { from: string; report: string; parallel: number; maxSubtasks?: number } | null;
     }>;
     /** The run follows the workflow as it was when it started, which has been edited since. */
     outdated: boolean;

@@ -57,12 +57,10 @@ Sản phẩm tập trung vào việc điều phối và giám sát công việc 
 
 - Brief sản phẩm và giới hạn phạm vi do người dùng xác nhận trong phiên khởi tạo Impeccable.
 - `README.md`: mục đích sản phẩm, CLI được hỗ trợ và cách chạy.
-- `docs/GUIDE.md`: các luồng sử dụng, duyệt, phản hồi, bàn giao và phục hồi.
-- `docs/SPEC.md`: cơ chế workflow, trạng thái và sự khác nhau giữa các backend.
-- `docs/DEVELOP.md`: môi trường phát triển và cách kiểm tra.
-- `apps/web/src/features/task/TaskScreen.tsx`: các thao tác và thành phần hiện có của màn hình chi tiết task; đối chiếu source liên quan trước khi sửa.
+- `apps/web/src/features/task/task-screen.tsx`: các thao tác và thành phần hiện có của màn hình chi tiết task; đối chiếu source liên quan trước khi sửa.
 - `apps/web/src/i18n/locales/vi/`: nội dung giao diện tiếng Việt hiện có.
-- `apps/server/test/` và `e2e/`: kiểm thử hiện có; sự tồn tại của test không khẳng định đã chạy hoặc đã đạt trong phiên này.
+- `apps/server/src/api-types.ts`: hợp đồng API giữa server và web.
+- `e2e/`: kiểm thử Playwright; sự tồn tại của test không khẳng định đã chạy hoặc đã đạt trong phiên này.
 
 ## Product Principles
 

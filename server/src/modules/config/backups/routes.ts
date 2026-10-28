@@ -1,10 +1,13 @@
+import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { HttpError } from "../../../core/errors.js";
 import { locale, t } from "../../../core/i18n.js";
 import { maskEntry } from "../mcp/edit.js";
 import { claudeJsonEntry, nativeMcpDocument, nativeMcpServers } from "../mcp/read.js";
 import { restoreMcpEntry } from "../mcp/routes.js";
-import { readNativeFields } from "../settings/native.js";
+import { nativeSettingsOf, readNativeFields } from "../settings/native.js";
+import { CONFIG_ADAPTERS } from "../adapters/index.js";
+import type { ProviderId } from "../../../core/providers.js";
 import { claudeJson } from "../../../providers/claude/home.js";
 import { isObject } from "../shared/fs.js";
 import { NAME } from "../mcp/edit.js";
@@ -70,14 +73,22 @@ function safeEntry(text: string | null): string | null {
   }
 }
 
+/** The CLI whose TOML config file (settings and MCP servers in one file) has this name. */
+function tomlConfigOwner(file: string): ProviderId | undefined {
+  return Object.values(CONFIG_ADAPTERS).find(
+    (adapter) => adapter.settings.kind === "native" && adapter.settings.format === "toml" && file.endsWith(path.basename(adapter.settings.file("", "user"))),
+  )?.id;
+}
+
 /** A backup diff is a safe projection, never a dump of unknown config fields. */
 function safeFile(file: string, text: string | null): string | null {
   if (text === null) return null;
-  if (file.endsWith("config.toml")) {
+  const toml = tomlConfigOwner(file);
+  if (toml) {
     try {
-      const doc = nativeMcpDocument(text, "codex");
-      const mcp = nativeMcpServers(doc, "codex");
-      return `${JSON.stringify({ settings: readNativeFields("codex", "user", text), mcp_servers: Object.fromEntries(Object.entries(mcp).map(([name, value]) => [name, maskEntry(value)])) }, null, 2)}\n`;
+      const doc = nativeMcpDocument(text, toml);
+      const mcp = nativeMcpServers(doc, toml);
+      return `${JSON.stringify({ settings: readNativeFields(nativeSettingsOf(toml)!, "user", text), mcp_servers: Object.fromEntries(Object.entries(mcp).map(([name, value]) => [name, maskEntry(value)])) }, null, 2)}\n`;
     } catch {
       return t("configMessages.backups_routes_04");
     }
@@ -101,7 +112,8 @@ function redactJson(value: unknown): unknown {
 
 function validateRestore(file: string, content: string | null): void {
   if (content === null) return;
-  if (file.endsWith("config.toml")) nativeMcpDocument(content, "codex");
+  const toml = tomlConfigOwner(file);
+  if (toml) nativeMcpDocument(content, toml);
   else if (file.endsWith(".json")) {
     try {
       JSON.parse(content);

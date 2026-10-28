@@ -1,12 +1,10 @@
 import { t } from "../../../core/i18n.js";
-import path from "node:path";
-import { claudeHome } from "../../../providers/claude/home.js";
 import { displayPath, isObject, maskValue, readJsonFile, strings } from "../shared/fs.js";
 import type { ConfigScope } from "../shared/provider-capabilities.js";
-import { type ProviderId } from "../../../core/providers.js";
 import { settingsTarget } from "../shared/targets.js";
 import { readCurrent } from "../shared/writer.js";
-import { nativeKeys, readNativeFields, type NativeFields } from "./native.js";
+import { nativeKeys, readNativeFields, type NativeFields, type NativeSettings } from "./native.js";
+import { configAdapter } from "../adapters/index.js";
 
 export type SettingsScope = "project" | "local" | "user";
 
@@ -35,16 +33,15 @@ export interface NativeSettingsFile {
 }
 
 /** Only the validated native fields leave the server. Unknown fields and credentials stay on disk. */
-export async function readNativeSettings(repo: string, cli: Exclude<ProviderId, "claude">): Promise<NativeSettingsFile[]> {
-  const scopes: ConfigScope[] = cli === "codex" ? ["project", "user"] : ["project", "local", "user"];
+export async function readNativeSettings(repo: string, native: NativeSettings): Promise<NativeSettingsFile[]> {
   return Promise.all(
-    scopes.map(async (scope) => {
-      const target = settingsTarget(repo, scope, cli);
+    configAdapter(native.id).settings.scopes.map(async (scope) => {
+      const target = settingsTarget(repo, scope, native.id);
       const content = await readCurrent(target.abs);
       try {
-        return { scope, path: target.display, exists: content !== null, fields: readNativeFields(cli, scope, content), editableKeys: nativeKeys(cli, scope) };
+        return { scope, path: target.display, exists: content !== null, fields: readNativeFields(native, scope, content), editableKeys: nativeKeys(native, scope) };
       } catch {
-        return { scope, path: target.display, exists: true, error: t("configMessages.settings_read_01"), fields: {}, editableKeys: nativeKeys(cli, scope) };
+        return { scope, path: target.display, exists: true, error: t("configMessages.settings_read_01"), fields: {}, editableKeys: nativeKeys(native, scope) };
       }
     }),
   );
@@ -62,12 +59,10 @@ export interface HookEntry {
 
 const KNOWN = new Set(["permissions", "env", "hooks"]);
 
+/** Claude's settings files, by scope. */
 export function settingsFiles(repo: string): Array<[SettingsScope, string]> {
-  return [
-    ["project", path.join(repo, ".claude", "settings.json")],
-    ["local", path.join(repo, ".claude", "settings.local.json")],
-    ["user", path.join(claudeHome(), "settings.json")],
-  ];
+  const settings = configAdapter("claude").settings;
+  return settings.scopes.map((scope) => [scope, settings.file(repo, scope)]);
 }
 
 /** Permissions and env of each settings file. Env values are masked. */

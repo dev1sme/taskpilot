@@ -1,14 +1,13 @@
 import { readdir, realpath, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import path from "node:path";
-import { claudeHome } from "../../../providers/claude/home.js";
-import { codexSkillsHome } from "../../../providers/codex/home.js";
-import { copilotConfigHome } from "../../../providers/copilot/home.js";
 import { displayPath, fileInfo, frontmatter, readText, strings } from "../shared/fs.js";
 import { type ProviderId } from "../../../core/providers.js";
 import { checkAgent, checkCodexAgent, checkNames, type AgentCheck } from "./check.js";
 import { readTemplates } from "./templates.js";
 import { tomlMeta } from "./templates.js";
+import { configAdapter, type LibraryAdapter } from "../adapters/index.js";
+import { PLAIN_TOML } from "../adapters/names.js";
 
 export type LibraryKind = "agents" | "commands" | "skills";
 export type LibraryScope = "project" | "user";
@@ -37,41 +36,29 @@ export interface LibraryItem {
 
 const SHOWN_FIELDS = ["tools", "allowed-tools", "model", "argument-hint", "color", "disable-model-invocation"];
 
-/** Native library files for the selected CLI; absent cli preserves the Claude API. */
+/** Native library files of the selected CLI, as its adapter lays them out; absent cli is Claude. */
 export async function readLibrary(repo: string, kind: LibraryKind, cli: ProviderId = "claude"): Promise<LibraryItem[]> {
-  const roots: Array<[LibraryScope, string, boolean?]> =
-    cli === "claude"
-      ? [
-          ["project", path.join(repo, ".claude", kind)],
-          ["user", path.join(claudeHome(), kind)],
-        ]
-      : kind === "agents"
-        ? cli === "codex"
-          ? [["project", path.join(repo, ".codex", "agents")]]
-          : [
-              ["project", path.join(repo, ".github", "agents")],
-              ["project", path.join(repo, ".claude", "agents"), false],
-              ["user", path.join(copilotConfigHome(), "agents")],
-            ]
-        : cli === "codex"
-          ? [
-              ["project", path.join(repo, ".agents", "skills")],
-              ["user", codexSkillsHome()],
-            ]
-          : [
-              ["project", path.join(repo, ".github", "skills")],
-              ["user", path.join(copilotConfigHome(), "skills")],
-            ];
+  const library = configAdapter(cli).library[kind];
+  if (!library) return [];
   // Agents are compared with TaskPilot's templates by name.
-  const templates = kind === "agents" && cli !== "copilot" ? new Map((await readTemplates(cli)).map((tpl) => [tpl.name, tpl.content])) : undefined;
+  const templates = library.templates ? new Map((await readTemplates(library.templates)).map((tpl) => [tpl.name, tpl.content])) : undefined;
   const out: LibraryItem[] = [];
-  for (const [scope, root, editable] of roots) {
-    if (kind === "skills") out.push(...(await readSkills(root, scope, repo, cli)));
-    else if (cli === "codex") out.push(...(await readCodexAgents(root, scope, repo, templates)));
-    else if (cli === "copilot") out.push(...(await readCopilotAgents(root, scope, repo, editable !== false)));
-    else out.push(...(await readMarkdownItems(root, root, kind, scope, repo, templates)));
+  for (const { scope, dir, editable } of library.roots(repo)) {
+    switch (library.format) {
+      case "skill":
+        out.push(...(await readSkills(dir, scope, repo, library.strictNames === true)));
+        break;
+      case "codex-agent":
+        out.push(...(await readCodexAgents(dir, scope, repo, templates)));
+        break;
+      case "copilot-agent":
+        out.push(...(await readCopilotAgents(dir, scope, repo, editable, library)));
+        break;
+      case "markdown":
+        out.push(...(await readMarkdownItems(dir, dir, kind, scope, repo, templates)));
+    }
   }
-  if (kind === "agents" && cli === "claude") checkNames(out);
+  if (library.checkNames) checkNames(out);
   return out.sort((a, b) => (a.scope === b.scope ? a.name.localeCompare(b.name) : a.scope === "project" ? -1 : 1));
 }
 
@@ -84,7 +71,7 @@ async function readCodexAgents(root: string, scope: LibraryScope, repo: string, 
   }
   const out: LibraryItem[] = [];
   for (const entry of entries) {
-    if ((await entryType(root, entry)) !== "file" || !/^[A-Za-z0-9][\w.-]*\.toml$/.test(entry.name)) continue;
+    if ((await entryType(root, entry)) !== "file" || !PLAIN_TOML.test(entry.name)) continue;
     const file = path.join(root, entry.name);
     const [content, info] = await Promise.all([readText(file), fileInfo(file)]);
     if (content === null) continue;
@@ -109,7 +96,7 @@ async function readCodexAgents(root: string, scope: LibraryScope, repo: string, 
   return out;
 }
 
-async function readCopilotAgents(root: string, scope: LibraryScope, repo: string, editable: boolean): Promise<LibraryItem[]> {
+async function readCopilotAgents(root: string, scope: LibraryScope, repo: string, editable: boolean, library: LibraryAdapter): Promise<LibraryItem[]> {
   let entries: Dirent[];
   try {
     entries = await readdir(root, { withFileTypes: true });
@@ -119,8 +106,7 @@ async function readCopilotAgents(root: string, scope: LibraryScope, repo: string
   const out: LibraryItem[] = [];
   for (const entry of entries) {
     const rel = entry.name;
-    const allowed = scope === "user" ? /^[A-Za-z0-9][\w.-]*\.agent\.md$/.test(rel) : /^[A-Za-z0-9][\w.-]*\.(?:agent\.)?md$/.test(rel);
-    if (!allowed || (await entryType(root, entry)) !== "file") continue;
+    if (!library.relOk(scope, rel) || (await entryType(root, entry)) !== "file") continue;
     const file = path.join(root, rel);
     const name = rel.replace(/(?:\.agent)?\.md$/, "");
     const item = await toItem(file, "agents", scope, repo, name, rel);
@@ -171,7 +157,7 @@ async function readMarkdownItems(
   return out;
 }
 
-async function readSkills(root: string, scope: LibraryScope, repo: string, cli: ProviderId): Promise<LibraryItem[]> {
+async function readSkills(root: string, scope: LibraryScope, repo: string, strictNames: boolean): Promise<LibraryItem[]> {
   let entries;
   try {
     entries = await readdir(root, { withFileTypes: true });
@@ -180,7 +166,7 @@ async function readSkills(root: string, scope: LibraryScope, repo: string, cli: 
   }
   const out: LibraryItem[] = [];
   for (const e of entries) {
-    if (cli !== "claude" && !/^[A-Za-z0-9][\w-]*$/.test(e.name)) continue;
+    if (strictNames && !/^[A-Za-z0-9][\w-]*$/.test(e.name)) continue;
     // A skill folder may be a symlink to a directory elsewhere.
     if ((await entryType(root, e)) !== "dir") continue;
     const dir = path.join(root, e.name);

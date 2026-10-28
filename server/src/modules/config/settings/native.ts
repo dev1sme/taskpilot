@@ -4,21 +4,29 @@ import { HttpError } from "../../../core/errors.js";
 import { isObject } from "../shared/fs.js";
 import type { ConfigScope } from "../shared/provider-capabilities.js";
 import { type ProviderId } from "../../../core/providers.js";
+import { configAdapter } from "../adapters/index.js";
 
-type NativeCli = Exclude<ProviderId, "claude">;
+/** A CLI whose settings TaskPilot edits as a few native fields. */
+export interface NativeSettings {
+  id: ProviderId;
+  format: "toml" | "jsonc";
+  keys(scope: ConfigScope): readonly string[];
+}
 type NativeValue = string | boolean | null;
 export type NativeFields = Record<string, NativeValue>;
 
-const CODEX_KEYS = ["approval_policy", "sandbox_mode"] as const;
-const COPILOT_REPO_KEYS = ["disableAllHooks", "respectGitignore"] as const;
-const COPILOT_USER_KEYS = [...COPILOT_REPO_KEYS, "askUser", "permissions.disableBypassPermissionsMode", "sandbox.enabled", "sandbox.allowBypass"] as const;
-
-export function nativeKeys(cli: NativeCli, scope: ConfigScope): string[] {
-  return cli === "codex" ? [...CODEX_KEYS] : scope === "user" ? [...COPILOT_USER_KEYS] : [...COPILOT_REPO_KEYS];
+/** The native settings of a CLI, or null when its settings are not edited as native fields. */
+export function nativeSettingsOf(cli: ProviderId): NativeSettings | null {
+  const settings = configAdapter(cli).settings;
+  return settings.kind === "native" ? { id: cli, format: settings.format, keys: settings.keys } : null;
 }
 
-function invalidFile(cli: NativeCli): never {
-  throw new HttpError(409, t("configMessages.settings_native_01", { value0: cli }));
+export function nativeKeys(native: NativeSettings, scope: ConfigScope): string[] {
+  return [...native.keys(scope)];
+}
+
+function invalidFile(native: NativeSettings): never {
+  throw new HttpError(409, t("configMessages.settings_native_01", { value0: native.id }));
 }
 
 /** JSONC parser with source offsets, used to replace only the selected property values. */
@@ -108,14 +116,14 @@ function parseJsonc(source: string): Node {
   return root;
 }
 
-function parsed(cli: NativeCli, text: string | null): Record<string, unknown> {
+function parsed(native: NativeSettings, text: string | null): Record<string, unknown> {
   if (text === null || text.trim() === "") return {};
   try {
-    const value: unknown = cli === "codex" ? parseToml(text) : parseJsonc(text).value;
-    if (!isObject(value)) invalidFile(cli);
+    const value: unknown = native.format === "toml" ? parseToml(text) : parseJsonc(text).value;
+    if (!isObject(value)) invalidFile(native);
     return value;
   } catch {
-    return invalidFile(cli);
+    return invalidFile(native);
   }
 }
 
@@ -123,10 +131,10 @@ function field(data: Record<string, unknown>, key: string): unknown {
   return key.split(".").reduce<unknown>((value, part) => (isObject(value) ? value[part] : undefined), data);
 }
 
-export function readNativeFields(cli: NativeCli, scope: ConfigScope, text: string | null): NativeFields {
-  const data = parsed(cli, text);
+export function readNativeFields(native: NativeSettings, scope: ConfigScope, text: string | null): NativeFields {
+  const data = parsed(native, text);
   return Object.fromEntries(
-    nativeKeys(cli, scope).map((key) => {
+    nativeKeys(native, scope).map((key) => {
       const value = field(data, key);
       const safe =
         key === "approval_policy"
@@ -141,9 +149,9 @@ export function readNativeFields(cli: NativeCli, scope: ConfigScope, text: strin
   );
 }
 
-export function validateNativeFields(cli: NativeCli, scope: ConfigScope, body: unknown): NativeFields {
+export function validateNativeFields(native: NativeSettings, scope: ConfigScope, body: unknown): NativeFields {
   if (!isObject(body) || !isObject(body.fields)) throw new HttpError(400, t("configMessages.settings_native_02"));
-  const allowed = new Set(nativeKeys(cli, scope));
+  const allowed = new Set(nativeKeys(native, scope));
   const fields: NativeFields = {};
   for (const [key, value] of Object.entries(body.fields)) {
     if (!allowed.has(key)) throw new HttpError(400, t("configMessages.settings_native_03", { value0: key }));
@@ -226,10 +234,10 @@ function insertProperty(source: string, object: Node, key: string, encoded: stri
   return source.slice(0, last.end) + `, ${JSON.stringify(key)}: ${encoded}` + source.slice(last.end);
 }
 
-function patchToml(text: string | null, fields: NativeFields): string {
+function patchToml(native: NativeSettings, text: string | null, fields: NativeFields): string {
   let source = text ?? "";
   for (const [key, value] of Object.entries(fields)) {
-    const current = parsed("codex", source);
+    const current = parsed(native, source);
     if (current[key] !== undefined && typeof current[key] !== "string") throw new HttpError(409, t("configMessages.settings_native_10", { value0: key }));
     const lines = source.split("\n");
     const firstTable = lines.findIndex((line) => /^\s*\[/.test(line));
@@ -243,17 +251,17 @@ function patchToml(text: string | null, fields: NativeFields): string {
     } else if (value !== null) lines.splice(limit, 0, `${key} = ${JSON.stringify(value)}`);
     source = lines.join("\n");
   }
-  parsed("codex", source);
+  parsed(native, source);
   return source.endsWith("\n") ? source : `${source}\n`;
 }
 
-export function applyNativeFields(cli: NativeCli, text: string | null, fields: NativeFields): string {
-  parsed(cli, text);
+export function applyNativeFields(native: NativeSettings, text: string | null, fields: NativeFields): string {
+  parsed(native, text);
   try {
-    return cli === "codex" ? patchToml(text, fields) : patchJsonc(text, fields);
+    return native.format === "toml" ? patchToml(native, text, fields) : patchJsonc(text, fields);
   } catch (error) {
     if (error instanceof HttpError) throw error;
-    return invalidFile(cli);
+    return invalidFile(native);
   }
 }
 

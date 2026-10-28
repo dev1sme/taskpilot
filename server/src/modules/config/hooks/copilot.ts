@@ -2,9 +2,13 @@ import { t } from "../../../core/i18n.js";
 import { readdir, lstat } from "node:fs/promises";
 import path from "node:path";
 import { HttpError } from "../../../core/errors.js";
-import { copilotConfigHome } from "../../../providers/copilot/home.js";
 import { isObject } from "../shared/fs.js";
 import { hookTarget } from "../shared/targets.js";
+import { PLAIN_JSON } from "../adapters/names.js";
+import type { HooksAdapter } from "../adapters/index.js";
+import type { ProviderId } from "../../../core/providers.js";
+
+export type FileHooks = Extract<HooksAdapter, { kind: "files" }>;
 import { readCurrent } from "../shared/writer.js";
 import type { ConfigScope } from "../shared/provider-capabilities.js";
 import { isCopilotEvent, type CopilotHookInput } from "./edit.js";
@@ -80,10 +84,10 @@ export function copilotDiffView(text: string | null): string | null {
   return `${JSON.stringify({ version: 1, hooks: readCopilotHooks(text) }, null, 2)}\n`;
 }
 
-/** Refuse reads through hook-directory symlinks as well as file symlinks. */
-export async function readCopilotHookFile(repo: string, abs: string): Promise<string | null> {
+/** Refuse reads through hook-directory symlinks as well as file symlinks, up to the repo or the CLI's home. */
+export async function readCopilotHookFile(repo: string, abs: string, hooks: FileHooks): Promise<string | null> {
   const projectRoot = path.resolve(repo);
-  const userRoot = path.resolve(copilotConfigHome());
+  const userRoot = path.resolve(path.dirname(hooks.dir(repo, "user")));
   const root = abs.startsWith(userRoot + path.sep) ? userRoot : projectRoot;
   for (let current = path.resolve(abs); current !== root; current = path.dirname(current)) {
     try {
@@ -102,12 +106,14 @@ export async function readCopilotHookFile(repo: string, abs: string): Promise<st
   return readCurrent(abs);
 }
 
-export async function listCopilotHookFiles(repo: string): Promise<Array<{ scope: ConfigScope; name: string; path: string; hooks: CopilotHookInput[]; error?: string }>> {
+export async function listHookFiles(
+  repo: string,
+  cli: ProviderId,
+  hooks: FileHooks,
+): Promise<Array<{ scope: ConfigScope; name: string; path: string; hooks: CopilotHookInput[]; error?: string }>> {
   const out: Array<{ scope: ConfigScope; name: string; path: string; hooks: CopilotHookInput[]; error?: string }> = [];
-  for (const [scope, root] of [
-    ["project", path.join(repo, ".github", "hooks")],
-    ["user", path.join(copilotConfigHome(), "hooks")],
-  ] as const) {
+  for (const scope of hooks.scopes) {
+    const root = hooks.dir(repo, scope);
     let names: string[];
     try {
       names = await readdir(root);
@@ -116,11 +122,11 @@ export async function listCopilotHookFiles(repo: string): Promise<Array<{ scope:
       throw error;
     }
     for (const name of names.sort()) {
-      if (name === "taskpilot.json" || !/^[A-Za-z0-9][\w.-]*\.json$/.test(name)) continue;
-      const target = hookTarget(repo, scope, name, "copilot");
+      if (hooks.reserved.includes(name) || !PLAIN_JSON.test(name)) continue;
+      const target = hookTarget(repo, scope, name, cli);
       if (!(await lstat(target.abs)).isFile()) continue;
       try {
-        out.push({ scope, name, path: target.display, hooks: readCopilotHooks(await readCopilotHookFile(repo, target.abs)) });
+        out.push({ scope, name, path: target.display, hooks: readCopilotHooks(await readCopilotHookFile(repo, target.abs, hooks)) });
       } catch {
         out.push({ scope, name, path: target.display, hooks: [], error: t("configMessages.hooks_copilot_05") });
       }

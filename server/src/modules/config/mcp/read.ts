@@ -1,13 +1,11 @@
-import path from "node:path";
 import { claudeJson } from "../../../providers/claude/home.js";
 import { displayPath, envRefs, isObject, maskValue, readJsonFile, strings } from "../shared/fs.js";
 import { t } from "../../../core/i18n.js";
 import { parse as parseToml } from "smol-toml";
-import { codexConfigHome } from "../../../providers/codex/home.js";
-import { copilotConfigHome } from "../../../providers/copilot/home.js";
 import { readText } from "../shared/fs.js";
 import { type ProviderId } from "../../../core/providers.js";
 import { HttpError } from "../../../core/errors.js";
+import { configAdapter, type NativeMcpAdapter } from "../adapters/index.js";
 
 export type McpScope = "project" | "local" | "user";
 
@@ -41,12 +39,13 @@ export interface McpConfig {
  * projects[repo], private) and user (~/.claude.json top level). Secret values are masked.
  */
 export async function readMcp(repo: string, provided: Record<string, string> = {}, cli: ProviderId = "claude"): Promise<McpConfig> {
-  if (cli !== "claude") return readNativeMcp(repo, provided, cli);
-  const projectFile = path.join(repo, ".mcp.json");
+  const mcp = configAdapter(cli).mcp;
+  if (mcp.kind === "native") return readNativeMcp(repo, provided, cli, mcp);
+  const projectFile = mcp.projectFile(repo);
   const project = await readJsonFile(projectFile);
   const home = await readJsonFile(claudeJson());
 
-  const sources: McpConfig["sources"] = [{ scope: "project", path: ".mcp.json", exists: project.exists, ...("error" in project ? { error: project.error } : {}) }];
+  const sources: McpConfig["sources"] = [{ scope: "project", path: displayPath(projectFile, repo), exists: project.exists, ...("error" in project ? { error: project.error } : {}) }];
   const servers: McpServer[] = [];
   if ("data" in project && isObject(project.data)) servers.push(...toServers(project.data.mcpServers, "project", provided));
 
@@ -62,10 +61,17 @@ export async function readMcp(repo: string, provided: Record<string, string> = {
   return { sources, servers };
 }
 
-export function nativeMcpDocument(text: string | null, cli: "codex" | "copilot"): Record<string, unknown> {
+/** The CLI's MCP adapter, which must keep its servers in a native file. */
+export function nativeMcp(cli: ProviderId): NativeMcpAdapter {
+  const mcp = configAdapter(cli).mcp;
+  if (mcp.kind !== "native") throw new Error(`${cli} keeps no native MCP file`);
+  return mcp;
+}
+
+export function nativeMcpDocument(text: string | null, cli: ProviderId): Record<string, unknown> {
   if (text === null || !text.trim()) return {};
   try {
-    const data: unknown = cli === "codex" ? parseToml(text) : JSON.parse(text);
+    const data: unknown = nativeMcp(cli).format === "toml" ? parseToml(text) : JSON.parse(text);
     if (!isObject(data)) throw new Error("root");
     return data;
   } catch {
@@ -73,26 +79,23 @@ export function nativeMcpDocument(text: string | null, cli: "codex" | "copilot")
   }
 }
 
-export function nativeMcpServers(doc: Record<string, unknown>, cli: "codex" | "copilot"): Record<string, unknown> {
-  const value = cli === "codex" ? doc.mcp_servers : doc.mcpServers;
-  if (cli === "copilot" && value === undefined && Object.values(doc).every(isObject)) return doc;
+export function nativeMcpServers(doc: Record<string, unknown>, cli: ProviderId): Record<string, unknown> {
+  const json = nativeMcp(cli).format === "json";
+  const value = json ? doc.mcpServers : doc.mcp_servers;
+  // A JSON file may be the bare map of servers.
+  if (json && value === undefined && Object.values(doc).every(isObject)) return doc;
   if (value === undefined) return {};
   if (!isObject(value)) throw new HttpError(409, t("configMessages.mcp_read_02", { value0: cli }));
   return value;
 }
 
-async function readNativeMcp(repo: string, provided: Record<string, string>, cli: "codex" | "copilot"): Promise<McpConfig> {
-  const locations =
-    cli === "codex"
-      ? [
-          { scope: "project" as const, file: path.join(repo, ".codex", "config.toml") },
-          { scope: "user" as const, file: path.join(codexConfigHome(), "config.toml") },
-        ]
-      : [
-          { scope: "project" as const, file: path.join(repo, ".mcp.json"), readonly: true },
-          { scope: "project" as const, file: path.join(repo, ".github", "mcp.json") },
-          { scope: "user" as const, file: path.join(copilotConfigHome(), "mcp-config.json") },
-        ];
+/** A TOML entry implies its type (command = stdio) and keeps headers in `http_headers`; seen in the form's shape. */
+export function formEntry(mcp: NativeMcpAdapter, entry: Record<string, unknown>): Record<string, unknown> {
+  return mcp.format === "toml" ? { ...entry, type: entry.command ? "stdio" : "http", headers: entry.http_headers } : entry;
+}
+
+async function readNativeMcp(repo: string, provided: Record<string, string>, cli: ProviderId, mcp: NativeMcpAdapter): Promise<McpConfig> {
+  const locations = mcp.sources(repo);
   const sources: McpConfig["sources"] = [];
   const servers: McpServer[] = [];
   const seen = new Set<string>();
@@ -102,15 +105,13 @@ async function readNativeMcp(repo: string, provided: Record<string, string>, cli
     sources.push(source);
     if (text === null) continue;
     try {
-      const entries = nativeMcpServers(nativeMcpDocument(text, cli === "codex" ? "codex" : "copilot"), cli);
-      const normalized = Object.fromEntries(
-        Object.entries(entries).map(([name, raw]) => [name, isObject(raw) && cli === "codex" ? { ...raw, type: raw.command ? "stdio" : "http", headers: raw.http_headers } : raw]),
-      );
+      const entries = nativeMcpServers(nativeMcpDocument(text, cli), cli);
+      const normalized = Object.fromEntries(Object.entries(entries).map(([name, raw]) => [name, isObject(raw) ? formEntry(mcp, raw) : raw]));
       servers.push(
         ...toServers(normalized, location.scope, provided).map((server) => {
           const effective = !seen.has(server.name);
           seen.add(server.name);
-          return { ...server, type: server.type === "local" ? "stdio" : server.type, source: source.path, editable: !("readonly" in location), effective };
+          return { ...server, type: server.type === "local" ? "stdio" : server.type, source: source.path, editable: !location.readonly, effective };
         }),
       );
     } catch {

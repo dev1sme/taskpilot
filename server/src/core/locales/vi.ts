@@ -136,8 +136,6 @@ export default {
     settings_routes_04: "CLI này dùng endpoint native",
     shared_agent_01: "CLI không hợp lệ: {{value0}}",
     shared_agent_02: "Phạm vi {{value0}} không được {{value1}} hỗ trợ cho {{value2}}",
-    shared_agent_03: "Không thể bật {{value0}}/{{value1}}: CLI không hỗ trợ",
-    shared_targets_01: "Phạm vi {{value0}} không được codex hỗ trợ cho agents",
     shared_targets_02: "Claude MCP local/user được quản lý qua CLI, không có file target để ghi trực tiếp",
   },
   errors: {

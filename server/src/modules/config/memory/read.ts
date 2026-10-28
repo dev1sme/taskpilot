@@ -2,9 +2,9 @@ import os from "node:os";
 import path from "node:path";
 import { markdownHeadings } from "../../../core/markdown.js";
 import { displayPath, fileInfo, readJsonFile, readText, isObject } from "../shared/fs.js";
-import { CONFIG_CAPABILITIES } from "../shared/provider-capabilities.js";
 import { type ProviderId } from "../../../core/providers.js";
-import { memoryTarget, projectMemoryFiles } from "../shared/targets.js";
+import { memoryTarget } from "../shared/targets.js";
+import { configAdapter } from "../adapters/index.js";
 import { t } from "../../../core/i18n.js";
 
 export type MemoryScope = "project" | "local" | "user";
@@ -51,13 +51,14 @@ const SECRET_PATTERNS: Array<[RegExp, "sk" | "github" | "aws" | "slack" | "priva
 /** Native instruction files for the selected CLI, with imports and sanity checks. */
 export async function readMemory(repo: string, cli: ProviderId = "claude"): Promise<MemoryFile[]> {
   const scripts = await npmScripts(repo);
-  const targets = CONFIG_CAPABILITIES[cli].memory.scopes.map((scope) => [scope, memoryTarget(repo, scope, cli).abs] as const);
+  const memory = configAdapter(cli).memory;
+  const targets = memory.scopes.map((scope) => [scope, memoryTarget(repo, scope, cli).abs] as const);
   const files = await Promise.all(targets.map(([scope, file]) => readOne(scope, file, repo, scripts)));
-  const project = cli === "claude" ? projectMemoryFiles(repo) : null;
-  if (project?.other) {
+  const other = memory.alsoLoaded?.(repo);
+  if (other) {
     files[0].checks.unshift({
       level: "warn",
-      message: t("memory.alsoLoads", { other: displayPath(project.other, repo), main: displayPath(project.main, repo) }),
+      message: t("memory.alsoLoads", { other: displayPath(other, repo), main: displayPath(memory.file(repo, "project"), repo) }),
     });
   }
   return files;

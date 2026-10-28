@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { t } from "../../../core/i18n.js";
-import { parseConfigProvider, markConfigAvailable } from "../shared/provider-capabilities.js";
+import { parseConfigProvider } from "../shared/provider-capabilities.js";
 import { scopeOf, stringField, type ConfigRouteOptions } from "../shared/http.js";
 import { memoryTarget } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
@@ -9,8 +9,6 @@ import { readMemory } from "./read.js";
 /** Native instruction files: read, preview and edit with backups. */
 export function registerMemoryRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {
   const { requireRepo, backups } = opts;
-  markConfigAvailable("codex", "memory");
-  markConfigAvailable("copilot", "memory");
 
   app.get<{ Querystring: { cli?: string } }>("/api/config/memory", async (req) => readMemory(requireRepo(), parseConfigProvider(req.query.cli)));
 

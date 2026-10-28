@@ -1,54 +1,35 @@
 import { t } from "../../../core/i18n.js";
 import { HttpError } from "../../../core/errors.js";
 import { PROVIDER_IDS, type ProviderId } from "../../../core/providers.js";
+import { configAdapter, sectionScopes } from "../adapters/index.js";
 
 export type ConfigScope = "project" | "local" | "user";
 export type ConfigSection = "memory" | "settings" | "hooks" | "agents" | "commands" | "skills" | "mcp";
+
+export const CONFIG_SECTIONS: readonly ConfigSection[] = ["memory", "settings", "hooks", "agents", "commands", "skills", "mcp"];
 
 export interface SectionCapability {
   scopes: ConfigScope[];
   /** Whether the CLI has this native configuration surface. */
   supported: boolean;
-  /** Only true once a TaskPilot route and its adapter are ready. */
+  /** Whether TaskPilot can show and edit it; every supported section has an adapter. */
   available: boolean;
   reason?: string;
 }
 
-const feature = (scopes: ConfigScope[], available: boolean): SectionCapability => ({ scopes, supported: true, available });
-const unsupported = (reason: string): SectionCapability => ({ scopes: [], supported: false, available: false, reason });
+/** What each section of a CLI's configuration supports, from its adapter. */
+export function configCapability(cli: ProviderId, section: ConfigSection): SectionCapability {
+  const adapter = configAdapter(cli);
+  const scopes = sectionScopes(adapter, section);
+  if (scopes) return { scopes, supported: true, available: true };
+  return { scopes: [], supported: false, available: false, reason: adapter.unsupported[section] ?? t("configMessages.routes_02", { value0: section, value1: cli }) };
+}
 
-/** Native scope matrix. New CLI surfaces remain unavailable until their adapters are installed. */
-export const CONFIG_CAPABILITIES: Record<ProviderId, Record<ConfigSection, SectionCapability>> = {
-  claude: {
-    memory: feature(["project", "local", "user"], true),
-    settings: feature(["project", "local", "user"], true),
-    hooks: feature(["project", "local", "user"], true),
-    agents: feature(["project", "user"], true),
-    commands: feature(["project", "user"], true),
-    skills: feature(["project", "user"], true),
-    mcp: feature(["project", "local", "user"], true),
-  },
-  copilot: {
-    memory: feature(["project", "user"], false),
-    settings: feature(["project", "local", "user"], false),
-    hooks: feature(["project", "user"], false),
-    agents: feature(["project", "user"], false),
-    commands: unsupported("Copilot CLI has no native commands directory."),
-    skills: feature(["project", "user"], false),
-    mcp: feature(["project", "user"], false),
-  },
-  codex: {
-    memory: feature(["project", "user"], false),
-    settings: feature(["project", "user"], false),
-    hooks: unsupported("Codex has no verified native hooks adapter."),
-    agents: feature(["project"], false),
-    commands: unsupported("Codex has no native commands directory."),
-    skills: feature(["project", "user"], false),
-    mcp: feature(["project", "user"], false),
-  },
-};
+export function configCapabilities(cli: ProviderId): Record<ConfigSection, SectionCapability> {
+  return Object.fromEntries(CONFIG_SECTIONS.map((section) => [section, configCapability(cli, section)])) as Record<ConfigSection, SectionCapability>;
+}
 
-/** Missing cli keeps every legacy config endpoint on Claude. */
+/** Missing cli is Claude: the config endpoints predate the other CLIs. */
 export function parseConfigProvider(raw?: string): ProviderId {
   if (raw === undefined || raw === "") return "claude";
   if (PROVIDER_IDS.some((cli) => cli === raw)) return raw as ProviderId;
@@ -56,13 +37,6 @@ export function parseConfigProvider(raw?: string): ProviderId {
 }
 
 export function requireConfigScope(cli: ProviderId, section: ConfigSection, scope: ConfigScope): void {
-  const capability = CONFIG_CAPABILITIES[cli][section];
+  const capability = configCapability(cli, section);
   if (!capability.scopes.includes(scope)) throw new HttpError(400, capability.reason ?? t("configMessages.shared_agent_02", { value0: scope, value1: cli, value2: section }));
-}
-
-/** Call when a route group has registered and tested the CLI adapter for this section. */
-export function markConfigAvailable(cli: ProviderId, section: ConfigSection): void {
-  const capability = CONFIG_CAPABILITIES[cli][section];
-  if (!capability.supported) throw new Error(t("configMessages.shared_agent_03", { value0: cli, value1: section }));
-  capability.available = true;
 }

@@ -3,7 +3,8 @@ import { isObject, maskValue } from "../shared/fs.js";
 import { hideUrlCredentials, maskMcpArg, maskMcpCommand } from "./read.js";
 import { t } from "../../../core/i18n.js";
 import { stringify as stringifyToml } from "smol-toml";
-import { nativeMcpDocument, nativeMcpServers } from "./read.js";
+import { formEntry, nativeMcp, nativeMcpDocument, nativeMcpServers } from "./read.js";
+import type { ProviderId } from "../../../core/providers.js";
 
 export interface ValueInput {
   key: string;
@@ -157,12 +158,13 @@ export function maskEntry(entry: unknown): Record<string, unknown> | null {
   return out;
 }
 
-export function nativeEntry(input: McpEntryInput, existing: Record<string, unknown> | null, cli: "codex" | "copilot", scope: "project" | "user") {
-  if (cli === "codex" && !["stdio", "http"].includes(input.type)) throw new HttpError(400, t("configMessages.mcp_edit_01"));
-  if (cli === "copilot" && !["stdio", "http", "sse"].includes(input.type)) throw new HttpError(400, t("configMessages.mcp_edit_02"));
+export function nativeEntry(input: McpEntryInput, existing: Record<string, unknown> | null, cli: ProviderId, scope: "project" | "user") {
+  const mcp = nativeMcp(cli);
+  if (!mcp.types.includes(input.type)) throw new HttpError(400, mcp.typeError());
   if (scope === "project" && [...input.env, ...input.headers].some((row) => row.secret && row.value !== null)) throw new HttpError(400, t("configMessages.mcp_edit_03"));
-  const { entry, secrets } = buildEntry(input, existing && (cli === "codex" ? { ...existing, type: existing.command ? "stdio" : "http", headers: existing.http_headers } : existing), "user");
-  if (cli === "copilot") {
+  const { entry, secrets } = buildEntry(input, existing && formEntry(mcp, existing), "user");
+  if (mcp.format === "json") {
+    // `local` is the JSON files' own name for stdio; a new server exposes all its tools.
     if (input.type === "stdio") entry.type = existing?.type === "local" ? "local" : "stdio";
     if (existing === null) entry.tools = ["*"];
     return { entry, secrets };
@@ -174,13 +176,13 @@ export function nativeEntry(input: McpEntryInput, existing: Record<string, unkno
   return { entry, secrets };
 }
 
-/** Replace only MCP tables; unrelated Codex settings and their comments retain their text. */
-export function patchNativeMcp(text: string | null, cli: "codex" | "copilot", from: string, to: string | null, entry: Record<string, unknown> | null): string {
+/** Replace only MCP tables; unrelated TOML settings and their comments retain their text. */
+export function patchNativeMcp(text: string | null, cli: ProviderId, from: string, to: string | null, entry: Record<string, unknown> | null): string {
   const doc = nativeMcpDocument(text, cli);
   const servers = { ...nativeMcpServers(doc, cli) };
   delete servers[from];
   if (to !== null && entry) servers[to] = entry;
-  if (cli === "copilot") return `${JSON.stringify(doc.mcpServers === undefined && Object.keys(doc).length ? servers : { ...doc, mcpServers: servers }, null, 2)}\n`;
+  if (nativeMcp(cli).format === "json") return `${JSON.stringify(doc.mcpServers === undefined && Object.keys(doc).length ? servers : { ...doc, mcpServers: servers }, null, 2)}\n`;
   const source = text ?? "";
   if (/^\s*mcp_servers\s*=/m.test(source)) throw new HttpError(409, t("configMessages.mcp_edit_04"));
   const lines = source.split("\n");
@@ -194,6 +196,6 @@ export function patchNativeMcp(text: string | null, cli: "codex" | "copilot", fr
   const other = kept.join("\n").trimEnd();
   const mcp = Object.keys(servers).length ? stringifyToml({ mcp_servers: servers }).trimEnd() : "";
   const next = [other, mcp].filter(Boolean).join("\n\n") + "\n";
-  nativeMcpDocument(next, "codex");
+  nativeMcpDocument(next, cli);
   return next;
 }

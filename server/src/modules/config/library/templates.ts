@@ -21,9 +21,14 @@ export interface AgentTemplate {
   content: string;
 }
 
+/** Where each CLI's templates live and how a template file names its agent. */
+const SOURCES: Record<AgentTemplateProvider, { dir: string; ext: string; meta(content: string): Record<string, unknown> }> = {
+  claude: { dir: SUBAGENTS_DIR, ext: ".md", meta: (content) => frontmatter(content).meta },
+  codex: { dir: CODEX_SUBAGENTS_DIR, ext: ".toml", meta: tomlMeta },
+};
+
 export async function readTemplates(cli: AgentTemplateProvider = "claude"): Promise<AgentTemplate[]> {
-  const dir = cli === "codex" ? CODEX_SUBAGENTS_DIR : SUBAGENTS_DIR;
-  const ext = cli === "codex" ? ".toml" : ".md";
+  const { dir, ext, meta: metaOf } = SOURCES[cli];
   let names: string[];
   try {
     names = (await readdir(dir)).filter((n) => n.endsWith(ext)).sort();
@@ -33,7 +38,7 @@ export async function readTemplates(cli: AgentTemplateProvider = "claude"): Prom
   return Promise.all(
     names.map(async (file) => {
       const content = await readFile(path.join(dir, file), "utf8");
-      const meta = cli === "codex" ? tomlMeta(content) : frontmatter(content).meta;
+      const meta = metaOf(content);
       const stem = path.basename(file, ext);
       return {
         name: typeof meta.name === "string" && meta.name ? meta.name : stem,

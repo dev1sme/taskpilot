@@ -1,13 +1,13 @@
 import { readdir } from "node:fs/promises";
-import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { HttpError } from "../../../core/errors.js";
 import { t } from "../../../core/i18n.js";
 import { isObject } from "../shared/fs.js";
-import { parseConfigProvider, markConfigAvailable } from "../shared/provider-capabilities.js";
-import { type ProviderId } from "../../../core/providers.js";
+import { parseConfigProvider } from "../shared/provider-capabilities.js";
+import { PROVIDER_IDS, type ProviderId } from "../../../core/providers.js";
+import { configAdapter } from "../adapters/index.js";
 import { stringField, type ConfigRouteOptions } from "../shared/http.js";
-import { codexAgentTarget, libraryTarget } from "../shared/targets.js";
+import { libraryTarget } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
 import { readLibrary, type LibraryKind, type LibraryScope } from "./read.js";
 import { checkCodexAgent } from "./check.js";
@@ -16,11 +16,6 @@ import { readTemplates, tomlMeta, type AgentTemplateProvider, type AgentTemplate
 /** Agents, commands and skills. */
 export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {
   const { requireRepo, backups } = opts;
-
-  markConfigAvailable("codex", "agents");
-  markConfigAvailable("codex", "skills");
-  markConfigAvailable("copilot", "agents");
-  markConfigAvailable("copilot", "skills");
 
   app.get<{ Querystring: { cli?: string } }>("/api/config/agents", async (req) => readLibrary(requireRepo(), "agents", parseConfigProvider(req.query.cli)));
   app.get<{ Querystring: { cli?: string } }>("/api/config/commands", async (req) => readLibrary(requireRepo(), "commands", parseConfigProvider(req.query.cli)));
@@ -32,16 +27,16 @@ export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOpt
    */
   app.get<{ Querystring: { cli?: string } }>("/api/config/agents/templates", async (req) => {
     const repo = requireRepo();
-    const cli = cliOf(req.query.cli);
-    const files = await Promise.all((await readTemplates(cli)).map((tpl) => templateState(repo, tpl, cli)));
+    const cli = templatesOf(req.query.cli);
+    const files = await Promise.all((await readTemplates(cli.templates)).map((tpl) => templateState(repo, tpl, cli.id)));
     return files.map(({ current: _, ...f }) => f);
   });
 
   /** The diff of writing the chosen templates (all when `names` is left out); `cli` in the body picks Codex. */
   app.post("/api/config/agents/templates/preview", async (req) => {
     const repo = requireRepo();
-    const cli = cliOf((req.body as { cli?: unknown } | null)?.cli);
-    const files = await Promise.all((await chosenTemplates(req.body, cli)).map((tpl) => templateState(repo, tpl, cli)));
+    const cli = templatesOf((req.body as { cli?: unknown } | null)?.cli);
+    const files = await Promise.all((await chosenTemplates(req.body, cli.templates)).map((tpl) => templateState(repo, tpl, cli.id)));
     const diff = files
       .filter((f) => !f.same)
       .map((f) => diffText(f.path, f.current, f.content))
@@ -57,12 +52,12 @@ export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOpt
   app.post("/api/config/agents/templates/install", async (req) => {
     const repo = requireRepo();
     const body = (req.body as { overwrite?: unknown; hashes?: unknown; cli?: unknown } | null) ?? {};
-    const cli = cliOf(body.cli);
+    const cli = templatesOf(body.cli);
     const overwrite = Array.isArray(body.overwrite) ? body.overwrite.filter((n): n is string => typeof n === "string") : [];
     const hashes = isObject(body.hashes) ? body.hashes : {};
-    const files = await Promise.all((await chosenTemplates(req.body, cli)).map((tpl) => templateState(repo, tpl, cli)));
+    const files = await Promise.all((await chosenTemplates(req.body, cli.templates)).map((tpl) => templateState(repo, tpl, cli.id)));
 
-    const project = cli === "codex" ? await codexProjectAgents(repo) : (await readLibrary(repo, "agents")).filter((a) => a.scope === "project");
+    const project = await projectAgents(repo, cli.id);
     for (const f of files) {
       const other = project.find((a) => a.name === f.name && a.rel !== f.rel);
       if (other) throw new HttpError(409, t("errors.agentTemplateNameTaken", { name: f.name, file: other.path }));
@@ -75,7 +70,7 @@ export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOpt
 
     const written: string[] = [];
     for (const f of files.filter((x) => !x.same)) {
-      const target = cli === "codex" ? codexAgentTarget(repo, f.rel) : libraryTarget(repo, "agents", "project", f.rel);
+      const target = libraryTarget(repo, "agents", "project", f.rel, cli.id);
       await writeWithBackup({ repo, target, next: f.content, baseHash: f.hash, reason: t("backup.agentTemplates"), backups });
       written.push(target.display);
     }
@@ -107,7 +102,7 @@ export function registerLibraryRoutes(app: FastifyInstance, opts: ConfigRouteOpt
     const rel = stringField(req.body, "rel");
     const target = libraryOf(req.params.kind, req.params.scope, rel, cli);
     const next = stringField(req.body, "content");
-    if (cli === "codex" && req.params.kind === "agents" && checkCodexAgent(next).status === "error") {
+    if (configAdapter(cli).library[req.params.kind as LibraryKind]?.format === "codex-agent" && checkCodexAgent(next).status === "error") {
       throw new HttpError(400, t("configMessages.library_routes_01"));
     }
     return writeWithBackup({
@@ -140,31 +135,39 @@ async function chosenTemplates(body: unknown, cli: AgentTemplateProvider): Promi
   });
 }
 
-function cliOf(v: unknown): AgentTemplateProvider {
-  if (v === undefined || v === "claude") return "claude";
-  if (v === "codex") return "codex";
-  throw new HttpError(400, t("errors.invalidKind", { kind: String(v) }));
+/** The CLI whose TaskPilot subagent templates a request asks for (absent = Claude), and their kind. */
+function templatesOf(v: unknown): { id: ProviderId; templates: AgentTemplateProvider } {
+  const id = v === undefined ? "claude" : PROVIDER_IDS.find((cli) => cli === v);
+  const templates = id && configAdapter(id).library.agents?.templates;
+  if (!id || !templates) throw new HttpError(400, t("errors.invalidKind", { kind: String(v) }));
+  return { id, templates };
 }
 
-/** The repo's .codex/agents/*.toml with the name each file declares, to catch a name used twice. */
-async function codexProjectAgents(repo: string): Promise<{ name: string; rel: string; path: string }[]> {
+/**
+ * The repo's agents with the name each declares, to catch a name used twice. A TOML agent declares
+ * `name` (else its file stem); a Markdown agent its frontmatter name, as the library reads it.
+ */
+async function projectAgents(repo: string, cli: ProviderId): Promise<{ name: string; rel: string; path: string }[]> {
+  const library = configAdapter(cli).library.agents!;
+  if (library.format !== "codex-agent") return (await readLibrary(repo, "agents", cli)).filter((a) => a.scope === "project");
+  const root = library.roots(repo).find((r) => r.scope === "project" && r.editable)!;
   let files: string[];
   try {
-    files = (await readdir(path.join(repo, ".codex", "agents"))).filter((n) => n.endsWith(".toml"));
+    files = (await readdir(root.dir)).filter((n) => n.endsWith(".toml"));
   } catch {
     return [];
   }
   return Promise.all(
     files.map(async (rel) => {
-      const target = codexAgentTarget(repo, rel);
+      const target = libraryTarget(repo, "agents", "project", rel, cli);
       const meta = tomlMeta((await readCurrent(target.abs)) ?? "");
       return { name: typeof meta.name === "string" ? meta.name : rel.replace(/\.toml$/, ""), rel, path: target.display };
     }),
   );
 }
 
-async function templateState(repo: string, tpl: AgentTemplate, cli: AgentTemplateProvider = "claude") {
-  const target = cli === "codex" ? codexAgentTarget(repo, tpl.rel) : libraryTarget(repo, "agents", "project", tpl.rel);
+async function templateState(repo: string, tpl: AgentTemplate, cli: ProviderId) {
+  const target = libraryTarget(repo, "agents", "project", tpl.rel, cli);
   const current = await readCurrent(target.abs);
   return {
     name: tpl.name,
@@ -177,6 +180,6 @@ async function templateState(repo: string, tpl: AgentTemplate, cli: AgentTemplat
     hash: hashOf(current),
     current,
     content: tpl.content,
-    ...(cli === "codex" ? { check: checkCodexAgent(tpl.content) } : {}),
+    ...(configAdapter(cli).library.agents?.format === "codex-agent" ? { check: checkCodexAgent(tpl.content) } : {}),
   };
 }

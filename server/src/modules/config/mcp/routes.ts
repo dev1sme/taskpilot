@@ -1,16 +1,16 @@
 import type { FastifyInstance } from "fastify";
-import path from "node:path";
 import { HttpError } from "../../../core/errors.js";
 import type { EnvStore } from "../../env/index.js";
 import type { BackupStore } from "../backups/store.js";
 import { checkMcp, runClaude } from "../../../providers/claude/cli.js";
 import { claudeJson } from "../../../providers/claude/home.js";
 import { displayPath, isObject, maskValue } from "../shared/fs.js";
-import { claudeJsonEntry, nativeMcpDocument, nativeMcpServers, readMcp } from "./read.js";
+import { claudeJsonEntry, formEntry, nativeMcpDocument, nativeMcpServers, readMcp } from "./read.js";
 import { buildEntry, maskEntry, NAME, nativeEntry, patchNativeMcp, validateEntry } from "./edit.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
 import { t } from "../../../core/i18n.js";
-import { parseConfigProvider, markConfigAvailable, requireConfigScope } from "../shared/provider-capabilities.js";
+import { parseConfigProvider, requireConfigScope } from "../shared/provider-capabilities.js";
+import { configAdapter } from "../adapters/index.js";
 import { type ProviderId } from "../../../core/providers.js";
 import { mcpTarget } from "../shared/targets.js";
 
@@ -34,14 +34,14 @@ function baseHashOf(body: unknown): string {
  */
 export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () => string; backups: BackupStore; envStore: EnvStore }) {
   const { requireRepo, backups, envStore } = opts;
-  markConfigAvailable("codex", "mcp");
-  markConfigAvailable("copilot", "mcp");
-  const projectFile = (repo: string) => path.join(repo, ".mcp.json");
+  /** Claude's project servers file (.mcp.json). */
+  const projectFile = (repo: string) => mcpTarget(repo, "project").abs;
+  const isNative = (cli: ProviderId) => configAdapter(cli).mcp.kind === "native";
 
   /** Current entry of a server and the version token the editor must send back. */
   async function current(repo: string, scope: McpScope, name: string, cli: ProviderId = "claude") {
     requireConfigScope(cli, "mcp", scope);
-    if (cli !== "claude") {
+    if (isNative(cli)) {
       const target = mcpTarget(repo, scope, cli);
       const text = await readCurrent(target.abs);
       const doc = nativeMcpDocument(text, cli);
@@ -71,7 +71,8 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
     if (!NAME.test(req.params.name)) throw new HttpError(400, t("mcp.invalidServerName"));
     const { entry, hash } = await current(repo, scope, req.params.name, cli);
     if (!entry) throw new HttpError(404, t("mcp.notFound", { name: req.params.name }));
-    const normalized = cli === "codex" ? { ...entry, type: entry.command ? "stdio" : "http", headers: entry.http_headers } : entry;
+    const mcp = configAdapter(cli).mcp;
+    const normalized = mcp.kind === "native" ? formEntry(mcp, entry) : entry;
     const masked = maskEntry(normalized)!;
     const rows = (v: unknown) => (isObject(v) ? Object.entries(v).map(([key, val]) => ({ key, ...maskValue(val) })) : []);
     return {
@@ -92,7 +93,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
     const repo = requireRepo();
     const cli = parseConfigProvider(req.query.cli);
     const scope = scopeOf(req.params.scope);
-    if (cli !== "claude") return { hash: hashOf(await readCurrent(mcpTarget(repo, scope, cli).abs)) };
+    if (isNative(cli)) return { hash: hashOf(await readCurrent(mcpTarget(repo, scope, cli).abs)) };
     if (scope === "project") return { hash: hashOf(await readCurrent(projectFile(repo))) };
     return { hash: "absent" };
   });
@@ -106,7 +107,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
       const clash = await current(repo, scope, input.name, cli);
       if (clash.entry) throw new HttpError(409, t("mcp.exists", { name: input.name }));
     }
-    const { entry, secrets } = cli === "claude" ? buildEntry(input, before.entry, scope) : nativeEntry(input, before.entry, cli, scope as "project" | "user");
+    const { entry, secrets } = isNative(cli) ? nativeEntry(input, before.entry, cli, scope as "project" | "user") : buildEntry(input, before.entry, scope);
     return { input, original, before, entry, secrets };
   }
 
@@ -115,7 +116,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
     const cli = parseConfigProvider(req.query.cli);
     const scope = scopeOf(req.params.scope);
     const { input, original, before, entry, secrets } = await plan(repo, scope, req.body, cli);
-    if (cli !== "claude") {
+    if (isNative(cli)) {
       const target = mcpTarget(repo, scope, cli);
       const next = patchNativeMcp(before.text, cli, original, input.name, entry);
       const show = (value: unknown) => (value ? `${JSON.stringify(maskEntry(value), null, 2)}\n` : null);
@@ -129,7 +130,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
     if (scope === "project") {
       const next = withServer(before.doc!, original, input.name, entry);
       return {
-        diff: diffText(".mcp.json", maskMcpFile(before.text), maskMcpFile(next)),
+        diff: diffText(mcpTarget(repo, "project").display, maskMcpFile(before.text), maskMcpFile(next)),
         changed: next !== before.text,
         stale: before.hash !== baseHashOf(req.body),
         secrets: Object.keys(secrets),
@@ -152,7 +153,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
     const { input, original, before, entry, secrets } = await plan(repo, scope, req.body, cli);
     if (before.hash !== baseHashOf(req.body)) throw new HttpError(409, t("mcp.changedOutside"));
 
-    if (cli !== "claude") {
+    if (isNative(cli)) {
       const target = mcpTarget(repo, scope, cli);
       const result = await writeWithBackup({
         repo,
@@ -169,7 +170,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
     if (scope === "project") {
       const result = await writeWithBackup({
         repo,
-        target: { abs: projectFile(repo), display: ".mcp.json" },
+        target: mcpTarget(repo, "project"),
         next: withServer(before.doc!, original, input.name, entry),
         baseHash: before.hash,
         reason: t("backup.mcpEdit", { name: input.name }),
@@ -193,7 +194,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
     const before = await current(repo, scope, name, cli);
     if (!before.entry) throw new HttpError(404, t("mcp.notFound", { name }));
     if (before.hash !== req.query.baseHash) throw new HttpError(409, t("mcp.changedOutside"));
-    if (cli !== "claude")
+    if (isNative(cli))
       return writeWithBackup({
         repo,
         target: mcpTarget(repo, scope, cli),
@@ -205,7 +206,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
     if (scope === "project") {
       return writeWithBackup({
         repo,
-        target: { abs: projectFile(repo), display: ".mcp.json" },
+        target: mcpTarget(repo, "project"),
         next: withServer(before.doc!, name, null, null),
         baseHash: before.hash,
         reason: t("backup.mcpDelete", { name }),
@@ -220,7 +221,7 @@ export function registerMcpRoutes(app: FastifyInstance, opts: { requireRepo: () 
   /** Connection status as Claude reports it (`claude mcp get`); only the status is returned. */
   app.post<{ Params: { name: string }; Querystring: { cli?: string } }>("/api/config/mcp/check/:name", async (req) => {
     const repo = requireRepo();
-    if (parseConfigProvider(req.query.cli) !== "claude") throw new HttpError(501, t("configMessages.mcp_routes_01"));
+    if (isNative(parseConfigProvider(req.query.cli))) throw new HttpError(501, t("configMessages.mcp_routes_01"));
     if (!NAME.test(req.params.name)) throw new HttpError(400, t("mcp.invalidServerName"));
     return checkMcp(req.params.name, { cwd: repo, env: await envStore.forRepo(repo) });
   });

@@ -4,23 +4,22 @@ import path from "node:path";
 import { createTwoFilesPatch } from "diff";
 import { HttpError } from "../../../core/errors.js";
 import type { BackupEntry, BackupStore } from "../backups/store.js";
-import { claudeHome } from "../../../providers/claude/home.js";
-import { codexConfigHome } from "../../../providers/codex/home.js";
-import { copilotConfigHome } from "../../../providers/copilot/home.js";
+import { CONFIG_ADAPTERS } from "../adapters/index.js";
 import { isAllowedPath, type FileTarget } from "./targets.js";
 import { t } from "../../../core/i18n.js";
 
 /**
  * A symlink between an allowed root and the file could redirect a write outside the whitelist.
- * Existing Claude and repo roots may themselves be symlinks for compatibility. New CLI home
- * roots are checked too.
+ * The repo, and a CLI home that allows it, may themselves be symlinks; the folders below never.
  */
 async function symlinkedDir(abs: string, repo: string): Promise<string | null> {
   const file = path.resolve(abs);
-  const roots = [path.resolve(repo), path.resolve(claudeHome()), path.resolve(codexConfigHome()), path.resolve(copilotConfigHome())];
-  const root = roots.filter((r) => file.startsWith(r + path.sep)).sort((a, b) => b.length - a.length)[0];
-  if (!root) return null;
-  if (root === path.resolve(codexConfigHome()) || root === path.resolve(copilotConfigHome())) {
+  const homes = Object.values(CONFIG_ADAPTERS).flatMap((adapter) => adapter.homes());
+  const roots = [{ dir: path.resolve(repo), rootMayBeSymlink: true }, ...homes.map((home) => ({ ...home, dir: path.resolve(home.dir) }))];
+  const match = roots.filter((r) => file.startsWith(r.dir + path.sep)).sort((a, b) => b.dir.length - a.dir.length)[0];
+  if (!match) return null;
+  const root = match.dir;
+  if (!match.rootMayBeSymlink) {
     try {
       if ((await lstat(root)).isSymbolicLink()) return root;
     } catch {

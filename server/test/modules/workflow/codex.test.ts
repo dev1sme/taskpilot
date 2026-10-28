@@ -197,10 +197,9 @@ it("records the thread id, model and rollout token totals of a Codex PTY lane", 
   expect(failures).toEqual([]);
 });
 
-/** `old` = state written before `SessionMeta.actualModel`: Codex's observed model sat in `model`. */
-it.each(["new", "old"] as const)("resumes without an explicit model from %s state", async (shape) => {
+it("resumes without an explicit model", async () => {
   const repo = await makeRepo();
-  const state = new StateStore(await tempDir(`codex-resume-${shape}-`));
+  const state = new StateStore(await tempDir("codex-resume-"));
   const sessions = await codexSessions(state);
   const def = parseWorkflowFiles(
     new Map([
@@ -218,14 +217,6 @@ it.each(["new", "old"] as const)("resumes without an explicit model from %s stat
   const before = (await state.load()).sessions.find((s) => s.id === first.sessionId)!;
   expect(before.model).toBeUndefined();
   expect(before.actualModel).toBe("gpt-6.1-sol");
-  if (shape === "old") {
-    await state.update((s) => {
-      const meta = s.sessions.find((m) => m.id === first.sessionId)!;
-      meta.model = meta.actualModel;
-      delete meta.actualModel;
-      delete s.runs[0].attempts![0].actualModel;
-    });
-  }
   await vi.waitFor(async () => expect((await state.load()).runs[0].phase).not.toBe("starting"));
   await sessions.stopAndWait(first.sessionId);
   await engine.retry(repo, "DEMO-1").catch((e) => failures.push(e));

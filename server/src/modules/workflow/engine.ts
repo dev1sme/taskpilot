@@ -688,24 +688,15 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     const effective = this.effective(run, def, sub);
     const session = await this.sessions.get(lane.sessionId!);
     // Resuming a native session cannot change its CLI/model/restrictions.
-    if (!this.sessionMatches(run, session, effective, true)) throw new HttpError(409, "Session configuration does not match the lane execution policy");
+    if (!this.sessionMatches(run, session, effective)) throw new HttpError(409, "Session configuration does not match the lane execution policy");
     if (opts.force || session.status !== "running") requirePreflight(await this.preflight(run.repo, effective));
     if (session.status === "running" && run.attempts?.findLast((attempt) => attempt.sessionId === session.id)?.generation !== (session.generation ?? 0)) {
       this.recordExecution(run, session, sub ? { kind: "subtask", stepId: def.steps[run.stepIndex].id, n: sub.n } : { kind: "step", stepId: def.steps[run.stepIndex].id }, effective);
     }
     if (session.status !== "running") {
-      // A default policy must resume without an explicit model flag. The observed model is kept
-      // in the attempt (`actualModel`), never in the session's requested `model`.
+      // The model the session reported while it ran belongs to the attempt that ends here.
       const attempt = run.attempts?.findLast((a) => a.sessionId === session.id);
-      if (session.agent === "codex" && effective.model === undefined && attempt && attempt.execution.model === undefined) {
-        // legacy: state from before `SessionMeta.actualModel` stored Codex's observed model in `model`.
-        const observed = session.actualModel ?? session.model;
-        if (observed) attempt.actualModel = observed;
-        await this.state.update((state) => {
-          const meta = state.sessions.find((s) => s.id === session.id);
-          if (meta) delete meta.model;
-        });
-      }
+      if (attempt && !attempt.actualModel && session.actualModel) attempt.actualModel = session.actualModel;
       await this.saveLane(run, lane, { phase: "starting", pendingPrompt: text }, t("run.resuming"));
       const resumed = await this.sessions.resume(lane.sessionId!);
       this.recordExecution(run, resumed, sub ? { kind: "subtask", stepId: def.steps[run.stepIndex].id, n: sub.n } : { kind: "step", stepId: def.steps[run.stepIndex].id }, effective);
@@ -842,7 +833,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       generation: session.generation ?? 0,
       execution: { ...execution },
       ...(session.nativeId ? { nativeId: session.nativeId } : {}),
-      ...(session.nativeId && session.model ? { actualModel: session.model } : {}),
+      ...(session.actualModel ? { actualModel: session.actualModel } : {}),
       startedAt: Date.now(),
     });
   }
@@ -883,11 +874,10 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     if (sub) sub.metrics = mergeCumulative(sub.metrics, read);
   }
 
-  private sessionMatches(run: RunState, session: Awaited<ReturnType<SessionPort["get"]>>, effective: EffectiveExecution, sameLane = false): boolean {
+  private sessionMatches(run: RunState, session: Awaited<ReturnType<SessionPort["get"]>>, effective: EffectiveExecution): boolean {
+    // The attempt keeps the model the lane asked for; the session's `model` is only what it was launched with.
     const requested = run.attempts?.findLast((a) => a.sessionId === session.id)?.execution;
-    // Old runs have no record separating Codex's requested and actual model. Preserve their
-    // step-switch behavior, while allowing retry of the same default-configured native thread.
-    const model = requested ? requested.model : sameLane && session.agent === "codex" && session.nativeId && effective.model === undefined ? undefined : launchModel(session.model);
+    const model = requested ? requested.model : launchModel(session.model);
     return (
       session.agent === effective.agent &&
       model === effective.model &&

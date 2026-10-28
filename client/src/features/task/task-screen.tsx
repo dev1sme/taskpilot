@@ -33,7 +33,8 @@ import { HandoffDialog, RunHistory, type HandoffTarget } from "@/features/workfl
 import { NowCard } from "@/features/workflow/now-card";
 import { RunOptions } from "@/features/workflow/run-options";
 import { Stepper } from "@/features/workflow/stepper";
-import { useSessions } from "@/features/sessions/queries";
+import { sessionsApi, useSessions } from "@/features/sessions/queries";
+import { TerminalDrawer } from "@/features/sessions/terminal-drawer";
 import { useRepo, useTasks } from "@/features/workspace/queries";
 import { locale } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -74,7 +75,7 @@ export function TaskScreen({ taskKey }: { taskKey: string }) {
 }
 
 function TaskContent({ task }: { task: TaskListItem }) {
-  const { t } = useTranslation("task");
+  const { t } = useTranslation(["task", "sessions"]);
   const viewQuery = useRun(task.key);
   const view = viewQuery.data;
   const activity = useActivity(task.key);
@@ -95,70 +96,123 @@ function TaskContent({ task }: { task: TaskListItem }) {
   // A session replaced by a committed handoff no longer speaks for its lane.
   const replaced = new Set(run?.handoffs?.filter((op) => op.stage === "committed").map((op) => op.sourceSessionId));
   const asking = new Set(sessions.filter((s) => s.activity === "permission" && !s.retired && !s.reservation && !replaced.has(s.id)).map((s) => s.id));
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [activeSession, setActiveSession] = useState<string | null>(null);
+
+  // A session asking for permission comes to the front. The seen states start null, so the first render counts as a change.
+  const firstAsking = [...asking][0];
+  const [seenAsking, setSeenAsking] = useState<string | undefined | null>(null);
+  if (seenAsking !== firstAsking) {
+    setSeenAsking(firstAsking);
+    if (firstAsking) {
+      setActiveSession(firstAsking);
+      setDrawerOpen(true);
+    }
+  }
+  // The run's session is the default tab; a handoff's new session opens by itself.
+  const runSessionId = run?.sessionId;
+  const [seenRunSession, setSeenRunSession] = useState<string | undefined | null>(null);
+  if (seenRunSession !== runSessionId) {
+    setSeenRunSession(runSessionId);
+    if (runSessionId && !firstAsking) {
+      setActiveSession(runSessionId);
+      if (run?.handoffs?.some((op) => op.stage === "committed" && op.targetSessionId === runSessionId)) setDrawerOpen(true);
+    }
+  }
+  const openSession = (id?: string) => {
+    const target = id ?? run?.sessionId;
+    if (target) setActiveSession(target);
+    setDrawerOpen(true);
+  };
 
   return (
-    <div className="flex min-h-full flex-col">
-      <header className="flex items-start gap-3 border-b border-line px-4 py-3 sm:px-6 sm:py-4">
-        <div className="grid min-w-0 flex-1 gap-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <Link to="/tasks" className="font-mono text-xs text-muted hover:text-ink">
-              {task.key}
-            </Link>
-            {badgePhase && <PhaseBadge phase={badgePhase} doneAt={task.done?.at ?? null} working={run?.phase === "running" || run?.phase === "starting"} />}
-          </div>
-          {task.title !== task.key && <h1 className="line-clamp-2 text-base font-semibold sm:text-lg">{task.title}</h1>}
-        </div>
-        {view && <TaskTools task={task} view={view} active={active} onShowPrompt={sent ? () => setShowPrompt(true) : undefined} />}
-      </header>
-
-      {viewQuery.error && (
-        <p role="alert" className="border-b border-line bg-danger-soft px-4 py-2 text-sm text-danger sm:px-6">
-          {viewQuery.error.message}
-        </p>
-      )}
-
-      {view && (
-        <div className="grid gap-4 px-4 py-4 sm:px-6">
-          <details className="group rounded-md border border-line bg-surface md:open:bg-surface" open>
-            <summary className="flex min-h-10 items-center gap-2 px-3 text-sm [&::-webkit-details-marker]:hidden">
-              <span className="font-medium">{t("progress")}</span>
-              <span className="truncate text-muted">{current ? `${run!.stepIndex + 1}/${steps.length} · ${current.title}` : t("progressAll", { total: steps.length })}</span>
-              <CaretDown className="ml-auto size-4 text-faint transition-transform group-open:rotate-180" aria-hidden />
-            </summary>
-            <div className="border-t border-line px-3 py-3">
-              <Stepper steps={steps} run={run} />
+    <div className="flex h-full flex-col">
+      <div className="min-h-0 flex-1 overflow-auto">
+        <header className="flex items-start gap-3 border-b border-line px-4 py-3 sm:px-6 sm:py-4">
+          <div className="grid min-w-0 flex-1 gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Link to="/tasks" className="font-mono text-xs text-muted hover:text-ink">
+                {task.key}
+              </Link>
+              {badgePhase && <PhaseBadge phase={badgePhase} doneAt={task.done?.at ?? null} working={run?.phase === "running" || run?.phase === "starting"} />}
             </div>
-          </details>
-
-          <div className={cn("grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]", run?.phase === "gate" && "xl:grid-cols-[minmax(0,1fr)_22rem]")}>
-            <div className="grid min-w-0 content-start gap-4">
-              {run?.phase === "gate" && current ? (
-                <GateCard
-                  taskKey={task.key}
-                  run={run}
-                  step={current}
-                  questions={view.questions}
-                  assignments={next?.dispatch ? view.assignments : null}
-                  parallel={next?.dispatch?.parallel ?? 1}
-                  maxSubtasks={next?.dispatch?.maxSubtasks}
-                  isLast={run.stepIndex === steps.length - 1}
-                  docVersion={task.updatedAt}
-                  onOpenDoc={setDoc}
-                />
-              ) : (
-                <NowCard taskKey={task.key} view={view} run={run} session={runSession} activity={activity} asking={asking} onOpenDoc={setDoc} onHandoff={setHandoff} />
-              )}
-              {run && <RunHistory run={run} usage={view.usage} />}
-            </div>
-            <aside className="grid content-start gap-6">
-              <DocsPanel task={task} steps={steps} reports={run?.subtasks?.map((s) => s.report)} onOpen={setDoc} />
-              <ActivityFeed items={activity} />
-            </aside>
+            {task.title !== task.key && <h1 className="line-clamp-2 text-base font-semibold sm:text-lg">{task.title}</h1>}
           </div>
+          {view && <TaskTools task={task} view={view} active={active} onShowPrompt={sent ? () => setShowPrompt(true) : undefined} />}
+        </header>
 
-          <WorkflowSource view={view} />
-        </div>
-      )}
+        {viewQuery.error && (
+          <p role="alert" className="border-b border-line bg-danger-soft px-4 py-2 text-sm text-danger sm:px-6">
+            {viewQuery.error.message}
+          </p>
+        )}
+
+        {view && (
+          <div className="grid gap-4 px-4 py-4 sm:px-6">
+            <details className="group rounded-md border border-line bg-surface md:open:bg-surface" open>
+              <summary className="flex min-h-10 items-center gap-2 px-3 text-sm [&::-webkit-details-marker]:hidden">
+                <span className="font-medium">{t("progress")}</span>
+                <span className="truncate text-muted">{current ? `${run!.stepIndex + 1}/${steps.length} · ${current.title}` : t("progressAll", { total: steps.length })}</span>
+                <CaretDown className="ml-auto size-4 text-faint transition-transform group-open:rotate-180" aria-hidden />
+              </summary>
+              <div className="border-t border-line px-3 py-3">
+                <Stepper steps={steps} run={run} />
+              </div>
+            </details>
+
+            <div className={cn("grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]", run?.phase === "gate" && "xl:grid-cols-[minmax(0,1fr)_22rem]")}>
+              <div className="grid min-w-0 content-start gap-4">
+                {run?.phase === "gate" && current ? (
+                  <GateCard
+                    taskKey={task.key}
+                    run={run}
+                    step={current}
+                    questions={view.questions}
+                    assignments={next?.dispatch ? view.assignments : null}
+                    parallel={next?.dispatch?.parallel ?? 1}
+                    maxSubtasks={next?.dispatch?.maxSubtasks}
+                    isLast={run.stepIndex === steps.length - 1}
+                    docVersion={task.updatedAt}
+                    onOpenDoc={setDoc}
+                  />
+                ) : (
+                  <NowCard
+                    taskKey={task.key}
+                    view={view}
+                    run={run}
+                    session={runSession}
+                    activity={activity}
+                    asking={asking}
+                    onOpenSession={openSession}
+                    onOpenDoc={setDoc}
+                    onHandoff={setHandoff}
+                  />
+                )}
+                {run && <RunHistory run={run} usage={view.usage} onOpenSession={openSession} />}
+              </div>
+              <aside className="grid content-start gap-6">
+                <DocsPanel task={task} steps={steps} reports={run?.subtasks?.map((s) => s.report)} onOpen={setDoc} />
+                <ActivityFeed items={activity} />
+              </aside>
+            </div>
+
+            <WorkflowSource view={view} />
+          </div>
+        )}
+      </div>
+      <TerminalDrawer
+        label={t("sessions:terminal")}
+        scope="task"
+        emptyHint={t("terminalEmpty")}
+        onCreate={(agent) => sessionsApi.create(task.key, agent)}
+        sessions={sessions}
+        activeId={activeSession}
+        open={drawerOpen}
+        runSessionIds={active && run ? [run.sessionId, ...(run.subtasks ?? []).flatMap((s) => (s.sessionId ? [s.sessionId] : []))] : []}
+        onSelect={setActiveSession}
+        onToggle={setDrawerOpen}
+        onChanged={() => void refreshTask(task.key)}
+      />
 
       <HandoffDialog taskKey={task.key} target={handoff} onClose={() => setHandoff(null)} />
       <DocViewer taskKey={task.key} path={doc} version={task.updatedAt} onClose={closeDoc} />

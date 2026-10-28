@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { RepoDialog } from "@/features/repo/repo-dialog";
+import { RepoTerminal } from "@/features/sessions/repo-terminal";
 import { repoName, useRepo } from "@/features/workspace/queries";
 import { stored, useMedia } from "@/lib/use-media";
 import { CommandPalette } from "./command-palette";
@@ -24,6 +25,7 @@ export function Shell() {
   const [drawer, setDrawer] = useState(false);
   const [palette, setPalette] = useState(false);
   const [repoDialog, setRepoDialog] = useState(false);
+  const [terminal, setTerminal] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => stored.set(RAIL_KEY, rail ? "1" : "0"), [rail]);
@@ -91,9 +93,10 @@ export function Shell() {
           <main id="main" className="min-h-0 flex-1 overflow-auto">
             <Outlet />
           </main>
+          {repo?.path && <RepoTerminal open={terminal} onToggle={setTerminal} />}
         </div>
       </div>
-      <StatusBar />
+      <StatusBar terminalOpen={terminal} onToggleTerminal={repo?.path ? () => setTerminal((open) => !open) : undefined} />
       <CommandPalette open={palette} onOpenChange={setPalette} sidebarCommand={sidebarCommand} onSidebar={toggleSidebar} />
       <RepoDialog open={repoDialog} onOpenChange={setRepoDialog} repo={repo} />
     </div>

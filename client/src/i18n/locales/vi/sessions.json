@@ -22,5 +22,12 @@
   "retiredHint": "Phiên đã được thay, chỉ xem lịch sử. Tiếp tục công việc ở phiên đích của lane; không thể Resume hoặc gửi input vào phiên này.",
   "reservedHint": "Phiên đang được giữ cho bàn giao/khôi phục, chỉ xem lịch sử. Chờ kết quả bàn giao trước khi thao tác.",
   "history": "Lịch sử session (chỉ đọc)",
-  "historyEmpty": "[Chưa có bản ghi của session trong tiến trình server này. Xem tài liệu và lịch sử hoạt động của task.]"
+  "historyEmpty": "[Chưa có bản ghi của session trong tiến trình server này. Xem tài liệu và lịch sử hoạt động của task.]",
+  "open": "Mở terminal",
+  "close": "Thu terminal",
+  "removeAsk": "Xoá session này khỏi {{scope}}? Hội thoại của agent vẫn còn trong CLI.",
+  "scope": {
+    "task": "task",
+    "repo": "repo"
+  }
 }

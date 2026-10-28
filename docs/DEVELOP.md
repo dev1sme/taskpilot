@@ -83,8 +83,8 @@ Ghi report với command/kết quả thật, version và đường dẫn artifac
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `server/src/index.ts`, `app.ts`          | CLI, khởi tạo dịch vụ và đăng ký routes                                                                  |
 | `server/src/core/`                       | Hạ tầng dùng chung, trạng thái và i18n; `providers.ts` là nguồn `ProviderId`                             |
-| `server/src/core/<provider>/`            | Phần riêng của `claude`, `codex`, `copilot`: launcher, `home.ts`, `version.ts`, đọc/ghi định dạng native |
-| `server/src/modules/sessions/backends/`  | `ProviderBackend` của từng provider (trait + port), ghép core vào session                                |
+| `server/src/providers/<provider>/`            | Phần riêng của `claude`, `codex`, `copilot`: launcher, `home.ts`, `version.ts`, đọc/ghi định dạng native |
+| `server/src/modules/sessions/backends/`  | `ProviderBackend` của từng provider (trait + port), ghép provider vào session                                |
 | `server/src/modules/<name>/`             | Tính năng server; `index.ts` là điểm truy cập giữa các module                                            |
 | `server/test/`                           | Kiểm thử theo cấu trúc server; tiện ích ở `helpers/`                                                     |
 | `client/src/app/`                        | Ghép ứng dụng và bố cục                                                                                  |
@@ -99,7 +99,7 @@ Quy tắc import được kiểm tra trong [`architecture.test.ts`](../server/te
 
 - `core/` không phụ thuộc module ở runtime; `shared/` không phụ thuộc `features/` hoặc `app/`; feature không phụ thuộc `app/`.
 - Truy cập module hoặc feature khác qua `index.ts` của nó.
-- `modules/workflow/**` không có edge tới `core/{claude,codex,copilot}/**`, kể cả import kiểu; dùng `providerTraits` và `SessionPort`.
+- `modules/workflow/**` không có edge tới `providers/{claude,codex,copilot}/**`, kể cả import kiểu; dùng `providerTraits` và `SessionPort`.
 - CSS chỉ được import trong feature sở hữu, hoặc từ `app/`, `shared/`.
 - Không có vòng phụ thuộc giữa client features, kể cả import kiểu; server modules không có vòng phụ thuộc runtime.
 
@@ -124,8 +124,8 @@ Quy ước:
 - Tên nội bộ dùng `ProviderId`; không định nghĩa lại kiểu thứ hai (`Agent`, `ConfigCli`, `AgentCli`). "Agent" chỉ còn cho subagent/custom agent và nhãn UI.
 - Key wire và state giữ nguyên: `agent`, `subagent`, `model`, `cli` (query), `clis`, `codex:`, `agentUsage`, giá trị `MetricsSource`, `SessionFailure`. Đổi tên theo symbol (khai báo/import), không thay chuỗi toàn cục.
 - Server: file `kebab-case.ts`; client: component `PascalCase.tsx`, module `kebab-case.ts` (`task-status.ts`, `query-client.ts`). Mỗi file một trách nhiệm (ví dụ `config/shared/` tách `CliContext`, `ConfigChrome`, `ScopeControls`).
-- Mỗi provider có đúng một owner cho home trong `core/<provider>/home.ts`; session và transcript dùng home CLI, chỉ `modules/config/**` dùng home cấu hình.
-- Chi tiết provider ngoài `core/<provider>/` và `sessions/backends/` đi qua trait/port; `modules/workflow` không import `core/{claude,codex,copilot}`. Nhánh theo tên provider chỉ chấp nhận ở nơi khác biệt đến từ định dạng native thật (`modules/config/**`, client config) và nội dung prompt.
+- Mỗi provider có đúng một owner cho home trong `providers/<provider>/home.ts`; session và transcript dùng home CLI, chỉ `modules/config/**` dùng home cấu hình.
+- Chi tiết provider ngoài `providers/<provider>/` và `sessions/backends/` đi qua trait/port; `modules/workflow` không import `providers/{claude,codex,copilot}`. Nhánh theo tên provider chỉ chấp nhận ở nơi khác biệt đến từ định dạng native thật (`modules/config/**`, client config) và nội dung prompt.
 - Không giữ code chỉ phục vụ test hay giao thức đã bỏ; lịch sử nằm trong git (fixture App Server đã dọn ghi commit gốc trong [README](../server/test/fixtures/codex/README.md)).
 
 ## Ngôn ngữ giao diện
@@ -135,3 +135,5 @@ Hiện ứng dụng chỉ có tiếng Việt. Chuỗi client nằm trong `client
 Thêm ngôn ngữ bằng bộ tài nguyên tương ứng cho mỗi namespace. Kiểu trong `i18next.d.ts` kiểm tra khóa dịch; `i18n:lint` và [`i18n.test.ts`](../server/test/i18n.test.ts) kiểm tra chuỗi viết trực tiếp trong code. Văn bản prompt, nhật ký và tên cột cần phân tích có ngoại lệ riêng trong bài kiểm thử.
 
 Xem [Kiến trúc](SPEC.md) để hiểu luồng phiên CLI và workflow. Khi đổi hành vi, cập nhật tài liệu phụ trách nội dung đó rồi dẫn link từ nơi khác, tránh sao chép lại toàn bộ.
+
+Tên file tích hợp: `cli-launcher.ts` dựng lệnh CLI, `account-usage.ts` đọc hạn mức native, `modules/usage/*-poller.ts` điều phối cập nhật store. Xem [ranh giới provider](../server/src/providers/README.md).

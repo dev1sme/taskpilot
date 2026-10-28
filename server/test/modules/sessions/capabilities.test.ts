@@ -2,14 +2,14 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import Fastify from "fastify";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
-import { resetCopilotModelsCache } from "../../../src/core/copilot/models.js";
+import { resetCopilotModelsCache } from "../../../src/providers/copilot/models.js";
 import { buildApp } from "../../../src/app.js";
 import { StateStore } from "../../../src/core/state.js";
 import { SessionManager, SessionPreflightError, requirePreflight, registerSessionsRoutes, type ProviderCapability, type PreflightRequest } from "../../../src/modules/sessions/index.js";
 import { probeError } from "../../../src/modules/sessions/backends/probe.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 
-const FAKE = path.resolve(import.meta.dirname, "../../core/codex/fake-app-server.mjs");
+const FAKE = path.resolve(import.meta.dirname, "../../providers/codex/fake-app-server.mjs");
 const managers: SessionManager[] = [];
 afterEach(() => {
   managers.splice(0).forEach((manager) => manager.closeAll());
@@ -193,7 +193,7 @@ describe("session capabilities and preflight", () => {
   });
 
   describe("copilot", () => {
-    const FAKE_ACP = path.resolve(import.meta.dirname, "../../core/copilot/fake-acp.mjs");
+    const FAKE_ACP = path.resolve(import.meta.dirname, "../../providers/copilot/fake-acp.mjs");
     async function copilotManager() {
       vi.stubEnv("TASKPILOT_COPILOT", FAKE_ACP);
       vi.stubEnv("COPILOT_HOME", await tempDir("copilot-home-"));

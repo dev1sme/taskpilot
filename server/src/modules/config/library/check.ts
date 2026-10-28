@@ -1,5 +1,5 @@
 import { t } from "../../../core/i18n.js";
-import { isClaudeModel } from "../../../core/claude/models.js";
+import { isClaudeModel } from "../../../providers/claude/models.js";
 import { parse as parseToml } from "smol-toml";
 import { strings } from "../shared/fs.js";
 import type { LibraryScope } from "./read.js";

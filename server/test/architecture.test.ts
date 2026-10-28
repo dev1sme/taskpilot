@@ -86,8 +86,12 @@ describe("server import boundaries", () => {
     expect(found.unresolved).toEqual([]);
   });
 
-  it("core uses no module code (types only)", () => {
-    expect(breaking(all, (e) => e.from.startsWith("server/src/core/") && !!moduleOf(e.to) && !e.typeOnly)).toEqual([]);
+  it("core has no module runtime imports; providers have no module imports", () => {
+    expect(breaking(all, (e) => (e.from.startsWith("server/src/providers/") || (e.from.startsWith("server/src/core/") && !e.typeOnly)) && !!moduleOf(e.to))).toEqual([]);
+  });
+
+  it("core has no runtime dependency on provider integrations", () => {
+    expect(breaking(all, (e) => e.from.startsWith("server/src/core/") && e.to.startsWith("server/src/providers/") && !e.typeOnly)).toEqual([]);
   });
 
   it("modules, app.ts and index.ts use other modules through their index.ts", () => {
@@ -95,11 +99,11 @@ describe("server import boundaries", () => {
   });
 
   it("core and modules import neither app.ts nor index.ts", () => {
-    expect(breaking(all, (e) => /^server\/src\/(core|modules)\//.test(e.from) && /^server\/src\/(app|index)\.ts$/.test(e.to))).toEqual([]);
+    expect(breaking(all, (e) => /^server\/src\/(core|providers|modules)\//.test(e.from) && /^server\/src\/(app|index)\.ts$/.test(e.to))).toEqual([]);
   });
 
-  it("workflow reaches providers through sessions, never through core/<provider>", () => {
-    expect(breaking(all, (e) => e.from.startsWith("server/src/modules/workflow/") && /^server\/src\/core\/(claude|codex|copilot)\//.test(e.to))).toEqual([]);
+  it("workflow reaches providers through sessions, never through providers", () => {
+    expect(breaking(all, (e) => e.from.startsWith("server/src/modules/workflow/") && /^server\/src\/providers\//.test(e.to))).toEqual([]);
   });
 
   it("modules have no runtime import cycles", () => {

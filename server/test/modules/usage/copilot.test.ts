@@ -1,6 +1,6 @@
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
-import type { CopilotQuotaResult } from "../../../src/core/copilot/quota.js";
-import { createCopilotPoller } from "../../../src/modules/usage/copilot.js";
+import type { CopilotQuotaResult } from "../../../src/providers/copilot/quota.js";
+import { createCopilotPoller } from "../../../src/modules/usage/copilot-poller.js";
 import { UsageStore } from "../../../src/modules/usage/store.js";
 import { StateStore } from "../../../src/core/state.js";
 import { cleanupTempDirs, tempDir } from "../../helpers/fixtures.js";

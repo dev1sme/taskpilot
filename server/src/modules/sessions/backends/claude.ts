@@ -1,5 +1,5 @@
-import { claudeLauncher } from "../../../core/claude/launch.js";
-import { claudeModelProblem } from "../../../core/claude/models.js";
+import { claudeLauncher } from "../../../providers/claude/cli-launcher.js";
+import { claudeModelProblem } from "../../../providers/claude/models.js";
 import { hookSettings } from "../hooks.js";
 import type { ProviderBackend } from "./types.js";
 import { probePty } from "./probe.js";

@@ -2,7 +2,7 @@ import { t } from "../../../core/i18n.js";
 import { readdir, lstat } from "node:fs/promises";
 import path from "node:path";
 import { HttpError } from "../../../core/errors.js";
-import { copilotConfigHome } from "../../../core/copilot/home.js";
+import { copilotConfigHome } from "../../../providers/copilot/home.js";
 import { isObject } from "../shared/fs.js";
 import { hookTarget } from "../shared/targets.js";
 import { readCurrent } from "../shared/writer.js";

@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { existsSync } from "node:fs";
 import type { ProviderId } from "../../core/providers.js";
-import { claudeVersion } from "../../core/claude/version.js";
-import { copilotVersion } from "../../core/copilot/version.js";
-import { codexVersion } from "../../core/codex/version.js";
+import { claudeVersion } from "../../providers/claude/version.js";
+import { copilotVersion } from "../../providers/copilot/version.js";
+import { codexVersion } from "../../providers/codex/version.js";
 import { HttpError } from "../../core/errors.js";
 import { tasksRoot } from "../tasks/index.js";
 import type { RepoContext } from "./context.js";

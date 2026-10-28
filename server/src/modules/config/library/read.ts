@@ -1,9 +1,9 @@
 import { readdir, realpath, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import path from "node:path";
-import { claudeHome } from "../../../core/claude/home.js";
-import { codexSkillsHome } from "../../../core/codex/home.js";
-import { copilotConfigHome } from "../../../core/copilot/home.js";
+import { claudeHome } from "../../../providers/claude/home.js";
+import { codexSkillsHome } from "../../../providers/codex/home.js";
+import { copilotConfigHome } from "../../../providers/copilot/home.js";
 import { displayPath, fileInfo, frontmatter, readText, strings } from "../shared/fs.js";
 import { type ProviderId } from "../../../core/providers.js";
 import { checkAgent, checkCodexAgent, checkNames, type AgentCheck } from "./check.js";

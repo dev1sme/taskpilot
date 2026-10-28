@@ -1,7 +1,7 @@
-import { CopilotAgentError, listCopilotAgents, readCopilotAgent } from "../../../../core/copilot/agents.js";
-import { copilotLauncher } from "../../../../core/copilot/launch.js";
-import { CopilotError } from "../../../../core/copilot/acp.js";
-import { copilotModels } from "../../../../core/copilot/models.js";
+import { CopilotAgentError, listCopilotAgents, readCopilotAgent } from "../../../../providers/copilot/agents.js";
+import { copilotLauncher } from "../../../../providers/copilot/cli-launcher.js";
+import { CopilotError } from "../../../../providers/copilot/acp.js";
+import { copilotModels } from "../../../../providers/copilot/models.js";
 import type { ProviderBackend, ProviderPromptInventory, SubagentCheck } from "../types.js";
 import { probeError, probePty, problem } from "../probe.js";
 import type { ProviderCapability, BackendProbeContext } from "../types.js";

@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { HOOK_EVENTS, copilotHookCommand } from "../../hooks.js";
-import { copilotHome } from "../../../../core/copilot/home.js";
+import { copilotHome } from "../../../../providers/copilot/home.js";
 
 /**
  * Repo-local Copilot settings: where TaskPilot put its hooks before TPL-017. They are removed from

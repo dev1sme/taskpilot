@@ -1,10 +1,10 @@
 import path from "node:path";
-import { readCodexAgent } from "../../../core/codex/agents.js";
-import { CodexError, RpcError } from "../../../core/codex/errors.js";
-import { codexLauncher } from "../../../core/codex/launch.js";
-import { rolloutTokens } from "../../../core/codex/rollout.js";
-import { fetchCodexModels } from "../../../core/codex/models.js";
-import { fetchCodexLoggedIn, initializeCodexAppServer, withCodexAppServer } from "../../../core/codex/app-server.js";
+import { readCodexAgent } from "../../../providers/codex/agents.js";
+import { CodexError, RpcError } from "../../../providers/codex/errors.js";
+import { codexLauncher } from "../../../providers/codex/cli-launcher.js";
+import { rolloutTokens } from "../../../providers/codex/rollout.js";
+import { fetchCodexModels } from "../../../providers/codex/models.js";
+import { fetchCodexLoggedIn, initializeCodexAppServer, withCodexAppServer } from "../../../providers/codex/app-server.js";
 import { codexHookSettings, type HookEvent } from "../hooks.js";
 import type { SessionMetrics } from "../transports/types.js";
 import { emptyCapability, probeError, problem } from "./probe.js";

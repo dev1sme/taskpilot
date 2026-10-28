@@ -1,6 +1,6 @@
 import { t } from "../../../core/i18n.js";
 import path from "node:path";
-import { claudeHome } from "../../../core/claude/home.js";
+import { claudeHome } from "../../../providers/claude/home.js";
 import { displayPath, isObject, maskValue, readJsonFile, strings } from "../shared/fs.js";
 import type { ConfigScope } from "../shared/provider-capabilities.js";
 import { type ProviderId } from "../../../core/providers.js";

@@ -4,9 +4,9 @@ import path from "node:path";
 import { createTwoFilesPatch } from "diff";
 import { HttpError } from "../../../core/errors.js";
 import type { BackupEntry, BackupStore } from "../backups/store.js";
-import { claudeHome } from "../../../core/claude/home.js";
-import { codexConfigHome } from "../../../core/codex/home.js";
-import { copilotConfigHome } from "../../../core/copilot/home.js";
+import { claudeHome } from "../../../providers/claude/home.js";
+import { codexConfigHome } from "../../../providers/codex/home.js";
+import { copilotConfigHome } from "../../../providers/copilot/home.js";
 import { isAllowedPath, type FileTarget } from "./targets.js";
 import { t } from "../../../core/i18n.js";
 

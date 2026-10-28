@@ -1,6 +1,6 @@
 import { open } from "node:fs/promises";
 import path from "node:path";
-import { copilotHome } from "../../../../core/copilot/home.js";
+import { copilotHome } from "../../../../providers/copilot/home.js";
 
 /** Enough of events.jsonl to find the last assistant message of a turn. */
 const TRANSCRIPT_TAIL_BYTES = 2 * 1024 * 1024;

@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { claudeHome } from "../../../core/claude/home.js";
-import { codexConfigHome, codexSkillsHome } from "../../../core/codex/home.js";
-import { copilotConfigHome } from "../../../core/copilot/home.js";
+import { claudeHome } from "../../../providers/claude/home.js";
+import { codexConfigHome, codexSkillsHome } from "../../../providers/codex/home.js";
+import { copilotConfigHome } from "../../../providers/copilot/home.js";
 import { displayPath } from "./fs.js";
 import { requireConfigScope, type ConfigScope } from "./provider-capabilities.js";
 import { type ProviderId } from "../../../core/providers.js";

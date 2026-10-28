@@ -1,5 +1,5 @@
 import type { ProviderId } from "../../core/providers.js";
-import { CODEX_HOOK_EVENTS } from "../../core/codex/hooks.js";
+import { CODEX_HOOK_EVENTS } from "../../providers/codex/hooks.js";
 
 /** Hook events TaskPilot listens to, by their Claude Code names (Copilot accepts the same names). */
 export const HOOK_EVENTS = [

@@ -2,11 +2,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StateStore } from "../../../src/core/state.js";
-import { createCodexPoller, fetchCodexUsage } from "../../../src/modules/usage/codex.js";
+import { createCodexPoller, fetchCodexUsage } from "../../../src/modules/usage/codex-poller.js";
 import { UsageStore } from "../../../src/modules/usage/store.js";
 import { cleanupTempDirs, tempDir } from "../../helpers/fixtures.js";
 
-const FAKE = resolve(import.meta.dirname, "../../core/codex/fake-app-server.mjs");
+const FAKE = resolve(import.meta.dirname, "../../providers/codex/fake-app-server.mjs");
 const ENV = ["TASKPILOT_CODEX", "FAKE_CODEX_COUNT_FILE", "FAKE_CODEX_LOGGED_OUT", "FAKE_CODEX_HANG_METHOD"];
 const FIELDS = { fiveHour: { usedPercentage: 3, resetsAt: 1792684986000 }, planType: "plus" };
 

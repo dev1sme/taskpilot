@@ -1,10 +1,10 @@
 import path from "node:path";
-import { claudeJson } from "../../../core/claude/home.js";
+import { claudeJson } from "../../../providers/claude/home.js";
 import { displayPath, envRefs, isObject, maskValue, readJsonFile, strings } from "../shared/fs.js";
 import { t } from "../../../core/i18n.js";
 import { parse as parseToml } from "smol-toml";
-import { codexConfigHome } from "../../../core/codex/home.js";
-import { copilotConfigHome } from "../../../core/copilot/home.js";
+import { codexConfigHome } from "../../../providers/codex/home.js";
+import { copilotConfigHome } from "../../../providers/copilot/home.js";
 import { readText } from "../shared/fs.js";
 import { type ProviderId } from "../../../core/providers.js";
 import { HttpError } from "../../../core/errors.js";

@@ -1,15 +1,11 @@
 import { EventEmitter } from "node:events";
 import type { ProviderId } from "../../core/providers.js";
-import type { CodexUsage, CodexUsageFields } from "../../core/codex/usage.js";
-import type { CopilotQuota } from "../../core/copilot/quota.js";
+import type { CodexUsage, CodexUsageFields } from "../../providers/codex/account-usage.js";
+import type { CopilotQuota } from "../../providers/copilot/quota.js";
 import type { StateStore } from "../../core/state.js";
 
-export interface UsageWindow {
-  /** 0-100. */
-  usedPercentage: number;
-  /** Epoch ms; null when not given. */
-  resetsAt: number | null;
-}
+import type { UsageWindow } from "../../core/usage-types.js";
+export type { UsageWindow } from "../../core/usage-types.js";
 
 /** Plan usage as Claude Code last reported it to a session's status line. */
 export interface ClaudeUsage {

@@ -1,7 +1,7 @@
 import http from "node:http";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { codexLauncher } from "../../src/core/codex/launch.js";
+import { codexLauncher } from "../../src/providers/codex/cli-launcher.js";
 import type { Launcher } from "../../src/core/launch.js";
 import type { HookEvent, SessionManager } from "../../src/modules/sessions/index.js";
 

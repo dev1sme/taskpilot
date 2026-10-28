@@ -5,7 +5,7 @@ import { maskEntry } from "../mcp/edit.js";
 import { claudeJsonEntry, nativeMcpDocument, nativeMcpServers } from "../mcp/read.js";
 import { restoreMcpEntry } from "../mcp/routes.js";
 import { readNativeFields } from "../settings/native.js";
-import { claudeJson } from "../../../core/claude/home.js";
+import { claudeJson } from "../../../providers/claude/home.js";
 import { isObject } from "../shared/fs.js";
 import { NAME } from "../mcp/edit.js";
 import type { ConfigRouteOptions } from "../shared/http.js";

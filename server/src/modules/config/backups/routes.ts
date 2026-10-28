@@ -10,6 +10,15 @@ import type { ConfigRouteOptions } from "../shared/http.js";
 import { isAllowedPath } from "../shared/targets.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
 import { isObject } from "../../../core/values.js";
+import type { BackupEntry } from "./store.js";
+
+/** A backup as listed: restorable when its file is one of this repo's config files. */
+export type BackupView = BackupEntry & { restorable: boolean };
+/** What restoring a backup would change: the current file to the backup's content. */
+export interface BackupDiff {
+  diff: string;
+  entry: BackupEntry;
+}
 
 /** Backups of every file TaskPilot wrote: list, diff against the current file, restore. */
 export function registerBackupsRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {
@@ -17,17 +26,17 @@ export function registerBackupsRoutes(app: FastifyInstance, opts: ConfigRouteOpt
 
   const restorable = (b: { path: string }, repo: string) => isAllowedPath(b.path, repo);
 
-  app.get("/api/backups", async () => {
+  app.get("/api/backups", async (): Promise<BackupView[]> => {
     const repo = requireRepo();
     return (await backups.list()).map((b) => ({ ...b, restorable: restorable(b, repo) }));
   });
 
-  app.get<{ Params: { id: string } }>("/api/backups/:id/diff", async (req) => {
+  app.get<{ Params: { id: string } }>("/api/backups/:id/diff", async (req): Promise<BackupDiff> => {
     const repo = requireRepo();
     const { entry, content } = await backups.get(req.params.id);
     if (!restorable(entry, repo)) throw new HttpError(403, t("errors.otherRepoBackup"));
     const current = await readCurrent(entry.path);
-    return { diff: diffText(entry.display, safeFile(entry.path, current), safeFile(entry.path, content)), entry };
+    return { diff: diffText(entry.display, safeFile(entry.path, current), safeFile(entry.path, content), [t("diff.before"), t("diff.afterRestore")]), entry };
   });
 
   app.post<{ Params: { id: string } }>("/api/backups/:id/restore", async (req) => {

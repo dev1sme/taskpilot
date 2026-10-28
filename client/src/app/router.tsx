@@ -2,6 +2,8 @@ import { createHashHistory, createRootRoute, createRoute, createRouter } from "@
 import { useTranslation } from "react-i18next";
 import { isNativeSection, NativeConfigPage } from "@/features/config/config-page";
 import { WorkflowPage } from "@/features/config/workflow/workflow-page";
+import { CodegraphPage } from "@/features/config/codegraph-page";
+import { BackupsPage } from "@/features/backups/backups-page";
 import { TaskScreen } from "@/features/task/task-screen";
 import { TasksPage } from "@/features/tasks/tasks-page";
 import { Pending } from "./pending";
@@ -51,22 +53,18 @@ export const configRoute = createRoute({
     stringify: ({ section }) => ({ section }),
   },
   component: function Config() {
-    const { t } = useTranslation("shell");
     const { section } = configRoute.useParams();
     const search = configRoute.useSearch();
     if (isNativeSection(section)) return <NativeConfigPage key={`${section}:${search.cli ?? "claude"}`} section={section} search={search} />;
     if (section === "workflow" || section === "formats") return <WorkflowPage section={section} search={search} />;
-    return <Pending title={t(`nav.${section}`)} />;
+    return <CodegraphPage />;
   },
 });
 
 const backupsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/backups",
-  component: function Backups() {
-    const { t } = useTranslation("shell");
-    return <Pending title={t("nav.backups")} />;
-  },
+  component: BackupsPage,
 });
 
 const routeTree = rootRoute.addChildren([overviewRoute, tasksRoute, taskRoute, configRoute, backupsRoute]);

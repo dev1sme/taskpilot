@@ -151,6 +151,40 @@
     "readOnlyHint": "Bản của TaskPilot chỉ xem; tạo override để sửa."
   },
   "codegraph": {
-    "title": "Codegraph"
+    "title": "Codegraph",
+    "subtitle": "Đồ thị symbol của repo cho agent tra cứu (codegraph MCP).",
+    "unsupported": "Repo nằm ngoài PROJECTS_ROOT của environments nên codegraph không thấy repo này.",
+    "notIndexed": "Repo chưa được index.",
+    "index": "Index lại",
+    "indexFirst": "Index repo",
+    "indexing": "Đang index… có thể mất tới 2 phút.",
+    "indexed": "Đã index xong",
+    "upToDate": "Mới nhất",
+    "outOfDate": "Cũ hơn code",
+    "files": "File",
+    "nodes": "Symbol",
+    "edges": "Liên kết",
+    "dbSize": "Dung lượng DB",
+    "detail": "Chi tiết",
+    "output": "Kết quả index",
+    "error": "Không đọc được trạng thái: {{error}}"
+  },
+  "backups": {
+    "title": "Lịch sử thay đổi",
+    "subtitle": "Bản sao file cấu hình TaskPilot lưu ngay trước mỗi lần ghi.",
+    "empty": "Chưa có bản sao nào.",
+    "emptyHint": "Mỗi lần lưu cấu hình từ TaskPilot, file cũ được giữ lại ở đây.",
+    "created": "File chưa có (lần ghi tạo mới)",
+    "otherRepo": "Repo khác",
+    "pick": "Chọn một bản sao để xem thay đổi khi khôi phục.",
+    "diffHint": "Khôi phục sẽ đưa file hiện tại về nội dung bản sao. Secret được che.",
+    "restore": "Khôi phục",
+    "restoreTitle": "Khôi phục {{file}}?",
+    "restoreConfirm": "File hiện tại được sao lưu trước khi ghi đè, nên có thể hoàn tác từ danh sách này.",
+    "restored": "Đã khôi phục {{file}}",
+    "same": "File hiện tại giống bản sao.",
+    "filter": "Lọc theo file",
+    "all": "Tất cả file",
+    "restoreDeletes": "File chưa có trước lần ghi này, nên khôi phục sẽ xoá file."
   }
 }

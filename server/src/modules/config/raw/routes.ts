@@ -4,9 +4,27 @@ import { t } from "../../../core/i18n.js";
 import { parseConfigProvider } from "../shared/sections.js";
 import { scopeOf, stringField, type ConfigRouteOptions } from "../shared/http.js";
 import { diffText, hashOf, readCurrent, writeWithBackup } from "../shared/writer.js";
-import { rawFile, type RawAddress } from "./files.js";
+import { rawFile, type RawAddress, type RawFile } from "./files.js";
 
 type AddressQuery = { cli?: string; section?: string; scope?: string; name?: string };
+
+/** A raw config file as the editor opens it. */
+export interface RawFileView {
+  path: string;
+  format: RawFile["format"];
+  deletable: boolean;
+  exists: boolean;
+  content: string;
+  /** Version token to send back on save; "absent" when the file does not exist. */
+  hash: string;
+}
+
+/** The diff a save would make, and whether the file changed since it was read. */
+export interface RawPreview {
+  diff: string;
+  changed: boolean;
+  stale: boolean;
+}
 
 function addressOf(source: unknown): RawAddress {
   const q = (source ?? {}) as AddressQuery;
@@ -25,13 +43,13 @@ function addressOf(source: unknown): RawAddress {
 export function registerRawRoutes(app: FastifyInstance, opts: ConfigRouteOptions) {
   const { requireRepo, backups } = opts;
 
-  app.get<{ Querystring: AddressQuery }>("/api/config/raw", async (req) => {
+  app.get<{ Querystring: AddressQuery }>("/api/config/raw", async (req): Promise<RawFileView> => {
     const file = rawFile(requireRepo(), addressOf(req.query));
     const content = await readCurrent(file.target.abs);
     return { path: file.target.display, format: file.format, deletable: file.deletable, exists: content !== null, content: content ?? "", hash: hashOf(content) };
   });
 
-  app.post("/api/config/raw/preview", async (req) => {
+  app.post("/api/config/raw/preview", async (req): Promise<RawPreview> => {
     const file = rawFile(requireRepo(), addressOf(req.body));
     const next = stringField(req.body, "content");
     const current = await readCurrent(file.target.abs);

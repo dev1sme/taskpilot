@@ -27,3 +27,12 @@ import type { SessionManager } from "./modules/sessions/manager.js";
 export type AgentCapabilities = Awaited<ReturnType<SessionManager["capabilities"]>>;
 /** A reviewed handoff: the preview, its preflight and whether a running session must be stopped (POST …/run/handoff/preview). */
 export type HandoffPreviewResult = Awaited<ReturnType<WorkflowEngine["previewHandoff"]>>;
+export type { ConfigCapabilitiesView } from "./modules/config/routes.js";
+export type { ConfigScope, ConfigSection, SectionCapability } from "./modules/config/shared/sections.js";
+export type { RawFileView, RawPreview } from "./modules/config/raw/routes.js";
+export type { MemoryCheck, MemoryFile, MemoryImport } from "./modules/config/memory/read.js";
+export type { HookEntry, NativeSettingsFile, SettingsFile } from "./modules/config/settings/read.js";
+export type { CopilotHookEntry, HookFile } from "./modules/config/hooks/hook-files.js";
+export type { LibraryItem, LibraryKind } from "./modules/config/library/read.js";
+export type { AgentCheck } from "./modules/config/library/check.js";
+export type { McpConfig, McpServer } from "./modules/config/mcp/read.js";

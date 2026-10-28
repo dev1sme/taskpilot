@@ -26,4 +26,9 @@ export const configSearch = z.object({
     .transform((v) => (isProviderId(v) ? v : undefined)),
   /** workflow: the file shown in the editor. */
   file: z.string().optional(),
+  /** Native sections: the read-only view or the raw file. */
+  view: z.enum(["ui", "raw"]).optional(),
+  scope: z.enum(["project", "local", "user"]).optional(),
+  /** A library item or a hook file, for its raw file. */
+  name: z.string().optional(),
 });

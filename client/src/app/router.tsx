@@ -1,5 +1,6 @@
 import { createHashHistory, createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { isNativeSection, NativeConfigPage } from "@/features/config/config-page";
 import { TaskScreen } from "@/features/task/task-screen";
 import { TasksPage } from "@/features/tasks/tasks-page";
 import { Pending } from "./pending";
@@ -51,6 +52,8 @@ export const configRoute = createRoute({
   component: function Config() {
     const { t } = useTranslation("shell");
     const { section } = configRoute.useParams();
+    const search = configRoute.useSearch();
+    if (isNativeSection(section)) return <NativeConfigPage key={`${section}:${search.cli ?? "claude"}`} section={section} search={search} />;
     return <Pending title={t(`nav.${section}`)} />;
   },
 });

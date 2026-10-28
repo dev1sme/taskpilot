@@ -111,12 +111,21 @@ export async function readCopilotHookFile(repo: string, abs: string, hooks: File
   return readCurrent(abs);
 }
 
+/** One hook file of a CLI that keeps hooks in files of their own, with its editable command hooks. */
+export interface HookFile {
+  scope: ConfigScope;
+  name: string;
+  path: string;
+  hooks: CopilotHookEntry[];
+  error?: string;
+}
+
 export async function listHookFiles(
   repo: string,
   cli: ProviderId,
   hooks: FileHooks,
-): Promise<Array<{ scope: ConfigScope; name: string; path: string; hooks: CopilotHookEntry[]; error?: string }>> {
-  const out: Array<{ scope: ConfigScope; name: string; path: string; hooks: CopilotHookEntry[]; error?: string }> = [];
+): Promise<HookFile[]> {
+  const out: HookFile[] = [];
   for (const scope of hooks.scopes) {
     const root = hooks.dir(repo, scope);
     let names: string[];

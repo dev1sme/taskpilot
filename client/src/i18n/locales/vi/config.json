@@ -1,0 +1,86 @@
+{
+  "view": {
+    "label": "Chế độ xem",
+    "ui": "Giao diện",
+    "raw": "Raw"
+  },
+  "cli": {
+    "label": "CLI cấu hình"
+  },
+  "scope": {
+    "label": "Phạm vi",
+    "project": "Project",
+    "local": "Local",
+    "user": "Global"
+  },
+  "unsupported": "{{cli}} không có phần cấu hình này.",
+  "loading": "Đang tải…",
+  "raw": {
+    "save": "Lưu…",
+    "revert": "Bỏ thay đổi",
+    "delete": "Xoá file",
+    "deleteConfirm": "Xoá {{file}}? Bản cũ được backup trước khi xoá.",
+    "newFile": "File chưa có; lưu để tạo mới.",
+    "readOnly": "{{reason}}",
+    "previewTitle": "Lưu {{file}}",
+    "previewHint": "Bản cũ được backup trước khi ghi; xem lại trong Lịch sử thay đổi.",
+    "unchanged": "Không có thay đổi so với file hiện tại.",
+    "stale": "File đã bị sửa bên ngoài TaskPilot sau khi mở. Tải lại bản mới nhất rồi sửa tiếp.",
+    "reload": "Tải lại bản mới",
+    "confirm": "Ghi file",
+    "saved": "Đã lưu {{file}}",
+    "deleted": "Đã xoá {{file}}",
+    "unsavedTitle": "Có thay đổi chưa lưu",
+    "secrets": "Raw hiện nguyên văn mọi giá trị, kể cả secret. Chế độ Giao diện che các giá trị này.",
+    "pick": "Chọn một mục ở chế độ Giao diện, hoặc nhập tên file để tạo mới.",
+    "name": "Tên file",
+    "open": "Mở"
+  },
+  "readOnlyClaudeMcp": "Server MCP local/user của Claude nằm trong ~/.claude.json, file Claude Code tự ghi liên tục: chỉ xem được, không sửa raw.",
+  "editRaw": "Sửa raw",
+  "missing": "Chưa có file",
+  "empty": "Chưa có gì ở đây.",
+  "memory": {
+    "lines": "{{count}} dòng",
+    "headings": "Mục lục",
+    "imports": "File được import",
+    "importMissing": "không có",
+    "content": "Nội dung"
+  },
+  "settings": {
+    "defaultMode": "Chế độ quyền mặc định",
+    "allow": "Cho phép",
+    "ask": "Hỏi trước",
+    "deny": "Chặn",
+    "dirs": "Thư mục bổ sung",
+    "env": "Biến môi trường",
+    "other": "Khoá khác trong file",
+    "notSet": "chưa đặt",
+    "fields": "Giá trị native"
+  },
+  "hooks": {
+    "event": "Sự kiện",
+    "matcher": "Matcher",
+    "command": "Lệnh",
+    "timeout": "Timeout",
+    "none": "Chưa có hook nào."
+  },
+  "library": {
+    "readOnly": "Chỉ xem: file này thuộc cấu hình Claude",
+    "files": "{{count}} file kèm theo",
+    "check": {
+      "ok": "Dùng được",
+      "warn": "Cần xem lại",
+      "error": "Không dùng được"
+    }
+  },
+  "mcp": {
+    "sources": "Nguồn",
+    "servers": "Server",
+    "shadowed": "Bị server cùng tên ở nguồn trước che",
+    "missingEnv": "Thiếu biến: {{list}}",
+    "fromTaskPilot": "TaskPilot cấp: {{list}}",
+    "notEditable": "Chỉ xem",
+    "check": "Kiểm tra kết nối"
+  }
+}

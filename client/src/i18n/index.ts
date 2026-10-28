@@ -3,6 +3,7 @@ import { initReactI18next } from "react-i18next";
 import activity from "./locales/vi/activity.json";
 import auth from "./locales/vi/auth.json";
 import common from "./locales/vi/common.json";
+import config from "./locales/vi/config.json";
 import docs from "./locales/vi/docs.json";
 import repo from "./locales/vi/repo.json";
 import sessions from "./locales/vi/sessions.json";
@@ -15,7 +16,7 @@ import workflow from "./locales/vi/workflow.json";
  * UI strings, one JSON file per feature (namespace). A second language is a sibling of `vi` with the
  * same files; `i18next.d.ts` types every `t()` key against `vi`.
  */
-export const resources = { vi: { activity, auth, common, docs, repo, sessions, shell, task, tasks, workflow } } as const;
+export const resources = { vi: { activity, auth, common, config, docs, repo, sessions, shell, task, tasks, workflow } } as const;
 
 export const defaultNS = "common";
 

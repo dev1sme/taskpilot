@@ -11,8 +11,8 @@ import { registerSettingsRoutes } from "./settings/routes.js";
 import { registerWorkflowConfigRoutes } from "./workflow/routes.js";
 import { registerRawRoutes } from "./raw/routes.js";
 import type { ConfigRouteOptions } from "./shared/http.js";
-import { CONFIG_SECTIONS, configCapabilities, configCapability, parseConfigProvider, type ConfigSection } from "./shared/sections.js";
-import { PROVIDER_IDS } from "../../core/providers.js";
+import { CONFIG_SECTIONS, configCapabilities, configCapability, parseConfigProvider, type ConfigSection, type SectionCapability } from "./shared/sections.js";
+import { PROVIDER_IDS, type ProviderId } from "../../core/providers.js";
 import { HttpError } from "../../core/errors.js";
 
 function sectionOf(url: string): ConfigSection | null {
@@ -38,7 +38,7 @@ export function registerConfigRoutes(app: FastifyInstance, opts: ConfigRouteOpti
     const capability = configCapability(cli, section);
     if (!capability.available) throw new HttpError(501, capability.reason!);
   });
-  app.get<{ Querystring: { cli?: string } }>("/api/config/capabilities", async (req) => {
+  app.get<{ Querystring: { cli?: string } }>("/api/config/capabilities", async (req): Promise<ConfigCapabilitiesView> => {
     const cli = parseConfigProvider(req.query.cli);
     return { cli, clis: PROVIDER_IDS, sections: configCapabilities(cli) };
   });
@@ -51,4 +51,11 @@ export function registerConfigRoutes(app: FastifyInstance, opts: ConfigRouteOpti
   registerWorkflowConfigRoutes(app, opts);
   registerRawRoutes(app, opts);
   registerBackupsRoutes(app, opts);
+}
+
+/** What each config section of a CLI supports (GET /api/config/capabilities). */
+export interface ConfigCapabilitiesView {
+  cli: ProviderId;
+  clis: readonly ProviderId[];
+  sections: Record<ConfigSection, SectionCapability>;
 }

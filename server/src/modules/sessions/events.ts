@@ -24,6 +24,7 @@ export type SessionEvent = EventContext &
     | { type: "tool.failed"; tool: ToolContext; durationMs?: number; error?: unknown }
     | { type: "turn.completed"; message?: string; source?: "transcript" }
     | { type: "turn.interrupted"; message?: string; source?: "transcript" }
+    | { type: "turn.failed"; message?: string; source?: "transcript" }
   );
 
 /**
@@ -66,7 +67,8 @@ export function sessionEventFromHook(context: EventContext, event: HookEvent, pa
     case "Stop":
       return {
         ...context,
-        type: payload.interrupted === true ? "turn.interrupted" : "turn.completed",
+        // Same precedence as the workflow used on the raw payload: an interruption wins over a failure.
+        type: payload.interrupted === true ? "turn.interrupted" : payload.failed === true ? "turn.failed" : "turn.completed",
         ...(payload.source === "transcript" ? { source: "transcript" as const } : {}),
         ...(text("last_assistant_message") !== undefined ? { message: text("last_assistant_message") } : {}),
       };

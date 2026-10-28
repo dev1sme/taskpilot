@@ -46,7 +46,7 @@ async function setup(env: Record<string, string> = {}) {
     pending.add(settled);
     void settled.then(() => pending.delete(settled));
   };
-  sessions.on("hook", (meta, event, payload) => track(engine.onHook(meta, event, payload)));
+  sessions.on("event", (meta, event) => track(engine.onEvent(meta, event)));
   sessions.on("exit", (meta) => track(engine.onExit(meta)));
   close.push(async () => {
     // closeAll only signals termination. Keep the hook server alive until children exit,

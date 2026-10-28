@@ -11,6 +11,7 @@ import { SessionManager } from "../../../src/modules/sessions/index.js";
 import { WorkflowEngine } from "../../../src/modules/workflow/engine.js";
 import { codexTuiLauncher, seedCodexThread, startHookServer, type HookServer } from "../../helpers/codex-tui.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
+import { fireHook } from "../../helpers/session-events.js";
 
 const safe = createSafeText([]);
 
@@ -66,13 +67,13 @@ async function transactionFixture(kind: "step" | "subtask" = "step", prompt = "C
     undefined,
     async () => createSafeText(["opaque-private-value"]),
   );
-  manager.on("hook", (meta, event, payload) => void engine.onHook(meta, event, payload));
+  manager.on("event", (meta, event) => void engine.onEvent(meta, event));
   manager.on("exit", (meta) => void engine.onExit(meta));
   const started = await engine.start(repo, "DEMO-1", { execution: { agent: initialAgent } });
   if (initialAgent === "claude") {
     await manager.waitForReady(started.sessionId);
     await vi.waitFor(async () => expect((await state.load()).runs[0].phase).toBe("running"));
-    await engine.onHook(await manager.get(started.sessionId), "Stop");
+    await fireHook(engine, await manager.get(started.sessionId), "Stop");
   }
   const read = async () => (await state.load()).runs[0];
   await vi.waitFor(async () => expect(["waiting", "running"]).toContain((await read()).phase));
@@ -252,7 +253,7 @@ describe("metrics provenance across handoff", () => {
       const metrics = after.subtasks![1].metrics!;
       expect(metrics).not.toHaveProperty(initialAgent === "claude" ? "costUsd" : "inputTokens");
       await writeFile(path.join(f.repo, ".claude/tasks/DEMO-1/03-viec-2.md"), "member output after transfer");
-      await f.engine.onHook(await f.manager.get(target.id), "Stop");
+      await fireHook(f.engine, await f.manager.get(target.id), "Stop");
       const history = await readFile(path.join(f.repo, ".claude/tasks/DEMO-1/00-history.md"), "utf8");
       expect(history).toContain("Nguồn `claude-statusline`");
       expect(history).toContain("Nguồn `codex-thread`");
@@ -306,7 +307,7 @@ describe("metrics provenance across handoff", () => {
     const source = await f.manager.get((await f.read()).sessionId);
     await f.engine.onMetrics(source, { source: "codex-thread", inputTokens: 100, outputTokens: 10 });
     await writeFile(path.join(f.repo, ".claude/tasks/DEMO-1/04-summary.md"), "first step output");
-    await f.engine.onHook(source, "Stop");
+    await fireHook(f.engine, source, "Stop");
     await f.engine.approve(f.repo, "DEMO-1");
     await f.engine.onMetrics(await f.manager.get(source.id), { source: "codex-thread", inputTokens: 150, outputTokens: 20 });
     const run = await f.read();
@@ -547,7 +548,7 @@ describe("handoff crash recovery and lane fences", () => {
     const paste = vi.spyOn(f.recoveredManager, "paste");
     expect(paste).not.toHaveBeenCalled();
     const errors: unknown[] = [];
-    f.recoveredManager.on("hook", (meta, event, payload) => void f.recoveredEngine.onHook(meta, event, payload).catch((error) => errors.push(error)));
+    f.recoveredManager.on("event", (meta, event) => void f.recoveredEngine.onEvent(meta, event).catch((error) => errors.push(error)));
     const resume = vi.spyOn(f.recoveredManager, "resume");
     await f.recoveredEngine.retry(f.repo, "DEMO-1");
     await vi.waitFor(() => expect(paste).toHaveBeenCalledExactlyOnceWith(f.operation.targetSessionId, f.operation.text));
@@ -635,8 +636,8 @@ describe("handoff crash recovery and lane fences", () => {
     const source = await f.manager.get(preview.sourceSessionId);
     const operation = (await f.engine.commitHandoff(f.repo, "DEMO-1", f.commitRequest(preview))).operation;
     const before = structuredClone(await f.read());
-    await f.engine.onHook(source, "Stop", { last_assistant_message: "OLD" });
-    await f.engine.onHook(source, "SessionStart");
+    await fireHook(f.engine, source, "Stop", { last_assistant_message: "OLD" });
+    await fireHook(f.engine, source, "SessionStart");
     await f.engine.onExit(source);
     await f.engine.onMetrics(source, { source: "codex-thread", inputTokens: 999999 });
     await f.engine.onStatusLine({ ...source, agent: "claude" }, { cost: { total_cost_usd: 999 } });
@@ -654,7 +655,7 @@ describe("handoff crash recovery and lane fences", () => {
       return result;
     });
     const operation = (await f.engine.commitHandoff(f.repo, "DEMO-1", f.commitRequest(preview))).operation;
-    await f.engine.onHook(await f.manager.get(operation.targetSessionId!), "Stop");
+    await fireHook(f.engine, await f.manager.get(operation.targetSessionId!), "Stop");
     expect((await f.read()).phase).toBe("waiting");
   });
 
@@ -670,7 +671,7 @@ describe("handoff crash recovery and lane fences", () => {
     const { preview } = await f.engine.previewHandoff(f.repo, "DEMO-1", f.request);
     const { operation } = await f.engine.commitHandoff(f.repo, "DEMO-1", f.commitRequest(preview));
     const meta = await f.manager.get(operation.targetSessionId!);
-    await f.engine.onHook(meta, "Stop");
+    await fireHook(f.engine, meta, "Stop");
     if (kind === "step") {
       expect((await f.read()).phase).toBe("waiting");
       await expect(f.engine.completeStep(f.repo, "DEMO-1")).rejects.toMatchObject({ status: 409 });
@@ -682,10 +683,10 @@ describe("handoff crash recovery and lane fences", () => {
     const oldMtime = (await stat(report)).mtime;
     await writeFile(report, "new report");
     await utimes(report, oldMtime, oldMtime);
-    await f.engine.onHook(meta, "Stop", { failed: true });
+    await fireHook(f.engine, meta, "Stop", { failed: true });
     const lane = kind === "step" ? await f.read() : (await f.read()).subtasks![1];
     expect(lane.phase).toBe("waiting");
-    await f.engine.onHook(meta, "Stop");
+    await fireHook(f.engine, meta, "Stop");
     expect((kind === "step" ? await f.read() : (await f.read()).subtasks![1]).phase).toBe(kind === "step" ? "gate" : "done");
   });
 });

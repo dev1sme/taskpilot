@@ -10,6 +10,8 @@ import { loadWorkflow } from "../../../src/modules/workflow/definition.js";
 import { WorkflowEngine, type SessionPort } from "../../../src/modules/workflow/engine.js";
 import type { RunOptions, WorkflowDef } from "../../../src/modules/workflow/types.js";
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
+import { fireHook } from "../../helpers/session-events.js";
+import type { HookEvent } from "../../../src/modules/sessions/index.js";
 
 afterAll(cleanupTempDirs);
 
@@ -82,10 +84,10 @@ describe("economy: sessions a built-in default run opens", () => {
     await writeFile(path.join(taskDir(), name), "# x\n");
   }
 
-  async function hook(event: Parameters<WorkflowEngine["onHook"]>[1]) {
+  async function hook(event: HookEvent) {
     const run = (await state.load()).runs[0];
     fake.sessions.get(run.sessionId)!.activity = event === "Stop" || event === "SessionStart" ? "idle" : "busy";
-    await engine.onHook(fake.meta(run.sessionId), event);
+    await fireHook(engine, fake.meta(run.sessionId), event);
     return (await state.load()).runs[0];
   }
 

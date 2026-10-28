@@ -12,6 +12,8 @@ import type { ClaudeSubagentInfo } from "../../../src/modules/workflow/prompt-va
 import { cleanupTempDirs, makeRepo, tempDir } from "../../helpers/fixtures.js";
 import { modeDir } from "../../../src/modules/workflow/modes.js";
 import { readTaskStatus } from "../../../src/modules/tasks/status.js";
+import { fireHook } from "../../helpers/session-events.js";
+import type { HookEvent } from "../../../src/modules/sessions/index.js";
 
 const LEADER_WORKFLOW_DIR = modeDir("leader");
 
@@ -86,10 +88,10 @@ describe("workflow engine", () => {
     await writeFile(path.join(taskDir(), name), "# x\n");
   }
 
-  async function hook(event: Parameters<WorkflowEngine["onHook"]>[1]) {
+  async function hook(event: HookEvent) {
     const run = (await state.load()).runs[0];
     fake.sessions.get(run.sessionId)!.activity = event === "Stop" || event === "SessionStart" ? "idle" : "busy";
-    await engine.onHook(fake.meta(run.sessionId), event);
+    await fireHook(engine, fake.meta(run.sessionId), event);
     return (await state.load()).runs[0];
   }
 
@@ -201,13 +203,13 @@ describe("workflow engine", () => {
     await hook("SessionStart");
     const id = (await state.load()).runs[0].sessionId;
     fake.sessions.get(id)!.activity = "idle";
-    await engine.onHook(fake.meta(id), "Stop", { last_assistant_message: "Cần ba chốt:\n\n1. Dùng Redis? — Đề xuất: không\n" });
+    await fireHook(engine, fake.meta(id), "Stop", { last_assistant_message: "Cần ba chốt:\n\n1. Dùng Redis? — Đề xuất: không\n" });
     expect(await engine.view(repo, "DEMO-1")).toMatchObject({ run: { phase: "waiting" }, questions: [{ n: 1, text: "Dùng Redis?", proposal: "không" }] });
 
     await hook("UserPromptSubmit");
     await mkdir(taskDir(), { recursive: true });
     await writeFile(path.join(taskDir(), "02-plan.md"), "# Plan\n\n## 6. Câu hỏi mở\n\n1. Tách task? — Đề xuất: không\n2. Đổi tên bước?\n");
-    await engine.onHook(fake.meta(id), "Stop", { last_assistant_message: "Xong.\n\n1. Câu khác?" });
+    await fireHook(engine, fake.meta(id), "Stop", { last_assistant_message: "Xong.\n\n1. Câu khác?" });
     const view = await engine.view(repo, "DEMO-1");
     expect(view.run?.phase).toBe("gate");
     expect(view.questions).toEqual([
@@ -514,7 +516,7 @@ describe("workflow engine", () => {
     let ready: Promise<void> | undefined;
     const early = vi.spyOn(fake, "create").mockImplementation(async (repo, key, options) => {
       const view = await create(repo, key, options);
-      ready = engine.onHook(view, "SessionStart");
+      ready = fireHook(engine, view, "SessionStart");
       return view;
     });
     try {
@@ -537,7 +539,7 @@ describe("workflow engine", () => {
     const meta = structuredClone(fake.meta((await state.load()).runs[0].sessionId));
     try {
       const retry = engine.retry(repo, "DEMO-1");
-      const staleStop = engine.onHook(meta, "Stop", { last_assistant_message: "OLD TURN" });
+      const staleStop = fireHook(engine, meta, "Stop", { last_assistant_message: "OLD TURN" });
       await retry;
       await staleStop;
       expect((await state.load()).runs[0]).toMatchObject({ phase: "running", sentPrompt: { at: now } });
@@ -568,7 +570,7 @@ describe("workflow engine", () => {
       await hook("SessionStart");
       await write("02-plan.md");
       const before = structuredClone((await state.load()).runs[0]);
-      await engine.onHook(stale, "Stop", { last_assistant_message: "stale process" });
+      await fireHook(engine, stale, "Stop", { last_assistant_message: "stale process" });
       await engine.onExit(stale);
       await engine.onMetrics(stale, { inputTokens: 999 });
       await engine.onStatusLine(stale, { cost: { total_cost_usd: 999 } });
@@ -711,9 +713,9 @@ describe("workflow engine: dispatch", () => {
   }
   const run = async () => (await state.load()).runs[0];
   /** Fires a hook in one session, the way the session's own agent would. */
-  async function hookOn(id: string, event: Parameters<WorkflowEngine["onHook"]>[1], payload: Record<string, unknown> = {}) {
+  async function hookOn(id: string, event: HookEvent, payload: Record<string, unknown> = {}) {
     fake.sessions.get(id)!.activity = event === "Stop" || event === "SessionStart" ? "idle" : "busy";
-    await engine.onHook(fake.meta(id), event, payload);
+    await fireHook(engine, fake.meta(id), event, payload);
     return run();
   }
   /** Leader plans with `plan`, the reviewer approves: the subtasks start. */
@@ -1009,7 +1011,7 @@ describe("workflow engine: dispatch", () => {
       await engine.onMetrics(old, { inputTokens: 999, outputTokens: 999, model: "old-model" });
       await engine.onStatusLine(old, { cost: { total_cost_usd: 999 }, model: { id: "old-model" } });
       await engine.onExit(old);
-      await engine.onHook(old, "Stop", { last_assistant_message: "old message" });
+      await fireHook(engine, old, "Stop", { last_assistant_message: "old message" });
       expect(await run()).toEqual(before);
       const current = fake.meta(source);
       await engine.onMetrics(current, { inputTokens: 100, outputTokens: 20 });

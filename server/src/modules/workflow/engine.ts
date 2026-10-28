@@ -4,7 +4,7 @@ import path from "node:path";
 import { PROVIDER_LABELS, DEFAULT_PROVIDER } from "../../core/providers.js";
 import { HttpError } from "../../core/errors.js";
 import { getTask, TASKS_DIR, writeTaskStatus } from "../tasks/index.js";
-import { providerTraits, requirePreflight, type HookEvent, type SessionMetrics, type PreflightResult } from "../sessions/index.js";
+import { providerTraits, requirePreflight, type SessionEvent, type SessionMetrics, type PreflightResult } from "../sessions/index.js";
 import type { SessionMeta, StateStore } from "../../core/state.js";
 import { overlaps } from "./assignments.js";
 import { loadWorkflow, modeOf, OVERRIDE_DIR, reportOf } from "./definition.js";
@@ -462,19 +462,20 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     });
   }
 
-  onHook(meta: SessionMeta, event: HookEvent, payload: Record<string, unknown> = {}): Promise<void> {
+  onEvent(meta: SessionMeta, event: SessionEvent): Promise<void> {
     meta = structuredClone(meta);
     const fence = this.eventFence(meta.id);
     return this.serial(async () => {
       const run = await this.store.bySession(meta.id);
-      if (!run || !(await this.acceptEvent(run, meta, await fence, event === "SessionStart"))) return;
+      if (!run || !(await this.acceptEvent(run, meta, await fence, event.type === "session.started"))) return;
       const lane = laneOf(run, meta.id)!;
       // While subtasks run, the leader's session sits idle; nothing it reports concerns the run.
       if (lane === run && dispatching(run, await this.store.defOf(run))) return;
       if (lane === run && run.phase === "running" && run.message === t("run.noHook", { agent: agentLabel(run) })) {
         await this.store.save(run, { noHook: undefined, message: t("run.step", { step: (await this.store.defOf(run)).steps[run.stepIndex].title, agent: agentLabel(run) }) });
       }
-      const fromTranscript = event === "Stop" && payload.source === "transcript";
+      const turnEnded = event.type === "turn.completed" || event.type === "turn.interrupted" || event.type === "turn.failed";
+      const fromTranscript = turnEnded && event.source === "transcript";
       if (lane !== run && (lane as SubtaskRun).noHook && !fromTranscript) {
         delete (lane as SubtaskRun).noHook;
         syncDispatch(run);
@@ -483,16 +484,16 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       if (fromTranscript && (lane.phase === "running" || lane.phase === "waiting")) {
         await this.store.log(run, HISTORY_TEXT.transcriptStop, { body: HISTORY_TEXT.transcriptStopBody });
       }
-      if (event === "Stop" && typeof payload.last_assistant_message === "string") {
-        lane.lastMessage = payload.last_assistant_message;
+      if (turnEnded && event.message !== undefined) {
+        lane.lastMessage = event.message;
       }
-      if (event === "SessionStart" && lane.phase === "starting" && lane.pendingPrompt) {
+      if (event.type === "session.started" && lane.phase === "starting" && lane.pendingPrompt) {
         await this.send(run, lane.pendingPrompt, lane);
-      } else if (event === "UserPromptSubmit" && lane.phase === "waiting") {
+      } else if (event.type === "prompt.submitted" && lane.phase === "waiting") {
         await this.saveLane(run, lane, { phase: "running" }, t("run.working", { agent: agentLabel(run) }));
-      } else if (event === "Stop" && (lane.phase === "running" || lane.phase === "waiting")) {
-        if (payload.failed === true || payload.interrupted === true) {
-          await this.saveLane(run, lane, { phase: "waiting", pendingPrompt: undefined }, lane.lastMessage || t(payload.interrupted === true ? "run.turnInterrupted" : "run.turnFailed"));
+      } else if (turnEnded && (lane.phase === "running" || lane.phase === "waiting")) {
+        if (event.type !== "turn.completed") {
+          await this.saveLane(run, lane, { phase: "waiting", pendingPrompt: undefined }, lane.lastMessage || t(event.type === "turn.interrupted" ? "run.turnInterrupted" : "run.turnFailed"));
           return;
         }
         if (lane === run) await this.onStop(run);

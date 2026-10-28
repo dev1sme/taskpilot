@@ -114,7 +114,7 @@ steps:
   expect(errors).toEqual([]);
   const engine = new WorkflowEngine(state, sessions, async () => def!);
   const failures: unknown[] = [];
-  sessions.on("hook", (meta, event, payload) => void engine.onHook(meta, event, payload).catch((e) => failures.push(e)));
+  sessions.on("event", (meta, event) => void engine.onEvent(meta, event).catch((e) => failures.push(e)));
   sessions.on("metrics", (meta, data) => void engine.onMetrics(meta, data).catch((e) => failures.push(e)));
   sessions.on("exit", (meta) => void engine.onExit(meta).catch((e) => failures.push(e)));
   const run = () => state.load().then((s) => s.runs[0]);
@@ -157,7 +157,7 @@ it("keeps an interrupted (Esc) turn waiting even without done-when", async () =>
     { dir: repo, origin: "repo" },
   ).def!;
   const engine = new WorkflowEngine(state, sessions, async () => def);
-  sessions.on("hook", (meta, event, payload) => void engine.onHook(meta, event, payload));
+  sessions.on("event", (meta, event) => void engine.onEvent(meta, event));
   await engine.start(repo, "DEMO-1");
   await vi.waitFor(async () => expect((await state.load()).runs[0].phase).toBe("waiting"));
   // An interrupted turn has no answer to measure.
@@ -177,7 +177,7 @@ it("records the thread id, model and rollout token totals of a Codex PTY lane", 
   ).def!;
   const engine = new WorkflowEngine(state, sessions, async () => def);
   const failures: unknown[] = [];
-  sessions.on("hook", (meta, event, payload) => void engine.onHook(meta, event, payload).catch((e) => failures.push(e)));
+  sessions.on("event", (meta, event) => void engine.onEvent(meta, event).catch((e) => failures.push(e)));
   sessions.on("metrics", (meta, data) => void engine.onMetrics(meta, data).catch((e) => failures.push(e)));
   await engine.start(repo, "DEMO-1");
   await vi.waitFor(async () => expect((await state.load()).runs[0].phase).toBe("gate"));
@@ -211,7 +211,7 @@ it.each(["new", "old"] as const)("resumes without an explicit model from %s stat
   ).def!;
   const engine = new WorkflowEngine(state, sessions, async () => def);
   const failures: unknown[] = [];
-  sessions.on("hook", (meta, event, payload) => void engine.onHook(meta, event, payload).catch((e) => failures.push(e)));
+  sessions.on("event", (meta, event) => void engine.onEvent(meta, event).catch((e) => failures.push(e)));
   sessions.on("metrics", (meta, data) => void engine.onMetrics(meta, data).catch((e) => failures.push(e)));
   const first = await engine.start(repo, "DEMO-1");
   await vi.waitFor(async () => expect((await state.load()).runs[0].attempts?.[0]?.actualModel).toBe("gpt-6.1-sol"));
@@ -256,7 +256,7 @@ it("preserves legacy Codex model switches when the run has no execution or attem
   ).def!;
   const engine = new WorkflowEngine(state, sessions, async () => def);
   const failures: unknown[] = [];
-  sessions.on("hook", (meta, event, payload) => void engine.onHook(meta, event, payload).catch((error) => failures.push(error)));
+  sessions.on("event", (meta, event) => void engine.onEvent(meta, event).catch((error) => failures.push(error)));
   const first = (await engine.start(repo, "DEMO-1")).sessionId;
   await vi.waitFor(async () => expect((await state.load()).runs[0].phase).toBe("gate"));
   await state.update((s) => {

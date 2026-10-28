@@ -54,6 +54,12 @@ describe("TaskPilot session event contract", () => {
     expect(sessionEventFromHook(context, "Stop", { interrupted: "true", last_assistant_message: "answer" })).toMatchObject({ type: "turn.completed", message: "answer" });
   });
 
+  it("keeps a failed turn apart from a completed one, an interruption taking precedence", () => {
+    expect(sessionEventFromHook(context, "Stop", { failed: true, last_assistant_message: "partial" })).toMatchObject({ type: "turn.failed", message: "partial" });
+    expect(sessionEventFromHook(context, "Stop", { failed: true, interrupted: true })).toMatchObject({ type: "turn.interrupted" });
+    expect(sessionEventFromHook(context, "Stop", { failed: "true" })).toMatchObject({ type: "turn.completed" });
+  });
+
   it.each(["codex", "copilot"] as const)("leaves suppressed %s SessionStart hooks suppressed", async (provider) => {
     expect(await backendOf(provider).normalize!("SessionStart", {}, state())).toBeNull();
   });

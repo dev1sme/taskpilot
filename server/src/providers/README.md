@@ -42,7 +42,8 @@ core's common-only `Launcher` when they need provider fields.
 
 `modules/sessions/events.ts` defines TaskPilot's discriminated `SessionEvent` union:
 `session.started`, `prompt.submitted`, `tool.started`, `permission.requested`,
-`tool.completed`, `tool.failed`, `turn.completed`, and `turn.interrupted`.
+`tool.completed`, `tool.failed`, `turn.completed`, `turn.interrupted`, and
+`turn.failed`.
 
 The compatibility bridge `sessionEventFromHook` receives an already normalized
 hook and trusted TaskPilot session/provider identity. Native session ids do not
@@ -53,8 +54,10 @@ result/error schemas are not standardized in this step. Output, input and errors
 remain unknown rather than asserting an unverified common schema.
 
 SessionManager emits the neutral `event` stream after identity validation, backend
-normalization and permission gating. ActivityStore and the Copilot quota refresh
-consume only that stream. The legacy `hook` stream remains for the workflow engine;
-it is not migrated yet. Resume, transcript provenance and tool duration are
-carried explicitly to preserve activity output. HTTP hook names, workflow behavior, state and API formats
-remain unchanged. Never subscribe a consumer to both streams or normalize twice.
+normalization and permission gating. ActivityStore, the Copilot quota refresh and
+the workflow engine consume only that stream. No production code subscribes to
+the legacy `hook` stream any more; tests still observe it. Resume, transcript
+provenance, tool duration and failed turns (`turn.failed`) are carried
+explicitly to preserve their previous behavior. HTTP hook names, state and API
+formats remain unchanged. Never subscribe a consumer to both streams or
+normalize twice.

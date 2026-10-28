@@ -112,9 +112,9 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   sessions.on("change", (meta) => hub.publish("sessions", { taskKey: meta.taskKey }));
   const activity = new ActivityStore(path.join(opts.state.dir, "activity"));
   activity.on("item", (item) => hub.publish("activity", item));
-  sessions.on("event", (meta, event) => void activity.record(meta, event).catch(logError));
-  sessions.on("hook", (meta, event, payload) => {
-    void engine.onHook(meta, event, payload).catch(logError);
+  sessions.on("event", (meta, event) => {
+    void activity.record(meta, event).catch(logError);
+    void engine.onEvent(meta, event).catch(logError);
   });
   sessions.on("exit", (meta) => void engine.onExit(meta).catch(logError));
   sessions.on("metrics", (meta, data) => void engine.onMetrics(meta, data).catch(logError));
@@ -132,7 +132,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     void engine.onStatusLine(meta, payload).catch(logError);
   });
   const copilotQuota = createCopilotPoller(usage, opts.copilotQuota, logError);
-  const quotaEvents = new Set(["session.started", "tool.completed", "turn.completed", "turn.interrupted"]);
+  const quotaEvents = new Set(["session.started", "tool.completed", "turn.completed", "turn.interrupted", "turn.failed"]);
   sessions.on("event", (meta, event) => {
     if (meta.agent === "copilot" && quotaEvents.has(event.type)) copilotQuota.request();
   });

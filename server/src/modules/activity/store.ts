@@ -111,6 +111,7 @@ export class ActivityStore extends EventEmitter<{ item: [item: ActivityItem] }> 
         return this.put(items, finished);
       }
       case "turn.interrupted":
+      case "turn.failed":
       case "turn.completed": {
         const agent = PROVIDER_LABELS[meta.agent ?? DEFAULT_PROVIDER];
         // A Stop TaskPilot read from the agent's transcript, not one the agent sent: say so.

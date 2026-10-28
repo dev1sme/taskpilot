@@ -4,7 +4,7 @@
   "compilerOptions": {
     "declaration": true,
     "emitDeclarationOnly": true,
-    "outDir": "types",
+    "outDir": "dist/types",
     // The plugins augment Fastify's types; app.ts, which imports them, is not part of this build.
     "types": ["node", "@fastify/cookie", "@fastify/websocket", "@fastify/static"]
   },

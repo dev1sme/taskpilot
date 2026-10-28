@@ -3,7 +3,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 
 // typescript-eslint does not support TypeScript 7 yet; Babel parses TS/TSX syntax, which is all the hooks rules need.
 export default [
-  { ignores: ["**/dist/**", "**/node_modules/**", "apps/server/types/**", "e2e/playwright-report/**", "e2e/test-results/**"] },
+  { ignores: ["**/dist/**", "**/node_modules/**", "e2e/playwright-report/**", "e2e/test-results/**"] },
   {
     files: ["apps/web/src/**/*.{ts,tsx}", "apps/server/src/**/*.ts", "apps/server/test/**/*.ts", "packages/*/src/**/*.ts", "e2e/tests/**/*.ts"],
     languageOptions: {

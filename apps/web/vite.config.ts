@@ -7,6 +7,8 @@ const serverPort = Number(process.env.TASKPILOT_PORT ?? 8790);
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // Workspace deps live in the root node_modules; keep Vite's cache there too, not in apps/web.
+  cacheDir: path.resolve(import.meta.dirname, "../../node_modules/.vite/web"),
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),

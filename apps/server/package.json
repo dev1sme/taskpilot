@@ -5,7 +5,7 @@
   "type": "module",
   "exports": {
     "./api-types": {
-      "types": "./types/api-types.d.ts"
+      "types": "./dist/types/api-types.d.ts"
     }
   },
   "scripts": {

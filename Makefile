@@ -38,7 +38,7 @@ link:
 	npm link
 
 clean:
-	rm -rf apps/*/dist packages/*/dist apps/server/types
+	rm -rf apps/*/dist packages/*/dist
 
 run:
 	taskpilot --open --repo $(REPO)

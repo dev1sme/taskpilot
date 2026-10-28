@@ -1,5 +1,6 @@
 import { t } from "../../../core/i18n.js";
 import { parse as parseToml } from "smol-toml";
+import { findNodeAtLocation, getNodeValue, parseTree, type Node as JsonNode, type ParseError, type ParseOptions } from "jsonc-parser";
 import { HttpError } from "../../../core/errors.js";
 
 import type { ConfigScope } from "../shared/sections.js";
@@ -30,97 +31,28 @@ function invalidFile(native: NativeSettings): never {
   throw new HttpError(409, t("configMessages.settings_native_01", { value0: native.id }));
 }
 
-/** JSONC parser with source offsets, used to replace only the selected property values. */
-interface Node {
-  value: unknown;
-  start: number;
-  end: number;
-  keyStart?: number;
-  close?: number;
-  properties?: Map<string, Node>;
+const JSONC: ParseOptions = { allowTrailingComma: true, disallowComments: false };
+
+/** Copilot's settings as a tree with source offsets: comments and trailing commas are fine; any other syntax error, or a key given twice, is not. */
+function jsoncTree(source: string): JsonNode {
+  const errors: ParseError[] = [];
+  const tree = parseTree(source, errors, JSONC);
+  if (errors.length || tree?.type !== "object" || hasDuplicateKey(tree)) throw new Error("jsonc");
+  return tree;
 }
 
-function parseJsonc(source: string): Node {
-  let i = 0;
-  const skip = () => {
-    while (i < source.length) {
-      if (/\s/.test(source[i])) i++;
-      else if (source.startsWith("//", i)) {
-        i = source.indexOf("\n", i + 2);
-        if (i < 0) i = source.length;
-      } else if (source.startsWith("/*", i)) {
-        const end = source.indexOf("*/", i + 2);
-        if (end < 0) throw new Error("comment");
-        i = end + 2;
-      } else break;
-    }
-  };
-  const string = (): string => {
-    const start = i++;
-    while (i < source.length) {
-      if (source[i] === "\\") i += 2;
-      else if (source[i++] === '"') return JSON.parse(source.slice(start, i)) as string;
-    }
-    throw new Error("string");
-  };
-  const parse = (): Node => {
-    skip();
-    const start = i;
-    if (source[i] === "{") {
-      i++;
-      const value: Record<string, unknown> = {};
-      const properties = new Map<string, Node>();
-      skip();
-      while (source[i] !== "}") {
-        if (source[i] !== '"') throw new Error("key");
-        const keyStart = i;
-        const key = string();
-        if (properties.has(key)) throw new Error("duplicate key");
-        skip();
-        if (source[i++] !== ":") throw new Error("colon");
-        const child = parse();
-        child.keyStart = keyStart;
-        value[key] = child.value;
-        properties.set(key, child);
-        skip();
-        if (source[i] !== ",") break;
-        i++;
-        skip();
-      }
-      if (source[i] !== "}") throw new Error("object");
-      const close = i++;
-      return { value, start, end: i, close, properties };
-    }
-    if (source[i] === "[") {
-      i++;
-      const value: unknown[] = [];
-      skip();
-      while (source[i] !== "]") {
-        value.push(parse().value);
-        skip();
-        if (source[i] !== ",") break;
-        i++;
-        skip();
-      }
-      if (source[i++] !== "]") throw new Error("array");
-      return { value, start, end: i };
-    }
-    if (source[i] === '"') return { value: string(), start, end: i };
-    while (i < source.length && !/[\s,}\]]/.test(source[i])) i++;
-    const literal = source.slice(start, i);
-    if (!/^(?:true|false|null|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)$/.test(literal)) throw new Error("literal");
-    return { value: JSON.parse(literal) as unknown, start, end: i };
-  };
-  const root = parse();
-  skip();
-  if (i !== source.length || !isObject(root.value)) throw new Error("root");
-  return root;
+function hasDuplicateKey(node: JsonNode): boolean {
+  if (node.type === "object") {
+    const keys = (node.children ?? []).map((property) => property.children?.[0]?.value as string);
+    if (new Set(keys).size !== keys.length) return true;
+  }
+  return (node.children ?? []).some(hasDuplicateKey);
 }
 
 function parsed(native: NativeSettings, text: string | null): Record<string, unknown> {
   if (text === null || text.trim() === "") return {};
   try {
-    const value: unknown = native.format === "toml" ? parseToml(text) : parseJsonc(text).value;
+    const value: unknown = native.format === "toml" ? parseToml(text) : getNodeValue(jsoncTree(text));
     if (!isObject(value)) invalidFile(native);
     return value;
   } catch {
@@ -171,68 +103,74 @@ export function validateNativeFields(native: NativeSettings, scope: ConfigScope,
   return fields;
 }
 
+/**
+ * Sets or removes each field by editing only its own text, so comments, spacing and every other
+ * key keep their bytes. The library parses; the edits are TaskPilot's, to keep the file's style.
+ */
 function patchJsonc(text: string | null, fields: NativeFields): string {
   let source = text?.trim() ? text : "{}\n";
-  for (const [path, value] of Object.entries(fields)) {
-    const parts = path.split(".");
-    const root = parseJsonc(source);
-    let parent = root;
-    const traversed: string[] = [];
-    for (const part of parts.slice(0, -1)) {
-      const child = parent.properties?.get(part);
-      if (!child) {
-        if (value === null) return source;
-        source = insertProperty(source, parent, part, "{}");
-        parent = parseJsonc(source);
-        for (const segment of [...traversed, part]) parent = parent.properties?.get(segment) ?? parent;
-      } else {
-        if (!child.properties) throw new HttpError(409, t("configMessages.settings_native_06", { value0: part }));
-        parent = child;
-      }
-      traversed.push(part);
-    }
-    const key = parts[parts.length - 1];
-    const old = parent.properties?.get(key);
-    if (old) {
+  for (const [key, value] of Object.entries(fields)) {
+    const path = key.split(".");
+    let missing = false;
+    for (let depth = 1; depth < path.length; depth++) {
+      const tree = jsoncTree(source);
+      const group = findNodeAtLocation(tree, path.slice(0, depth));
+      if (group && group.type !== "object") throw new HttpError(409, t("configMessages.settings_native_06", { value0: path[depth - 1] }));
+      if (group) continue;
       if (value === null) {
-        const siblings = [...(parent.properties?.values() ?? [])];
-        const index = siblings.indexOf(old);
-        const next = siblings[index + 1];
-        const previous = siblings[index - 1];
-        if (next) {
-          const comma = source.indexOf(",", old.end);
-          if (comma < 0 || comma >= (next.keyStart ?? 0)) throw new HttpError(409, t("configMessages.settings_native_07", { value0: path }));
-          source = source.slice(0, old.keyStart) + source.slice(comma + 1);
-        } else if (previous) {
-          const comma = source.indexOf(",", previous.end);
-          if (comma < 0 || comma >= (old.keyStart ?? 0)) throw new HttpError(409, t("configMessages.settings_native_08", { value0: path }));
-          source = source.slice(0, comma) + source.slice(old.end);
-        } else {
-          const gap = source.slice(old.end, parent.close);
-          const trailing = /^\s*,/.exec(gap);
-          source = source.slice(0, old.keyStart) + source.slice(old.end + (trailing?.[0].length ?? 0));
-        }
-        continue;
+        missing = true;
+        break;
       }
-      source = source.slice(0, old.start) + JSON.stringify(value) + source.slice(old.end);
-    } else if (value !== null) source = insertProperty(source, parent, key, JSON.stringify(value));
+      source = insertProperty(source, depth === 1 ? tree : findNodeAtLocation(tree, path.slice(0, depth - 1))!, path[depth - 1], "{}");
+    }
+    if (missing) continue;
+    const tree = jsoncTree(source);
+    const parent = path.length === 1 ? tree : findNodeAtLocation(tree, path.slice(0, -1))!;
+    const old = findNodeAtLocation(parent, [path[path.length - 1]]);
+    if (old && value === null) source = removeProperty(source, parent, old.parent!, key);
+    else if (old) source = source.slice(0, old.offset) + JSON.stringify(value) + source.slice(old.offset + old.length);
+    else if (value !== null) source = insertProperty(source, parent, path[path.length - 1], JSON.stringify(value));
   }
-  parseJsonc(source);
+  jsoncTree(source);
   return source;
 }
 
-function insertProperty(source: string, object: Node, key: string, encoded: string): string {
-  if (object.close === undefined || !object.properties) throw new HttpError(409, t("configMessages.settings_native_09"));
-  const entries = [...object.properties.values()];
-  if (!entries.length) return source.slice(0, object.close) + `${JSON.stringify(key)}: ${encoded}` + source.slice(object.close);
-  const last = entries[entries.length - 1];
-  const gap = source.slice(last.end, object.close);
-  const trailing = /^(\s*,)/.exec(gap);
+const endOf = (node: JsonNode) => node.offset + node.length;
+
+/** Removes a property with the comma that joins it to a neighbour; comments around it stay. */
+function removeProperty(source: string, object: JsonNode, property: JsonNode, key: string): string {
+  const siblings = object.children ?? [];
+  const index = siblings.indexOf(property);
+  const next = siblings[index + 1];
+  const previous = siblings[index - 1];
+  if (next) {
+    const comma = source.indexOf(",", endOf(property));
+    if (comma < 0 || comma >= next.offset) throw new HttpError(409, t("configMessages.settings_native_07", { value0: key }));
+    return source.slice(0, property.offset) + source.slice(comma + 1);
+  }
+  if (previous) {
+    const comma = source.indexOf(",", endOf(previous));
+    if (comma < 0 || comma >= property.offset) throw new HttpError(409, t("configMessages.settings_native_08", { value0: key }));
+    return source.slice(0, comma) + source.slice(endOf(property));
+  }
+  const close = endOf(object) - 1;
+  const trailing = /^\s*,/.exec(source.slice(endOf(property), close));
+  return source.slice(0, property.offset) + source.slice(endOf(property) + (trailing?.[0].length ?? 0));
+}
+
+/** Adds `"key": encoded` as the object's last property, after a trailing comma when the file has one. */
+function insertProperty(source: string, object: JsonNode, key: string, encoded: string): string {
+  if (object.type !== "object") throw new HttpError(409, t("configMessages.settings_native_09"));
+  const close = endOf(object) - 1;
+  const entries = object.children ?? [];
+  if (!entries.length) return source.slice(0, close) + `${JSON.stringify(key)}: ${encoded}` + source.slice(close);
+  const last = endOf(entries[entries.length - 1]);
+  const trailing = /^(\s*,)/.exec(source.slice(last, close));
   if (trailing) {
-    const at = last.end + trailing[1].length;
+    const at = last + trailing[1].length;
     return source.slice(0, at) + ` ${JSON.stringify(key)}: ${encoded}` + source.slice(at);
   }
-  return source.slice(0, last.end) + `, ${JSON.stringify(key)}: ${encoded}` + source.slice(last.end);
+  return source.slice(0, last) + `, ${JSON.stringify(key)}: ${encoded}` + source.slice(last);
 }
 
 function patchToml(native: NativeSettings, text: string | null, fields: NativeFields): string {

@@ -5,6 +5,7 @@ import type { WebSocket } from "ws";
 import { HttpError } from "../../core/errors.js";
 import type { SessionMeta, StateStore } from "../../core/state.js";
 import { nextActivity, type Activity, type HookEvent } from "./hooks.js";
+import { sessionEventFromHook, type SessionEvent } from "./events.js";
 import type { SessionLauncher as Launcher } from "./backends/types.js";
 import { DEFAULT_PROVIDER, type ProviderId } from "../../core/providers.js";
 import { backendOf, type HookState, type ProviderPromptInventory } from "./backends/index.js";
@@ -91,6 +92,7 @@ export interface SessionEvents {
   metrics: [meta: SessionMeta, data: SessionMetrics];
   /** Status or activity changed; for UI refresh. */
   change: [meta: SessionMeta];
+  event: [meta: SessionMeta, event: SessionEvent];
   hook: [meta: SessionMeta, event: HookEvent, payload: Record<string, unknown>];
   /** Input of the session's status line (plan usage, cost). */
   statusline: [meta: SessionMeta, payload: Record<string, unknown>];
@@ -574,6 +576,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       live.activity = activity;
       this.emit("change", meta);
     }
+    this.emit("event", meta, sessionEventFromHook({ sessionId: meta.id, provider: meta.agent ?? DEFAULT_PROVIDER }, event, payload));
     this.emit("hook", meta, event, payload);
   }
 

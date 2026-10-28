@@ -52,7 +52,9 @@ Tool names currently retain adapter-normalized names; tool vocabulary and raw
 result/error schemas are not standardized in this step. Output, input and errors
 remain unknown rather than asserting an unverified common schema.
 
-The bridge has no runtime subscribers or emissions yet. HTTP hook names, current
-hook consumers, workflow behavior, state and API formats remain unchanged. Migrate
-consumers in a later step after verifying all fields they require; do not emit
-both streams into the same workflow consumer or normalize a payload twice.
+SessionManager emits the neutral `event` stream after identity validation, backend
+normalization and permission gating. ActivityStore consumes only that stream. The
+legacy `hook` stream remains for workflow and quota consumers; they are not migrated
+yet. Resume, transcript provenance and tool duration are carried explicitly to
+preserve activity output. HTTP hook names, workflow behavior, state and API formats
+remain unchanged. Never subscribe a consumer to both streams or normalize twice.

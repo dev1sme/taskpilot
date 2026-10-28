@@ -112,8 +112,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   sessions.on("change", (meta) => hub.publish("sessions", { taskKey: meta.taskKey }));
   const activity = new ActivityStore(path.join(opts.state.dir, "activity"));
   activity.on("item", (item) => hub.publish("activity", item));
+  sessions.on("event", (meta, event) => void activity.record(meta, event).catch(logError));
   sessions.on("hook", (meta, event, payload) => {
-    void activity.record(meta, event, payload).catch(logError);
     void engine.onHook(meta, event, payload).catch(logError);
   });
   sessions.on("exit", (meta) => void engine.onExit(meta).catch(logError));

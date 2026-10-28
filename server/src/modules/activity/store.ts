@@ -1,7 +1,7 @@
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { EventEmitter } from "node:events";
-import type { HookEvent } from "../sessions/index.js";
+import type { SessionEvent } from "../sessions/index.js";
 import type { SessionMeta } from "../../core/state.js";
 import { describeTool, firstLine, type ToolCategory } from "./describe.js";
 import { t } from "../../core/i18n.js";
@@ -48,38 +48,38 @@ export class ActivityStore extends EventEmitter<{ item: [item: ActivityItem] }> 
   }
 
   /** Hooks arrive in quick succession (PreToolUse, PostToolUse…); apply them one at a time. */
-  record(meta: SessionMeta, event: HookEvent, payload: Record<string, unknown>): Promise<void> {
-    const next = this.queue.then(() => this.apply(meta, event, payload));
+  record(meta: SessionMeta, event: SessionEvent): Promise<void> {
+    const next = this.queue.then(() => this.apply(meta, event));
     this.queue = next.catch(() => undefined);
     return next;
   }
 
-  private async apply(meta: SessionMeta, event: HookEvent, payload: Record<string, unknown>): Promise<void> {
+  private async apply(meta: SessionMeta, event: SessionEvent): Promise<void> {
     const items = await this.load(meta.id);
     const now = Date.now();
     const base = { sessionId: meta.id, taskKey: meta.taskKey, at: now };
-    const str = (key: string) => (typeof payload[key] === "string" ? (payload[key] as string) : "");
-    const toolUseId = str("tool_use_id");
-    const tool = str("tool_name");
-    const input = (typeof payload.tool_input === "object" && payload.tool_input ? payload.tool_input : {}) as Record<string, unknown>;
+    const toolData = "tool" in event ? event.tool : {};
+    const toolUseId = toolData.callId ?? "";
+    const tool = toolData.name ?? "";
+    const input = (typeof toolData.input === "object" && toolData.input ? toolData.input : {}) as Record<string, unknown>;
 
-    switch (event) {
-      case "SessionStart":
+    switch (event.type) {
+      case "session.started":
         return this.put(items, {
           ...base,
           id: this.newId(),
           kind: "session",
-          summary: str("source") === "resume" ? t("activity.sessionResume") : t("activity.sessionStart"),
+          summary: event.resumed === true ? t("activity.sessionResume") : t("activity.sessionStart"),
         });
-      case "UserPromptSubmit":
+      case "prompt.submitted":
         return this.put(items, {
           ...base,
           id: this.newId(),
           kind: "prompt",
-          summary: t("activity.prompt", { text: firstLine(str("prompt"), 100) }),
-          detail: str("prompt"),
+          summary: t("activity.prompt", { text: firstLine(event.prompt ?? "", 100) }),
+          detail: event.prompt ?? "",
         });
-      case "PreToolUse":
+      case "tool.started":
         return this.put(items, {
           ...base,
           id: toolUseId || this.newId(),
@@ -88,7 +88,7 @@ export class ActivityStore extends EventEmitter<{ item: [item: ActivityItem] }> 
           ...describeTool(tool, input, meta.repo),
           status: "running",
         });
-      case "PermissionRequest": {
+      case "permission.requested": {
         const action = describeTool(tool, input, meta.repo).summary;
         return this.put(items, {
           ...base,
@@ -99,22 +99,23 @@ export class ActivityStore extends EventEmitter<{ item: [item: ActivityItem] }> 
           action,
         });
       }
-      case "PostToolUse":
-      case "PostToolUseFailure": {
+      case "tool.completed":
+      case "tool.failed": {
         const running = items.find((i) => i.id === toolUseId);
-        const failed = event === "PostToolUseFailure";
-        const durationMs = typeof payload.duration_ms === "number" ? payload.duration_ms : undefined;
+        const failed = event.type === "tool.failed";
+        const durationMs = event.durationMs;
         const finished: ActivityItem = running
           ? { ...running, status: failed ? "error" : "done", durationMs }
           : { ...base, id: toolUseId || this.newId(), kind: "tool", tool, ...describeTool(tool, input, meta.repo), status: failed ? "error" : "done", durationMs };
-        if (failed && typeof payload.error === "string") finished.detail = clipBlock(payload.error);
+        if (event.type === "tool.failed" && typeof event.error === "string") finished.detail = clipBlock(event.error);
         return this.put(items, finished);
       }
-      case "Stop": {
+      case "turn.interrupted":
+      case "turn.completed": {
         const agent = PROVIDER_LABELS[meta.agent ?? DEFAULT_PROVIDER];
         // A Stop TaskPilot read from the agent's transcript, not one the agent sent: say so.
-        const summary = payload.source === "transcript" ? t("activity.stopFromTranscript", { agent }) : firstLine(str("last_assistant_message"), 140) || t("activity.stop", { agent });
-        return this.put(items, { ...base, id: this.newId(), kind: "stop", summary, detail: str("last_assistant_message") });
+        const summary = event.source === "transcript" ? t("activity.stopFromTranscript", { agent }) : firstLine(event.message ?? "", 140) || t("activity.stop", { agent });
+        return this.put(items, { ...base, id: this.newId(), kind: "stop", summary, detail: event.message ?? "" });
       }
     }
   }

@@ -1,6 +1,8 @@
 import { afterAll, describe, expect, it } from "vitest";
+import { t } from "../../../src/core/i18n.js";
 import { describeTool } from "../../../src/modules/activity/describe.js";
 import { ActivityStore } from "../../../src/modules/activity/store.js";
+import { sessionEventFromHook, type HookEvent } from "../../../src/modules/sessions/index.js";
 import type { SessionMeta } from "../../../src/core/state.js";
 import { cleanupTempDirs, tempDir } from "../../helpers/fixtures.js";
 
@@ -13,6 +15,8 @@ const meta: SessionMeta = {
   title: "Session 1",
   createdAt: 0,
 };
+
+const hook = (event: HookEvent, payload: Record<string, unknown>) => sessionEventFromHook({ sessionId: meta.id, provider: "claude" }, event, payload);
 
 describe("describeTool", () => {
   it.each([
@@ -35,13 +39,13 @@ describe("ActivityStore", () => {
     const seen: string[] = [];
     store.on("item", (i) => seen.push(`${i.kind}:${i.status ?? ""}`));
 
-    await store.record(meta, "SessionStart", { source: "startup" });
-    await store.record(meta, "UserPromptSubmit", { prompt: "Investigate DEMO-1\nmore lines" });
-    await store.record(meta, "PreToolUse", { tool_name: "Read", tool_use_id: "t1", tool_input: { file_path: "/repo/a.md" } });
-    await store.record(meta, "PostToolUse", { tool_name: "Read", tool_use_id: "t1", duration_ms: 12 });
-    await store.record(meta, "PreToolUse", { tool_name: "Bash", tool_use_id: "t2", tool_input: { command: "ls nope" } });
-    await store.record(meta, "PostToolUseFailure", { tool_name: "Bash", tool_use_id: "t2", error: "Exit code 2", duration_ms: 30 });
-    await store.record(meta, "Stop", { last_assistant_message: "Plan written.\nDetails…" });
+    await store.record(meta, hook("SessionStart", { source: "startup" }));
+    await store.record(meta, hook("UserPromptSubmit", { prompt: "Investigate DEMO-1\nmore lines" }));
+    await store.record(meta, hook("PreToolUse", { tool_name: "Read", tool_use_id: "t1", tool_input: { file_path: "/repo/a.md" } }));
+    await store.record(meta, hook("PostToolUse", { tool_name: "Read", tool_use_id: "t1", duration_ms: 12 }));
+    await store.record(meta, hook("PreToolUse", { tool_name: "Bash", tool_use_id: "t2", tool_input: { command: "ls nope" } }));
+    await store.record(meta, hook("PostToolUseFailure", { tool_name: "Bash", tool_use_id: "t2", error: "Exit code 2", duration_ms: 30 }));
+    await store.record(meta, hook("Stop", { last_assistant_message: "Plan written.\nDetails…" }));
 
     const items = await store.list([meta.id]);
     expect(items.map((i) => [i.kind, i.summary, i.status])).toEqual([
@@ -59,9 +63,19 @@ describe("ActivityStore", () => {
     expect(reloaded).toEqual(items);
   });
 
+  it("preserves resume and transcript summaries through neutral events", async () => {
+    const store = new ActivityStore(await tempDir("taskpilot-activity-"));
+    await store.record(meta, { sessionId: meta.id, provider: "codex", type: "session.started", resumed: true });
+    await store.record(meta, { sessionId: meta.id, provider: "codex", type: "turn.interrupted", source: "transcript", message: "partial answer" });
+    const items = await store.list([meta.id]);
+    expect(items).toHaveLength(2);
+    expect(items[0].summary).toBe(t("activity.sessionResume"));
+    expect(items[1]).toMatchObject({ kind: "stop", detail: "partial answer" });
+  });
+
   it("keeps what a permission request asks for apart from its prefix", async () => {
     const store = new ActivityStore(await tempDir("taskpilot-activity-"));
-    await store.record(meta, "PermissionRequest", { tool_name: "Bash", tool_input: { command: "npm test" } });
+    await store.record(meta, hook("PermissionRequest", { tool_name: "Bash", tool_input: { command: "npm test" } }));
 
     const [item] = await store.list([meta.id]);
     expect(item).toMatchObject({ kind: "permission", summary: "Xin quyền: Chạy npm test", action: "Chạy npm test" });

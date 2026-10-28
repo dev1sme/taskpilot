@@ -20,6 +20,8 @@ Naming:
 - `modules/usage/*-poller.ts`: schedules reads and applies them to the usage store.
 - `version.ts`: provider-specific parsing through core's shared CLI version reader.
 - `app-server.ts` / `acp.ts`: native protocol clients, not session orchestration.
+- `rollout.ts` / `transcript.ts`: reads the CLI's own session log (token counts, turn ends, last message).
+- `tool-names.ts`: maps the CLI's runtime tool names to the names TaskPilot uses.
 
 Tests mirror providers under `server/test/providers/`. Architecture tests enforce
 layer boundaries; keep public module exports as the route between use cases.

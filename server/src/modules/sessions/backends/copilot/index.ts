@@ -8,13 +8,9 @@ import type { ProviderCapability, BackendProbeContext } from "../types.js";
 import { ensureCopilotHooks } from "./install-hooks.js";
 import { copilotFinishedTurn, normalizeCopilot } from "./normalize.js";
 
-export { COPILOT_SETTINGS, copilotHooksFile, ensureCopilotHooks, stripComments, userHooksText, withoutTaskPilotHooks } from "./install-hooks.js";
-export { copilotFinishedTurn, normalizeCopilot } from "./normalize.js";
-export { copilotTranscript, lastAssistantMessage } from "./transcript.js";
-
 /**
  * Footer of copilot's input box; absent while the folder trust prompt is shown. Checked on copilot
- * 1.0.101: check it again after every Copilot upgrade (docs/SPEC.md §7).
+ * 1.0.101: check it again after every Copilot upgrade.
  */
 const READY_MARKER = "/ commands";
 /**

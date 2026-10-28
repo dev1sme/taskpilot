@@ -1,6 +1,6 @@
 import { open } from "node:fs/promises";
 import path from "node:path";
-import { copilotHome } from "../../../../providers/copilot/home.js";
+import { copilotHome } from "./home.js";
 
 /** Enough of events.jsonl to find the last assistant message of a turn. */
 const TRANSCRIPT_TAIL_BYTES = 2 * 1024 * 1024;
@@ -18,7 +18,7 @@ export function copilotTranscript(sessionId: string): string {
   return path.join(copilotHome(), "session-state", sessionId, "events.jsonl");
 }
 
-export async function readTail(file: string): Promise<string | null> {
+async function readTail(file: string): Promise<string | null> {
   try {
     const handle = await open(file, "r");
     try {
@@ -70,4 +70,33 @@ async function readLastMessage(file: string): Promise<{ message: string | null; 
     }
   }
   return { message: null, turnEndedAt };
+}
+
+/**
+ * When the turn begun after `since` ended, as the transcript shows it: the last assistant/tool/user
+ * line is an `assistant.turn_end` written after `since`, and nothing at all was written for
+ * `idleMs` (a turn_end also ends each round of tool calls, but those rounds go on within seconds).
+ * Null while the turn is still going or the transcript is unreadable.
+ */
+export async function transcriptTurnEnd(file: string, since: number, idleMs: number, now = Date.now()): Promise<number | null> {
+  const text = await readTail(file);
+  if (text === null) return null;
+  let last: { type: string; at: number } | null = null;
+  let lastWork: { type: string; at: number } | null = null;
+  for (const line of text.split("\n")) {
+    if (!line.startsWith("{")) continue;
+    let event: { type?: unknown; timestamp?: unknown };
+    try {
+      event = JSON.parse(line) as typeof event;
+    } catch {
+      continue;
+    }
+    if (typeof event.type !== "string" || typeof event.timestamp !== "string") continue;
+    const at = Date.parse(event.timestamp);
+    if (Number.isNaN(at)) continue;
+    last = { type: event.type, at };
+    if (/^(assistant|tool)\.|^user\.message$/.test(event.type)) lastWork = last;
+  }
+  if (!last || lastWork?.type !== "assistant.turn_end" || lastWork.at < since || now - last.at < idleMs) return null;
+  return lastWork.at;
 }

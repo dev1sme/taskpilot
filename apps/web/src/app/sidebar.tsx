@@ -189,13 +189,13 @@ export function Sidebar({ mode, onToggle, onNavigate, onSwitchRepo }: { mode: Si
         )}
       </button>
 
-      <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1">
+      <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1">
         {groups.map((group) => (
-          <div key={group.id} className="grid gap-2">
+          <div key={group.id} className="grid gap-1">
             {rail ? (
               <div role="presentation" className="mx-2 border-t border-line" />
             ) : (
-              <div className="flex items-center gap-3 px-2.5 pt-2">
+              <div className="flex items-center gap-3 px-2.5 pt-1">
                 <h2 className="shrink-0 font-sans text-sm font-semibold tracking-normal text-ink">{group.label}</h2>
                 <span aria-hidden className="h-px min-w-3 flex-1 bg-line" />
               </div>
@@ -206,19 +206,14 @@ export function Sidebar({ mode, onToggle, onNavigate, onSwitchRepo }: { mode: Si
         <ul className="mt-auto grid gap-0.5">{renderItem(backups)}</ul>
       </div>
 
-      <div className={cn("grid gap-2 border-t border-line pt-3", rail && "justify-items-center")}>
+      <div className={cn("flex items-center gap-1 border-t border-line pt-3", rail && "flex-col gap-2")}>
         <ThemeMenu compact={rail} />
         {authMode === "password" && (
-          <Button
-            variant="ghost"
-            size={rail ? "icon-sm" : "sm"}
-            className={rail ? undefined : "justify-start"}
-            onClick={() => void logout()}
-            aria-label={rail ? t("auth:logout") : undefined}
-          >
-            <SignOut aria-hidden />
-            {!rail && t("auth:logout")}
-          </Button>
+          <Tooltip content={t("auth:logout")} side={rail ? "right" : "top"}>
+            <Button variant="ghost" size="icon-sm" className="shrink-0" onClick={() => void logout()} aria-label={t("auth:logout")}>
+              <SignOut aria-hidden />
+            </Button>
+          </Tooltip>
         )}
       </div>
     </nav>

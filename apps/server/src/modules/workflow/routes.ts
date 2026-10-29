@@ -8,12 +8,20 @@ import { parseHandoffRequest } from "./handoff.js";
 
 /** Workflow run of a task: view, start, cancel, approve a gate, send feedback, answer Claude, restart, retry, mark a step done; reply to, retry or mark done one subtask; mark the task done or open. */
 /** Independent mode/execution choices; old mode-only and empty requests still work. */
+const RUN_OPTION_KEYS = new Set(["mode", "execution", "isolation", "acceptDirtyBase"]);
+
 function optionsOf(body: unknown): RunOptions {
   if (body === undefined || body === null) return {};
-  if (typeof body !== "object" || Array.isArray(body) || Object.keys(body).some((key) => key !== "mode" && key !== "execution"))
-    throw new HttpError(400, "Body must contain mode/execution options");
-  const { mode, execution } = body as { mode?: unknown; execution?: unknown };
-  const options = execution === undefined ? {} : { execution: parseExecution(execution) };
+  if (typeof body !== "object" || Array.isArray(body) || Object.keys(body).some((key) => !RUN_OPTION_KEYS.has(key)))
+    throw new HttpError(400, "Body must contain mode/execution/isolation options");
+  const { mode, execution, isolation, acceptDirtyBase } = body as { mode?: unknown; execution?: unknown; isolation?: unknown; acceptDirtyBase?: unknown };
+  if (isolation !== undefined && isolation !== "repo" && isolation !== "worktree") throw new HttpError(400, 'isolation must be "repo" or "worktree"');
+  if (acceptDirtyBase !== undefined && typeof acceptDirtyBase !== "boolean") throw new HttpError(400, "acceptDirtyBase must be a boolean");
+  const options: RunOptions = {
+    ...(execution === undefined ? {} : { execution: parseExecution(execution) }),
+    ...(isolation === undefined ? {} : { isolation }),
+    ...(acceptDirtyBase === undefined ? {} : { acceptDirtyBase }),
+  };
   if (mode === undefined || mode === null) return options;
   if (typeof mode !== "string") throw new HttpError(400, 'Body must be {"mode"?: string}');
   return { ...options, mode };
@@ -73,6 +81,28 @@ export function registerWorkflowRoutes(app: FastifyInstance, opts: { repo: RepoC
   );
 
   app.post<{ Params: { key: string } }>("/api/tasks/:key/run/retry", async (req) => engine.retry(requireRepo(), req.params.key));
+
+  // A run's own worktree: whether one can be made, what is in it, and the user's integrate/remove actions.
+  app.get<{ Params: { key: string } }>("/api/tasks/:key/run/worktree-check", async (req) => {
+    await getTask(requireRepo(), req.params.key);
+    return engine.worktreeCheck(requireRepo());
+  });
+
+  app.get<{ Params: { key: string } }>("/api/tasks/:key/workspaces", async (req) => engine.workspaces(requireRepo(), (await getTask(requireRepo(), req.params.key)).key));
+
+  app.get<{ Params: { key: string; runId: string } }>("/api/tasks/:key/workspaces/:runId/diff", async (req) =>
+    engine.workspaceDiff(requireRepo(), (await getTask(requireRepo(), req.params.key)).key, req.params.runId),
+  );
+
+  app.post<{ Params: { key: string; runId: string }; Body: { commit?: unknown } | null }>("/api/tasks/:key/workspaces/:runId/integrate", async (req) => {
+    const commit = req.body?.commit;
+    if (commit !== undefined && typeof commit !== "boolean") throw new HttpError(400, 'Body must be {"commit"?: boolean}');
+    return engine.integrateWorkspace(requireRepo(), (await getTask(requireRepo(), req.params.key)).key, req.params.runId, { commit: commit === true });
+  });
+
+  app.delete<{ Params: { key: string; runId: string }; Querystring: { force?: string } }>("/api/tasks/:key/workspaces/:runId", async (req) =>
+    engine.removeWorkspace(requireRepo(), (await getTask(requireRepo(), req.params.key)).key, req.params.runId, { force: req.query.force === "1" }),
+  );
 
   // Not under run/: `run/complete` already marks one step done; this marks the whole task.
   app.put<{ Params: { key: string }; Body: { done?: unknown } | null }>("/api/tasks/:key/done", async (req) => {

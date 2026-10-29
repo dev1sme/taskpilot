@@ -14,6 +14,7 @@ export const claudeBackend: ProviderBackend = {
   requiresLogin: false,
   requiresModelInventory: false,
   warnsWhenNoHook: false,
+  supportsExtraDirs: true,
   modelProblem: claudeModelProblem,
   probe: (context) => probePty(claudeBackend, context),
   launcher: claudeLauncher,

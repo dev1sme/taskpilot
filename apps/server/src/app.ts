@@ -24,6 +24,7 @@ import { createRepoContext, registerRepoRoutes } from "./modules/repo/index.js";
 import { SessionManager, registerSessionsRoutes } from "./modules/sessions/index.js";
 import { registerTasksRoutes, TasksWatcher } from "./modules/tasks/index.js";
 import { createClaudePoller, createCodexPoller, createCopilotPoller, registerUsageRoutes, UsageStore } from "./modules/usage/index.js";
+import { WorktreeConflict, WorktreeManager } from "./modules/workspace/index.js";
 import { ExecutionValidationError, WorkflowEngine, loadWorkflow, readRepoSettings, type LoadDef, registerWorkflowRoutes, stageOf } from "./modules/workflow/index.js";
 
 export interface AppOptions {
@@ -98,15 +99,23 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   /** A mode's workflow; the repo's own choice (.taskpilot/settings.yml) when `mode` is absent. */
   const loadDef: LoadDef = opts.loadWorkflow ?? (async (r, mode) => loadWorkflow(r, mode, (await readRepoSettings(r)).mode));
   // The engine checks the plan's subagents and lists them to the leader; config reads them.
-  const engine = new WorkflowEngine(opts.state, sessions, loadDef, subagentsOf, undefined, async (repo) =>
-    createSafeText([
-      ...Object.values(await envStore.forRepo(repo)),
-      ...Object.entries(process.env)
-        .filter(([key]) => /secret|token|password|credential|cookie|auth|(?:^|_)key(?:$|_)/i.test(key))
-        .map(([, value]) => value ?? ""),
-      opts.token ?? "",
-      opts.login?.password ?? "",
-    ]),
+  const worktrees = new WorktreeManager(opts.state);
+  const engine = new WorkflowEngine(
+    opts.state,
+    sessions,
+    loadDef,
+    subagentsOf,
+    undefined,
+    async (repo) =>
+      createSafeText([
+        ...Object.values(await envStore.forRepo(repo)),
+        ...Object.entries(process.env)
+          .filter(([key]) => /secret|token|password|credential|cookie|auth|(?:^|_)key(?:$|_)/i.test(key))
+          .map(([, value]) => value ?? ""),
+        opts.token ?? "",
+        opts.login?.password ?? "",
+      ]),
+    worktrees,
   );
   const logError = (e: unknown) => app.log.error(e);
   sessions.on("change", (meta) => hub.publish("sessions", { taskKey: meta.taskKey }));
@@ -142,6 +151,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   engine.on("warning", logError);
   // Reconcile journals and prove old writers exited before exposing resume/input or workflow routes.
   await engine.recover();
+  // Only marks worktrees whose folder is gone; nothing is removed or recreated.
+  await worktrees.reconcile().catch(logError);
   const repo = createRepoContext({ watcher, state: opts.state, hub });
 
   const initial = opts.repo ?? (await opts.state.load()).lastRepo;
@@ -160,6 +171,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof ExecutionValidationError) return reply.code(400).send({ error: t("errors.workflowInvalid", { errors: err.message }), problems: err.problems });
+    // The files a worktree action stopped at, so the UI can list them and ask before going on.
+    if (err instanceof WorktreeConflict) return reply.code(err.status).send({ error: err.message, files: err.files });
     if (err instanceof HttpError) return reply.code(err.status).send({ error: err.message });
     app.log.error(err);
     return reply.code(500).send({ error: "Internal error" });

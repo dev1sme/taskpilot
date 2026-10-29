@@ -33,7 +33,7 @@ export function codexHookKey(event: string, raw: Record<string, unknown>): strin
 }
 
 /** A process token is inherited by native children; it is not root-thread identity evidence. */
-export async function acceptCodexHook(event: string, raw: Record<string, unknown>, meta: { nativeId?: string; repo: string }): Promise<boolean> {
+export async function acceptCodexHook(event: string, raw: Record<string, unknown>, meta: { nativeId?: string; repo: string; cwd?: string }): Promise<boolean> {
   const id = raw.session_id;
   if (typeof id !== "string" || !id || raw.agent_id || raw.parent_thread_id || raw.parent_session_id) return false;
   if (typeof raw.hook_event_name !== "string" || (raw.hook_event_name !== event && !(event === "Stop" && raw.hook_event_name === "Interrupt"))) return false;
@@ -42,5 +42,5 @@ export async function acceptCodexHook(event: string, raw: Record<string, unknown
   // Recheck the metadata on later hooks too: SessionStart can race the rollout's first write.
   if (typeof raw.transcript_path !== "string" || !path.isAbsolute(raw.transcript_path)) return false;
   const identity = await rolloutIdentity(raw.transcript_path);
-  return identity?.id === id && identity.source === "cli" && typeof identity.cwd === "string" && path.resolve(identity.cwd) === path.resolve(meta.repo);
+  return identity?.id === id && identity.source === "cli" && typeof identity.cwd === "string" && path.resolve(identity.cwd) === path.resolve(meta.cwd ?? meta.repo);
 }

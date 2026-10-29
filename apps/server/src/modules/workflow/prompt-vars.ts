@@ -16,6 +16,7 @@ export const templateVars = [
   "stepNumber",
   "stepCount",
   "taskDir",
+  "workdir",
   "specDir",
   "historyFile",
   "historyEntry",
@@ -95,9 +96,14 @@ export function promptVars(
     subagents?: ClaudeSubagentInfo[];
     /** For a leader whose provider lists its own agents and models (Copilot): them, for {{subagents}}. */
     inventory?: ProviderPromptInventory;
+    /**
+     * The run executes in its own worktree, where the (Git-ignored) task folder does not exist: task
+     * paths become the absolute ones in the repo, and a rule says where the code is.
+     */
+    workspace?: { taskDir: string; workdir: string; branch: string };
   } = {},
 ): Record<string, string> {
-  const taskDir = taskRelativeDir(task.key);
+  const taskDir = opts.workspace ? opts.workspace.taskDir.split(path.sep).join("/") : taskRelativeDir(task.key);
   const step = def.steps[stepIndex];
   const effective = resolveExecution({
     workflow: def,
@@ -135,6 +141,7 @@ export function promptVars(
     stepNumber: String(stepIndex + 1),
     stepCount: String(def.steps.length),
     taskDir,
+    workdir: opts.workspace?.workdir ?? ".",
     specDir: `${taskDir}/${SPEC_DIR}`,
     historyFile,
     language: def.language,
@@ -195,7 +202,9 @@ export function promptVars(
     subtaskLimit: maxSubtasks !== undefined ? PROMPT_TEXT.subtaskLimit(maxSubtasks) : "",
     historyEntry: render(def.history.entry, base),
     historyFormat: fence(render(def.history.formatText ?? def.history.entry, base).trim()),
-    rules: rulesFor(def.rules, base, !!opts.subtask),
+    rules: [rulesFor(def.rules, base, !!opts.subtask), ...(opts.workspace ? [`- ${PROMPT_TEXT.worktree(opts.workspace.workdir, taskDir, opts.workspace.branch)}`] : [])]
+      .filter(Boolean)
+      .join("\n"),
     outputs: documents(step?.outputs ?? []),
     inputs,
     previousRun: previousRun(def, opts.previous, taskDir, historyFile),

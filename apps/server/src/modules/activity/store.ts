@@ -67,11 +67,11 @@ export class ActivityStore extends EventEmitter<{ item: [item: ActivityItem] }> 
           id: toolUseId || this.newId(),
           kind: "tool",
           tool,
-          ...describeTool(tool, input, meta.repo),
+          ...describeTool(tool, input, meta.cwd ?? meta.repo),
           status: "running",
         });
       case "permission.requested": {
-        const action = describeTool(tool, input, meta.repo).summary;
+        const action = describeTool(tool, input, meta.cwd ?? meta.repo).summary;
         return this.put(items, {
           ...base,
           id: this.newId(),
@@ -88,7 +88,7 @@ export class ActivityStore extends EventEmitter<{ item: [item: ActivityItem] }> 
         const durationMs = event.durationMs;
         const finished: ActivityItem = running
           ? { ...running, status: failed ? "error" : "done", durationMs }
-          : { ...base, id: toolUseId || this.newId(), kind: "tool", tool, ...describeTool(tool, input, meta.repo), status: failed ? "error" : "done", durationMs };
+          : { ...base, id: toolUseId || this.newId(), kind: "tool", tool, ...describeTool(tool, input, meta.cwd ?? meta.repo), status: failed ? "error" : "done", durationMs };
         if (event.type === "tool.failed" && typeof event.error === "string") finished.detail = clipBlock(event.error);
         return this.put(items, finished);
       }

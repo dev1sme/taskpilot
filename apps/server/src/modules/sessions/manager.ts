@@ -28,6 +28,11 @@ export interface SessionCreateOptions {
   model?: string;
   subagent?: string;
   codex?: SessionMeta["codex"];
+  /** Where the process runs instead of the repo (the run's worktree); kept for every resume. */
+  cwd?: string;
+  /** Directories outside `cwd` the agent may use (the task's documents). */
+  extraDirs?: string[];
+  runId?: string;
   /** Creates a locked target; only release after the workflow has committed the lane. */
   operationId?: string;
   /** Runs after the id is durable, before any process. Rejection prevents spawn. */
@@ -133,16 +138,17 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     return sessionCapabilities((request) => this.probeContext(repo, request));
   }
 
-  async preflight(repo: string, request: PreflightRequest) {
-    return preflightSession(request, (configuration) => this.probeContext(repo, configuration));
+  /** `cwd`: where the session will run (a run's worktree); subagents and the CLI are checked there, env stays the repo's. */
+  async preflight(repo: string, request: PreflightRequest, opts: { cwd?: string } = {}) {
+    return preflightSession(request, (configuration) => this.probeContext(repo, configuration, opts.cwd));
   }
 
-  private async probeContext(repo: string, request: PreflightRequest): Promise<BackendProbeContext> {
+  private async probeContext(repo: string, request: PreflightRequest, cwd = repo): Promise<BackendProbeContext> {
     const backend = backendOf(request.agent);
     const launcher = this.launchers[request.agent] ?? backend.launcher;
     return {
-      repo,
-      command: launcher("preflight", backend.launchOptions({}, { resume: false, permissionMode: request.permissionMode, model: request.model, subagent: request.subagent, repo })),
+      repo: cwd,
+      command: launcher("preflight", backend.launchOptions({}, { resume: false, permissionMode: request.permissionMode, model: request.model, subagent: request.subagent, repo: cwd })),
       extraEnv: await this.extraEnv(repo),
       timeoutMs: this.preflightTimeoutMs,
     };
@@ -184,6 +190,9 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       ...(opts.model ? { model: opts.model } : {}),
       ...(opts.subagent ? { subagent: opts.subagent } : {}),
       ...(opts.codex && (opts.agent ?? DEFAULT_PROVIDER) === "codex" ? { codex: opts.codex } : {}),
+      ...(opts.cwd && opts.cwd !== repo ? { cwd: opts.cwd } : {}),
+      ...(opts.extraDirs?.length ? { extraDirs: [...opts.extraDirs] } : {}),
+      ...(opts.runId ? { runId: opts.runId } : {}),
     };
     this.launching.add(meta.id);
     const pending = signal();
@@ -251,6 +260,8 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     return this.changeControl(id, (meta) => {
       this.requireReservation(meta, operationId);
       if (meta.id === replacedBy || meta.repo !== replacement.repo || meta.taskKey !== replacement.taskKey) throw new HttpError(409, "Replacement belongs to a different task");
+      // Same task is not enough: a replacement in another working tree would not see the source's changes.
+      if ((meta.cwd ?? meta.repo) !== (replacement.cwd ?? replacement.repo)) throw new HttpError(409, "Replacement runs in a different working tree");
       meta.retired = { operationId, replacedBy, at: Date.now() };
       delete meta.reservation;
     });
@@ -262,7 +273,13 @@ export class SessionManager extends EventEmitter<SessionEvents> {
     const target = await this.find(targetId);
     this.requireReservation(source, operationId);
     this.requireReservation(target, operationId);
-    if (source.reservation?.role !== "source" || target.reservation?.role !== "target" || source.repo !== target.repo || source.taskKey !== target.taskKey)
+    if (
+      source.reservation?.role !== "source" ||
+      target.reservation?.role !== "target" ||
+      source.repo !== target.repo ||
+      source.taskKey !== target.taskKey ||
+      (source.cwd ?? source.repo) !== (target.cwd ?? target.repo)
+    )
       throw new HttpError(409, "Invalid rollback pair");
     await this.stopAndWait(targetId, opts);
     await this.retire(targetId, operationId, sourceId);
@@ -353,6 +370,20 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       });
       if (live?.owner === owner && live) live.owner = undefined;
     }
+  }
+
+  /**
+   * Barrier before a working tree is removed: no session running in `cwd` is live or starting, and
+   * every process those sessions owned is proven gone (waitForExit fails closed when it cannot tell).
+   */
+  async quiesce(cwd: string, opts: SessionWaitOptions = {}): Promise<void> {
+    const { sessions } = await this.state.load();
+    const inside = sessions.filter((s) => s.cwd === cwd);
+    for (const meta of inside) {
+      if (this.isRunning(meta.id) || this.launching.has(meta.id) || this.changing.has(meta.id) || this.stopBarriers.has(meta.id))
+        throw new HttpError(409, "A session still runs in this working tree");
+    }
+    for (const meta of inside) await this.waitForExit(meta.id, opts);
   }
 
   /** Recovery intentionally stops a known surviving owner; it never launches a conversation. */

@@ -15,7 +15,9 @@ import { HISTORY_TEXT, measuredMetrics, mergeCumulative, summarizeMetrics } from
 import { updateCodexMeasurement } from "./metrics-observation.js";
 import { PROMPT_TEXT } from "./prompt-text.js";
 import { ACTIVE_RUN_PHASES, agentLabel, dispatching, laneBlocked, laneOf, outputBaseline, sessionLabel, syncDispatch, taskAbsoluteDir, writtenSince, type Lane } from "./lane.js";
-import type { LoadDef, SessionPort, ClaudeSubagentsOf } from "./ports.js";
+import type { LoadDef, SessionPort, ClaudeSubagentsOf, WorkspacePort } from "./ports.js";
+import type { RunWorkspace, WorkspaceDiff, WorkspaceView, WorktreeCheck } from "../workspace/types.js";
+import { WorktreeConflict } from "../workspace/manager.js";
 import { assignmentsFor, assignmentProblems } from "./run-checks.js";
 import { ExecutionValidationError, resolveExecution, selectExecution, snapshotExecution } from "./execution.js";
 import { readRepoSettings } from "./repo-settings.js";
@@ -39,6 +41,10 @@ const NO_HOOK_WARN_MS = 60_000;
 export interface RunOptions {
   mode?: string;
   execution?: ExecutionSelection;
+  /** "worktree": the run executes in a new Git worktree of its own; absent/"repo": in the repo, as before. */
+  isolation?: "repo" | "worktree";
+  /** The user saw the repo's uncommitted files and accepts that the worktree starts from HEAD without them. */
+  acceptDirtyBase?: boolean;
 }
 
 /**
@@ -59,6 +65,8 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     private readonly subagents?: ClaudeSubagentsOf,
     private readonly noHookWarnMs: number = NO_HOOK_WARN_MS,
     sanitizer: HandoffSanitizer = async () => createSafeText([]),
+    /** Without it runs cannot use a worktree (isolation "worktree" is refused). */
+    private readonly worktrees?: WorkspacePort,
   ) {
     super();
     this.store = new RunStore(
@@ -165,7 +173,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       seen.set(key, check);
       checks.push(check);
     }
-    return { def, selected, snapshot, checks };
+    return { def, selected, snapshot, checks, isolation: opts.isolation ?? "repo", acceptDirtyBase: opts.acceptDirtyBase === true };
   }
 
   /** Starts a run in `mode` (a workflows/ directory, or "custom"); the repo's own mode when absent. */
@@ -176,7 +184,8 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       if (existing && ACTIVE_RUN_PHASES.includes(existing.phase)) throw new HttpError(409, "A workflow run is already active");
       const prepared = await this.prepare(repo, options);
       prepared.checks.forEach(requirePreflight);
-      return this.begin(repo, taskKey, prepared);
+      const placed = await this.place(repo, taskKey, prepared);
+      return this.begin(repo, taskKey, prepared, placed);
     });
   }
 
@@ -193,6 +202,8 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       // Loaded before anything is stopped or archived: a bad mode or a broken workflow changes nothing.
       const next = await this.prepare(repo, options);
       next.checks.forEach(requirePreflight);
+      // Also before anything changes: a dirty repo or a failed worktree leaves the old run as it was.
+      const placed = await this.place(repo, taskKey, next);
       const old = await this.sessions.get(existing.sessionId).catch(() => null);
       if (old?.status === "running") await this.sessions.stop(existing.sessionId);
       for (const sub of existing.subtasks ?? []) {
@@ -203,21 +214,65 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       await this.store.log(existing, HISTORY_TEXT.restart, {
         body: previous.files.length ? HISTORY_TEXT.archived(previous.dir, previous.files) : HISTORY_TEXT.nothingArchived,
       });
-      return this.begin(repo, taskKey, next, previous);
+      return this.begin(repo, taskKey, next, placed, previous);
     });
+  }
+
+  /**
+   * The run id and, for isolation "worktree", the worktree the new run will execute in, made
+   * before any session. Every step's agent is checked again there: subagent files are read from
+   * the worktree, which has no Git-ignored files of the repo.
+   */
+  private async place(repo: string, taskKey: string, prepared: Awaited<ReturnType<WorkflowEngine["prepare"]>>): Promise<{ runId: string; workspace?: RunWorkspace }> {
+    const runId = randomUUID();
+    if (prepared.isolation !== "worktree") return { runId };
+    if (!this.worktrees) throw new HttpError(503, t("worktree.notGit"));
+    for (const step of prepared.def.steps) {
+      const { agent } = prepared.snapshot.steps[step.id];
+      if (!providerTraits(agent).supportsExtraDirs) throw new HttpError(400, t("worktree.unsupported", { agent: PROVIDER_LABELS[agent] }));
+    }
+    const workspace = await this.worktrees.create(repo, taskKey, runId, { acceptDirty: prepared.acceptDirtyBase });
+    try {
+      const seen = new Set<string>();
+      for (const step of prepared.def.steps) {
+        const effective = prepared.snapshot.steps[step.id];
+        const key = JSON.stringify(this.launchConfig(effective));
+        if (seen.has(key)) continue;
+        seen.add(key);
+        requirePreflight(await this.preflight(repo, effective, workspace.cwd));
+      }
+    } catch (error) {
+      await this.worktrees.discardUnused(workspace).catch((e: unknown) => this.emit("warning", e));
+      throw error;
+    }
+    return { runId, workspace };
   }
 
   /**
    * A new run on a new session at step 1, pinned to the workflow as it is now; callers hold the
    * queue. `previous` is what a restart archived, for {{previousRun}}.
    */
-  private async begin(repo: string, taskKey: string, prepared: Awaited<ReturnType<WorkflowEngine["prepare"]>>, previous?: RunState["previous"]): Promise<RunState> {
+  private async begin(
+    repo: string,
+    taskKey: string,
+    prepared: Awaited<ReturnType<WorkflowEngine["prepare"]>>,
+    placed: { runId: string; workspace?: RunWorkspace },
+    previous?: RunState["previous"],
+  ): Promise<RunState> {
     const { def, selected, snapshot } = prepared;
-    const session = await this.sessions.create(repo, taskKey, this.launchConfig(snapshot.steps[def.steps[0].id]));
+    const { runId, workspace } = placed;
+    const placement = { repo, taskKey, runId, ...(workspace ? { workspace: { path: workspace.path, cwd: workspace.cwd, branch: workspace.branch } } : {}) };
+    let session: Awaited<ReturnType<SessionPort["create"]>>;
+    try {
+      session = await this.sessions.create(repo, taskKey, { ...this.launchConfig(snapshot.steps[def.steps[0].id]), ...this.placement(placement) });
+    } catch (error) {
+      // No run refers to the worktree yet and no agent ran in it.
+      if (workspace) await this.worktrees?.discardUnused(workspace).catch((e: unknown) => this.emit("warning", e));
+      throw error;
+    }
     const now = Date.now();
     const run: RunState = {
-      repo,
-      taskKey,
+      ...placement,
       sessionId: session.id,
       stepIndex: 0,
       phase: "starting",
@@ -236,7 +291,14 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     const override = mode.override && mode.id !== CUSTOM_MODE ? `${OVERRIDE_DIR.split(path.sep).join("/")}/` : null;
     const name = mode.id === CUSTOM_MODE ? `${OVERRIDE_DIR.split(path.sep).join("/")}/` : mode.name;
     await this.store.markTask(run, "open");
-    await this.store.log(run, HISTORY_TEXT.start, { body: HISTORY_TEXT.startBody(name, override, def.steps.length) });
+    await this.store.log(run, HISTORY_TEXT.start, {
+      body: [
+        HISTORY_TEXT.startBody(name, override, def.steps.length),
+        workspace ? HISTORY_TEXT.worktreeBody(workspace.path, workspace.branch, workspace.baseRev, workspace.dirtyBaseAccepted) : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+    });
     await this.deliver(run, await this.prompt(run, def.steps[0].prompt));
     return run;
   }
@@ -254,10 +316,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       const table = !last && def.steps[run.stepIndex + 1].dispatch ? await assignmentsFor(run, def, run.stepIndex + 1, this.subagents, this.sessions.preflight?.bind(this.sessions)) : null;
       if (table && table.errors.length > 0) throw new HttpError(400, t("run.assignmentsInvalid", { errors: table.errors.join("; ") }));
       await this.store.log(run, HISTORY_TEXT.approve, { ...(note.trim() ? { quote: note.trim() } : {}), ...(last ? { body: HISTORY_TEXT.done } : {}) });
-      if (last) {
-        await this.store.markTask(run, "done");
-        return this.store.save(run, { phase: "done", message: t("run.done") });
-      }
+      if (last) return this.finishRun(run);
       await this.enterStep(run, def, run.stepIndex + 1, table?.items);
       return run;
     });
@@ -337,6 +396,86 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       await this.store.log(run, HISTORY_TEXT.cancel);
       return this.store.save(run, { phase: "cancelled", message: t("run.cancelled"), pendingPrompt: undefined });
     });
+  }
+
+  /** Whether the repo can give a run its own worktree, and the uncommitted files the worktree would leave out. */
+  worktreeCheck(repo: string): Promise<WorktreeCheck> {
+    return this.requireWorktrees().check(repo);
+  }
+
+  /** The task's worktrees (removed ones too), newest first, with what Git says about each now. */
+  async workspaces(repo: string, taskKey: string): Promise<WorkspaceView[]> {
+    const worktrees = this.requireWorktrees();
+    const run = await this.store.find(repo, taskKey);
+    return Promise.all((await worktrees.list(repo, taskKey)).map((w) => worktrees.view(w, this.writing(run, w))));
+  }
+
+  async workspaceDiff(repo: string, taskKey: string, runId: string): Promise<WorkspaceDiff> {
+    const worktrees = this.requireWorktrees();
+    return worktrees.diff(await worktrees.require(repo, taskKey, runId));
+  }
+
+  /**
+   * Merges a run's branch into the repo, on the user's request only. Not while that run is active.
+   * Integrating the task's current run, once it is done, marks the task done.
+   */
+  integrateWorkspace(repo: string, taskKey: string, runId: string, opts: { commit?: boolean } = {}): Promise<WorkspaceView> {
+    return this.serial(async () => {
+      const worktrees = this.requireWorktrees();
+      const workspace = await worktrees.require(repo, taskKey, runId);
+      const run = await this.store.find(repo, taskKey);
+      const own = run?.runId === runId ? run : undefined;
+      if (this.writing(run, workspace)) throw new HttpError(409, t("worktree.active"));
+      let integrated: RunWorkspace;
+      try {
+        integrated = await worktrees.integrate(workspace, opts);
+      } catch (error) {
+        // A merge that failed (not a refusal to start) is part of the task's record.
+        if (own && !(error instanceof WorktreeConflict) && (await worktrees.require(repo, taskKey, runId)).integration.status === "failed")
+          await this.store.log(own, HISTORY_TEXT.integrateFailed, { quote: (error as Error).message });
+        throw error;
+      }
+      if (own) {
+        await this.store.log(own, HISTORY_TEXT.integrated, { body: HISTORY_TEXT.integratedBody(integrated.branch, integrated.integration.mergeRev ?? "") });
+        if (own.phase === "done") {
+          await this.store.markTask(own, "done");
+          await this.store.save(own, { message: t("run.done") });
+        }
+      }
+      return worktrees.view(integrated, false);
+    });
+  }
+
+  /**
+   * Removes a run's worktree directory, on the user's request only: never while the run is active or
+   * while a session in it may still write (the session barrier fails closed). Uncommitted changes need `force`.
+   */
+  removeWorkspace(repo: string, taskKey: string, runId: string, opts: { force?: boolean } = {}): Promise<WorkspaceView> {
+    return this.serial(async () => {
+      const worktrees = this.requireWorktrees();
+      const workspace = await worktrees.require(repo, taskKey, runId);
+      const run = await this.store.find(repo, taskKey);
+      if (this.writing(run, workspace)) throw new HttpError(409, t("worktree.active"));
+      if (!this.sessions.quiesce) throw new HttpError(503, t("worktree.active"));
+      try {
+        await this.sessions.quiesce(workspace.cwd);
+      } catch {
+        throw new HttpError(409, t("worktree.active"));
+      }
+      const removed = await worktrees.remove(workspace, opts);
+      if (run?.runId === runId) await this.store.log(run, HISTORY_TEXT.worktreeRemoved, { body: HISTORY_TEXT.worktreeRemovedBody(removed.path, !!removed.branchKept, removed.branch) });
+      return worktrees.view(removed, false);
+    });
+  }
+
+  private requireWorktrees(): WorkspacePort {
+    if (!this.worktrees) throw new HttpError(503, t("worktree.notGit"));
+    return this.worktrees;
+  }
+
+  /** The run that owns `workspace` is still active, so its sessions may write there. */
+  private writing(run: RunState | undefined, workspace: RunWorkspace): boolean {
+    return !!run && run.runId === workspace.runId && ACTIVE_RUN_PHASES.includes(run.phase);
   }
 
   /** Answers a subtask that waits (it ended its turn without its report): logged, then pasted as it is. */
@@ -542,8 +681,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       await this.store.save(run, { phase: "gate", message });
     } else if (run.stepIndex + 1 >= def.steps.length) {
       this.finishExecution(run);
-      await this.store.markTask(run, "done");
-      await this.store.save(run, { phase: "done", message: t("run.done") });
+      await this.finishRun(run);
     } else {
       await this.enterStep(run, def, run.stepIndex + 1);
     }
@@ -605,13 +743,13 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       return this.startDispatch(run, def, step.dispatch.report, table.items);
     }
     const effective = resolveExecution({ workflow: def, scope: { kind: "step", stepId: step.id }, run });
-    requirePreflight(await this.preflight(run.repo, effective));
+    requirePreflight(await this.preflight(run.repo, effective, run.workspace?.cwd));
     const { agent, model } = effective;
     run.stepIndex = index;
     const current = await this.sessions.get(run.sessionId).catch(() => null);
     if (!current || !this.sessionMatches(run, current, effective)) {
       if (current?.status === "running") await this.sessions.stop(run.sessionId);
-      const session = await this.sessions.create(run.repo, run.taskKey, this.launchConfig(effective));
+      const session = await this.sessions.create(run.repo, run.taskKey, { ...this.launchConfig(effective), ...this.placement(run) });
       this.recordExecution(run, session, { kind: "step", stepId: step.id }, effective);
       await this.store.log(run, current?.agent === agent ? HISTORY_TEXT.switchModel : HISTORY_TEXT.switchAgent, {
         body: HISTORY_TEXT.switchAgentBody(current ? sessionLabel(current.agent, current.model) : "?", sessionLabel(agent, model)),
@@ -660,9 +798,10 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       const problems = await assignmentProblems(run, def, run.stepIndex, [next], this.subagents);
       if (problems.length) throw new HttpError(400, t("run.assignmentsInvalid", { errors: problems.join("; ") }));
       const effective = this.effective(run, def, next);
-      requirePreflight(await this.preflight(run.repo, effective));
+      requirePreflight(await this.preflight(run.repo, effective, run.workspace?.cwd));
       const session = await this.sessions.create(run.repo, run.taskKey, {
         ...this.launchConfig(effective),
+        ...this.placement(run),
         title: t("run.subtaskTitle", { n: next.n }),
       });
       next.sessionId = session.id;
@@ -693,7 +832,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     const session = await this.sessions.get(lane.sessionId!);
     // Resuming a native session cannot change its CLI/model/restrictions.
     if (!this.sessionMatches(run, session, effective)) throw new HttpError(409, "Session configuration does not match the lane execution policy");
-    if (opts.force || session.status !== "running") requirePreflight(await this.preflight(run.repo, effective));
+    if (opts.force || session.status !== "running") requirePreflight(await this.preflight(run.repo, effective, run.workspace?.cwd));
     if (session.status === "running" && run.attempts?.findLast((attempt) => attempt.sessionId === session.id)?.generation !== (session.generation ?? 0)) {
       this.recordExecution(run, session, sub ? { kind: "subtask", stepId: def.steps[run.stepIndex].id, n: sub.n } : { kind: "step", stepId: def.steps[run.stepIndex].id }, effective);
     }
@@ -798,7 +937,10 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     const subagents = (template.includes("{{subagents}}") || template.includes("{{leaderTools}}")) && this.subagents ? await this.subagents(run.repo) : undefined;
     const def = await this.store.defOf(run);
     const inventory = await this.promptInventory(run.repo, def, run.stepIndex, template, run);
-    return renderPrompt(template, promptVars(def, run.stepIndex, task, { run, previous: run.previous, continued: continued(run), subtasks: run.subtasks, subagents, inventory, ...extra }));
+    return renderPrompt(
+      template,
+      promptVars(def, run.stepIndex, task, { run, previous: run.previous, continued: continued(run), subtasks: run.subtasks, subagents, inventory, ...this.promptPlace(run), ...extra }),
+    );
   }
 
   /** What a step's {{subagents}} lists of its provider's own agents and models; read only when the prompt uses the variable and the provider has such a list. */
@@ -813,7 +955,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     const task = await getTask(run.repo, run.taskKey);
     return renderPrompt(
       def.steps[run.stepIndex].dispatch!.prompt,
-      promptVars(def, run.stepIndex, task, { run, previous: run.previous, continued: continued(sub), subtask: sub, subtasks: run.subtasks }),
+      promptVars(def, run.stepIndex, task, { run, previous: run.previous, continued: continued(sub), subtask: sub, subtasks: run.subtasks, ...this.promptPlace(run) }),
     );
   }
 
@@ -901,9 +1043,35 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     );
   }
 
-  private async preflight(repo: string, effective: EffectiveExecution): Promise<PreflightResult> {
+  private async preflight(repo: string, effective: EffectiveExecution, cwd?: string): Promise<PreflightResult> {
     if (!this.sessions.preflight) throw new HttpError(503, t("preflight.probe_failed", { agent: effective.agent }));
-    return this.sessions.preflight(repo, this.launchConfig(effective));
+    return this.sessions.preflight(repo, this.launchConfig(effective), cwd ? { cwd } : undefined);
+  }
+
+  /** Where a session of `run` runs and what it may use besides: its worktree and the task's documents in the repo. */
+  private placement(run: Pick<RunState, "repo" | "taskKey" | "runId" | "workspace">) {
+    return {
+      ...(run.runId ? { runId: run.runId } : {}),
+      ...(run.workspace ? { cwd: run.workspace.cwd, extraDirs: [taskAbsoluteDir(run)] } : {}),
+    };
+  }
+
+  /** {{taskDir}} and the worktree rule for a run in a worktree; nothing for a run in the repo. */
+  private promptPlace(run: RunState) {
+    return run.workspace ? { workspace: { taskDir: taskAbsoluteDir(run), workdir: run.workspace.cwd, branch: run.workspace.branch } } : {};
+  }
+
+  /**
+   * The last step is approved or finished. A run in the repo marks the task done; a run in a worktree
+   * has only finished executing: its code is on the run's branch until the user integrates it.
+   */
+  private async finishRun(run: RunState): Promise<RunState> {
+    if (run.workspace) {
+      await this.store.log(run, HISTORY_TEXT.done, { body: HISTORY_TEXT.awaitingIntegration(run.workspace.branch) });
+      return this.store.save(run, { phase: "done", message: t("run.doneAwaitingIntegration") });
+    }
+    await this.store.markTask(run, "done");
+    return this.store.save(run, { phase: "done", message: t("run.done") });
   }
 
   /** The run-level reply and retry talk to the leader's session, which has nothing to answer while subtasks work. */

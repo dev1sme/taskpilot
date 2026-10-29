@@ -6,6 +6,7 @@ import type { CodexUsage } from "../providers/codex/account-usage.js";
 import type { CopilotQuota } from "../providers/copilot/quota.js";
 import type { ClaudeUsage } from "../modules/usage/index.js";
 import type { RunState } from "../modules/workflow/index.js";
+import type { RunWorkspace } from "../modules/workspace/types.js";
 import { SerialQueue } from "./serial.js";
 
 export interface SessionMeta {
@@ -15,7 +16,14 @@ export interface SessionMeta {
   nativeId?: string;
   /** The coding agent the session runs; absent = claude (sessions saved before agents existed). */
   agent?: ProviderId;
+  /** The repo the session belongs to: ownership, env and task documents are keyed by it. */
   repo: string;
+  /** Where the process runs when that is not `repo` (the run's worktree); absent = repo. Kept for resume. */
+  cwd?: string;
+  /** Directories outside `cwd` the agent may read and write (the task's documents), passed on every spawn. */
+  extraDirs?: string[];
+  /** The workflow run that created the session, when it was created for one. */
+  runId?: string;
   taskKey: string;
   title: string;
   createdAt: number;
@@ -53,6 +61,8 @@ export interface AppState {
   sessions: SessionMeta[];
   /** Latest workflow run per (repo, taskKey). */
   runs: RunState[];
+  /** Worktrees of runs, by run id; outlive the run that a restart replaces. */
+  workspaces?: RunWorkspace[];
   /** Claude plan usage last reported by a session's status line. */
   usage?: ClaudeUsage;
   /** Account quota of the other agents (Copilot quota, Codex rate limits). */

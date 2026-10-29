@@ -10,7 +10,7 @@ Báo cáo và số liệu từng việc:
 ## Việc cần làm
 
 - Đọc báo cáo việc con và `git diff`; không đọc lại toàn bộ code. Chạy verify đầy đủ trong kế hoạch đúng một lần; sửa lỗi hoặc ghi lý do chưa sửa được.
-- Member chạy song song không commit: leader commit.
+- Member chạy song song không commit: leader commit (khi run chạy trong worktree riêng: commit trong worktree, trên branch của run).
 - Đánh giá subagent / model của từng việc theo agent/session/attempt nguồn và đích; tách model yêu cầu/mặc định với thực tế backend báo, so chất lượng để đề xuất lần sau.
 - Số đo cumulative thuộc cả session/thread: không cộng trùng notification/retry/bước dùng lại session hoặc gán hết cho một bước. Giữ nguồn cost Claude/token Codex và nhãn legacy. Thiếu ghi "không có"; không suy chi phí/quota từ token, model hoặc thời gian.
 

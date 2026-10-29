@@ -9,6 +9,9 @@ const CODEX_SUBAGENTS =
   " Nếu cần dò code rộng hoặc chia việc đọc song song, yêu cầu trực tiếp Codex dùng subagent (built-in `explorer`, `worker` hoặc custom agent trong `.codex/agents/`); subagent kế thừa quyền của session và tốn thêm token nên chỉ dùng khi đáng. Cột `Subagent`: tên file TOML có thật trong `.codex/agents/` (vd `taskpilot-implementer`), chỉ cho việc của codex; `-` nếu không cần. Built-in `explorer`/`worker` không phải tên hợp lệ cho cột này.";
 
 export const PROMPT_TEXT = {
+  /** A rule of every prompt of a run that executes in its own Git worktree. */
+  worktree: (workdir: string, taskDir: string, branch: string) =>
+    `Run này chạy trong Git worktree riêng \`${workdir}\` (branch \`${branch}\`): sửa và build code ở đây, không sửa repo gốc. Tài liệu task nằm ngoài worktree, ở \`${taskDir}\`; dùng đúng đường dẫn tuyệt đối đó, không tạo \`.claude/tasks\` trong worktree. Các member của run dùng chung worktree này; mã chỉ vào repo gốc khi người dùng bấm Tích hợp.`,
   pendingAssignmentProblem: (message: string) => `\n  - Cấu hình Phân công chưa hợp lệ, cần sửa trước khi chạy: ${message}`,
   currentSessionMetrics: "phiên hiện tại (thời gian cả việc): ",
   afterHandoff:
@@ -56,7 +59,7 @@ export const PROMPT_TEXT = {
     noFiles: "File được sửa: leader không khai; chỉ sửa những gì việc này cần.",
     dependsOn: "Các việc trước đó đã xong; đọc báo cáo của chúng trước khi làm:",
     dependency: (report: string, n: number, title: string) => `- \`${report}\` (việc ${n}: ${title})`,
-    noCommit: "Không commit: các việc có thể chạy song song và dùng chung working tree. Leader commit ở bước rà soát. Chỉ sửa các file đã liệt kê ở trên.",
+    noCommit: "Không commit: các việc có thể chạy song song và dùng chung working tree của run. Leader commit ở bước rà soát. Chỉ sửa các file đã liệt kê ở trên.",
     report: "báo cáo việc này: đã làm gì, file đã sửa, kết quả build/test, vướng mắc",
   },
   /** One line of {{subtasks}}, the list the leader reviews; `worker` is the agent with its subagent and model. */

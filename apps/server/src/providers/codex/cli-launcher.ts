@@ -1,4 +1,4 @@
-import type { Launcher, LaunchOptions } from "../../core/launch.js";
+import { addDirArgs, type Launcher, type LaunchOptions } from "../../core/launch.js";
 import { readCodexAgent } from "./agents.js";
 import { CodexError } from "./errors.js";
 import { codexHookArgs, tomlValue } from "./hooks.js";
@@ -92,6 +92,8 @@ export const codexLauncher: Launcher<CodexCliOptions> = (sessionId, opts) => {
       ...(params.config ? config("sandbox_workspace_write.network_access", params.config.sandbox_workspace_write.network_access) : []),
       ...(params.developerInstructions ? config("developer_instructions", params.developerInstructions) : []),
       ...codexHookArgs(opts.settings),
+      // Writable alongside the workspace in Codex's sandbox (codex 0.165: also accepted by `codex resume`).
+      ...addDirArgs(opts),
     ],
     env: HOOK_AGENT_ENV,
   };

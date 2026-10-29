@@ -1,4 +1,4 @@
-import { agentArgs, type Launcher } from "../../core/launch.js";
+import { addDirArgs, agentArgs, type Launcher } from "../../core/launch.js";
 
 /** Copilot flags for each workflow permission-mode; "default" keeps Copilot's own manual approval. */
 const PERMISSION_FLAGS: Record<string, string[]> = {
@@ -30,7 +30,7 @@ export const copilotLauncher: Launcher = (sessionId, opts) => {
   const env = { ...HOOK_AGENT_ENV, ...(mode ? PERMISSION_ENV[mode] : undefined) };
   return {
     file: process.env.TASKPILOT_COPILOT ?? "copilot",
-    args: ["--session-id", sessionId, ...(mode ? (PERMISSION_FLAGS[mode] ?? []) : []), ...agentArgs(opts)],
+    args: ["--session-id", sessionId, ...(mode ? (PERMISSION_FLAGS[mode] ?? []) : []), ...agentArgs(opts), ...addDirArgs(opts)],
     env,
   };
 };

@@ -39,7 +39,7 @@ export async function assignmentProblems(
         const { agent, model, subagent, permissionMode } = effective;
         const configuration = { agent, model, subagent, permissionMode };
         const key = JSON.stringify(configuration);
-        const result = checked.get(key) ?? (await preflight(run.repo, configuration));
+        const result = checked.get(key) ?? (await preflight(run.repo, configuration, run.workspace ? { cwd: run.workspace.cwd } : undefined));
         checked.set(key, result);
         errors.push(...result.errors.map((p) => `subtask ${row.n}: ${p.field}: ${p.message}`));
       }

@@ -7,6 +7,8 @@ export interface LaunchOptions {
   subagent?: string;
   /** Working directory of the session. */
   repo?: string;
+  /** Directories outside the working directory the agent may use (`--add-dir`, which all three CLIs take). */
+  extraDirs?: string[];
 }
 
 export interface LaunchSpec {
@@ -22,6 +24,11 @@ export type Launcher<Options extends LaunchOptions = LaunchOptions> = (sessionId
 /** --agent / --model, which claude and copilot spell the same way. */
 export function agentArgs(opts: Pick<LaunchOptions, "model" | "subagent">): string[] {
   return [...(opts.subagent ? ["--agent", opts.subagent] : []), ...(opts.model ? ["--model", opts.model] : [])];
+}
+
+/** One `--add-dir <dir>` per extra directory. */
+export function addDirArgs(opts: Pick<LaunchOptions, "extraDirs">): string[] {
+  return (opts.extraDirs ?? []).flatMap((dir) => ["--add-dir", dir]);
 }
 
 /**

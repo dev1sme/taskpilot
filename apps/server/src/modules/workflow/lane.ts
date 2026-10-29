@@ -51,7 +51,7 @@ export function agentLabel(run: RunState): string {
   return PROVIDER_LABELS[DEFAULT_PROVIDER];
 }
 
-export function taskAbsoluteDir(run: RunState): string {
+export function taskAbsoluteDir(run: Pick<RunState, "repo" | "taskKey">): string {
   return path.join(run.repo, TASKS_DIR, run.taskKey);
 }
 

@@ -42,6 +42,7 @@ export const codexBackend: ProviderBackend = {
   requiresLogin: true,
   requiresModelInventory: true,
   warnsWhenNoHook: false,
+  supportsExtraDirs: true,
   metricsSource: "codex-thread",
   checkSubagent: checkCodexSubagent,
   turnMetrics: codexTurnMetrics,

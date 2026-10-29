@@ -27,6 +27,7 @@ export const copilotBackend: ProviderBackend = {
   requiresLogin: false,
   requiresModelInventory: false,
   warnsWhenNoHook: true,
+  supportsExtraDirs: true,
   checkSubagent: checkCopilotSubagent,
   promptInventory: copilotPromptInventory,
   probe: probeCopilot,

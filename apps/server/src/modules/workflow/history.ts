@@ -229,6 +229,14 @@ export const HISTORY_TEXT = {
   taskReopened: "Ba mở lại task",
   transcriptStop: "Agent xong lượt (từ transcript)",
   transcriptStopBody: "Agent không gửi hook Stop; TaskPilot thấy lượt đã kết thúc trong transcript của session.",
+  worktreeBody: (path: string, branch: string, base: string, dirty?: string[]) =>
+    `Run chạy trong worktree riêng: ${path} (branch ${branch}, base ${base.slice(0, 12)}).${dirty?.length ? ` Ba xác nhận chạy trên HEAD; ${dirty.length} file chưa commit của repo không được mang theo.` : ""}`,
+  awaitingIntegration: (branch: string) => `Thực thi xong; mã còn ở branch ${branch}, chờ ba bấm Tích hợp. Task chưa được đánh dấu hoàn thành.`,
+  integrated: "Ba tích hợp worktree",
+  integratedBody: (branch: string, rev: string) => `Đã merge ${branch} vào repo (commit ${rev.slice(0, 12)}).`,
+  integrateFailed: "Tích hợp worktree thất bại",
+  worktreeRemoved: "Ba dọn worktree",
+  worktreeRemovedBody: (path: string, branchKept: boolean, branch: string) => `Đã xoá ${path}.${branchKept ? ` Branch ${branch} được giữ vì repo chưa merge.` : ""}`,
   backToLeader: "Về leader rà soát",
   backToLeaderBody: (done: number) => `${done} việc đã xong; leader rà soát báo cáo của chúng.`,
 } as const;

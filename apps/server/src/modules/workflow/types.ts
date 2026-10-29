@@ -284,6 +284,10 @@ export type RunPhase = "starting" | "running" | "waiting" | "gate" | "interrupte
 export interface RunState {
   repo: string;
   taskKey: string;
+  /** New on every start/restart; kept through retry, resume and handoff. Absent on runs saved before it existed. */
+  runId?: string;
+  /** Set when the run executes in its own Git worktree (the full record is in state `workspaces`); absent = in `repo`. */
+  workspace?: { path: string; cwd: string; branch: string };
   sessionId: string;
   stepIndex: number;
   phase: RunPhase;

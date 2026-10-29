@@ -1,4 +1,4 @@
-import { agentArgs, type LaunchOptions, type Launcher } from "../../core/launch.js";
+import { addDirArgs, agentArgs, type LaunchOptions, type Launcher } from "../../core/launch.js";
 
 export interface ClaudeCliOptions extends LaunchOptions {
   /** Per-session hook configuration passed through --settings. */
@@ -14,5 +14,6 @@ export const claudeLauncher: Launcher<ClaudeCliOptions> = (sessionId, opts) => (
     ...(opts.permissionMode ? ["--permission-mode", opts.permissionMode] : []),
     // Both again on resume: claude keeps the agent of a resumed session but not its --model (SPEC §7).
     ...agentArgs(opts),
+    ...addDirArgs(opts),
   ],
 });

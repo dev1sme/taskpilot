@@ -55,6 +55,7 @@ export interface ProviderCapability {
 }
 
 export interface BackendProbeContext {
+  /** Working directory of the probe: the session's own (its run's worktree, else the repo). */
   repo: string;
   /** The same launcher and repo extras as the session transport, without hook credentials. */
   command: LaunchSpec;
@@ -103,6 +104,8 @@ export interface ProviderTraits {
   warnsWhenNoHook: boolean;
   /** What `turnMetrics` measures; absent = the backend reports no metrics of its own. */
   metricsSource?: SessionMetricsSource;
+  /** The launcher passes `extraDirs` to the CLI, so a session can run in a worktree with the task's documents outside it. */
+  supportsExtraDirs: boolean;
   /** Why `value` (a one-word model name) cannot be this provider's model, or null; absent = any name goes. */
   modelProblem?(value: string): string | null;
 }
@@ -127,7 +130,7 @@ export interface ProviderBackend extends ProviderTraits {
   /** The agent's own conversation id in a hook payload, when it names sessions itself (Codex: `session_id` is its thread id); used to resume. */
   nativeIdOf?(payload: Record<string, unknown>): string | undefined;
   /** Validate native identity before any state or metrics side effect. */
-  acceptHook?(event: HookEvent, payload: Record<string, unknown>, meta: Pick<SessionMeta, "nativeId" | "repo">): Promise<boolean>;
+  acceptHook?(event: HookEvent, payload: Record<string, unknown>, meta: Pick<SessionMeta, "nativeId" | "repo" | "cwd">): Promise<boolean>;
   /** Stable native event identity, when the runtime supplied enough information. */
   hookKey?(event: HookEvent, payload: Record<string, unknown>): string | undefined;
   /**

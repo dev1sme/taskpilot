@@ -45,12 +45,13 @@ export class PtyTransport implements SessionTransport {
         permissionMode: meta.permissionMode,
         model: meta.model,
         subagent: meta.subagent,
-        repo: meta.repo,
+        repo: meta.cwd ?? meta.repo,
+        ...(meta.extraDirs?.length ? { extraDirs: meta.extraDirs } : {}),
       }),
     );
     const proc = pty.spawn(file, args, {
       name: "xterm-256color",
-      cwd: meta.repo,
+      cwd: meta.cwd ?? meta.repo,
       env: childEnv(process.env, { ...extraEnv, ...launchEnv, ...hookEnv }),
       ...DEFAULT_SIZE,
     });

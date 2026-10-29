@@ -198,7 +198,7 @@ function TaskContent({ task }: { task: TaskListItem }) {
               </div>
               <aside className="grid content-start gap-6">
                 <DocsPanel task={task} steps={steps} reports={run?.subtasks?.map((s) => s.report)} onOpen={setDoc} />
-                <ActivityFeed items={activity} observations={sessions} />
+                <ActivityFeed items={activity} />
               </aside>
             </div>
 

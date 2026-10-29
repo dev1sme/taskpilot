@@ -29,7 +29,7 @@ flowchart LR
 - CLI của agent được chọn đã cài và đăng nhập; Claude/Copilot dùng `curl` để gửi hooks.
 - Codex CLI (`codex`) đã đăng nhập qua `codex login` nếu dùng agent Codex.
 
-TaskPilot theo bản Codex mới nhất đang cài; lần kiểm TPL-039 dùng `codex-cli 0.165.0`, không đặt mốc tối thiểu `0.163.0`. Màn hình Hoạt động và Terminal cho biết đã nhận hook hay chưa. Khi chưa có hook, kiểm yêu cầu duyệt trong terminal; TaskPilot không tự tin cậy hook hoặc thay quyền workflow. Native child lifecycle, compact và session end hiện ghi **chưa xác minh**, không suy agent con từ template workflow.
+TaskPilot theo bản Codex mới nhất đang cài; lần kiểm TPL-039 dùng `codex-cli 0.165.0`, không đặt mốc tối thiểu `0.163.0`. Hooks của TaskPilot được truyền qua `-c` mỗi lần chạy; lần đầu Codex yêu cầu duyệt trong terminal (`/hooks`), TaskPilot không tự tin cậy hook hoặc thay quyền workflow. Agent con, compact và session end của Codex chưa được theo dõi; TaskPilot không suy agent con từ template workflow.
 
 Token Codex là tổng tích lũy của root thread từ rollout, không phải phần dùng riêng của từng lượt/bước và không phải hạn mức tài khoản. Số đo được thay snapshot, không cộng lại khi Stop/resume lặp; cùng native thread chỉ tính một lần trong tổng. Thiếu file, không đọc được hoặc không xác minh đúng thread được ghi rõ; số đo cũ được giữ với nhãn **số liệu lần trước**, không biến thành 0. Chi phí Codex không hỗ trợ; cache/reasoning tokens và effort thực tế chưa có nguồn runtime được xác minh. Nếu rollout không cung cấp metadata root CLI đúng phiên, TaskPilot giữ trạng thái chưa quan sát được thay vì gán callback cho một phiên khác.
 

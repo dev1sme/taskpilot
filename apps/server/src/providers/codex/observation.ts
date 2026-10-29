@@ -1,5 +1,4 @@
 import path from "node:path";
-import type { SessionObservation } from "../../core/observation-types.js";
 import { rolloutIdentity } from "./rollout.js";
 
 const turns = new WeakMap<object, { active?: string; closed: Set<string> }>();
@@ -24,16 +23,6 @@ export function currentCodexTurn(event: string, raw: Record<string, unknown>, st
   }
   if (memory.closed.size > 400) memory.closed.delete(memory.closed.values().next().value!);
   return true;
-}
-
-/** No additional event has passed a trusted PTY lifecycle smoke yet. */
-export function codexObservation(lastHookAt: number | null): SessionObservation {
-  return {
-    hooks: lastHookAt === null ? { state: "missing", reason: "no-hook" } : { state: "available", checkedAt: lastHookAt },
-    childLifecycle: { state: "unverified", reason: "runtime-unverified" },
-    compaction: { state: "unverified", reason: "runtime-unverified" },
-    sessionEnd: { state: "unverified", reason: "runtime-unverified" },
-  };
 }
 
 export function codexHookKey(event: string, raw: Record<string, unknown>): string | undefined {

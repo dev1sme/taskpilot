@@ -799,7 +799,6 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       status: this.isRunning(meta.id) ? "running" : "exited",
       exitCode: live?.exitCode ?? null,
       activity: live?.transport.running ? live.activity : null,
-      ...(backendOf(meta.agent).observation ? { observation: backendOf(meta.agent).observation!(live?.lastHookAt ?? null) } : {}),
       ...(live?.failure ? { failure: live.failure } : {}),
     };
   }

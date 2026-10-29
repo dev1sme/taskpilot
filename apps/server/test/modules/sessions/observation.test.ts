@@ -61,7 +61,6 @@ it("pins root identity, rejects child events, dedupes Stop and rotates ownership
   const meta = await manager.get(sessionId);
   expect(meta.nativeId).toBeTruthy();
   expect(meta.model).toBe("gpt-6.1-sol");
-  expect(meta.observation?.hooks.state).toBe("available");
   expect(metrics).toHaveLength(1);
   const stop = received.find((r) => r.event === "Stop")!;
   const before = events.length;
@@ -73,7 +72,6 @@ it("pins root identity, rejects child events, dedupes Stop and rotates ownership
   await manager.resume(sessionId);
   await manager.waitForReady(sessionId, { timeoutMs: 3000 });
   expect((await manager.get(sessionId)).generation).toBe(meta.generation! + 1);
-  expect((await manager.get(sessionId)).observation?.hooks.state).toBe("missing");
   expect(await manager.handleHook(stop.token, "Stop", stop.body)).toBe(false);
   manager.paste(sessionId, "resume synthetic turn");
   await expect.poll(() => metrics.length).toBe(2);

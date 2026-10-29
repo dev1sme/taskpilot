@@ -1,7 +1,6 @@
 /** Missing data and a measured zero have different meanings. */
 export type ObservationState = "available" | "missing" | "unsupported" | "unverified" | "stale";
-export type ObservationReason =
-  "no-hook" | "runtime-unverified" | "no-source" | "file-missing" | "file-unreadable" | "invalid-rollout" | "no-sample" | "identity-mismatch" | "older-sample" | "source-changed";
+export type ObservationReason = "no-source" | "file-missing" | "file-unreadable" | "invalid-rollout" | "no-sample" | "identity-mismatch" | "older-sample" | "source-changed";
 
 export interface ObservationAvailability {
   state: ObservationState;
@@ -16,11 +15,4 @@ export interface MetricSample {
   fileId: string;
   offset: number;
   at?: number;
-}
-
-export interface SessionObservation {
-  hooks: ObservationAvailability;
-  childLifecycle: ObservationAvailability;
-  compaction: ObservationAvailability;
-  sessionEnd: ObservationAvailability;
 }

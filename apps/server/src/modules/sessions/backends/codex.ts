@@ -3,7 +3,7 @@ import { readCodexAgent } from "../../../providers/codex/agents.js";
 import { CodexError, RpcError } from "../../../providers/codex/errors.js";
 import { codexLauncher } from "../../../providers/codex/cli-launcher.js";
 import { rolloutTokens } from "../../../providers/codex/rollout.js";
-import { acceptCodexHook, codexHookKey, codexObservation, currentCodexTurn } from "../../../providers/codex/observation.js";
+import { acceptCodexHook, codexHookKey, currentCodexTurn } from "../../../providers/codex/observation.js";
 import { fetchCodexModels } from "../../../providers/codex/models.js";
 import { fetchCodexLoggedIn, initializeCodexAppServer, withCodexAppServer } from "../../../providers/codex/app-server.js";
 import { codexHookSettings, type HookEvent } from "../hooks.js";
@@ -51,7 +51,6 @@ export const codexBackend: ProviderBackend = {
   nativeIdOf: (payload) => (typeof payload.session_id === "string" && payload.session_id ? payload.session_id : undefined),
   acceptHook: acceptCodexHook,
   hookKey: codexHookKey,
-  observation: codexObservation,
   normalize: normalizeCodex,
 };
 

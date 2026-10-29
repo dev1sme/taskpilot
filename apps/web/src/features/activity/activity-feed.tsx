@@ -1,5 +1,4 @@
-import type { ActivityItem, SessionView } from "@taskpilot/server/api-types";
-import { SessionObservationNote } from "@/features/sessions/observation";
+import type { ActivityItem } from "@taskpilot/server/api-types";
 import {
   BookOpenText,
   ChatCircleText,
@@ -50,7 +49,7 @@ export function useActivity(taskKey: string): ActivityItem[] {
 const VISIBLE = 60;
 
 /** Live log of what the agents did, newest first; prompts and turn ends read as section markers. */
-export function ActivityFeed({ items, observations = [] }: { items: ActivityItem[]; observations?: Pick<SessionView, "id" | "title" | "observation">[] }) {
+export function ActivityFeed({ items }: { items: ActivityItem[] }) {
   const { t } = useTranslation("activity");
   const [showAll, setShowAll] = useState(false);
   const newest = [...items].reverse();
@@ -63,7 +62,6 @@ export function ActivityFeed({ items, observations = [] }: { items: ActivityItem
         </h2>
         <span className="text-xs text-faint">{t("count", { count: items.filter((i) => i.kind === "tool").length })}</span>
       </header>
-      {observations.map((session) => session.observation && <SessionObservationNote key={session.id} title={session.title} value={session.observation} />)}
       {items.length === 0 ? (
         <p className="text-sm text-muted">{t("empty")}</p>
       ) : (

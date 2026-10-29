@@ -20,8 +20,6 @@
       "stale": "Số liệu lần trước"
     },
     "reasons": {
-      "no-hook": "Chưa nhận hook từ phiên này",
-      "runtime-unverified": "Chưa có bằng chứng từ phiên chạy",
       "no-source": "Phiên chưa cung cấp nguồn số liệu",
       "file-missing": "File số liệu không còn tồn tại",
       "file-unreadable": "Không đọc được file số liệu",

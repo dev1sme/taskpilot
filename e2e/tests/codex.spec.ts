@@ -3,7 +3,7 @@ import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { createSelectionRepo } from "../fixtures/repo";
 
-// Uses the synthetic Codex PTY/probe only. Native lifecycle remains explicitly unverified.
+// Uses the synthetic Codex PTY/probe only.
 async function start(page: Page, scenario: string, name: string) {
   const repo = createSelectionRepo(`codex-observation-${name}`);
   writeFileSync(path.join(repo, ".fake-codex-scenario"), scenario);
@@ -20,7 +20,7 @@ async function cleanup(page: Page) {
   await page.request.delete("/api/tasks/DEMO-1/run");
 }
 
-test("Codex shows cumulative metrics and unverified native lifecycle without inventing children", async ({ page }) => {
+test("Codex shows cumulative metrics without inventing children", async ({ page }) => {
   const repo = await start(page, "duplicate", "data");
   try {
     await expect.poll(async () => (await current(page)).usage?.totals?.inputTokens).toBe(120);
@@ -33,13 +33,6 @@ test("Codex shows cumulative metrics and unverified native lifecycle without inv
     await metricsSummary.click();
     await expect(page.getByText(/Chi phí Codex: không hỗ trợ/)).toBeVisible();
     await expect(page.getByText("120", { exact: false }).first()).toBeVisible();
-    const note = page
-      .locator("summary")
-      .filter({ hasText: /Quan sát Codex/ })
-      .first();
-    await note.click();
-    await expect(page.getByText("Agent con của Codex", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText(/Chưa xác minh/).first()).toBeVisible();
     const feed = await (await page.request.get("/api/tasks/DEMO-1/activity")).json();
     expect(feed.filter((item: { kind: string }) => item.kind === "stop")).toHaveLength(1);
     expect(feed.some((item: { kind: string }) => item.kind === "child")).toBe(false);
@@ -75,7 +68,7 @@ test("Codex shows cumulative metrics and unverified native lifecycle without inv
   }
 });
 
-test("missing metrics and silent hooks have explicit UI states, with no fake zero", async ({ page }) => {
+test("missing metrics have an explicit UI state, with no fake zero", async ({ page }) => {
   await start(page, "missing", "missing");
   try {
     await expect.poll(async () => (await current(page)).usage?.sessions[0]?.measurements[0]?.availability?.state).toBe("missing");
@@ -86,18 +79,6 @@ test("missing metrics and silent hooks have explicit UI states, with no fake zer
       .first()
       .click();
     await expect(page.getByText(/Không có dữ liệu.*File số liệu/)).toBeVisible();
-  } finally {
-    await cleanup(page);
-  }
-  await start(page, "no-hook", "silent");
-  try {
-    await expect(
-      page
-        .locator("summary")
-        .filter({ hasText: /Quan sát Codex/ })
-        .first(),
-    ).toContainText("Chưa nhận hook");
-    expect((await current(page)).usage.totals).toEqual({});
   } finally {
     await cleanup(page);
   }

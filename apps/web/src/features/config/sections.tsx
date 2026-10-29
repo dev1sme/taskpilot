@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Markdown } from "@/components/markdown";
 import { Badge } from "@/components/ui/badge";
+import { ScopeBadge } from "@/components/scope-badge";
 import { Button } from "@/components/ui/button";
 import { useSection } from "./queries";
 
@@ -43,7 +44,7 @@ function FileCard({ scope, path, exists, onEdit, children, error }: { scope: Con
   return (
     <section className="grid gap-3 rounded-md border border-line bg-surface p-4">
       <header className="flex flex-wrap items-center gap-2">
-        <Badge>{t(`scope.${scope}`)}</Badge>
+        <ScopeBadge scope={scope} />
         <code className="min-w-0 flex-1 truncate bg-transparent px-0 text-sm">{path}</code>
         {!exists && <span className="text-xs text-faint">{t("missing")}</span>}
         {onEdit && (
@@ -252,7 +253,7 @@ function LibraryView({ kind, cli, onEditRaw }: { kind: "agents" | "commands" | "
               <li key={`${item.scope}:${item.path}`} className="grid gap-1.5 rounded-md border border-line bg-surface p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm font-medium">{item.name}</span>
-                  <Badge>{t(`scope.${item.scope}`)}</Badge>
+                  <ScopeBadge scope={item.scope} />
                   {item.check && (
                     <Badge tone={item.check.status === "ok" ? "done" : item.check.status === "error" ? "danger" : "attention"}>
                       {item.check.status === "ok" ? <CheckCircle weight="fill" aria-hidden /> : <WarningCircle weight="fill" aria-hidden />}
@@ -312,7 +313,7 @@ function McpView({ cli, onEditRaw }: { cli: ProviderId; onEditRaw: EditRaw }) {
             <ul className="grid gap-1">
               {data.sources.map((source) => (
                 <li key={`${source.scope}:${source.path}`} className="flex flex-wrap items-center gap-2 rounded-sm border border-line bg-surface px-3 py-2">
-                  <Badge>{t(`scope.${source.scope}`)}</Badge>
+                  <ScopeBadge scope={source.scope} />
                   <code className="min-w-0 flex-1 truncate bg-transparent px-0 text-sm">{source.path}</code>
                   {!source.exists && <span className="text-xs text-faint">{t("missing")}</span>}
                   {source.error && <span className="text-xs text-danger">{source.error}</span>}
@@ -337,7 +338,7 @@ function McpView({ cli, onEditRaw }: { cli: ProviderId; onEditRaw: EditRaw }) {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono text-sm font-medium">{server.name}</span>
                       <Badge>{server.type}</Badge>
-                      <Badge>{t(`scope.${server.scope}`)}</Badge>
+                      <ScopeBadge scope={server.scope} />
                       {server.effective === false && <Badge tone="attention">{t("mcp.shadowed")}</Badge>}
                     </div>
                     <code className="bg-transparent px-0 text-xs break-all text-muted">{server.url ?? [server.command, ...server.args].filter(Boolean).join(" ")}</code>

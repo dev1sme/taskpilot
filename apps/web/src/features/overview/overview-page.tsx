@@ -9,6 +9,7 @@ import { CLI_SECTIONS, lastConfigCli, rememberConfigCli } from "@/app/routes";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCapabilities, useSection } from "@/features/config/queries";
 import { Elapsed } from "@/components/elapsed";
+import { ScopeBadge } from "@/components/scope-badge";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/features/tasks/status-badge";
 import { matchesFilter, sortTasks } from "@/features/tasks/status";
@@ -269,7 +270,7 @@ function ProviderConfig({ cli }: { cli: ProviderId }) {
               <li key={`${file.scope}:${file.path}`} className="grid min-w-0 gap-1">
                 <span className="break-all font-mono text-xs">{file.path}</span>
                 <span className="flex flex-wrap gap-x-2 text-xs text-muted">
-                  <span>{t(`config:scope.${file.scope}`)}</span>
+                  <ScopeBadge scope={file.scope} />
                   <span>{file.exists ? t("overview.memoryLines", { count: file.lines }) : t("overview.memoryMissing")}</span>
                 </span>
               </li>
@@ -309,7 +310,7 @@ function ProviderConfig({ cli }: { cli: ProviderId }) {
                 {mcp.data.servers.map((server, index) => (
                   <li key={`${server.scope}:${server.name}:${index}`} className="flex min-w-0 items-baseline justify-between gap-2">
                     <span className="min-w-0 break-all font-mono text-xs">{server.name}</span>
-                    <span className="shrink-0 text-xs text-muted">{t(`config:scope.${server.scope}`)}</span>
+                    <ScopeBadge scope={server.scope} />
                   </li>
                 ))}
               </ul>

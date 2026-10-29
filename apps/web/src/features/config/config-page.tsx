@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PROVIDER_IDS, PROVIDER_LABELS } from "@taskpilot/shared";
 import { cn } from "@/lib/utils";
+import { ScopeBadge } from "@/components/scope-badge";
 import { rememberConfigCli, type ConfigSection } from "@/app/routes";
 import { useCapabilities, useSection } from "./queries";
 import { RawFileEditor } from "./raw-editor";
@@ -151,7 +152,7 @@ function FileScopePicker({
             className="h-auto min-h-20 min-w-0 flex-col items-stretch justify-start gap-2 border-line p-3 text-left data-[state=on]:border-signal data-[state=on]:bg-signal-soft"
           >
             <span className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-semibold">{t(`scope.${scope}`)}</span>
+              <ScopeBadge scope={scope} />
               <span className={cn("flex items-center gap-1 text-xs", file?.exists ? "text-signal-text" : "text-muted")}>
                 <Icon size={14} aria-hidden />
                 {file?.exists ? (file.count !== undefined ? t("raw.fileCount", { count: file.count }) : t("raw.fileExists")) : t("missing")}

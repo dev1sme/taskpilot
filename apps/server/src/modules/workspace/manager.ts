@@ -29,11 +29,15 @@ async function exists(dir: string): Promise<boolean> {
   );
 }
 
-/** Thrown with the files involved, so the UI can list them and ask before going on. */
+/**
+ * Thrown with the files involved, so the UI can list them and ask before going on. `reason`: whose
+ * uncommitted files they are — the repo's at start (`base`) or integrate (`repo`), or the worktree's.
+ */
 export class WorktreeConflict extends HttpError {
   constructor(
     message: string,
     readonly files: string[],
+    readonly reason: "base" | "repo" | "worktree",
   ) {
     super(409, message);
   }
@@ -74,7 +78,7 @@ export class WorktreeManager {
       const check = await this.check(repo);
       if (check.problem || !check.head) throw new HttpError(400, check.problem ?? t("worktree.notGit"));
       if (check.dirty.length && !opts.acceptDirty) {
-        throw new WorktreeConflict(t("worktree.dirtyBase", { count: check.dirty.length, files: fileList(check.dirty) }), check.dirty);
+        throw new WorktreeConflict(t("worktree.dirtyBase", { count: check.dirty.length, files: fileList(check.dirty) }), check.dirty, "base");
       }
       const top = await realpath((await git(repo, ["rev-parse", "--show-toplevel"])).trim());
       const short = runId.slice(0, 8);
@@ -167,10 +171,10 @@ export class WorktreeManager {
       if (current.removedAt || !(await exists(current.path))) throw new HttpError(409, t("worktree.missing", { path: current.path }));
       if (current.integration.status === "integrated") throw new HttpError(409, t("worktree.alreadyIntegrated"));
       const pending = await changedFiles(current.path);
-      if (pending.length && !opts.commit) throw new WorktreeConflict(t("worktree.dirty", { count: pending.length, files: fileList(pending) }), pending);
+      if (pending.length && !opts.commit) throw new WorktreeConflict(t("worktree.dirty", { count: pending.length, files: fileList(pending) }), pending, "worktree");
       const top = await this.topOf(current);
       const repoDirty = await changedFiles(top);
-      if (repoDirty.length) throw new WorktreeConflict(t("worktree.repoDirty", { count: repoDirty.length, files: fileList(repoDirty) }), repoDirty);
+      if (repoDirty.length) throw new WorktreeConflict(t("worktree.repoDirty", { count: repoDirty.length, files: fileList(repoDirty) }), repoDirty, "repo");
       if (pending.length) {
         try {
           await git(current.path, ["add", "-A"]);
@@ -208,7 +212,7 @@ export class WorktreeManager {
       const top = await this.topOf(current);
       if (await exists(current.path)) {
         const pending = await changedFiles(current.path).catch(() => []);
-        if (pending.length && !opts.force) throw new WorktreeConflict(t("worktree.removeDirty", { count: pending.length, files: fileList(pending) }), pending);
+        if (pending.length && !opts.force) throw new WorktreeConflict(t("worktree.removeDirty", { count: pending.length, files: fileList(pending) }), pending, "worktree");
         try {
           await git(top, ["worktree", "remove", ...(pending.length ? ["--force"] : []), current.path]);
         } catch (error) {

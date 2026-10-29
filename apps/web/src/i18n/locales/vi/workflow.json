@@ -223,5 +223,38 @@
     "codex": "Tiếp tục bằng Codex",
     "choose": "Chọn agent khác",
     "later": "Để sau"
+  },
+  "worktree": {
+    "option": "Chạy trong Git worktree riêng",
+    "optionHint": "Run có branch và thư mục riêng; repo gốc chỉ đổi khi ba bấm Tích hợp. Các member của run vẫn dùng chung worktree này.",
+    "dirty_one": "Repo có {{count}} file chưa commit. Worktree bắt đầu từ HEAD và không mang file này theo; TaskPilot không stash, reset hay commit hộ.",
+    "dirty_other": "Repo có {{count}} file chưa commit. Worktree bắt đầu từ HEAD và không mang các file này theo; TaskPilot không stash, reset hay commit hộ.",
+    "moreFiles": "… và {{count}} file khác",
+    "acceptDirty": "Chạy trên HEAD, không mang các thay đổi chưa commit",
+    "title": "Worktree của run",
+    "active": "Run đang chạy",
+    "activeHint": "Huỷ hoặc chờ run xong rồi mới tích hợp hay dọn worktree.",
+    "removed": "Đã dọn",
+    "missing": "Không thấy thư mục",
+    "path": "Thư mục",
+    "base": "Base",
+    "state": "Hiện có",
+    "counts": "{{commits}} commit trên branch · {{changes}} file chưa commit",
+    "dirtyAccepted": "Lúc tạo, ba đã xác nhận bỏ qua {{count}} file chưa commit của repo.",
+    "diffStat": "Thống kê thay đổi so với base",
+    "diff": "Diff so với base",
+    "noDiff": "Không có thay đổi.",
+    "truncated": "Diff quá dài, chỉ hiện phần đầu.",
+    "showDiff": "Xem diff",
+    "integrate": "Tích hợp",
+    "commitAndIntegrate": "Commit các thay đổi rồi tích hợp",
+    "remove": "Dọn worktree",
+    "forceRemove": "Xoá cả các thay đổi này",
+    "keep": "Giữ nguyên",
+    "integration": {
+      "pending": "Chờ tích hợp",
+      "integrated": "Đã tích hợp",
+      "failed": "Tích hợp lỗi"
+    }
   }
 }

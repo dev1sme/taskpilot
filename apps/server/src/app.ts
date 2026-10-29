@@ -172,7 +172,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof ExecutionValidationError) return reply.code(400).send({ error: t("errors.workflowInvalid", { errors: err.message }), problems: err.problems });
     // The files a worktree action stopped at, so the UI can list them and ask before going on.
-    if (err instanceof WorktreeConflict) return reply.code(err.status).send({ error: err.message, files: err.files });
+    if (err instanceof WorktreeConflict) return reply.code(err.status).send({ error: err.message, files: err.files, reason: err.reason });
     if (err instanceof HttpError) return reply.code(err.status).send({ error: err.message });
     app.log.error(err);
     return reply.code(500).send({ error: "Internal error" });

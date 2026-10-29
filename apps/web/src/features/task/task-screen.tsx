@@ -32,6 +32,7 @@ import { GateCard } from "@/features/workflow/gate-card";
 import { HandoffDialog, RunHistory, type HandoffTarget } from "@/features/workflow/handoff";
 import { NowCard } from "@/features/workflow/now-card";
 import { RunOptions } from "@/features/workflow/run-options";
+import { WorkspacePanel } from "@/features/workflow/workspace-card";
 import { Stepper } from "@/features/workflow/stepper";
 import { sessionsApi, useSessions } from "@/features/sessions/queries";
 import { TerminalDrawer } from "@/features/sessions/terminal-drawer";
@@ -194,6 +195,7 @@ function TaskContent({ task }: { task: TaskListItem }) {
                     onHandoff={setHandoff}
                   />
                 )}
+                <WorkspacePanel taskKey={task.key} />
                 {run && <RunHistory run={run} usage={view.usage} onOpenSession={openSession} />}
               </div>
               <aside className="grid content-start gap-6">
@@ -331,7 +333,11 @@ function TaskTools({ task, view, active, onShowPrompt }: { task: TaskListItem; v
             <DialogDescription>{t("restartHint")}</DialogDescription>
           </DialogHeader>
           {run && (
-            <RunOptions taskKey={task.key} initial={{ mode: view.runMode?.id ?? view.workflow.mode.id, execution: run.execution ?? { agent: "workflow" } }} disabled={restartBusy}>
+            <RunOptions
+              taskKey={task.key}
+              initial={{ mode: view.runMode?.id ?? view.workflow.mode.id, execution: run.execution ?? { agent: "workflow" }, ...(run.workspace ? { isolation: "worktree" as const } : {}) }}
+              disabled={restartBusy}
+            >
               {(options, blocked) => (
                 <Button variant="attention" busy={restartBusy} disabled={blocked} onClick={() => void restart(options)}>
                   <ArrowCounterClockwise aria-hidden />

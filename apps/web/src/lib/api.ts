@@ -6,6 +6,10 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /** Files the server stopped at (uncommitted changes of a worktree action), to list before asking again. */
+    readonly files?: string[],
+    /** Whose files they are: "base"/"repo" (the repo's) or "worktree". */
+    readonly reason?: string,
   ) {
     super(message);
   }
@@ -28,9 +32,9 @@ export async function call<T>(method: string, url: string, body?: unknown): Prom
     headers: body === undefined ? {} : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  const data = (await res.json().catch(() => ({}))) as { error?: string };
+  const data = (await res.json().catch(() => ({}))) as { error?: string; files?: string[]; reason?: string };
   if (res.status === 401 && url !== "/api/login") window.dispatchEvent(new Event(UNAUTHORIZED));
-  if (!res.ok) throw new ApiError(res.status, data.error ?? `HTTP ${res.status}`);
+  if (!res.ok) throw new ApiError(res.status, data.error ?? `HTTP ${res.status}`, Array.isArray(data.files) ? data.files : undefined, data.reason);
   return data as T;
 }
 

@@ -13,6 +13,7 @@ export type { AuthStatus } from "./modules/auth/types.js";
 export type { Inventory, RepoInfo, ServerInfo } from "./modules/repo/types.js";
 export type { TaskDetail, TaskFile, TaskListItem, TaskStage, TaskStatus, TaskSummary } from "./modules/tasks/types.js";
 export type * from "./modules/workflow/types.js";
+export type { IntegrationStatus, RunWorkspace, WorkspaceDiff, WorkspaceView, WorktreeCheck } from "./modules/workspace/types.js";
 export type { SessionFailure, SessionStatus, SessionView } from "./modules/sessions/types.js";
 export type { ActivityItem, ActivityKind } from "./modules/activity/types.js";
 export type { UsageView } from "./modules/usage/types.js";

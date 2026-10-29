@@ -127,6 +127,60 @@ function ExecutionNotice({ value }: { value: ExecutionSelection }) {
   );
 }
 
+const LISTED_FILES = 10;
+
+/** Whether the run gets its own Git worktree; uncommitted repo files must be acknowledged, never carried or stashed. */
+function IsolationField({ taskKey, value, onChange, disabled }: { taskKey: string; value: RunOptionsValue; onChange: (next: RunOptionsValue) => void; disabled?: boolean }) {
+  const { t } = useTranslation("workflow");
+  const repo = useRepo().data?.path;
+  const check = useWorktreeCheck(taskKey, repo);
+  const on = value.isolation === "worktree";
+  const problem = check.data?.problem ?? check.error?.message;
+  const dirty = check.data?.dirty ?? [];
+  return (
+    <div className="grid gap-1.5 text-sm">
+      <label className="flex items-start gap-2">
+        <input
+          type="checkbox"
+          className="mt-1 size-4 accent-[var(--signal)]"
+          checked={on}
+          disabled={disabled || (!on && (!check.data || Boolean(problem)))}
+          onChange={(e) => onChange({ ...value, isolation: e.target.checked ? "worktree" : undefined, acceptDirtyBase: undefined })}
+        />
+        <span className="grid gap-0.5">
+          <span>{t("worktree.option")}</span>
+          <span className="text-xs text-muted">{problem ?? t("worktree.optionHint")}</span>
+        </span>
+      </label>
+      {on && dirty.length > 0 && (
+        <div role="alert" className="grid gap-1.5 rounded-sm border border-attention-line bg-attention-soft p-2 text-xs">
+          <p>{t("worktree.dirty", { count: dirty.length })}</p>
+          <ul className="font-mono">
+            {dirty.slice(0, LISTED_FILES).map((file) => (
+              <li key={file}>{file}</li>
+            ))}
+            {dirty.length > LISTED_FILES && <li>{t("worktree.moreFiles", { count: dirty.length - LISTED_FILES })}</li>}
+          </ul>
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 accent-[var(--signal)]"
+              checked={value.acceptDirtyBase === true}
+              disabled={disabled}
+              onChange={(e) => onChange({ ...value, acceptDirtyBase: e.target.checked || undefined })}
+            />
+            {t("worktree.acceptDirty")}
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function useWorktreeCheck(taskKey: string, repo: string | null | undefined) {
+  return useQuery({ queryKey: ["worktree-check", repo, taskKey], queryFn: () => workflowApi.worktreeCheck(taskKey), enabled: Boolean(repo), staleTime: 0 });
+}
+
 function Problem({ children }: { children: ReactNode }) {
   return (
     <p role="alert" className="text-sm text-danger">
@@ -161,8 +215,16 @@ export function RunOptions({
   const defaults = useQuery({ queryKey: ["execution-defaults", repo], queryFn: settingsApi.defaults, enabled: Boolean(repo) });
   const modes = useQuery({ queryKey: ["workflow-modes", repo], queryFn: settingsApi.modes, enabled: Boolean(repo) });
   const execution: ExecutionSelection = value.execution ?? defaults.data?.execution ?? { agent: "workflow" };
+  const worktree = useWorktreeCheck(taskKey, repo);
+  const isolated = value.isolation === "worktree";
   // Submit the values shown on screen, even if the defaults change before the request arrives.
-  const options: RunOptionsValue = { mode: value.mode ?? modes.data?.selected, execution };
+  const options: RunOptionsValue = {
+    mode: value.mode ?? modes.data?.selected,
+    execution,
+    ...(isolated ? { isolation: "worktree" as const, ...(value.acceptDirtyBase ? { acceptDirtyBase: true } : {}) } : {}),
+  };
+  // A worktree run needs a usable repo and, when it has uncommitted files, the user's consent to leave them out.
+  const isolationBlocked = isolated && (!worktree.data || Boolean(worktree.data.problem) || (worktree.data.dirty.length > 0 && !value.acceptDirtyBase));
   const signature = JSON.stringify(options);
   const preview = useQuery({ queryKey: ["run-preview", repo, taskKey, signature], queryFn: () => workflowApi.preview(taskKey, options), enabled: previewFor === signature });
   const shown = previewFor === signature ? preview.data : undefined;
@@ -170,7 +232,7 @@ export function RunOptions({
   const diagnostics = defaults.data?.errors ?? [];
   const missingMode = modes.data && !modes.data.modes.some((mode) => mode.id === options.mode);
   const unavailable = !defaults.data || !modes.data || Boolean(loadError) || diagnostics.length > 0 || Boolean(missingMode);
-  const blocked = unavailable || saving || (previewFor === signature && Boolean(preview.error)) || (shown?.errors.length ?? 0) > 0;
+  const blocked = unavailable || saving || isolationBlocked || (previewFor === signature && Boolean(preview.error)) || (shown?.errors.length ?? 0) > 0;
   const lock = disabled || saving;
   const source = value.execution
     ? initial?.execution && JSON.stringify(value.execution) === JSON.stringify(initial.execution)
@@ -233,6 +295,7 @@ export function RunOptions({
         <ExecutionFields value={execution} allowWorkflow disabled={lock || !defaults.data} onChange={(next) => change({ ...value, execution: next })} />
       </div>
       <p className="text-xs text-muted">{t("selection.source", { source: t(`selection.sources.${source}`) })}</p>
+      <IsolationField taskKey={taskKey} value={value} disabled={lock} onChange={change} />
       <ExecutionNotice value={execution} />
       {loadError && <Problem>{loadError.message}</Problem>}
       {missingMode && <Problem>{t("selection.missingMode", { mode: options.mode })}</Problem>}
@@ -271,7 +334,7 @@ export function RunOptions({
           variant="ghost"
           disabled={lock}
           onClick={() => {
-            void Promise.all(["execution-defaults", "workflow-modes", "agent-capabilities"].map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
+            void Promise.all(["execution-defaults", "workflow-modes", "agent-capabilities", "worktree-check"].map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
             setPreviewFor(null);
           }}
         >

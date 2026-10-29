@@ -74,7 +74,7 @@ export function NowCard({ taskKey, view, run, session, activity, asking, onOpenS
   const [busy, setBusy] = useState(false);
   const steps = view.workflow.steps;
   const mode = view.runMode?.id ?? view.workflow.mode.id;
-  const initial: RunOptionsValue | undefined = run ? { mode, execution: run.execution ?? { agent: "workflow" } } : undefined;
+  const initial: RunOptionsValue | undefined = run ? { mode, execution: run.execution ?? { agent: "workflow" }, ...(run.workspace ? { isolation: "worktree" as const } : {}) } : undefined;
   const act = async (action: () => Promise<unknown>) => {
     setBusy(true);
     try {
@@ -147,6 +147,8 @@ export function NowCard({ taskKey, view, run, session, activity, asking, onOpenS
         <Text>
           {done ? <Trans t={t} i18nKey="now.doneBody" values={{ duration: formatDuration(run.updatedAt - run.startedAt) }} components={{ strong: <strong /> }} /> : t("selection.readyBody")}
         </Text>
+        {/* A worktree run's message says whether its code still waits for integration. */}
+        {done && run.workspace && <Text>{run.message}</Text>}
         {done && lastDoc && (
           <Actions>
             <Button variant="primary" onClick={() => onOpenDoc(lastDoc)}>

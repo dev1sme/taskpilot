@@ -199,6 +199,7 @@ export default {
   worktree: {
     notGit: "Repo không phải Git repo (hoặc không đọc được bằng git); không tạo được worktree riêng cho run.",
     noCommit: "Repo chưa có commit nào; cần ít nhất một commit làm base cho worktree.",
+    ignored: "Thư mục repo nằm trong phần bị Git ignore của repo cha; worktree sẽ không có thư mục này.",
     dirtyBase: "Repo có {{count}} file chưa commit: {{files}}. Worktree chỉ lấy HEAD, không mang các thay đổi này. Commit/xử lý trước, hoặc xác nhận chạy trên HEAD.",
     createFailed: "Không tạo được worktree: {{error}}",
     notFound: "Không có worktree nào của run này.",

@@ -187,3 +187,12 @@ it("discards an unused worktree and its branch when the run could not start", as
   expect(gitSync(repo, "branch", "--list", ws.branch).trim()).toBe("");
   expect(await manager.get(ws.runId)).toBeUndefined();
 });
+
+it("refuses a folder that its enclosing Git repo ignores", async () => {
+  const ignored = path.join(repo, ".claude", "tasks", "nested");
+  await mkdir(ignored, { recursive: true });
+  const check = await manager.check(ignored);
+  expect(check.git).toBe(false);
+  expect(check.problem).toBeTruthy();
+  await expect(manager.create(ignored, "DEMO-1", "55555555-ignored")).rejects.toMatchObject({ status: 400 });
+});

@@ -1,4 +1,5 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, type Page } from "@playwright/test";
 import { TMP } from "../env";
@@ -97,5 +98,36 @@ export function createSelectionRepo(name: string, options: { settings?: string; 
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(file, content);
   }
+  return repo;
+}
+
+/** Git with a fixed identity, so fixture commits and TaskPilot's merges work without the user's Git config. */
+export function gitIn(repo: string, ...args: string[]): string {
+  return execFileSync("git", args, { cwd: repo, encoding: "utf8", env: { ...process.env, GIT_CONFIG_NOSYSTEM: "1" } });
+}
+
+/**
+ * A fresh Git repo with one commit and a task, its task folder Git-ignored as in this repo. The path has
+ * a space: TaskPilot passes paths to git as arguments. Recreated on every call.
+ */
+export function createGitRepo(name: string, taskKey = "WT-1"): string {
+  const repo = path.join(TMP, "repos", `git ${name}`);
+  rmSync(repo, { recursive: true, force: true });
+  const files = {
+    ".gitignore": ".claude/tasks\n",
+    "src/app.txt": "line 1\n",
+    [`.claude/tasks/${taskKey}/spec/README.md`]: "# Worktree fixture\n",
+  };
+  for (const [rel, content] of Object.entries(files)) {
+    const file = path.join(repo, rel);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, content);
+  }
+  gitIn(repo, "init", "-q", "-b", "main");
+  gitIn(repo, "config", "user.name", "TaskPilot E2E");
+  gitIn(repo, "config", "user.email", "e2e@taskpilot.invalid");
+  gitIn(repo, "config", "commit.gpgsign", "false");
+  gitIn(repo, "add", "-A");
+  gitIn(repo, "commit", "-q", "-m", "base");
   return repo;
 }

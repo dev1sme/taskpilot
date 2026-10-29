@@ -61,8 +61,11 @@ export class WorktreeManager {
 
   /** Whether `repo` can get a worktree, and what uncommitted files it would leave behind. */
   async check(repo: string): Promise<WorktreeCheck> {
-    const top = await gitMaybe(repo, ["rev-parse", "--show-toplevel"]);
-    if (top === null) return { git: false, problem: t("worktree.notGit"), dirty: [] };
+    const top = (await gitMaybe(repo, ["rev-parse", "--show-toplevel"]))?.trim();
+    if (!top) return { git: false, problem: t("worktree.notGit"), dirty: [] };
+    // A folder that the enclosing repo ignores would not exist in a worktree of that repo.
+    const inside = path.relative(await realpath(top), repo);
+    if (inside && (await gitMaybe(top, ["check-ignore", "-q", "--", inside])) !== null) return { git: false, problem: t("worktree.ignored"), dirty: [] };
     const head = (await gitMaybe(repo, ["rev-parse", "--verify", "-q", "HEAD^{commit}"]))?.trim();
     if (!head) return { git: true, problem: t("worktree.noCommit"), dirty: [] };
     const branch = (await gitMaybe(repo, ["symbolic-ref", "-q", "--short", "HEAD"]))?.trim();

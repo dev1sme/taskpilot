@@ -10,5 +10,26 @@
     "light": "Sáng",
     "dark": "Tối"
   },
-  "notFound": "Không tìm thấy trang này."
+  "notFound": "Không tìm thấy trang này.",
+  "observation": {
+    "states": {
+      "available": "Có dữ liệu",
+      "missing": "Không có dữ liệu",
+      "unsupported": "Không hỗ trợ",
+      "unverified": "Chưa xác minh",
+      "stale": "Số liệu lần trước"
+    },
+    "reasons": {
+      "no-hook": "Chưa nhận hook từ phiên này",
+      "runtime-unverified": "Chưa có bằng chứng từ phiên chạy",
+      "no-source": "Phiên chưa cung cấp nguồn số liệu",
+      "file-missing": "File số liệu không còn tồn tại",
+      "file-unreadable": "Không đọc được file số liệu",
+      "invalid-rollout": "Số liệu không hợp lệ",
+      "no-sample": "Chưa có mẫu trong phần cuối file",
+      "identity-mismatch": "Chưa xác minh được đúng phiên",
+      "older-sample": "Bỏ qua mẫu cũ đến muộn",
+      "source-changed": "Nguồn hoặc phạm vi số liệu đã thay đổi"
+    }
+  }
 }

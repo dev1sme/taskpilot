@@ -19,6 +19,7 @@ import { unknownFailure } from "./failure.js";
 import type { SessionFailure } from "./types.js";
 import type { AccountQuotaEvidence } from "../usage/index.js";
 import type { SessionView } from "./types.js";
+import { SerialQueue } from "../../core/serial.js";
 
 export interface SessionCreateOptions {
   permissionMode?: string;
@@ -38,6 +39,8 @@ export interface SessionWaitOptions {
 }
 
 interface Live {
+  hookQueue: SerialQueue;
+  seenHooks: Set<string>;
   failure?: SessionFailure;
   generation?: number;
   started: Signal;
@@ -478,23 +481,42 @@ export class SessionManager extends EventEmitter<SessionEvents> {
   async handleHook(token: string, event: HookEvent, raw: Record<string, unknown>): Promise<boolean> {
     const id = this.byHookToken.get(token);
     const live = id ? this.live.get(id) : undefined;
+    if (!live) return false;
+    return live.hookQueue.run(() => this.applyHook(token, event, raw));
+  }
+
+  private async applyHook(token: string, event: HookEvent, raw: Record<string, unknown>): Promise<boolean> {
+    const id = this.byHookToken.get(token);
+    const live = id ? this.live.get(id) : undefined;
     if (!id || !live || live.stopping) return false;
+    const meta = structuredClone(await this.find(id));
+    const backend = backendOf(meta.agent);
+    if (backend.acceptHook && !(await backend.acceptHook(event, raw, meta))) return false;
+    if (this.live.get(id) !== live || live.stopping || !live.transport.running || live.hookToken !== token) return false;
+    const key = backend.hookKey?.(event, raw);
+    if (key && live.seenHooks.has(key)) return true;
     live.lastHookAt = Date.now();
     this.stopWatching(live);
-    const meta = await this.find(id);
-    const backend = backendOf(meta.agent);
+    this.emit("change", meta);
     // An agent that names its own threads (Codex) sends that id as session_id; it is kept as nativeId, the payload carries ours.
     const nativeId = backend.nativeIdOf?.(raw);
     const normalized = backend.normalize ? await backend.normalize(event, raw, live.hookState) : raw;
     if (this.live.get(id) !== live || live.stopping || !live.transport.running || live.hookToken !== token) return false;
     if (!nativeId && normalized && typeof normalized.session_id === "string" && normalized.session_id !== id) return false;
-    if (nativeId) await this.saveNativeId(meta, live, nativeId, typeof raw.model === "string" ? raw.model : undefined);
+    if (nativeId && (normalized || event === "SessionStart")) {
+      await this.saveNativeId(meta, live, nativeId, typeof raw.model === "string" ? raw.model : undefined);
+      meta.nativeId = nativeId;
+    }
     if (this.live.get(id) !== live || live.stopping || live.hookToken !== token) return false;
     const payload = nativeId && normalized ? { ...normalized, session_id: id } : normalized;
+    if (key) {
+      live.seenHooks.add(key);
+      if (live.seenHooks.size > 400) live.seenHooks.delete(live.seenHooks.values().next().value!);
+    }
     if (!payload) return true;
     // Measurements go out before the hook they belong to, so a consumer that reacts to Stop already has them.
     if (backend.turnMetrics) {
-      const data = await backend.turnMetrics(event, payload).catch(() => null);
+      const data = await backend.turnMetrics(event, payload, meta).catch(() => null);
       if (this.live.get(id) !== live || live.stopping || live.hookToken !== token) return false;
       if (data) this.emit("metrics", meta, data);
     }
@@ -658,6 +680,8 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       hookToken,
       lastHookAt: null,
       hookState: emptyHookState(),
+      hookQueue: new SerialQueue(),
+      seenHooks: new Set(),
       transcriptTimer: null,
     };
     this.live.set(meta.id, live);
@@ -761,6 +785,8 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       hookToken: null,
       lastHookAt: null,
       hookState: emptyHookState(),
+      hookQueue: new SerialQueue(),
+      seenHooks: new Set(),
       transcriptTimer: null,
     };
   }
@@ -773,6 +799,7 @@ export class SessionManager extends EventEmitter<SessionEvents> {
       status: this.isRunning(meta.id) ? "running" : "exited",
       exitCode: live?.exitCode ?? null,
       activity: live?.transport.running ? live.activity : null,
+      ...(backendOf(meta.agent).observation ? { observation: backendOf(meta.agent).observation!(live?.lastHookAt ?? null) } : {}),
       ...(live?.failure ? { failure: live.failure } : {}),
     };
   }

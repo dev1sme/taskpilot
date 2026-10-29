@@ -12,6 +12,7 @@ import { CUSTOM_MODE } from "./modes.js";
 import { launchModel } from "./models.js";
 import { archiveOutputs } from "./archive.js";
 import { HISTORY_TEXT, measuredMetrics, mergeCumulative, summarizeMetrics } from "./history.js";
+import { updateCodexMeasurement } from "./metrics-observation.js";
 import { PROMPT_TEXT } from "./prompt-text.js";
 import { ACTIVE_RUN_PHASES, agentLabel, dispatching, laneBlocked, laneOf, outputBaseline, sessionLabel, syncDispatch, taskAbsoluteDir, writtenSince, type Lane } from "./lane.js";
 import type { LoadDef, SessionPort, ClaudeSubagentsOf } from "./ports.js";
@@ -522,7 +523,7 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       if (!run) return;
       // Only a status line reports what the session cost; token notifications never carry a cost.
       const costUsd = data.source === "claude-statusline" ? { costUsd: data.costUsd } : {};
-      this.recordMetrics(run, meta, { model: data.model, inputTokens: data.inputTokens, outputTokens: data.outputTokens, ...costUsd }, data.source ?? "legacy");
+      this.recordMetrics(run, meta, { model: data.model, inputTokens: data.inputTokens, outputTokens: data.outputTokens, ...costUsd }, data.source ?? "legacy", data);
       await this.store.save(run, {});
     });
   }
@@ -846,9 +847,9 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
     if (attempt && attempt.finishedAt === undefined) attempt.finishedAt = Date.now();
   }
 
-  private recordMetrics(run: RunState, meta: SessionMeta, incoming: SubtaskMetrics, source: MetricsSource): void {
+  private recordMetrics(run: RunState, meta: SessionMeta, incoming: SubtaskMetrics, source: MetricsSource, observation?: SessionMetrics): void {
     const read = measuredMetrics(incoming);
-    if (!Object.keys(read).length) return;
+    if (!Object.keys(read).length && !observation?.availability) return;
     const all = (run.sessionMetrics ??= []);
     let snapshot = all.find((m) => m.sessionId === meta.id && m.source === source);
     if (!snapshot) {
@@ -861,20 +862,30 @@ export class WorkflowEngine extends EventEmitter<{ change: [run: RunState]; warn
       };
       all.push(snapshot);
     }
-    snapshot.metrics = mergeCumulative(snapshot.metrics, read);
-    snapshot.observedAt = Date.now();
+    if (source === "codex-thread" && observation) {
+      if (!snapshot.nativeId && meta.nativeId) snapshot.nativeId = meta.nativeId;
+      if (!updateCodexMeasurement(snapshot, read, observation)) return;
+    } else {
+      snapshot.metrics = mergeCumulative(snapshot.metrics, read);
+      snapshot.observedAt = Date.now();
+    }
     snapshot.generation = meta.generation ?? 0;
     if (meta.nativeId) snapshot.nativeId = meta.nativeId;
     const attempt = run.attempts?.findLast((a) => a.sessionId === meta.id);
     if (attempt) {
-      attempt.metrics = mergeCumulative(attempt.metrics, read);
+      attempt.metrics =
+        source === "codex-thread"
+          ? { ...(attempt.metrics?.durationMs !== undefined ? { durationMs: attempt.metrics.durationMs } : {}), ...snapshot.metrics }
+          : mergeCumulative(attempt.metrics, read);
       attempt.metricsSource = source;
       attempt.metricsObservedAt = snapshot.observedAt;
       if (source !== "legacy" && read.model) attempt.actualModel = read.model;
       if (meta.nativeId) attempt.nativeId = meta.nativeId;
     }
     const sub = run.subtasks?.find((s) => s.sessionId === meta.id);
-    if (sub) sub.metrics = mergeCumulative(sub.metrics, read);
+    if (sub)
+      sub.metrics =
+        source === "codex-thread" ? { ...(sub.metrics?.durationMs !== undefined ? { durationMs: sub.metrics.durationMs } : {}), ...snapshot.metrics } : mergeCumulative(sub.metrics, read);
   }
 
   private sessionMatches(run: RunState, session: Awaited<ReturnType<SessionPort["get"]>>, effective: EffectiveExecution): boolean {

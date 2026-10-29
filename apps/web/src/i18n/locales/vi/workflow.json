@@ -197,7 +197,9 @@
       "codex-thread": "Nguồn: Codex thread",
       "legacy": "Nguồn: dữ liệu cũ, provenance chưa xác minh"
     },
-    "attemptConfig": "Cấu hình yêu cầu: {{agent}} · {{requested}}; model thực tế: {{actual}}"
+    "attemptConfig": "Cấu hình yêu cầu: {{agent}} · {{requested}}; model thực tế: {{actual}}",
+    "codexUnverified": "Chi phí Codex: không hỗ trợ. Cache, reasoning tokens và effort thực tế: chưa xác minh. Token là tổng tích lũy của phiên, tách biệt hạn mức tài khoản.",
+    "staleTotals": "Tổng còn giữ số đo lần trước của những phiên mất nguồn dữ liệu. Xem thời điểm và nguyên nhân ở từng phiên."
   },
   "quota": {
     "label": "Hạn mức và hướng xử lý",

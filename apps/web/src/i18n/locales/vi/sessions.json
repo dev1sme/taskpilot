@@ -29,5 +29,12 @@
   "scope": {
     "task": "task",
     "repo": "repo"
+  },
+  "observation": {
+    "title": "Quan sát Codex · {{title}}",
+    "hint": "Nếu chưa có hoạt động, xem terminal để kiểm tra CLI và yêu cầu duyệt hooks. Chưa nhận hook không có nghĩa là bạn đã từ chối trust. Agent mẫu của workflow không phải bằng chứng có agent con đang chạy.",
+    "childLifecycle": "Agent con của Codex",
+    "compaction": "Nén ngữ cảnh",
+    "sessionEnd": "Kết thúc phiên Codex"
   }
 }

@@ -3,6 +3,7 @@ import { readCodexAgent } from "../../../providers/codex/agents.js";
 import { CodexError, RpcError } from "../../../providers/codex/errors.js";
 import { codexLauncher } from "../../../providers/codex/cli-launcher.js";
 import { rolloutTokens } from "../../../providers/codex/rollout.js";
+import { acceptCodexHook, codexHookKey, codexObservation, currentCodexTurn } from "../../../providers/codex/observation.js";
 import { fetchCodexModels } from "../../../providers/codex/models.js";
 import { fetchCodexLoggedIn, initializeCodexAppServer, withCodexAppServer } from "../../../providers/codex/app-server.js";
 import { codexHookSettings, type HookEvent } from "../hooks.js";
@@ -48,6 +49,9 @@ export const codexBackend: ProviderBackend = {
   // Codex fires SessionStart only together with the first prompt, so the engine cannot wait for it.
   readyMarker: CODEX_READY_MARKER,
   nativeIdOf: (payload) => (typeof payload.session_id === "string" && payload.session_id ? payload.session_id : undefined),
+  acceptHook: acceptCodexHook,
+  hookKey: codexHookKey,
+  observation: codexObservation,
   normalize: normalizeCodex,
 };
 
@@ -61,9 +65,12 @@ function checkCodexSubagent(repo: string, name: string): SubagentCheck {
 }
 
 /** Codex has no status line: its Stop hook carries the model and the rollout path, whose last `token_count` is the thread total. */
-export async function codexTurnMetrics(event: HookEvent, payload: Record<string, unknown>): Promise<SessionMetrics | null> {
+export async function codexTurnMetrics(event: HookEvent, payload: Record<string, unknown>, meta: { nativeId?: string }): Promise<SessionMetrics | null> {
   if (event !== "Stop" || payload.interrupted === true) return null;
-  const rollout = typeof payload.transcript_path === "string" && path.isAbsolute(payload.transcript_path) ? await rolloutTokens(payload.transcript_path) : {};
+  const rollout =
+    meta.nativeId && typeof payload.transcript_path === "string" && path.isAbsolute(payload.transcript_path)
+      ? await rolloutTokens(payload.transcript_path, meta.nativeId)
+      : { availability: { state: "missing" as const, reason: "no-source" as const, checkedAt: Date.now() } };
   return { source: "codex-thread", ...rollout, model: typeof payload.model === "string" ? payload.model : undefined };
 }
 
@@ -72,7 +79,8 @@ function patchedFile(patch: unknown): string | undefined {
   return typeof patch === "string" ? /^\*\*\* (?:Add|Update|Delete) File: (.+)$/m.exec(patch)?.[1]?.trim() : undefined;
 }
 
-export async function normalizeCodex(event: HookEvent, payload: Record<string, unknown>, _state: HookState): Promise<Record<string, unknown> | null> {
+export async function normalizeCodex(event: HookEvent, payload: Record<string, unknown>, state: HookState): Promise<Record<string, unknown> | null> {
+  if (!currentCodexTurn(event, payload, state)) return null;
   const out = { ...payload };
   // Codex edits files with apply_patch; its input is the patch text in `command`.
   if (out.tool_name === "apply_patch") {

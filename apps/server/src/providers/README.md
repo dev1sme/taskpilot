@@ -23,7 +23,7 @@ Naming:
 - `rollout.ts` / `transcript.ts`: reads the CLI's own session log (token counts, turn ends, last message).
 - `tool-names.ts`: maps the CLI's runtime tool names to the names TaskPilot uses.
 
-Tests mirror providers under `server/test/providers/`. Architecture tests enforce
+Tests mirror providers under `apps/server/test/providers/`. Architecture tests enforce
 layer boundaries; keep public module exports as the route between use cases.
 
 ## Launch option boundary
@@ -70,3 +70,24 @@ provider's payload (Claude: `providers/claude/status-line.ts`) into metrics
 (model, cost) and an account usage report. SessionManager emits them on the
 `metrics` and `accountUsage` streams; the raw payload never leaves it. Only
 `claude-statusline` metrics may carry a cost.
+
+Codex observation is conservative: `acceptHook` checks native identity before any
+state mutation. The first bind requires a bounded `session_meta` record with the
+matching id, root CLI source and repository cwd; inherited child tokens alone do
+not establish a parent-child relation. Once bound, another thread cannot replace
+the root id. A per-process serial queue, native turn/call deduplication and turn
+correlation suppress old callbacks; existing generation and handoff fences still
+apply. A suppressed turn cannot change the observed model. Unknown lifecycle
+hooks remain outside ingress and the neutral control contract until a trusted
+PTY runtime smoke verifies their payload, identity and ordering.
+
+Rollout measurements carry availability separately from counters and use bounded
+head/tail reads of regular, non-symlink files. No personal-history discovery is
+performed. Sample thread id, file identity and byte position (or source timestamp
+across file replacement) prevent old reads from overwriting current snapshots.
+Counter resets and unorderable source changes preserve the last known measurement
+as stale rather than guessing a new basis. Failed reads do not update the last
+successful measurement time. Same-native-thread totals are counted once across
+TaskPilot session ids. Legacy snapshots without availability remain readable and
+are shown as unverified; no cache/reasoning/effort or Codex cost is inferred from
+schema defaults, configured models, account quota, or missing rollout data.

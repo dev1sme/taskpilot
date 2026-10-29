@@ -78,8 +78,13 @@ export function summarizeMetrics(
     session.nativeId ??= snapshot.nativeId;
     const previous = session.measurements.find((m) => m.source === snapshot.source);
     if (previous) {
-      previous.metrics = mergeCumulative(previous.metrics, snapshot.metrics);
-      previous.observedAt = Math.max(previous.observedAt ?? 0, snapshot.observedAt ?? 0) || undefined;
+      if (snapshot.source === "codex-thread" && (snapshot.availability || previous.availability)) {
+        if ((snapshot.observedAt ?? 0) >= (previous.observedAt ?? 0)) Object.assign(previous, snapshot, { metrics: measuredMetrics(snapshot.metrics) });
+      } else {
+        // Preserve sparse legacy and other-provider observations exactly as before.
+        previous.metrics = mergeCumulative(previous.metrics, snapshot.metrics);
+        previous.observedAt = Math.max(previous.observedAt ?? 0, snapshot.observedAt ?? 0) || undefined;
+      }
     } else session.measurements.push({ ...snapshot, metrics: measuredMetrics(snapshot.metrics) });
     if (snapshot.source !== "legacy" && snapshot.metrics.model && !session.actualModels.includes(snapshot.metrics.model)) session.actualModels.push(snapshot.metrics.model);
   }
@@ -95,7 +100,23 @@ export function summarizeMetrics(
   for (const key of counters) {
     const values = summary.sessions.flatMap((s) => (s.metrics[key] === undefined ? [] : [s.metrics[key]!]));
     summary.coverage[key] = values.length;
-    if (values.length && values.length === summary.sessions.length) summary.totals[key] = values.reduce((a, b) => a + b, 0);
+    if (values.length && values.length === summary.sessions.length) {
+      // Two TaskPilot sessions may refer to the same resumed native thread. Its cumulative
+      // total is one measurement, even though both sessions remain visible in the audit trail.
+      const unique = new Map<string, { value: number; at: number; measurement?: SessionUsage["measurements"][number] }>();
+      let ambiguous = false;
+      for (const session of summary.sessions) {
+        const native = session.measurements.find((m) => m.source === "codex-thread" && m.nativeId);
+        const id = native ? `codex:${native.nativeId}` : `session:${session.sessionId}`;
+        const at = native?.observedAt ?? 0;
+        const previous = unique.get(id);
+        const sameFile = native?.sample && previous?.measurement?.sample?.fileId === native.sample.fileId;
+        const order = sameFile ? native!.sample!.offset - previous!.measurement!.sample!.offset : at - (previous?.at ?? 0);
+        if (!previous || order > 0) unique.set(id, { value: session.metrics[key]!, at, measurement: native });
+        else if (order === 0 && previous.value !== session.metrics[key]) ambiguous = true;
+      }
+      if (!ambiguous) summary.totals[key] = [...unique.values()].reduce((sum, m) => sum + m.value, 0);
+    }
   }
   return summary;
 }
@@ -115,7 +136,7 @@ function usage(summary: MetricsSummary, attempts: ExecutionAttempt[] = []): stri
         ...(s.measurements.length
           ? s.measurements.map(
               (m) =>
-                `  - Nguồn \`${m.source}\` · phạm vi ${m.basis}${m.observedAt !== undefined ? ` · ghi nhận ${m.observedAt}` : ""} · ${metrics(m.source === "legacy" ? { ...m.metrics, model: undefined } : m.metrics)}${m.source === "legacy" ? " · dữ liệu legacy, provenance/model thực tế chưa xác minh" : ""}.`,
+                `  - Nguồn \`${m.source}\` · phạm vi ${m.basis}${m.observedAt !== undefined ? ` · ghi nhận ${m.observedAt}` : ""}${m.availability ? ` · trạng thái ${m.availability.state}${m.availability.reason ? ` (${m.availability.reason})` : ""}` : ""} · ${metrics(m.source === "legacy" ? { ...m.metrics, model: undefined } : m.metrics)}${m.source === "legacy" ? " · dữ liệu legacy, provenance/model thực tế chưa xác minh" : ""}.`,
             )
           : ["  - Số liệu không có; chi phí không có; model thực tế không rõ."]),
       ].join("\n"),

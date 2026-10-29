@@ -2,6 +2,7 @@ import type { SessionMeta } from "../../core/state.js";
 import type { AccountQuotaEvidence } from "../usage/index.js";
 import type { Activity } from "./hooks.js";
 import type { ProviderId } from "@taskpilot/shared";
+import type { SessionObservation } from "../../core/observation-types.js";
 
 /** TaskPilot does not classify failures yet: every one is "unknown". */
 export type FailureReason = "unknown";
@@ -20,6 +21,7 @@ export interface SessionFailure {
 export type SessionStatus = "running" | "exited";
 
 export interface SessionView extends SessionMeta {
+  observation?: SessionObservation;
   agent: ProviderId;
   status: SessionStatus;
   exitCode: number | null;

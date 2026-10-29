@@ -11,6 +11,7 @@ import { PROVIDER_LABELS } from "@taskpilot/shared";
 import { formatDuration } from "@/lib/time";
 import { refreshTask, workflowApi } from "./queries";
 import { ExecutionFields } from "./run-options";
+import { ObservationStatus } from "@/components/observation-status";
 
 const LIVE = ["starting", "running", "waiting", "interrupted"];
 
@@ -204,10 +205,13 @@ export function UsageSummary({ usage }: { usage: MetricsSummary }) {
   const { t } = useTranslation("workflow");
   const missing = t("handoff.missing");
   return (
-    <details className="rounded-md border border-line bg-surface">
+    <details className="min-w-0 rounded-md border border-line bg-surface [overflow-wrap:anywhere]">
       <summary className="flex min-h-10 items-center px-3 text-sm font-medium">{t("handoff.usage", { count: usage.sessions.length })}</summary>
       <div className="grid gap-3 border-t border-line p-3 text-sm">
         <p className="text-xs text-muted">{t("handoff.cumulative")}</p>
+        {usage.sessions.some((session) => session.measurements.some((measurement) => measurement.availability?.state === "stale")) && (
+          <p className="text-xs text-muted">{t("handoff.staleTotals")}</p>
+        )}
         <dl className="grid gap-1 sm:grid-cols-3">
           {(["costUsd", "inputTokens", "outputTokens"] as const).map((key) => (
             <div key={key} className="rounded-sm bg-sunken p-2">
@@ -219,7 +223,7 @@ export function UsageSummary({ usage }: { usage: MetricsSummary }) {
           ))}
         </dl>
         {usage.sessions.map((session) => (
-          <article key={session.sessionId} className="grid gap-0.5 border-t border-line pt-2">
+          <article key={session.sessionId} className="grid min-w-0 gap-0.5 break-words border-t border-line pt-2">
             <p>
               <code>{session.sessionId}</code> · {session.agent ? PROVIDER_LABELS[session.agent] : missing}
             </p>
@@ -228,9 +232,16 @@ export function UsageSummary({ usage }: { usage: MetricsSummary }) {
             <p className="font-mono text-xs">
               {(["costUsd", "inputTokens", "outputTokens"] as const).map((key) => `${t(`handoff.counters.${key}`)}: ${counter(key, session.metrics[key], missing)}`).join(" · ")}
             </p>
+            {session.agent === "codex" && <p className="text-xs text-muted">{t("handoff.codexUnverified")}</p>}
             {session.measurements.map((measurement, i) => (
               <p key={i} className="text-xs text-faint">
                 {t(`handoff.sources.${measurement.source}`)} · {measurement.observedAt ? new Date(measurement.observedAt).toLocaleString(locale()) : t("handoff.missingTime")}
+                {(measurement.availability || measurement.source === "codex-thread") && (
+                  <>
+                    {" "}
+                    · <ObservationStatus value={measurement.availability ?? { state: "unverified" }} />
+                  </>
+                )}
                 {measurement.metrics.durationMs !== undefined && ` · ${formatDuration(measurement.metrics.durationMs)}`}
               </p>
             ))}

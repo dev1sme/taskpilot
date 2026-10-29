@@ -7,6 +7,7 @@
  * below that are derived from code (ReturnType of a method or function) stay next to that code.
  */
 export type { ProviderId } from "@taskpilot/shared";
+export type { ObservationState, ObservationReason, ObservationAvailability, SessionObservation } from "./core/observation-types.js";
 export type { UsageWindow } from "./core/usage-types.js";
 export type { AuthStatus } from "./modules/auth/types.js";
 export type { Inventory, RepoInfo, ServerInfo } from "./modules/repo/types.js";

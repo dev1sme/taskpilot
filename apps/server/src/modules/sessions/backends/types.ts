@@ -11,6 +11,7 @@ import type { LaunchOptions, Launcher, LaunchSpec } from "../../../core/launch.j
 import type { HookEvent } from "../hooks.js";
 import type { SessionMetrics, SessionMetricsSource } from "../transports/types.js";
 import type { ClaudeStatusLineUsage } from "../../../providers/claude/status-line.js";
+import type { SessionObservation } from "../../../core/observation-types.js";
 
 export type CapabilityStatus = "supported" | "unsupported" | "unknown";
 export type PreflightErrorCode =
@@ -126,6 +127,11 @@ export interface ProviderBackend extends ProviderTraits {
   readyMarker?: string | RegExp;
   /** The agent's own conversation id in a hook payload, when it names sessions itself (Codex: `session_id` is its thread id); used to resume. */
   nativeIdOf?(payload: Record<string, unknown>): string | undefined;
+  /** Validate native identity before any state or metrics side effect. */
+  acceptHook?(event: HookEvent, payload: Record<string, unknown>, meta: Pick<SessionMeta, "nativeId" | "repo">): Promise<boolean>;
+  /** Stable native event identity, when the runtime supplied enough information. */
+  hookKey?(event: HookEvent, payload: Record<string, unknown>): string | undefined;
+  observation?(lastHookAt: number | null): SessionObservation;
   /**
    * Set when the agent fires PermissionRequest before deciding whether to ask at all: the request
    * shows only if the tool has not finished after this long (or did not just finish).
@@ -142,7 +148,7 @@ export interface ProviderBackend extends ProviderTraits {
   /** What the leader's `{{subagents}}` lists for this provider; absent = nothing to list. Never rejects. */
   promptInventory?(repo: string): Promise<ProviderPromptInventory>;
   /** Cumulative measurements this turn's hook carries (Codex: the rollout's last `token_count`); null = none. Called with the normalized payload, before the hook is emitted. */
-  turnMetrics?(event: HookEvent, payload: Record<string, unknown>): Promise<SessionMetrics | null>;
+  turnMetrics?(event: HookEvent, payload: Record<string, unknown>, meta: Pick<SessionMeta, "nativeId">): Promise<SessionMetrics | null>;
   /** What a status line callback reports (Claude: model, session cost, plan usage); absent = the agent has no status line. */
   readStatusLine?(payload: Record<string, unknown>): StatusLineReading;
   /** The payload as Claude Code would send it; null drops the event. */

@@ -2,6 +2,7 @@ import type { SessionLauncher } from "../backends/types.js";
 import type { SessionMeta } from "../../../core/state.js";
 import type { ProviderBackend } from "../backends/types.js";
 import type { HookEvent } from "../hooks.js";
+import type { MetricSample, ObservationAvailability } from "../../../core/observation-types.js";
 
 /** What a transport needs to start the agent's process for one spawn of a session. */
 export interface TransportLaunch {
@@ -48,6 +49,8 @@ export interface SessionTransport {
 export type SessionMetricsSource = "claude-statusline" | "codex-thread";
 
 export interface SessionMetrics {
+  availability?: ObservationAvailability;
+  sample?: MetricSample;
   /** Set when the backend knows what the numbers measure; absent = the engine decides. */
   source?: SessionMetricsSource;
   model?: string;

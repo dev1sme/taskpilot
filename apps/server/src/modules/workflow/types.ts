@@ -1,4 +1,5 @@
 import type { ProviderId } from "@taskpilot/shared";
+import type { MetricSample, ObservationAvailability } from "../../core/observation-types.js";
 
 /** A complete choice: absent model means no model flag, never inheritance from the workflow. */
 export type AgentExecution = { agent: ProviderId; model?: string };
@@ -70,6 +71,8 @@ export type UsageTotals = Pick<SubtaskMetrics, "inputTokens" | "outputTokens" | 
 
 /** One cumulative observation per session and source, never an event delta. */
 export interface SessionMetricSnapshot {
+  availability?: ObservationAvailability;
+  sample?: MetricSample;
   sessionId: string;
   nativeId?: string;
   agent?: ProviderId;

@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { PROVIDER_IDS, PROVIDER_LABELS } from "@taskpilot/shared";
 import { cn } from "@/lib/utils";
 import { sessionsApi } from "./queries";
+import { SessionObservationNote } from "./observation";
 
 // xterm.js loads when a drawer first shows a terminal.
 const Terminal = lazy(() => import("./terminal").then((m) => ({ default: m.Terminal })));
@@ -159,6 +160,11 @@ export function TerminalDrawer(props: Props) {
           </div>
         )}
       </div>
+      {props.open && active?.observation && (
+        <div className="px-3">
+          <SessionObservationNote title={active.title} value={active.observation} />
+        </div>
+      )}
       {props.open && readOnly && (
         <p role="status" className="px-3 pb-2 text-xs text-muted">
           {t(active?.retired ? "retiredHint" : "reservedHint")}

@@ -1,4 +1,4 @@
-import type { ConfigScope, HookEntry, HookFile, LibraryItem, McpConfig, MemoryFile, NativeSettingsFile, ProviderId, SettingsFile } from "@taskpilot/server/api-types";
+import type { ConfigScope, HookEntry, HookFile, HookScopeFile, LibraryItem, McpConfig, MemoryFile, NativeSettingsFile, ProviderId, SettingsFile } from "@taskpilot/server/api-types";
 import { CheckCircle, PencilSimple, Warning, WarningCircle } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -167,8 +167,25 @@ function SettingsView({ cli }: { cli: ProviderId }) {
 
 function HooksView({ cli }: { cli: ProviderId }) {
   const { t } = useTranslation("config");
-  const query = useSection<Array<HookEntry | HookFile>>("hooks", cli);
+  const query = useSection<Array<HookEntry | HookFile | HookScopeFile>>("hooks", cli);
   const data = query.data;
+  if (data && cli === "codex") {
+    const files = (data as HookScopeFile[]).filter((file) => file.exists);
+    return (
+      <div className="grid gap-4">
+        <p className="text-sm text-muted">{t("hooks.codexTrust")}</p>
+        {files.length === 0 ? (
+          <p className="text-sm text-muted">{t("hooks.none")}</p>
+        ) : (
+          files.map((file) => (
+            <FileCard key={file.scope} scope={file.scope} path={file.path} exists error={file.error}>
+              <HookTable rows={file.hooks} />
+            </FileCard>
+          ))
+        )}
+      </div>
+    );
+  }
   if (data && cli === "copilot") {
     const files = data as HookFile[];
     return files.length === 0 ? (

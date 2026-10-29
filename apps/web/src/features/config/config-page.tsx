@@ -180,8 +180,8 @@ function ScopeRawView({
   onScope: (scope: ConfigScope) => void;
 }) {
   const { t } = useTranslation("config");
-  // Claude hooks live in settings files, even when those files contain no hooks yet.
-  const query = useSection<ScopeFile[]>(section === "hooks" ? "settings" : section, cli);
+  // Claude hooks live in settings files, even when those files contain no hooks yet; Codex has a hooks.json per scope.
+  const query = useSection<ScopeFile[]>(section === "hooks" && cli === "claude" ? "settings" : section, cli);
   if (query.error)
     return (
       <p role="alert" className="break-words text-sm text-danger">
@@ -193,7 +193,7 @@ function ScopeRawView({
   const scope = requestedScope && scopes.includes(requestedScope) ? requestedScope : (files.find((file) => file.exists && scopes.includes(file.scope))?.scope ?? scopes[0]);
   return (
     <div className="grid min-w-0 gap-4">
-      {section === "hooks" && <p className="text-sm text-muted">{t("raw.hooksInSettings")}</p>}
+      {section === "hooks" && <p className="text-sm text-muted">{t(cli === "claude" ? "raw.hooksInSettings" : "hooks.codexTrust")}</p>}
       <FileScopePicker
         scopes={scopes}
         files={files}

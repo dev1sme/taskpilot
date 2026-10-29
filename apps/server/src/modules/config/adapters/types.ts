@@ -18,8 +18,14 @@ export type SettingsAdapter = { scopes: ConfigScope[]; file(repo: string, scope:
   { kind: "claude" } | { kind: "native"; format: "toml" | "jsonc"; keys(scope: ConfigScope): readonly string[] }
 );
 
-/** Claude keeps hooks inside its settings files; Copilot has one JSON file per hook set. */
-export type HooksAdapter = { kind: "settings" } | { kind: "files"; scopes: ConfigScope[]; dir(repo: string, scope: ConfigScope): string; reserved: string[] };
+/**
+ * Claude keeps hooks inside its settings files; Copilot has one JSON file per hook set; Codex has one
+ * hooks.json per scope, in Claude's `{ hooks: { Event: [{ matcher, hooks: [...] }] } }` schema.
+ */
+export type HooksAdapter =
+  | { kind: "settings" }
+  | { kind: "files"; scopes: ConfigScope[]; dir(repo: string, scope: ConfigScope): string; reserved: string[] }
+  | { kind: "file"; scopes: ConfigScope[]; file(repo: string, scope: ConfigScope): string };
 
 /** How the files of one library kind are laid out and read. */
 export interface LibraryAdapter {

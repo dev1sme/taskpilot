@@ -68,7 +68,8 @@
     "matcher": "Matcher",
     "command": "Lệnh",
     "timeout": "Timeout",
-    "none": "Chưa có hook nào."
+    "none": "Chưa có hook nào.",
+    "codexTrust": "Codex chỉ chạy hook mới hoặc vừa sửa sau khi bạn duyệt trong Codex (/hooks). Hook trong bảng [hooks] của config.toml vẫn chạy nhưng không hiện ở đây."
   },
   "library": {
     "readOnly": "Chỉ xem: file này thuộc cấu hình Claude",

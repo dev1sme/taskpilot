@@ -1,6 +1,7 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import { TMP } from "../env";
 import { FIXTURE_REPO, openFixtureRepo } from "../fixtures/repo";
 
 const SETTINGS = path.join(FIXTURE_REPO, ".claude/settings.json");
@@ -126,7 +127,43 @@ test("Copilot hooks opens existing files and lets users name a new file", async 
   await expect(page.locator(".cm-content").first()).toContainText("preToolUse");
   await scopes.getByRole("radio", { name: /^Global/ }).click();
   await expect(page.getByRole("textbox", { name: "Tên file", exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Codex", exact: true }).click();
-  await expect(page.getByText("Codex không có phần cấu hình này.")).toBeVisible();
-  await expect(page.getByRole("radiogroup", { name: "File hooks theo phạm vi" })).toHaveCount(0);
+});
+
+test("Codex hooks show hooks.json of each scope and save it as JSON", async ({ page }) => {
+  await page.goto("/#/config/hooks?cli=codex");
+  await expect(page.getByText("echo codex-fixture")).toBeVisible();
+  await expect(page.getByText("/hooks").first()).toBeVisible();
+
+  await page.goto("/#/config/hooks?cli=codex&view=raw");
+  const scopes = page.getByRole("radiogroup", { name: "File hooks theo phạm vi" });
+  await expect(scopes.getByRole("radio")).toHaveCount(2);
+  await expect(scopes.getByRole("radio", { name: /^Project/ })).toContainText(".codex/hooks.json");
+  await expect(scopes.getByRole("radio", { name: /^Project/ })).toHaveAttribute("aria-checked", "true");
+  await expect(scopes.getByRole("radio", { name: /^Global/ })).toContainText("Chưa có file");
+  await expect(page.locator(".cm-content").first()).toContainText("codex-fixture");
+
+  const file = path.join(FIXTURE_REPO, ".codex/hooks.json");
+  const before = readFileSync(file, "utf8");
+  await replaceEditor(page, '{ "hooks": { "Stop": {} } }');
+  await page.getByRole("button", { name: "Lưu…" }).click();
+  await expect(page.getByRole("alert").first()).toBeVisible();
+  expect(readFileSync(file, "utf8")).toBe(before);
+
+  const next = JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: "command", command: "echo done" }] }] } }, null, 2) + "\n";
+  await replaceEditor(page, next);
+  await page.getByRole("button", { name: "Lưu…" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Ghi file" }).click();
+  await expect(page.getByRole("dialog")).toBeHidden();
+  expect(readFileSync(file, "utf8")).toBe(next);
+});
+
+test("Codex agents include personal agents from ~/.codex/agents", async ({ page }) => {
+  const dir = path.join(TMP, "codex", "agents");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, "personal-helper.toml"), 'name = "personal-helper"\ndescription = "Agent cá nhân"\ndeveloper_instructions = "Help."\n');
+  await page.goto("/#/config/agents?cli=codex");
+  await expect(page.getByText("personal-helper").first()).toBeVisible();
+  await expect(page.getByText("native-reviewer").first()).toBeVisible();
+  await page.goto("/#/config/agents?cli=codex&view=raw");
+  await expect(page.getByRole("radiogroup", { name: "Phạm vi" }).getByRole("radio")).toHaveCount(2);
 });

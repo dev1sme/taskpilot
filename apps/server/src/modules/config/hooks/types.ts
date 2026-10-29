@@ -1,4 +1,5 @@
 import type { ConfigScope } from "../shared/sections.js";
+import type { HookEntry } from "../settings/types.js";
 
 /** A Copilot command hook as the UI shows it; other hook types and fields are not shown. */
 export interface CopilotHookEntry {
@@ -19,5 +20,14 @@ export interface HookFile {
   name: string;
   path: string;
   hooks: CopilotHookEntry[];
+  error?: string;
+}
+
+/** The hooks file of one scope, for a CLI that keeps one hooks.json per scope (Codex). */
+export interface HookScopeFile {
+  scope: ConfigScope;
+  path: string;
+  exists: boolean;
+  hooks: HookEntry[];
   error?: string;
 }

@@ -21,7 +21,7 @@ export type { ConfigScope, ConfigSection, SectionCapability } from "./modules/co
 export type { RawFileView, RawPreview } from "./modules/config/raw/types.js";
 export type { MemoryCheck, MemoryFile, MemoryImport } from "./modules/config/memory/types.js";
 export type { HookEntry, NativeSettingsFile, SettingsFile } from "./modules/config/settings/types.js";
-export type { CopilotHookEntry, HookFile } from "./modules/config/hooks/types.js";
+export type { CopilotHookEntry, HookFile, HookScopeFile } from "./modules/config/hooks/types.js";
 export type { AgentCheck, LibraryItem, LibraryKind } from "./modules/config/library/types.js";
 export type { McpConfig, McpServer } from "./modules/config/mcp/types.js";
 export type { ExecutionDefaults, MigrationPreview, RenderedPrompt, WorkflowChecks, WorkflowFileView, WorkflowModes, WorkflowSavePreview } from "./modules/config/workflow/types.js";

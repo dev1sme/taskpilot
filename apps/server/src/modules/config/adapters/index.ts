@@ -54,6 +54,7 @@ export function ownsPath(adapter: ConfigAdapter, repo: string, abs: string): boo
   ];
   if (files.some((file) => path.resolve(file) === p)) return true;
   const hooks = adapter.hooks;
+  if (hooks?.kind === "file" && hooks.scopes.some((scope) => path.resolve(hooks.file(repo, scope)) === p)) return true;
   if (hooks?.kind === "files" && hooks.scopes.some((scope) => path.dirname(p) === path.resolve(hooks.dir(repo, scope))) && PLAIN_JSON.test(path.basename(p))) return true;
   for (const library of Object.values(adapter.library)) {
     for (const root of library.roots(repo)) {

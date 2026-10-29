@@ -19,6 +19,7 @@ const FILES: Record<string, string> = {
   ".codex/config.toml": 'approval_policy = "on-request"\n[mcp_servers.codex-docs]\nurl = "https://codex.example/mcp"\n',
   ".github/copilot/settings.json": JSON.stringify({ disableAllHooks: false, future: { keep: true } }),
   ".github/hooks/fixture.json": JSON.stringify({ version: 1, hooks: { preToolUse: [{ type: "command", command: "echo fixture" }] } }),
+  ".codex/hooks.json": JSON.stringify({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo codex-fixture", timeout: 5 }] }] } }),
   ".codex/agents/native-reviewer.toml": 'name = "native-reviewer"\ndescription = "Review cho Codex"\ndeveloper_instructions = "Review code."\n',
   ".github/agents/native-reviewer.agent.md": "---\nname: native-reviewer\ndescription: Review cho Copilot\n---\n\nReview code.\n",
   ".github/mcp.json": JSON.stringify({ mcpServers: { "copilot-docs": { type: "http", url: "https://copilot.example/mcp", headers: { Authorization: "e2e-secret-copilot" } } } }),

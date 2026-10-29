@@ -38,11 +38,12 @@ export function libraryTarget(repo: string, kind: LibraryKind, scope: LibrarySco
   return target(path.join(root.dir, ...rel.split("/")), repo);
 }
 
-/** A hook set of a CLI that keeps hooks in their own JSON files. */
-export function hookTarget(repo: string, scope: ConfigScope, rel: string, cli: ProviderId): FileTarget {
+/** A hook set of a CLI that keeps hooks in their own JSON files; for one file per scope, `rel` is unused. */
+export function hookTarget(repo: string, scope: ConfigScope, rel: string | undefined, cli: ProviderId): FileTarget {
   requireConfigScope(cli, "hooks", scope);
   const hooks = configAdapter(cli).hooks;
-  if (hooks?.kind !== "files" || !PLAIN_JSON.test(rel)) throw new HttpError(400, t("errors.invalidName", { name: rel }));
+  if (hooks?.kind === "file") return target(hooks.file(repo, scope), repo);
+  if (hooks?.kind !== "files" || !rel || !PLAIN_JSON.test(rel)) throw new HttpError(400, t("errors.invalidName", { name: rel ?? "" }));
   return target(path.join(hooks.dir(repo, scope), rel), repo);
 }
 

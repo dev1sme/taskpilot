@@ -89,6 +89,8 @@ export default {
     hooks_copilot_04: "Không đọc file hook qua symlink",
     hooks_copilot_05: "File hooks Copilot không đúng định dạng",
     hooks_routes_01: "Hook taskpilot.json do TaskPilot tự quản",
+    hooks_file_01: "File hooks.json phải là object có `hooks` gồm các mảng nhóm matcher",
+    hooks_file_02: "File hooks.json không đúng JSON hoặc schema",
     library_routes_01: "Codex agent TOML không hợp lệ hoặc thiếu trường bắt buộc",
     mcp_read_01: "{{value0}} MCP không đúng định dạng; hãy sửa file trước khi tiếp tục",
     mcp_read_02: "{{value0}} MCP không đúng định dạng",

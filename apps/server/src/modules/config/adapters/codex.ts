@@ -12,10 +12,15 @@ export const codexConfig: ConfigAdapter = {
     file: (repo, scope) => (scope === "project" ? path.join(repo, "AGENTS.md") : path.join(codexConfigHome(), "AGENTS.md")),
   },
   settings: { kind: "native", format: "toml", scopes: ["project", "user"], file: configToml, keys: () => ["approval_policy", "sandbox_mode"] },
+  // Inline [hooks] tables in config.toml load too; only hooks.json is shown and edited.
+  hooks: { kind: "file", scopes: ["project", "user"], file: (repo, scope) => (scope === "project" ? path.join(repo, ".codex", "hooks.json") : path.join(codexConfigHome(), "hooks.json")) },
   library: {
     agents: {
-      scopes: ["project"],
-      roots: (repo) => [{ scope: "project", dir: path.join(repo, ".codex", "agents"), editable: true }],
+      scopes: ["project", "user"],
+      roots: (repo) => [
+        { scope: "project", dir: path.join(repo, ".codex", "agents"), editable: true },
+        { scope: "user", dir: path.join(codexConfigHome(), "agents"), editable: true },
+      ],
       format: "codex-agent",
       relOk: (_scope, rel) => PLAIN_TOML.test(rel),
       templates: "codex",
@@ -45,5 +50,5 @@ export const codexConfig: ConfigAdapter = {
     { dir: codexConfigHome(), rootMayBeSymlink: false },
     { dir: codexSkillsHome(), rootMayBeSymlink: false },
   ],
-  unsupported: { hooks: "Codex has no verified native hooks adapter.", commands: "Codex has no native commands directory." },
+  unsupported: { commands: "Codex has no native commands directory." },
 };

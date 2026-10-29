@@ -83,23 +83,31 @@ export async function readHooks(repo: string): Promise<HookEntry[]> {
   const out: HookEntry[] = [];
   for (const [scope, file] of settingsFiles(repo)) {
     const json = await readJsonFile(file);
-    if (!("data" in json) || !isObject(json.data) || !isObject(json.data.hooks)) continue;
-    for (const [event, matchers] of Object.entries(json.data.hooks)) {
-      if (!Array.isArray(matchers)) continue;
-      for (const m of matchers) {
-        if (!isObject(m) || !Array.isArray(m.hooks)) continue;
-        for (const h of m.hooks) {
-          if (!isObject(h)) continue;
-          out.push({
-            scope,
-            file: displayPath(file, repo),
-            event,
-            matcher: typeof m.matcher === "string" && m.matcher ? m.matcher : "*",
-            type: typeof h.type === "string" ? h.type : "command",
-            command: typeof h.command === "string" ? h.command : typeof h.prompt === "string" ? h.prompt : "",
-            timeout: typeof h.timeout === "number" ? h.timeout : undefined,
-          });
-        }
+    if (!("data" in json)) continue;
+    out.push(...hookEntries(json.data, scope, displayPath(file, repo)));
+  }
+  return out;
+}
+
+/** The hooks of one `{ hooks: { Event: [{ matcher, hooks: [...] }] } }` document (Claude settings, Codex hooks.json), flattened. */
+export function hookEntries(data: unknown, scope: SettingsScope, file: string): HookEntry[] {
+  const out: HookEntry[] = [];
+  if (!isObject(data) || !isObject(data.hooks)) return out;
+  for (const [event, matchers] of Object.entries(data.hooks)) {
+    if (!Array.isArray(matchers)) continue;
+    for (const m of matchers) {
+      if (!isObject(m) || !Array.isArray(m.hooks)) continue;
+      for (const h of m.hooks) {
+        if (!isObject(h)) continue;
+        out.push({
+          scope,
+          file,
+          event,
+          matcher: typeof m.matcher === "string" && m.matcher ? m.matcher : "*",
+          type: typeof h.type === "string" ? h.type : "command",
+          command: typeof h.command === "string" ? h.command : typeof h.prompt === "string" ? h.prompt : "",
+          timeout: typeof h.timeout === "number" ? h.timeout : undefined,
+        });
       }
     }
   }

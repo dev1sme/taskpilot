@@ -5,6 +5,7 @@ import { type ProviderId } from "@taskpilot/shared";
 import { isObject } from "../../../core/values.js";
 import { configAdapter } from "../adapters/index.js";
 import { readCopilotHooks } from "../hooks/hook-files.js";
+import { checkHooksDocument } from "../hooks/scope-files.js";
 import { checkCodexAgent } from "../library/check.js";
 import { nativeMcpDocument } from "../mcp/read.js";
 import { nativeSettingsOf, readNativeFields } from "../settings/native.js";
@@ -69,6 +70,7 @@ export function rawFile(repo: string, { cli, section, scope, name }: RawAddress)
       const hooks = adapter.hooks;
       // Claude's hooks are a key of its settings files.
       if (hooks?.kind === "settings") return rawFile(repo, { cli, section: "settings", scope });
+      if (hooks?.kind === "file") return file(hookTarget(repo, scope, undefined, cli), "json", checkHooksDocument);
       if (!name) throw new HttpError(400, t("errors.missing", { key: "name" }));
       if (hooks?.kind === "files" && hooks.reserved.includes(name)) throw new HttpError(403, t("configMessages.hooks_routes_01"));
       return file(hookTarget(repo, scope, name, cli), "json", (c) => readCopilotHooks(c));

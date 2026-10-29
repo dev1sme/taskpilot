@@ -22,6 +22,9 @@ export const SERVER_ENV: Record<string, string> = {
   TASKPILOT_HOME: path.join(TMP, "home"),
   TASKPILOT_CLAUDE_HOME: path.join(TMP, "claude"),
   TASKPILOT_CLAUDE_JSON: path.join(TMP, "claude.json"),
+  // Codex config (hooks.json, agents) and personal skills, read and written by the config pages.
+  TASKPILOT_CODEX_HOME: path.join(TMP, "codex"),
+  TASKPILOT_CODEX_SKILLS_HOME: path.join(TMP, "agents-skills"),
   // Copilot sessions install their hooks under COPILOT_HOME.
   COPILOT_HOME: path.join(TMP, "copilot"),
   TASKPILOT_AUTH_USER: E2E_USER,

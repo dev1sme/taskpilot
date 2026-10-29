@@ -88,7 +88,7 @@ export function createSelectionRepo(name: string, options: { settings?: string; 
   const files = {
     ".claude/tasks/DEMO-1/spec/README.md": "# Selection fixture\n",
     ".claude/tasks/DEMO-2/spec/README.md": "# Second selection task\n",
-    ".taskpilot/settings.yml": options.settings ?? "# mode-only legacy settings\nmode: default\nfuture: { keep: true }\n",
+    ".taskpilot/settings.yml": options.settings ?? "# mode-only legacy settings\nmode: solo\nfuture: { keep: true }\n",
     ...(options.workflow ? { ".taskpilot/workflow.yml": options.workflow, ".taskpilot/prompt.md": "WRITE:.claude/tasks/DEMO-1/02-plan.md {{outputs}}" } : {}),
   };
   for (const [name, content] of Object.entries(files)) {

@@ -33,7 +33,15 @@
     "secrets": "Raw hiện nguyên văn mọi giá trị, kể cả secret. Chế độ Giao diện che các giá trị này.",
     "pick": "Chọn một mục ở chế độ Giao diện, hoặc nhập tên file để tạo mới.",
     "name": "Tên file",
-    "open": "Mở"
+    "open": "Mở",
+    "memoryFiles": "File hướng dẫn theo phạm vi",
+    "fileExists": "Đã có file",
+    "settingsFiles": "File settings theo phạm vi",
+    "hookFiles": "File hooks theo phạm vi",
+    "hooksInSettings": "Hooks của Claude nằm trong các file settings bên dưới.",
+    "fileCount": "{{count}} file",
+    "pickHookFile": "Chọn file hooks",
+    "createFile": "Tạo file mới"
   },
   "readOnlyClaudeMcp": "Server MCP local/user của Claude nằm trong ~/.claude.json, file Claude Code tự ghi liên tục: chỉ xem được, không sửa raw.",
   "editRaw": "Sửa raw",
@@ -83,7 +91,7 @@
     "formats": "Định dạng tài liệu",
     "mode": "Cách chạy",
     "origin": {
-      "default": "Mặc định của TaskPilot · chỉ xem",
+      "default": "Workflow có sẵn · chỉ xem",
       "repo": "Override của repo · {{dir}}"
     },
     "selected": "Mặc định của repo",

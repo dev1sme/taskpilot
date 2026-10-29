@@ -17,7 +17,7 @@ flowchart LR
 
 ## Tính năng
 
-- **Workflow theo cách chạy.** `Mặc định`: điều tra & lên kế hoạch, rồi triển khai trong một session. `Leader`: leader lập kế hoạch và giao việc, mỗi việc con chạy trong session riêng, rồi leader rà soát. Repo đổi workflow bằng override trong `.taskpilot/` (trang Workflow).
+- **Workflow theo cách chạy.** `Solo`: một agent điều tra, lập kế hoạch rồi triển khai; ba duyệt sau mỗi bước. `Leader`: leader lập kế hoạch và giao việc, mỗi việc con chạy trong session riêng, rồi leader rà soát. Repo đổi workflow bằng override trong `.taskpilot/` (trang Workflow).
 - **Chọn agent và model** cho mỗi lần chạy, hoặc lưu làm mặc định repo. Khi đang làm dở, **Tiếp tục bằng…** bàn giao đúng bước hoặc việc con sang session mới, giữ tài liệu và lịch sử.
 - **Cấu hình agent** (Claude, Copilot, Codex): mỗi mục có hai cách xem. **Giao diện** chỉ để xem; **Raw** sửa thẳng file của CLI, xem diff trước khi lưu, kiểm cú pháp và sao lưu file cũ (trang Lịch sử thay đổi để khôi phục).
 - **Tổng quan**: việc đang chờ bạn, run đang chạy, hạn mức tài khoản của từng agent.

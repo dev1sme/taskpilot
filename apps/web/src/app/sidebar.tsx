@@ -22,8 +22,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { logout } from "@/features/auth/api";
 import { useAuthMode } from "@/features/auth/auth-gate";
 import { statusOf } from "@/features/tasks/status";
-import { repoName, useInventory, useRepo, useServerInfo, useTasks } from "@/features/workspace/queries";
-import { PROVIDER_IDS, PROVIDER_LABELS } from "@taskpilot/shared";
+import { repoName, useInventory, useRepo, useTasks } from "@/features/workspace/queries";
 import { cn } from "@/lib/utils";
 import { isCliSection, lastConfigCli, type ConfigSection } from "./routes";
 import { ThemeMenu } from "./theme-menu";
@@ -49,7 +48,6 @@ export function Sidebar({ mode, onToggle, onNavigate, onSwitchRepo }: { mode: Si
   const repo = useRepo().data;
   const tasks = useTasks().data ?? [];
   const inventory = useInventory().data;
-  const info = useServerInfo().data;
   const authMode = useAuthMode();
   const location = useRouterState({ select: (s) => s.location });
   const rail = mode === "rail";
@@ -149,10 +147,6 @@ export function Sidebar({ mode, onToggle, onNavigate, onSwitchRepo }: { mode: Si
   };
 
   const toggleLabel = mode === "drawer" ? t("sidebar.close") : rail ? t("sidebar.expand") : t("sidebar.collapse");
-  const versions = PROVIDER_IDS.map((id) => {
-    const version = info?.versions[id];
-    return version ? t("account.version", { agent: id, version }) : t("account.missing", { agent: PROVIDER_LABELS[id] });
-  });
 
   return (
     <nav id="sidebar" aria-label={t("nav.label")} className={cn("flex h-full flex-col gap-3 bg-sidebar p-3", rail ? "w-16" : "w-62")}>
@@ -197,8 +191,15 @@ export function Sidebar({ mode, onToggle, onNavigate, onSwitchRepo }: { mode: Si
 
       <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1">
         {groups.map((group) => (
-          <div key={group.id} className="grid gap-1">
-            {rail ? <div role="presentation" className="mx-2 border-t border-line" /> : <div className="px-2.5 text-xs font-medium text-faint">{group.label}</div>}
+          <div key={group.id} className="grid gap-2">
+            {rail ? (
+              <div role="presentation" className="mx-2 border-t border-line" />
+            ) : (
+              <div className="flex items-center gap-3 px-2.5 pt-2">
+                <h2 className="shrink-0 font-sans text-sm font-semibold tracking-normal text-ink">{group.label}</h2>
+                <span aria-hidden className="h-px min-w-3 flex-1 bg-line" />
+              </div>
+            )}
             <ul className="grid gap-0.5">{group.items.map(renderItem)}</ul>
           </div>
         ))}
@@ -207,15 +208,6 @@ export function Sidebar({ mode, onToggle, onNavigate, onSwitchRepo }: { mode: Si
 
       <div className={cn("grid gap-2 border-t border-line pt-3", rail && "justify-items-center")}>
         <ThemeMenu compact={rail} />
-        {!rail && (
-          <div className="grid px-2.5 font-mono text-[11px] leading-5 text-faint" title={versions.join("\n")}>
-            {versions.map((line) => (
-              <span key={line} className="truncate">
-                {line}
-              </span>
-            ))}
-          </div>
-        )}
         {authMode === "password" && (
           <Button
             variant="ghost"

@@ -1,4 +1,5 @@
 import type { UsageView, UsageWindow } from "@taskpilot/server/api-types";
+import { motion, MotionConfig, useReducedMotion } from "motion/react";
 import { Gauge } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -17,20 +18,29 @@ export function UsageButton() {
   const usage = useUsage().data;
   const now = useNow(60_000);
   const peak = peakUsage(usage, now);
+  const reduceMotion = useReducedMotion();
   return (
-    <Popover>
-      <PopoverTrigger
-        title={t("usage.buttonTitle")}
-        className={cn("flex min-h-6 items-center gap-1.5 rounded-sm px-1.5 hover:bg-hover hover:text-ink", peak !== null && peak >= HIGH && "font-medium text-attention")}
-      >
-        <Gauge weight="bold" aria-hidden />
-        {t("usage.button")}
-        {peak !== null && <span className="tabular-nums">{t("usage.percent", { value: Math.round(peak) })}</span>}
-      </PopoverTrigger>
-      <PopoverContent side="top" align="end">
-        <UsagePanel usage={usage} />
-      </PopoverContent>
-    </Popover>
+    <MotionConfig reducedMotion="user">
+      <Popover>
+        <PopoverTrigger
+          title={t("usage.buttonTitle")}
+          className={cn("flex min-h-6 items-center gap-1.5 rounded-sm px-1.5 hover:bg-hover hover:text-ink", peak !== null && peak >= HIGH && "font-medium text-attention")}
+        >
+          <Gauge weight="bold" aria-hidden />
+          {t("usage.button")}
+          {peak !== null && <span className="tabular-nums">{t("usage.percent", { value: Math.round(peak) })}</span>}
+        </PopoverTrigger>
+        <PopoverContent side="top" align="end" asChild>
+          <motion.div
+            initial={{ opacity: 0, y: reduceMotion ? 0 : 6, scale: reduceMotion ? 1 : 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: reduceMotion ? 0 : 0.18, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <UsagePanel usage={usage} />
+          </motion.div>
+        </PopoverContent>
+      </Popover>
+    </MotionConfig>
   );
 }
 
@@ -42,10 +52,7 @@ export function UsagePanel({ usage, heading = true, className }: { usage: UsageV
   const claude = usage && (usage.fiveHour || usage.sevenDay || usage.spend) ? usage : null;
   return (
     <div className={cn("grid gap-3 text-sm", className)}>
-      <div className="grid gap-0.5">
-        {heading && <p className="font-medium">{t("usage.title")}</p>}
-        <p className="text-xs text-muted">{t("usage.hint")}</p>
-      </div>
+      {heading && <p className="font-medium">{t("usage.title")}</p>}
       {!claude && !copilot && !codex && <p className="text-muted">{t("usage.none")}</p>}
       {claude && (
         <Agent name={PROVIDER_LABELS.claude} updatedAt={claude.updatedAt}>
@@ -110,6 +117,7 @@ function Meter({ label, window, detail }: { label: string; window: UsageWindow; 
   const reset = window.resetsAt !== null && window.resetsAt <= now;
   const value = reset ? 0 : Math.min(100, Math.max(0, window.usedPercentage));
   const high = value >= HIGH;
+  const reduceMotion = useReducedMotion();
   return (
     <div className="grid gap-1">
       <p className="flex items-baseline gap-2 text-xs">
@@ -120,7 +128,12 @@ function Meter({ label, window, detail }: { label: string; window: UsageWindow; 
         </span>
       </p>
       <div role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value)} className="h-1.5 overflow-hidden rounded-full bg-sunken">
-        <div className={cn("h-full rounded-full", high ? "bg-attention" : "bg-signal")} style={{ width: `${value}%` }} />
+        <motion.div
+          className={cn("h-full origin-left rounded-full", high ? "bg-attention" : "bg-signal")}
+          initial={{ scaleX: reduceMotion ? value / 100 : 0 }}
+          animate={{ scaleX: value / 100 }}
+          transition={{ duration: reduceMotion ? 0 : 0.45, ease: [0.16, 1, 0.3, 1] }}
+        />
       </div>
       {(detail || (window.resetsAt !== null && !reset)) && (
         <p className="flex gap-2 text-xs text-faint">

@@ -64,7 +64,8 @@ export function matchesFilter(task: TaskListItem, filter: TaskFilter): boolean {
   if (filter === "all") return true;
   if (filter === "attention") return status.tone === "attention";
   if (filter === "running") return status.tone === "active";
-  return (status.kind === "done") === (filter === "done");
+  if (filter === "open") return status.tone === "idle";
+  return status.tone === "done";
 }
 
 /** Lowercase without Vietnamese diacritics, so "chờ duyệt" matches "cho duyet". */

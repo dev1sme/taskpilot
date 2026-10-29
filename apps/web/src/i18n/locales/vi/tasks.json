@@ -25,19 +25,19 @@
     "filter": {
       "label": "Lọc task",
       "open": "Đang làm",
-      "done": "Hoàn thành",
+      "done": "Đã xong",
       "all": "Tất cả",
       "attention": "Cần xử lý",
       "running": "Đang chạy"
     },
     "filterEmpty": {
       "open": {
-        "title": "Không còn task đang làm",
-        "body": "Mọi task đã hoàn thành. Chọn bộ lọc Hoàn thành hoặc Tất cả để xem lại."
+        "title": "Không có task đang làm dở",
+        "body": "Task chưa hoàn thành và hiện không chạy hoặc chờ xử lý sẽ xuất hiện ở đây."
       },
       "done": {
         "title": "Chưa có task nào hoàn thành",
-        "body": "Bấm \"Đánh dấu xong\" ở một dòng, hoặc duyệt bước cuối của quy trình."
+        "body": "Dùng biểu tượng dấu tích ở một dòng, hoặc duyệt bước cuối của quy trình."
       },
       "all": {
         "title": "Repo chưa có task",

@@ -5,7 +5,7 @@ import { HttpError } from "../../../core/errors.js";
 import { t } from "../../../core/i18n.js";
 import {
   CUSTOM_MODE,
-  DEFAULT_MODE,
+  SOLO_MODE,
   ExecutionValidationError,
   OVERRIDE_DIR,
   PROMPT_TEXT,
@@ -74,7 +74,7 @@ const modesOf = async (info: OverrideInfo): Promise<ModeInfo[]> => [
 ];
 
 /** The workflow files the override is compared with: its mode's, or the default mode's for a complete override. */
-const baseOf = (info: OverrideInfo) => modeDir(info.kind === "extends" ? info.extends : DEFAULT_MODE);
+const baseOf = (info: OverrideInfo) => modeDir(info.kind === "extends" ? info.extends : SOLO_MODE);
 
 /** The workflow page's view of one mode: its files (the repo's override when it applies), parsed definition and checks. */
 async function readWorkflowConfig(repo: string, mode: string | undefined) {
@@ -269,7 +269,7 @@ export function registerWorkflowConfigRoutes(app: FastifyInstance, opts: ConfigR
   app.post("/api/config/workflow/override", async (req) => {
     const repo = requireRepo();
     const body = (req.body as { mode?: unknown; template?: unknown } | null) ?? {};
-    const mode = body.mode ?? body.template ?? DEFAULT_MODE;
+    const mode = body.mode ?? body.template ?? SOLO_MODE;
     if (!isMode(mode)) throw new HttpError(400, t("errors.unknownMode", { mode: String(mode) }));
     const dir = overrideDir(repo);
     const display = displayPath(dir, repo);

@@ -49,3 +49,84 @@ test("raw: a syntax error is refused and the file stays as it was", async ({ pag
   await expect(page.getByRole("alert").first()).toBeVisible();
   expect(readFileSync(SETTINGS, "utf8")).toBe(before);
 });
+
+test("memory Raw shows every file's existence before choosing a scope", async ({ page }) => {
+  await page.goto("/#/config/memory?cli=claude&view=raw");
+  const files = page.getByRole("radiogroup", { name: "File hướng dẫn theo phạm vi" });
+  const project = files.getByRole("radio", { name: /^Project/ });
+  const local = files.getByRole("radio", { name: /^Local/ });
+  const global = files.getByRole("radio", { name: /^Global/ });
+  await expect(project).toContainText("Đã có file");
+  await expect(project).toContainText("CLAUDE.md");
+  await expect(local).toContainText("Chưa có file");
+  await expect(local).toContainText("CLAUDE.local.md");
+  await expect(global).toContainText("Chưa có file");
+  await expect(project).toHaveAttribute("aria-checked", "true");
+  await local.click();
+  await expect(local).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByText("File chưa có; lưu để tạo mới.")).toBeVisible();
+  await project.click();
+  await expect(page.locator(".cm-content").first()).toContainText("Fixture repo");
+  await page.getByRole("link", { name: "Codex", exact: true }).click();
+  await expect(files.getByRole("radio")).toHaveCount(2);
+  await expect(files.getByRole("radio", { name: /^Project/ })).toContainText("AGENTS.md");
+});
+
+test("memory Raw initially selects an existing file and respects an explicit missing scope", async ({ page }) => {
+  await page.route("**/api/config/memory?cli=claude", async (route) => {
+    const response = await route.fetch();
+    const files = await response.json();
+    await route.fulfill({ json: files.map((file: { scope: string }) => ({ ...file, exists: file.scope === "user" })) });
+  });
+  await page.goto("/#/config/memory?cli=claude&view=raw");
+  const files = page.getByRole("radiogroup", { name: "File hướng dẫn theo phạm vi" });
+  await expect(files.getByRole("radio", { name: /^Global/ })).toHaveAttribute("aria-checked", "true");
+  await page.goto("/#/config/memory?cli=claude&view=raw&scope=local");
+  await expect(files.getByRole("radio", { name: /^Local/ })).toHaveAttribute("aria-checked", "true");
+});
+
+test("settings and Claude hooks show the files of all scopes before opening one", async ({ page }) => {
+  for (const cli of ["claude", "copilot", "codex"]) {
+    await page.goto(`/#/config/settings?cli=${cli}&view=raw`);
+    const files = page.getByRole("radiogroup", { name: "File settings theo phạm vi" });
+    const project = files.getByRole("radio", { name: /^Project/ });
+    await expect(project).toContainText("Đã có file");
+    await expect(project).toHaveAttribute("aria-checked", "true");
+    const response = await page.request.get(`/api/config/settings?cli=${cli}`);
+    const inventory = await response.json();
+    const global = inventory.find((file: { scope: string }) => file.scope === "user");
+    await expect(files.getByRole("radio", { name: /^Global/ })).toContainText(global.exists ? "Đã có file" : "Chưa có file");
+    await expect(page.locator(".cm-content").first()).toBeVisible();
+    await page.getByRole("tab", { name: "Giao diện", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Sửa raw", exact: true })).toHaveCount(0);
+  }
+  await page.goto("/#/config/hooks?cli=claude&view=raw");
+  const hooks = page.getByRole("radiogroup", { name: "File hooks theo phạm vi" });
+  await expect(hooks.getByRole("radio", { name: /^Project/ })).toContainText(".claude/settings.json");
+  await expect(hooks.getByRole("radio", { name: /^Project/ })).toContainText("Đã có file");
+  const local = hooks.getByRole("radio", { name: /^Local/ });
+  await expect(local).toContainText("Chưa có file");
+  await local.click();
+  await expect(page.getByText("File chưa có; lưu để tạo mới.")).toBeVisible();
+});
+
+test("Copilot hooks opens existing files and lets users name a new file", async ({ page }) => {
+  await page.goto("/#/config/hooks?cli=copilot&view=raw");
+  const scopes = page.getByRole("radiogroup", { name: "File hooks theo phạm vi" });
+  await expect(scopes.getByRole("radio", { name: /^Project/ })).toContainText("fixture.json");
+  await expect(scopes.getByRole("radio", { name: /^Project/ })).toContainText("1 file");
+  await expect(page.getByRole("radiogroup", { name: "Chọn file hooks" }).getByRole("radio", { name: "fixture.json" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator(".cm-content").first()).toContainText("preToolUse");
+  await page.getByRole("button", { name: "Tạo file mới", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Tên file", exact: true })).toHaveAttribute("placeholder", "hooks.json");
+  await page.getByRole("textbox", { name: "Tên file", exact: true }).fill("new-hook.json");
+  await page.getByRole("button", { name: "Mở", exact: true }).click();
+  await expect(page.getByText("File chưa có; lưu để tạo mới.")).toBeVisible();
+  await page.getByRole("radiogroup", { name: "Chọn file hooks" }).getByRole("radio", { name: "fixture.json" }).click();
+  await expect(page.locator(".cm-content").first()).toContainText("preToolUse");
+  await scopes.getByRole("radio", { name: /^Global/ }).click();
+  await expect(page.getByRole("textbox", { name: "Tên file", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Codex", exact: true }).click();
+  await expect(page.getByText("Codex không có phần cấu hình này.")).toBeVisible();
+  await expect(page.getByRole("radiogroup", { name: "File hooks theo phạm vi" })).toHaveCount(0);
+});

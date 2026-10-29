@@ -1,5 +1,5 @@
 export {
-  DEFAULT_WORKFLOW_DIR,
+  SOLO_WORKFLOW_DIR,
   OVERRIDE_DIR,
   PROMPT_FILE,
   WORKFLOW_FILE,
@@ -31,7 +31,7 @@ export {
   snapshotExecution,
   type ResolveExecutionOptions,
 } from "./execution.js";
-export { CUSTOM_MODE, DEFAULT_MODE, isMode, listModes, modeDir } from "./modes.js";
+export { CUSTOM_MODE, SOLO_MODE, isMode, listModes, modeDir } from "./modes.js";
 export type { ModeInfo } from "./types.js";
 export { guessBase, migrateLegacy, type Migration } from "./migrate.js";
 export { mergeOverride, type Provenance } from "./merge.js";

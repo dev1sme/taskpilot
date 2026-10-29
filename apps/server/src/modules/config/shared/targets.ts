@@ -78,7 +78,7 @@ const isWorkflowFileName = (name: string) => name === WORKFLOW_FILE || PROMPT_FI
  */
 export function isAllowedPath(abs: string, repo: string): boolean {
   const p = path.resolve(abs);
-  // The workflow override and settings.yml: files directly in .taskpilot/, never TaskPilot's own workflows/default/.
+  // The workflow override and settings.yml: files directly in .taskpilot/, never TaskPilot's own workflows/solo/.
   if (path.dirname(p) === path.resolve(overrideDir(repo)) && (isWorkflowFileName(path.basename(p)) || path.basename(p) === SETTINGS_FILE)) return true;
   return Object.values(CONFIG_ADAPTERS).some((adapter) => ownsPath(adapter, repo, p));
 }

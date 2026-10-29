@@ -1,8 +1,8 @@
-# Built-in TaskPilot workflow ("Mặc định"): Claude investigates, then implements. A repo changes it with
-# .taskpilot/workflow.yml containing `extends: default` and only what differs (Workflow page →
+# Built-in TaskPilot workflow ("Solo"): Claude investigates, then implements. A repo changes it with
+# .taskpilot/workflow.yml containing `extends: solo` and only what differs (Workflow page →
 # "Tạo override"); this directory is never edited from the UI.
-name: Mặc định
-description: Điều tra & lên kế hoạch, rồi triển khai trong một session.
+name: Solo
+description: Một agent điều tra, lập kế hoạch rồi triển khai; ba duyệt sau mỗi bước.
 version: 2
 # permission-mode: acceptEdits        # default | acceptEdits | plan | auto
 # Agent of every step: claude | copilot | codex. A step's own `agent` overrides it, but a different

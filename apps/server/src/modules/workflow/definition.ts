@@ -8,14 +8,14 @@ import { t } from "../../core/i18n.js";
 import { MAX_PARALLEL } from "./assignments.js";
 import { providerTraits } from "../sessions/index.js";
 import { mergeOverride, type Provenance } from "./merge.js";
-import { CUSTOM_MODE, DEFAULT_MODE, WORKFLOW_FILE, isMode, listModes, modeDir } from "./modes.js";
+import { CUSTOM_MODE, SOLO_MODE, WORKFLOW_FILE, isMode, listModes, modeDir } from "./modes.js";
 import { launchModel, modelProblem } from "./models.js";
 import type { CodexOptions, DispatchDef, OutputDef, StepDef, WorkflowDef } from "./types.js";
 import { templateVars } from "./prompt-vars.js";
 import { isObject } from "../../core/values.js";
 
-/** <package>/workflows/default: the "Mặc định" mode. */
-export const DEFAULT_WORKFLOW_DIR = modeDir(DEFAULT_MODE);
+/** <package>/workflows/solo: the "Solo" mode. */
+export const SOLO_WORKFLOW_DIR = modeDir(SOLO_MODE);
 /** A repo's own TaskPilot files: the workflow override (workflow.yml plus its prompt files) and settings.yml. */
 export const OVERRIDE_DIR = ".taskpilot";
 export { WORKFLOW_FILE };
@@ -75,7 +75,7 @@ export function resolveMode(info: OverrideInfo, selected?: string): string {
   if (selected === CUSTOM_MODE ? info.kind === "legacy" : isMode(selected)) return selected!;
   if (info.kind === "legacy") return CUSTOM_MODE;
   if (info.kind === "extends") return info.extends;
-  return DEFAULT_MODE;
+  return SOLO_MODE;
 }
 
 /** Whether the override takes part in `mode`: a legacy one is the mode "custom", an `extends` one applies to its own mode only. */
@@ -136,7 +136,7 @@ export async function loadWorkflow(repo: string, mode?: string, selected?: strin
 
 /** The mode of a workflow snapshot; one saved before modes existed is "custom" if it was the repo's override, else the default. */
 export function modeOf(def: WorkflowDef): NonNullable<WorkflowDef["mode"]> {
-  return def.mode ?? (def.origin === "repo" ? { id: CUSTOM_MODE, name: t("workflow.customMode"), override: true } : { id: DEFAULT_MODE, name: t("workflow.defaultMode"), override: false });
+  return def.mode ?? (def.origin === "repo" ? { id: CUSTOM_MODE, name: t("workflow.customMode"), override: true } : { id: SOLO_MODE, name: t("workflow.soloMode"), override: false });
 }
 
 /** workflow.yml and the prompt files of a workflow directory, by name. */

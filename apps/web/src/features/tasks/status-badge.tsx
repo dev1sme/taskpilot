@@ -1,5 +1,5 @@
 import type { TaskListItem } from "@taskpilot/server/api-types";
-import { CheckCircle, Circle, CircleNotch, Diamond, HandPalm, Question, WarningCircle, type Icon } from "@phosphor-icons/react";
+import { CheckCircle, Circle, PlayCircle, Diamond, HandPalm, Question, WarningCircle, type Icon } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { statusOf, type StatusKind, type Tone } from "./status";
 
@@ -8,7 +8,7 @@ const ICON: Record<StatusKind, Icon> = {
   gate: Diamond,
   waiting: Question,
   interrupted: WarningCircle,
-  running: CircleNotch,
+  running: PlayCircle,
   done: CheckCircle,
   new: Circle,
   progress: Circle,
@@ -23,7 +23,7 @@ export function StatusBadge({ task, className }: { task: TaskListItem; className
   const Icon = ICON[status.kind];
   return (
     <Badge tone={TONE[status.tone]} title={status.title} className={className}>
-      <Icon weight={status.tone === "attention" || status.kind === "done" ? "fill" : "bold"} className={status.kind === "running" ? "animate-spin" : undefined} aria-hidden />
+      <Icon weight={status.tone === "attention" || status.kind === "done" ? "fill" : "bold"} aria-hidden />
       {status.label}
     </Badge>
   );

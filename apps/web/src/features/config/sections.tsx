@@ -14,11 +14,11 @@ type Section = "memory" | "settings" | "hooks" | "agents" | "commands" | "skills
 export function SectionView({ section, cli, onEditRaw }: { section: Section; cli: ProviderId; onEditRaw: EditRaw }) {
   switch (section) {
     case "memory":
-      return <MemoryView cli={cli} onEditRaw={onEditRaw} />;
+      return <MemoryView cli={cli} />;
     case "settings":
-      return <SettingsView cli={cli} onEditRaw={onEditRaw} />;
+      return <SettingsView cli={cli} />;
     case "hooks":
-      return <HooksView cli={cli} onEditRaw={onEditRaw} />;
+      return <HooksView cli={cli} />;
     case "mcp":
       return <McpView cli={cli} onEditRaw={onEditRaw} />;
     default:
@@ -38,7 +38,7 @@ function Loading({ error, children }: { error: Error | null; children: ReactNode
 }
 
 /** One file of the section: its scope, path and an edit link. */
-function FileCard({ scope, path, exists, onEdit, children, error }: { scope: ConfigScope; path: string; exists: boolean; onEdit: () => void; children?: ReactNode; error?: string }) {
+function FileCard({ scope, path, exists, onEdit, children, error }: { scope: ConfigScope; path: string; exists: boolean; onEdit?: () => void; children?: ReactNode; error?: string }) {
   const { t } = useTranslation("config");
   return (
     <section className="grid gap-3 rounded-md border border-line bg-surface p-4">
@@ -46,10 +46,12 @@ function FileCard({ scope, path, exists, onEdit, children, error }: { scope: Con
         <Badge>{t(`scope.${scope}`)}</Badge>
         <code className="min-w-0 flex-1 truncate bg-transparent px-0 text-sm">{path}</code>
         {!exists && <span className="text-xs text-faint">{t("missing")}</span>}
-        <Button size="sm" variant="ghost" onClick={onEdit}>
-          <PencilSimple aria-hidden />
-          {t("editRaw")}
-        </Button>
+        {onEdit && (
+          <Button size="sm" variant="ghost" onClick={onEdit}>
+            <PencilSimple aria-hidden />
+            {t("editRaw")}
+          </Button>
+        )}
       </header>
       {error && (
         <p role="alert" className="text-sm text-danger">
@@ -75,7 +77,7 @@ function Chips({ label, items }: { label: string; items: string[] }) {
   );
 }
 
-function MemoryView({ cli, onEditRaw }: { cli: ProviderId; onEditRaw: EditRaw }) {
+function MemoryView({ cli }: { cli: ProviderId }) {
   const { t } = useTranslation("config");
   const query = useSection<MemoryFile[]>("memory", cli);
   return (
@@ -83,7 +85,7 @@ function MemoryView({ cli, onEditRaw }: { cli: ProviderId; onEditRaw: EditRaw })
       {query.data && (
         <div className="grid gap-4">
           {query.data.map((file) => (
-            <FileCard key={file.scope} scope={file.scope} path={file.path} exists={file.exists} onEdit={() => onEditRaw(file.scope)}>
+            <FileCard key={file.scope} scope={file.scope} path={file.path} exists={file.exists}>
               {file.exists && (
                 <>
                   <p className="text-xs text-muted">{t("memory.lines", { count: file.lines })}</p>
@@ -119,7 +121,7 @@ function MemoryView({ cli, onEditRaw }: { cli: ProviderId; onEditRaw: EditRaw })
   );
 }
 
-function SettingsView({ cli, onEditRaw }: { cli: ProviderId; onEditRaw: EditRaw }) {
+function SettingsView({ cli }: { cli: ProviderId }) {
   const { t } = useTranslation("config");
   const query = useSection<Array<SettingsFile | NativeSettingsFile>>("settings", cli);
   return (
@@ -127,7 +129,7 @@ function SettingsView({ cli, onEditRaw }: { cli: ProviderId; onEditRaw: EditRaw 
       {query.data && (
         <div className="grid gap-4">
           {query.data.map((file) => (
-            <FileCard key={file.scope} scope={file.scope} path={file.path} exists={file.exists} error={file.error} onEdit={() => onEditRaw(file.scope)}>
+            <FileCard key={file.scope} scope={file.scope} path={file.path} exists={file.exists} error={file.error}>
               {"fields" in file ? (
                 <dl className="grid gap-1 text-sm sm:grid-cols-2">
                   {Object.entries(file.fields).map(([key, value]) => (
@@ -162,7 +164,7 @@ function SettingsView({ cli, onEditRaw }: { cli: ProviderId; onEditRaw: EditRaw 
   );
 }
 
-function HooksView({ cli, onEditRaw }: { cli: ProviderId; onEditRaw: EditRaw }) {
+function HooksView({ cli }: { cli: ProviderId }) {
   const { t } = useTranslation("config");
   const query = useSection<Array<HookEntry | HookFile>>("hooks", cli);
   const data = query.data;
@@ -173,7 +175,7 @@ function HooksView({ cli, onEditRaw }: { cli: ProviderId; onEditRaw: EditRaw }) 
     ) : (
       <div className="grid gap-4">
         {files.map((file) => (
-          <FileCard key={`${file.scope}:${file.name}`} scope={file.scope} path={file.path} exists error={file.error} onEdit={() => onEditRaw(file.scope, file.name)}>
+          <FileCard key={`${file.scope}:${file.name}`} scope={file.scope} path={file.path} exists error={file.error}>
             <HookTable
               rows={file.hooks.map((h) => ({
                 event: h.event,
@@ -198,7 +200,7 @@ function HooksView({ cli, onEditRaw }: { cli: ProviderId; onEditRaw: EditRaw }) 
         ) : (
           <div className="grid gap-4">
             {[...byScope.values()].map((rows) => (
-              <FileCard key={rows[0].file} scope={rows[0].scope} path={rows[0].file} exists onEdit={() => onEditRaw(rows[0].scope)}>
+              <FileCard key={rows[0].file} scope={rows[0].scope} path={rows[0].file} exists>
                 <HookTable rows={rows} />
               </FileCard>
             ))}

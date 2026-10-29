@@ -55,7 +55,6 @@
     "button": "Hạn mức",
     "buttonTitle": "Hạn mức tài khoản của các agent",
     "title": "Hạn mức tài khoản",
-    "hint": "Số liệu của cả tài khoản, không riêng TaskPilot. Claude cập nhật qua status line của session.",
     "none": "Chưa có số liệu. Claude báo hạn mức khi một session chạy; Copilot và Codex được hỏi định kỳ khi đã cài.",
     "fiveHour": "5 giờ",
     "sevenDay": "7 ngày",
@@ -106,6 +105,15 @@
     "hooks": "Hooks",
     "permissions": "Quyền",
     "allowDeny": "{{allow}} cho phép · {{deny}} chặn",
-    "usage": "Hạn mức"
+    "usage": "Hạn mức",
+    "provider": "Provider cấu hình",
+    "configScopes": "Cấu hình theo provider · Project, Local và Global.",
+    "providerConfig": "Cấu hình {{provider}}"
+  },
+  "cliInfo": {
+    "button": "CLI",
+    "title": "Phiên bản CLI",
+    "hint": "Phiên bản CLI trên máy chạy TaskPilot.",
+    "missing": "Chưa cài đặt"
   }
 }

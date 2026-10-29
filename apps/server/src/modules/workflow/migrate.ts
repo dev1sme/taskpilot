@@ -2,7 +2,7 @@ import { parse, stringify } from "yaml";
 import { t } from "../../core/i18n.js";
 import { parseWorkflowFiles } from "./definition.js";
 import { mergeOverride } from "./merge.js";
-import { WORKFLOW_FILE } from "./modes.js";
+import { SOLO_MODE, WORKFLOW_FILE } from "./modes.js";
 
 type Doc = Record<string, unknown>;
 
@@ -21,7 +21,7 @@ export interface Migration {
   errors: string[];
 }
 
-/** Which mode a legacy workflow is closest to: `leader` when it has a dispatch step, else `default`. */
+/** Which mode a legacy workflow is closest to: `leader` when it has a dispatch step, else `solo`. */
 export function guessBase(legacy: Map<string, string>): string {
   try {
     const doc: unknown = parse(legacy.get(WORKFLOW_FILE) ?? "");
@@ -29,7 +29,7 @@ export function guessBase(legacy: Map<string, string>): string {
   } catch {
     // Left to the parser's own error.
   }
-  return "default";
+  return SOLO_MODE;
 }
 
 /**

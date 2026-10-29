@@ -9,7 +9,7 @@ import type { ModeInfo } from "./types.js";
 export const WORKFLOWS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../workflows");
 /** The mode that runs when a repo chose nothing and has no override. */
 export const WORKFLOW_FILE = "workflow.yml";
-export const DEFAULT_MODE = "default";
+export const SOLO_MODE = "solo";
 /** The mode of a legacy override (one without `extends`): the repo's own complete workflow. */
 export const CUSTOM_MODE = "custom";
 const MODE_ID = /^[a-z][a-z0-9-]*$/;
@@ -23,7 +23,7 @@ export function isMode(id: unknown): id is string {
   return typeof id === "string" && MODE_ID.test(id) && existsSync(path.join(modeDir(id), WORKFLOW_FILE));
 }
 
-/** Every directory of workflows/ with a workflow.yml, `default` first, the others by id. */
+/** Every directory of workflows/ with a workflow.yml, `solo` first, the others by id. */
 export async function listModes(): Promise<ModeInfo[]> {
   const names = await readdir(WORKFLOWS_DIR).catch(() => [] as string[]);
   const modes: ModeInfo[] = [];
@@ -42,5 +42,5 @@ export async function listModes(): Promise<ModeInfo[]> {
       description: typeof meta.description === "string" ? meta.description.trim() : "",
     });
   }
-  return modes.sort((a, b) => Number(b.id === DEFAULT_MODE) - Number(a.id === DEFAULT_MODE));
+  return modes.sort((a, b) => Number(b.id === SOLO_MODE) - Number(a.id === SOLO_MODE));
 }

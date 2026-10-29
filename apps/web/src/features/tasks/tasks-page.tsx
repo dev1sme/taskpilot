@@ -1,5 +1,5 @@
 import type { TaskListItem } from "@taskpilot/server/api-types";
-import { ArrowUUpLeft, CheckCircle, MagnifyingGlass, X } from "@phosphor-icons/react";
+import { ArrowUUpLeft, CheckCircle, HandPalm, ListBullets, MagnifyingGlass, PlayCircle, Stack, X, type Icon } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
@@ -10,18 +10,26 @@ import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useRepo, useTasks } from "@/features/workspace/queries";
+import { cn } from "@/lib/utils";
 import { clockTime } from "@/lib/time";
 import { stored } from "@/lib/use-media";
 import { useSetTaskDone } from "./queries";
 import { fold, matchesFilter, runActive, sortTasks, statusOf, type TaskFilter } from "./status";
 import { StatusBadge } from "./status-badge";
 
-const FILTERS: TaskFilter[] = ["open", "attention", "running", "done", "all"];
+const FILTERS: TaskFilter[] = ["all", "attention", "running", "open", "done"];
+const FILTER_STYLE: Record<TaskFilter, { icon: Icon; iconClass: string; selected: string }> = {
+  all: { icon: ListBullets, iconClass: "", selected: "" },
+  attention: { icon: HandPalm, iconClass: "text-attention", selected: "data-[state=on]:border-attention-line data-[state=on]:bg-attention-soft data-[state=on]:text-attention" },
+  running: { icon: PlayCircle, iconClass: "text-signal-text", selected: "data-[state=on]:bg-signal-soft data-[state=on]:text-signal-text" },
+  open: { icon: Stack, iconClass: "text-cat-read", selected: "data-[state=on]:bg-cat-read/10 data-[state=on]:text-cat-read" },
+  done: { icon: CheckCircle, iconClass: "text-done", selected: "data-[state=on]:bg-done-soft data-[state=on]:text-done" },
+};
 const FILTER_KEY = "taskpilot.tasks.filter";
 
 const storedFilter = (): TaskFilter => {
   const value = stored.get(FILTER_KEY);
-  return FILTERS.includes(value as TaskFilter) ? (value as TaskFilter) : "open";
+  return FILTERS.includes(value as TaskFilter) ? (value as TaskFilter) : "all";
 };
 
 /** Every task of the repo: search, quick filters, needs-you first and done last. */
@@ -51,12 +59,16 @@ export function TasksPage() {
             <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("page.search.placeholder")} aria-label={t("page.search.label")} className="pl-9" />
           </div>
           <ToggleGroup type="single" value={filter} onValueChange={pick} aria-label={t("page.filter.label")}>
-            {FILTERS.map((f) => (
-              <ToggleGroupItem key={f} value={f}>
-                {t(`page.filter.${f}`)}
-                <span className="rounded-full bg-sunken px-1.5 text-xs text-muted tabular-nums">{tasks.filter((task) => matchesFilter(task, f) && matchesSearch(task)).length}</span>
-              </ToggleGroupItem>
-            ))}
+            {FILTERS.map((f) => {
+              const { icon: Icon, iconClass, selected } = FILTER_STYLE[f];
+              return (
+                <ToggleGroupItem key={f} value={f} className={cn("min-h-11 sm:min-h-8", selected)}>
+                  <Icon size={16} className={cn("shrink-0", iconClass)} aria-hidden />
+                  {t(`page.filter.${f}`)}
+                  <span className="rounded-full bg-sunken px-1.5 text-xs tabular-nums">{tasks.filter((task) => matchesFilter(task, f) && matchesSearch(task)).length}</span>
+                </ToggleGroupItem>
+              );
+            })}
           </ToggleGroup>
         </div>
       )}
@@ -100,7 +112,7 @@ function TaskList({ tasks }: { tasks: TaskListItem[] }) {
   return (
     <div role="table" aria-label={t("page.title")} className="px-2 py-2 sm:px-4">
       <div role="rowgroup" className="hidden md:block">
-        <div role="row" className="grid grid-cols-[10rem_minmax(0,1fr)_8rem_10rem] gap-4 px-3 py-2 text-xs font-medium text-faint">
+        <div role="row" className="grid grid-cols-[10rem_minmax(0,1fr)_8rem_3rem] gap-4 px-3 py-2 text-xs font-medium text-faint">
           <span role="columnheader">{t("page.col.status")}</span>
           <span role="columnheader">{t("page.col.task")}</span>
           <span role="columnheader">{t("page.col.updated")}</span>
@@ -123,7 +135,7 @@ function TaskRow({ task }: { task: TaskListItem }) {
   return (
     <div
       role="row"
-      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-md border border-transparent px-3 py-2.5 hover:border-line hover:bg-surface md:grid-cols-[10rem_minmax(0,1fr)_8rem_10rem] md:gap-4"
+      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-md border border-transparent px-3 py-2.5 hover:border-line hover:bg-surface md:grid-cols-[10rem_minmax(0,1fr)_8rem_3rem] md:gap-4"
     >
       <span role="cell" className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 md:col-auto md:row-auto">
         <StatusBadge task={task} />
@@ -153,14 +165,14 @@ function DoneButton({ task, done }: { task: TaskListItem; done: boolean }) {
   const button = (
     <Button
       variant="ghost"
-      size="sm"
+      size="icon-sm"
+      className="size-11 sm:size-8"
       busy={setDone.isPending}
       disabled={active}
       aria-label={done ? t("page.action.reopenLabel", { key: task.key }) : t("page.action.markDoneLabel", { key: task.key })}
       onClick={() => setDone.mutate({ key: task.key, done: !done }, { onError: (e) => toast.error(e.message) })}
     >
-      {done ? <ArrowUUpLeft aria-hidden /> : <CheckCircle aria-hidden />}
-      <span className="hidden sm:inline">{done ? t("page.action.reopen") : t("page.action.markDone")}</span>
+      {!setDone.isPending && (done ? <ArrowUUpLeft aria-hidden /> : <CheckCircle aria-hidden />)}
     </Button>
   );
   // A disabled button gets no pointer events; the wrapper carries the reason.
@@ -171,6 +183,6 @@ function DoneButton({ task, done }: { task: TaskListItem; done: boolean }) {
       </span>
     </Tooltip>
   ) : (
-    button
+    <Tooltip content={done ? t("page.action.reopenLabel", { key: task.key }) : t("page.action.markDoneLabel", { key: task.key })}>{button}</Tooltip>
   );
 }

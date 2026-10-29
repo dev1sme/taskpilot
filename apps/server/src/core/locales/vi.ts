@@ -46,7 +46,7 @@ export default {
     activeForDone: "Huỷ quy trình trước khi đánh dấu xong hoặc mở lại task.",
   },
   workflow: {
-    defaultMode: "Mặc định",
+    soloMode: "Solo",
     customMode: "Override của repo (toàn bộ)",
   },
   activity: {
